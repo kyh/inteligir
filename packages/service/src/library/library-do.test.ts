@@ -23,10 +23,11 @@ import {
   placed,
   refusalOf,
 } from "../test-support/library-cell";
+import { removalsOf } from "../test-support/library-files";
 import { threadHolds, threadOf } from "../test-support/agent-turns";
 import { SCHEMA_HASH_KEY } from "../object-schema";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
-import { accountBlobPrefix, blobKey } from "./cell-blobs";
+import { accountBlobPrefix, blobKey, reserve, settle } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
 import { scheduleJob } from "./cell-jobs";
 import type { CellRefusal } from "./cell-refusal";
@@ -283,11 +284,11 @@ describe("the library cell", () => {
         bytesCap: state.storage.sql.databaseSize + 1000,
         clock: clockAt(),
       });
-      landedValue(library.reserve({ bytes: 5, mime: "image/png", sha: SHA }));
-      const removalsSeen = library.blobRemovals();
+      landedValue(reserve(library, { bytes: 5, mime: "image/png", sha: SHA }));
+      const removalsSeen = removalsOf(library);
       // the device sent more than the cap leaves room for
       await env.BLOBS.put(key, "x".repeat(10_000));
-      const refused = library.settle(SHA, { bytes: 10_000, mime: "image/png" }, removalsSeen);
+      const refused = settle(library, SHA, { bytes: 10_000, mime: "image/png" }, removalsSeen);
       expect(refusalOf(refused)).toMatchObject({ kind: "quota" });
       // the removal is due; the alarm is held a minute out so the test runs it, not the clock
       await state.storage.setAlarm(Date.now() + 60_000);

@@ -9,8 +9,10 @@
 // it otherwise.
 
 import { and, eq, exists, inArray, notExists, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readCellState, writeCellState } from "./library-queries";
 
@@ -19,6 +21,8 @@ import type { CellDb } from "./cell-db";
 import { dropJob, ensureJob, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob, JobRequest } from "./cell-jobs";
 import { holdRoomFor } from "./cell-quota";
+import type { CellResult } from "./cell-refusal";
+import type { LibraryEngine } from "./library-engine";
 
 export const blobKey = (accountId: string, sha: string): string => `acct/${accountId}/b/${sha}`;
 
@@ -206,8 +210,7 @@ export interface UploadRoom {
   readonly held: boolean;
 }
 
-// room for a file a device is about to upload
-export const reserveUpload = (
+const reserveUpload = (
   db: CellDb,
   bytesCap: number,
   request: UploadRequest,
@@ -280,7 +283,7 @@ export const releaseUpload = (db: CellDb, sha: string, now: number): void => {
 };
 
 // an upload the cell would not take: its room goes, and so do its bytes in R2
-export const refuseUpload = (db: CellDb, sha: string, now: number): void => {
+const refuseUpload = (db: CellDb, sha: string, now: number): void => {
   releaseHeld(db, sha);
   strand(db, sha, now);
 };
@@ -359,12 +362,12 @@ export interface StoredObject {
 // What a settle found. `held`: a file row holds the sha. Nothing landed otherwise: `absent`, R2
 // held nothing, so the upload's room went back; `removing`, a stray's removal of the sha waits;
 // `stale`, a removal ended after R2 was read, so what R2 showed may be gone and a fresh look says
-export const SETTLEMENTS = ["held", "absent", "removing", "stale"] as const;
+const SETTLEMENTS = ["held", "absent", "removing", "stale"] as const;
 export type Settlement = (typeof SETTLEMENTS)[number];
 
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
 // in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read
-export const settleUpload = (
+const settleUpload = (
   db: CellDb,
   bytesCap: number,
   upload: {
@@ -396,4 +399,69 @@ export const settleUpload = (
     .run();
   awaitName(db, sha, now);
   return "held";
+};
+
+// ---- an upload, through the engine ----
+
+const roomSchema = z.object({ held: z.boolean() });
+
+// room for a file a device is about to upload
+export const reserve = (library: LibraryEngine, request: UploadRequest): CellResult<UploadRoom> =>
+  library.landApart({ answer: roomSchema, opId: undefined }, (scope) =>
+    reserveUpload(scope.db, scope.bytesCap, request, scope.now),
+  );
+
+// the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
+// bytes past the quota go from R2 again
+export const settle = (
+  library: LibraryEngine,
+  sha: string,
+  stored: StoredObject | null,
+  removalsSeen: number,
+): CellResult<Settlement> => {
+  const settled = library.landApart({ answer: z.enum(SETTLEMENTS), opId: undefined }, (scope) =>
+    settleUpload(scope.db, scope.bytesCap, { removalsSeen, sha, stored }, scope.now),
+  );
+  if (!settled.ok && settled.refusal.kind === "quota") {
+    library.rows((db, now) => {
+      refuseUpload(db, sha, now);
+    });
+  }
+  return settled;
+};
+
+// a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's
+// record after this await, so nothing read before it is trusted but the count of stray removals,
+// which tells it whether one ran meanwhile. One that did is most often another file's, so R2 is
+// read once more before the device is asked to send again. Every writer settles here, a device's
+// upload and a page's file the fill kept, so this is where bytes that took their room before the
+// account's tombstone and reached R2 after its files went are taken out again: nothing under a
+// deleted account's prefix stays (`./account-purge`)
+export const settleStored = async (
+  env: Env,
+  accountId: string,
+  library: LibraryEngine,
+  sha: string,
+): Promise<CellResult<Settlement>> => {
+  const key = blobKey(accountId, sha);
+  const look = async (): Promise<CellResult<Settlement>> => {
+    const removalsSeen = library.read(blobRemovals);
+    if (!removalsSeen.ok) {
+      return removalsSeen;
+    }
+    const object = await env.BLOBS.head(key);
+    const stored =
+      object === null
+        ? null
+        : { bytes: object.size, mime: object.httpMetadata?.contentType ?? UNKNOWN_FILE_TYPE };
+    return settle(library, sha, stored, removalsSeen.value);
+  };
+  let settled = await look();
+  if (settled.ok && settled.value === "stale") {
+    settled = await look();
+  }
+  if (!settled.ok && settled.refusal.kind === "gone") {
+    await env.BLOBS.delete(key);
+  }
+  return settled;
 };

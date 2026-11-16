@@ -14,6 +14,7 @@ import {
   placed,
   storedItemOf,
   undoFields,
+  writeItem,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
@@ -38,7 +39,7 @@ const agentSet = (state: DurableObjectState): string =>
     .parse(state.storage.sql.exec("SELECT id FROM change_sets WHERE actor = 'agent'").one().id);
 
 const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: FieldOp): void => {
-  landedValue(library.write(actor, { itemId, ops: [op] }));
+  landedValue(writeItem(library, actor, { itemId, ops: [op] }));
 };
 
 describe("the change-set prune", () => {

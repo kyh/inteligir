@@ -54,18 +54,22 @@ export type Landing =
       readonly seed: readonly BodyBlock[] | null;
     };
 
-// what a write lands under: its one sequence number and time, and its actor's set, each taken on
-// the first landing so a write that lands nothing moves nothing; and what it moved, for the sockets
-export interface LandingScope {
+// what a write lands under: its time and its one sequence number, taken on the first landing so a
+// write that lands nothing moves nothing; and what it moved, for the sockets
+export interface WriteScope {
   readonly db: CellDb;
   readonly bytesCap: number;
   readonly now: number;
   readonly seq: () => number;
-  readonly set: () => OpenSet;
   readonly moved: MovedCollector;
   // a part of the write that lands whole or not at all while the write goes on: what it wrote is
   // taken back when a rule refuses it, and the refusal answered
   readonly attempt: <T>(part: () => T) => CellResult<T>;
+}
+
+// a write that changes items, and so joins a change set, taken on the first landing too
+export interface ItemScope extends WriteScope {
+  readonly set: () => OpenSet;
 }
 
 // the words a field holds, which grow the library as a block does. A stamp, a state, a place, a sha
@@ -166,7 +170,7 @@ interface Checked {
 }
 
 // every rule a landing meets, before anything is written: a refusal leaves nothing to roll back
-const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
+const checkLanding = (scope: ItemScope, landing: Landing): Checked => {
   const { db } = scope;
   const { before, fields, itemId } = landing;
   if (!libraryItemFieldsSchema.validate(fields)) {
@@ -197,7 +201,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
 };
 
 // the row the item lands as; refuses a change no rule admits, before anything is written
-export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => {
+export const landItem = (scope: ItemScope, landing: Landing): LiveItemRow => {
   const { db } = scope;
   const { before, fields, itemId } = landing;
   const { derived, landed, priorShas, shas } = checkLanding(scope, landing);

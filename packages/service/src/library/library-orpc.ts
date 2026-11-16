@@ -25,12 +25,12 @@ import { libraryTools } from "../connector/library-tools";
 import type { NoteReach } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
 import type { CellDb } from "./cell-db";
-import type { LandingScope } from "./cell-landing";
+import type { ItemScope, WriteScope } from "./cell-landing";
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import type { Built, LibraryEngine, WriteRequest } from "./library-engine";
 
 export interface CellContext {
-  // the engine itself, for a write no verb shapes: an undo, a purge, one that waits on a note
+  // the engine itself, for a write no verb shapes: an undo, one that waits on a note
   readonly library: LibraryEngine;
   // the built-in agent's turns, which `library.agent.*` asks of
   readonly agent: AgentCell;
@@ -45,12 +45,13 @@ export interface CellContext {
   // a write by the call's actor, joining its change set
   readonly land: <S extends z.ZodType>(
     request: WriteRequest<S>,
-    work: (scope: LandingScope, actor: CellActor) => Built<z.input<S>>,
+    work: (scope: ItemScope, actor: CellActor) => Built<z.input<S>>,
   ) => z.output<S>;
-  // a write that touches no item, so joins no set: a folder, the filing rules
+  // a write that joins no set, since Undo takes nothing of it back: a folder, the filing rules,
+  // a purge
   readonly landApart: <S extends z.ZodType>(
     request: WriteRequest<S>,
-    work: (scope: LandingScope) => Built<z.input<S>>,
+    work: (scope: WriteScope) => Built<z.input<S>>,
   ) => z.output<S>;
 }
 

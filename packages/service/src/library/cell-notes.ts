@@ -19,7 +19,7 @@ import { bodyWriter, dropSeed, readSeedBlocks, storeBodyText, writtenByNote } fr
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import { waitingPayloads } from "./cell-jobs";
-import type { LandingScope } from "./cell-landing";
+import type { WriteScope } from "./cell-landing";
 import { storeSearchRow } from "../search/search-index";
 import { readItem, storeLinks, storeTags } from "./library-queries";
 
@@ -87,7 +87,7 @@ const linksMoved = (db: CellDb, itemId: string, next: readonly DerivedLink[]): b
 // note's word that it holds the body, so the seed goes with it. Files the library does not hold
 // are left out of the item's files, as an embed of bytes never uploaded names nothing.
 export const landProjection = (
-  scope: LandingScope,
+  scope: WriteScope,
   itemId: string,
   projection: NoteProjection,
 ): ProjectAnswer => {

@@ -19,7 +19,7 @@ import {
 import type { CellActor } from "../library/cell-actor";
 import { excluded } from "../library/cell-db";
 import type { CellDb } from "../library/cell-db";
-import type { LandingScope } from "../library/cell-landing";
+import type { WriteScope } from "../library/cell-landing";
 import { offsetOf } from "../library/cell-reads";
 import { refuse } from "../library/cell-refusal";
 
@@ -52,7 +52,7 @@ const titleOf = (text: string): string => {
   return trimmed.length > TITLE_MAX ? `${trimmed.slice(0, TITLE_MAX - 1)}…` : trimmed;
 };
 
-export const createThread = (scope: LandingScope, threadId: string, text: string): void => {
+export const createThread = (scope: WriteScope, threadId: string, text: string): void => {
   scope.db
     .insert(threads)
     .values({
@@ -94,7 +94,7 @@ export const listThreads = (
 };
 
 // the thread and every event it stored
-export const deleteThread = (scope: LandingScope, threadId: string): void => {
+export const deleteThread = (scope: WriteScope, threadId: string): void => {
   scope.db.delete(threadEvents).where(eq(threadEvents.threadId, threadId)).run();
   scope.db.delete(threads).where(eq(threads.id, threadId)).run();
   scope.moved.thread(threadId);
@@ -238,7 +238,7 @@ export const threadStatusOf = (rows: {
 };
 
 // the thread's status as its rows say it now, after any change to its turn or its queue
-export const restatus = (scope: LandingScope, threadId: string): void => {
+export const restatus = (scope: WriteScope, threadId: string): void => {
   const { db } = scope;
   const held = storedStatus(db, threadId);
   const status = threadStatusOf({

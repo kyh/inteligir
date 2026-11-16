@@ -21,16 +21,21 @@ import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
+import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
+import type { NoteProjection } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
-import type { LandingScope, LiveItemRow } from "./cell-landing";
+import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
+import { landProjection } from "./cell-notes";
+import type { CellResult } from "./cell-refusal";
 import { changes, landRead, pageFieldOps } from "./cell-saves";
 import { setSealed } from "./change-sets";
 import { landWrite } from "./cell-writes";
+import type { LibraryEngine } from "./library-engine";
 
 // who a page's reading is by, in its change set's words
 export const FILL_ACTOR: CellActor = { kind: "fill", label: "Read from the web" };
@@ -82,7 +87,7 @@ const waitsForFill = (
 // one an import brought, one back from Deleted. A deleted item asks nothing, since the queue would
 // let the reading go, and its way back asks again
 export const askFill = (
-  scope: LandingScope,
+  scope: WriteScope,
   item: LiveItemRow,
   coverHint: string | null = null,
 ): void => {
@@ -99,7 +104,7 @@ export const askFill = (
 // within the turn the agent could otherwise save a page, read what it says and act on it, a web
 // reader it was never given. The row names the turn's change set, which the seal re-times
 export const askFillAfterTurn = (
-  scope: LandingScope,
+  scope: WriteScope,
   item: LiveItemRow,
   changeSetId: string,
 ): void => {
@@ -210,7 +215,7 @@ export const fillWaits = (db: CellDb, itemId: string, url: string): boolean =>
   waiting(readItem(db, itemId), url);
 
 // the files a reading kept in the library on its way (`../fill/store-file`)
-export const readingFiles = (landing: FillLanding): string[] => {
+const readingFiles = (landing: FillLanding): string[] => {
   switch (landing.kind) {
     case "read": {
       return landing.coverSha === null ? [] : [landing.coverSha];
@@ -225,11 +230,7 @@ export const readingFiles = (landing: FillLanding): string[] => {
   }
 };
 
-export const landFill = (
-  scope: LandingScope,
-  landing: FillLanding,
-  articleInNote: boolean,
-): FillLanded => {
+const landFill = (scope: ItemScope, landing: FillLanding, articleInNote: boolean): FillLanded => {
   const item = readItem(scope.db, landing.itemId);
   if (!waiting(item, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
@@ -275,4 +276,31 @@ export const landFill = (
     }
     // no default
   }
+};
+
+// A page the cloud read, landed as a change set of the fill's own; an article its note already
+// took lands as the note's projection. When the library would not take it, the alarm lets go at
+// once what it kept that no item names; a reading its note is yet to take lands again.
+export const landReading = (
+  library: LibraryEngine,
+  landing: FillLanding,
+  inNote: NoteProjection | null,
+): CellResult<FillLanded> => {
+  const landed = library.land(
+    FILL_ACTOR,
+    { answer: fillLandedSchema, opId: undefined },
+    (scope) => {
+      const filled = landFill(scope, landing, inNote !== null);
+      if (inNote !== null) {
+        landProjection(scope, landing.itemId, inNote);
+      }
+      return filled;
+    },
+  );
+  if (!landed.ok && landed.refusal.kind !== "gone" && landed.refusal.kind !== "note-opened") {
+    library.rows((db, now) => {
+      hurryUnnamed(db, readingFiles(landing), now);
+    });
+  }
+  return landed;
 };

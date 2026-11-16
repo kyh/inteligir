@@ -25,7 +25,7 @@ import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landItem, urlHolder } from "./cell-landing";
-import type { LandingScope, LiveItemRow } from "./cell-landing";
+import type { ItemScope, LiveItemRow } from "./cell-landing";
 import { landNew, noteBlocksOf } from "./cell-items";
 import { refuse } from "./cell-refusal";
 import { landWrite, liveRowOf } from "./cell-writes";
@@ -37,7 +37,7 @@ export interface SavedItem {
 }
 
 // the live item a url's key names, if one does
-const heldItem = (scope: LandingScope, url: string): { readonly id: string } | null => {
+const heldItem = (scope: ItemScope, url: string): { readonly id: string } | null => {
   const key = urlKey(url);
   return key === null ? null : urlHolder(scope.db, key, null);
 };
@@ -94,7 +94,7 @@ export const pageFieldOps = (
 };
 
 // a page no live item holds the address of, as a new read item
-const newPage = (scope: LandingScope, input: SaveInput, note: readonly BodyBlock[]): LiveItemRow =>
+const newPage = (scope: ItemScope, input: SaveInput, note: readonly BodyBlock[]): LiveItemRow =>
   landNew(scope, {
     blocks: withArticle(note, input.article),
     fields: pageFields(input, scope.now),
@@ -105,7 +105,7 @@ const newPage = (scope: LandingScope, input: SaveInput, note: readonly BodyBlock
 // page that held none leaving the item's. A body its note writes takes no article here: the write
 // is refused, and lands again once the note took it (`articleInNote`).
 export const landRead = (
-  scope: LandingScope,
+  scope: ItemScope,
   item: StoredItem,
   page: Pick<ReadPage, "article"> & { readonly articleInNote: boolean },
   fieldOps: readonly FieldOp[],
@@ -138,7 +138,7 @@ const awaitsRead = (item: StoredItem): boolean => {
 // takes a read that found an article only while it has none of its own to lose; a read that found
 // none leaves a waiting item to the cloud's
 export const savePage = (
-  scope: LandingScope,
+  scope: ItemScope,
   codec: CellCodec,
   input: SaveInput & { readonly articleInNote: boolean },
 ): SavedItem => {
@@ -168,7 +168,7 @@ export interface SaveLinkInput {
 // a link no live item holds the address of, as an unread stub, `pending`, which the cloud reads
 // after the write
 const newStub = (
-  scope: LandingScope,
+  scope: ItemScope,
   ids: CellIds,
   input: SaveLinkInput,
   note: readonly BodyBlock[],
@@ -188,7 +188,7 @@ const newStub = (
 
 // a url to read later: the item that holds it as it stands, else an unread stub
 export const saveLink = (
-  scope: LandingScope,
+  scope: ItemScope,
   codec: CellCodec,
   ids: CellIds,
   input: SaveLinkInput,

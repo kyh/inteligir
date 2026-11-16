@@ -3,16 +3,25 @@
 // once nothing does it leaves the library, the quota and R2. And a file on its way in, settled
 // while the alarm takes another out.
 
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { pngOf } from "../fill/test-support/fill-cell";
-import { cellIn, cellOf, clockAt, inCell, landedValue, person } from "../test-support/library-cell";
+import {
+  cellIn,
+  cellOf,
+  clockAt,
+  inCell,
+  landedValue,
+  person,
+  writeItem,
+} from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
-import { blobKey } from "./cell-blobs";
+import { blobKey, reserve, settleStored } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
-import { removeStrays, settleStored } from "./cell-library";
+import { removeStrays } from "./cell-library";
 
 const DAY = 24 * 60 * 60_000;
 
@@ -55,7 +64,7 @@ const noteItem = async ({ client, clock, library }: Cell): Promise<string> => {
 
 const setCover = ({ library }: Cell, itemId: string, base: string | null, value: string): void => {
   landedValue(
-    library.write(person(), { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
+    writeItem(library, person(), { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
   );
 };
 
@@ -169,8 +178,8 @@ describe("a file nothing names any more", () => {
         await uploadedFile(library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      const write = (ops: Parameters<Cell["library"]["write"]>[1]["ops"]) =>
-        landedValue(library.write(FILL_ACTOR, { itemId: note, ops }));
+      const write = (ops: readonly FieldOp[]) =>
+        landedValue(writeItem(library, FILL_ACTOR, { itemId: note, ops }));
       // a reading's writes, each a set of its own: the second's before names the old cover
       write([{ base: null, field: "coverSha", op: "set", value: old }]);
       write([{ base: old, field: "coverSha", op: "set", value: fresh }]);
@@ -192,11 +201,11 @@ describe("a file settled while a removal runs", () => {
   it("lands on a second look in R2 when the removal that ended under the first was another file's", async () => {
     await inLibrary(async ({ accountId, clock, library }) => {
       // room nobody used is a stray an hour on, its removal due
-      landedValue(library.reserve({ bytes: 10, mime: "image/png", sha: "9".repeat(64) }));
+      landedValue(reserve(library, { bytes: 10, mime: "image/png", sha: "9".repeat(64) }));
       clock.now += 60 * 60_000;
       library.runDueJobs(() => {});
       const sha = "a".repeat(64);
-      landedValue(library.reserve({ bytes: 5, mime: "image/png", sha }));
+      landedValue(reserve(library, { bytes: 5, mime: "image/png", sha }));
       await env.BLOBS.put(blobKey(accountId, sha), "bytes", {
         httpMetadata: { contentType: "image/png" },
       });

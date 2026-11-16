@@ -15,7 +15,7 @@ import { titleKey } from "@repo/contract/library/derive-item";
 
 import { excluded } from "./cell-db";
 import type { CellDb } from "./cell-db";
-import type { LandingScope } from "./cell-landing";
+import type { WriteScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 
 type FolderOp = z.infer<typeof folderOpSchema>;
@@ -42,7 +42,7 @@ export const liveFolders = (db: CellDb): FolderRow[] =>
 
 const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === null ? row : null);
 
-const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRow => {
+const storeFolder = (scope: WriteScope, row: Omit<FolderRow, "seq">): FolderRow => {
   const folder = { ...row, seq: scope.seq() };
   scope.db
     .insert(folders)
@@ -81,7 +81,7 @@ const readerOf = (db: CellDb): FolderReader => ({
 
 // every op in order, each against the tree the ones before it left; one refusal lands none. The
 // answer is each folder the write changed, as it left it
-export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): FolderRow[] => {
+export const writeFolders = (scope: WriteScope, ops: readonly FolderOp[]): FolderRow[] => {
   const landed = new Map<string, FolderRow>();
   const reader = readerOf(scope.db);
   for (const op of ops) {
@@ -100,7 +100,7 @@ export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): Fol
 // to what a folder holds, since an import's paths come from a file and the contract read none of
 // them; undefined when the target leaves the item where it is
 export const folderOfTarget = (
-  scope: LandingScope,
+  scope: WriteScope,
   target: FolderTarget | undefined,
   newId: () => string,
 ): string | null | undefined => {

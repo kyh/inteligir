@@ -1,15 +1,10 @@
 // What the cell's alarm does around its engine's transactions, on the platform's bindings: the
-// jobs that wait on one, a reading's send to the fill queue and a stray file's removal from R2;
-// and a file's row settled once R2 holds its bytes.
-
-import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
+// jobs that wait on one, a reading's send to the fill queue and a stray file's removal from R2.
 
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";
-import type { Settlement } from "./cell-blobs";
 import type { ClaimedFill } from "./cell-fills";
 import type { DueJob } from "./cell-jobs";
-import type { CellResult } from "./cell-refusal";
 import { cellAccountId } from "./library-cell";
 import type { LibraryEngine } from "./library-engine";
 
@@ -38,42 +33,6 @@ export const sendFills = async (
     }
     library.fillsSent(lot);
   }
-};
-
-// a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's
-// record after this await, so nothing read before it is trusted but the count of stray removals,
-// which tells it whether one ran meanwhile. One that did is most often another file's, so R2 is
-// read once more before the device is asked to send again. Every writer settles here, a device's
-// upload and a page's file the fill kept, so this is where bytes that took their room before the
-// account's tombstone and reached R2 after its files went are taken out again: nothing under a
-// deleted account's prefix stays (`./account-purge`)
-export const settleStored = async (
-  env: Env,
-  accountId: string,
-  library: LibraryEngine,
-  sha: string,
-): Promise<CellResult<Settlement>> => {
-  const key = blobKey(accountId, sha);
-  const look = async (): Promise<CellResult<Settlement>> => {
-    const removalsSeen = library.blobRemovals();
-    const object = await env.BLOBS.head(key);
-    const stored =
-      object === null
-        ? null
-        : {
-            bytes: object.size,
-            mime: object.httpMetadata?.contentType ?? UNKNOWN_FILE_TYPE,
-          };
-    return library.settle(sha, stored, removalsSeen);
-  };
-  let settled = await look();
-  if (settled.ok && settled.value === "stale") {
-    settled = await look();
-  }
-  if (!settled.ok && settled.refusal.kind === "gone") {
-    await env.BLOBS.delete(key);
-  }
-  return settled;
 };
 
 export const logJobFailure = (job: DueJob, cause: unknown): void => {

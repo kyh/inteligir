@@ -79,6 +79,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   alarm in the turn it commits.** A follow-up each caller owes is one a new
   write forgets, and an alarm set after an await is lost with the isolate.
   `packages/service/src/library/library-engine.ts`.
+- **The engine guards a transaction and holds no rule: an op is its `cell-*`
+  module's, landed through `land`, `landApart` or `rows`.** A method per op is a
+  catalogue every new op grows, and only `land`'s scope has a change set, so a
+  write that joins none cannot ask for one.
+  `packages/service/src/library/library-engine.ts`.
 - **An alarm's run tells the sockets once, its writes' frames merged on a cell
   of its own.** Each job commits alone, so a frame a commit would wake every
   device once a job, and a flag on the wake's cell would hold a call's frame for

@@ -20,7 +20,7 @@ import type { CellDb } from "./cell-db";
 import { listChunks } from "./cell-db";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
-import type { LandingScope } from "./cell-landing";
+import type { ItemScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
 import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
@@ -152,7 +152,7 @@ export const mergeTurnUndos = (
 };
 
 // the undo's own set, named on each set it settled
-const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
+const markUndone = (scope: ItemScope, settled: readonly { readonly id: string }[]): string => {
   const undoSet = scope.set();
   for (const set of settled) {
     scope.db
@@ -165,7 +165,7 @@ const markUndone = (scope: LandingScope, settled: readonly { readonly id: string
 };
 
 export const undoChangeSets = (
-  scope: LandingScope,
+  scope: ItemScope,
   changeSetIds: readonly string[],
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {

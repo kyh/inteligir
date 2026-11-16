@@ -25,11 +25,12 @@ import {
   createNote,
   landNew,
   organizeItems,
+  purgeItems,
   refreshItem,
   setDeleted,
 } from "./cell-items";
 import { landProjection } from "./cell-notes";
-import type { LandingScope, LiveItemRow } from "./cell-landing";
+import type { ItemScope, LiveItemRow } from "./cell-landing";
 import { itemRow, itemWhole, listingPage } from "./cell-listing";
 import {
   listChangeSets,
@@ -41,8 +42,9 @@ import {
 } from "./cell-reads";
 import { saveLink, savePage } from "./cell-saves";
 import { mergeTurnUndos, planUndo } from "./cell-undo";
+import { landedSchema, landWrite } from "./cell-writes";
 import type { CellActor } from "./cell-actor";
-import { landedSchema, libraryHead } from "./library-engine";
+import { libraryHead } from "./library-engine";
 import { answer, os, PAGE_DEFAULT } from "./library-orpc";
 import type { CellContext } from "./library-orpc";
 
@@ -56,6 +58,7 @@ const changedSchema = z.object({
 const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
 const count = z.number().int().nonnegative();
 const importLandedSchema = z.object({ added: count, alreadySaved: count, unreadable: count });
+const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
@@ -75,7 +78,7 @@ const bodyOf = async (context: CellContext, itemId: string) => {
 
 // the cloud's reading of a link a write left waiting: a built-in agent's turn holds it until the
 // turn seals, so the agent never reads, within its turn, a page it saved
-const askReading = (scope: LandingScope, actor: CellActor, item: LiveItemRow): void => {
+const askReading = (scope: ItemScope, actor: CellActor, item: LiveItemRow): void => {
   if (actor.kind === "agent") {
     askFillAfterTurn(scope, item, scope.set().id);
   } else {
@@ -181,7 +184,9 @@ export const libraryRouter = os.router({
       return { items: items.map(summaryOfRow) };
     }),
     purge: os.items.purge.handler(({ context, input }) =>
-      answer(context.library.purgeItems(input)),
+      context.landApart({ answer: purgedSchema, opId: input.opId }, (scope) =>
+        purgeItems(scope, input.ids),
+      ),
     ),
     read: os.items.read.handler(async ({ context, input }) => {
       const blocks = await bodyOf(context, input.id);
@@ -272,6 +277,8 @@ export const libraryRouter = os.router({
     ),
   ),
   write: os.write.handler(({ context, input }) =>
-    answer(context.library.write(context.actor(), input)),
+    context.land({ answer: landedSchema, opId: input.opId }, (scope) => ({
+      item: landWrite(scope, input),
+    })),
   ),
 });

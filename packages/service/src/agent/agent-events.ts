@@ -9,7 +9,7 @@ import { and, asc, eq, gt, max } from "drizzle-orm";
 
 import { threadEvents } from "@repo/db/cell/schema";
 import type { CellDb } from "../library/cell-db";
-import type { LandingScope } from "../library/cell-landing";
+import type { WriteScope } from "../library/cell-landing";
 import { knownThread } from "./turn-rows";
 
 export const pushedEventId = (threadId: string, seq: number, index: number): string =>
@@ -20,7 +20,7 @@ export const turnEventId = (threadId: string, turn: number): string =>
 
 // the event kept as the thread's next, once: one kept before is left as it is
 export const storeEvent = (
-  scope: LandingScope,
+  scope: WriteScope,
   threadId: string,
   eventId: string,
   event: AgentEvent,

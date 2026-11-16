@@ -7,11 +7,11 @@ import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
 import { blobs } from "@repo/db/cell/schema";
-import { blobKey } from "../library/cell-blobs";
+import { blobKey, blobRemovals, reserve, settleStored } from "../library/cell-blobs";
 import { cellDbOf } from "../library/cell-db";
-import { settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
+import { landedValue } from "./library-cell";
 
 // what a put can meet that says nothing of its bytes, as the runtime throws it
 // (https://developers.cloudflare.com/r2/api/error-codes/), each with the name a test reads
@@ -32,7 +32,7 @@ export const uploadedFile = async (
   file: { readonly bytes: Uint8Array; readonly mime: string },
 ): Promise<string> => {
   const sha = await shaOf(file.bytes);
-  const room = library.reserve({ bytes: file.bytes.length, mime: file.mime, sha });
+  const room = reserve(library, { bytes: file.bytes.length, mime: file.mime, sha });
   if (!room.ok) {
     throw new Error(`the library refused the file: ${room.refusal.kind}`);
   }
@@ -46,6 +46,10 @@ export const uploadedFile = async (
   }
   return sha;
 };
+
+// the stray removals the cell has finished, as a settle reads them before it looks in R2
+export const removalsOf = (library: LibraryEngine): number =>
+  landedValue(library.read(blobRemovals));
 
 // a file's row of `bytes` that no upload made: what fills a library to its cap for a test
 export const holdFileOf = (storage: DurableObjectStorage, bytes: number): void => {

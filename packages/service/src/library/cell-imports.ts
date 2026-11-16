@@ -18,7 +18,7 @@ import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landNew, setDeleted } from "./cell-items";
 import { urlHolder } from "./cell-landing";
-import type { LandingScope } from "./cell-landing";
+import type { ItemScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 import { idTaken, readItem } from "./library-queries";
 
@@ -86,7 +86,7 @@ export const namedFiles = (db: CellDb, shas: readonly string[]) => {
   };
 };
 
-const landItem = (scope: LandingScope, ids: CellIds, item: ImportedItem): "added" | "held" => {
+const landItem = (scope: ItemScope, ids: CellIds, item: ImportedItem): "added" | "held" => {
   if (item.kind === "restore") {
     const restored = setDeleted(scope, { deleted: false, ids: [item.id] });
     for (const landed of restored.landed) {
@@ -110,7 +110,7 @@ const landItem = (scope: LandingScope, ids: CellIds, item: ImportedItem): "added
 
 // a batch, each item apart: a library too full for one refuses the whole batch, since the import
 // stops there, and any other refusal leaves that item out as unreadable
-export const landImported = (scope: LandingScope, ids: CellIds, batch: readonly ImportedItem[]) => {
+export const landImported = (scope: ItemScope, ids: CellIds, batch: readonly ImportedItem[]) => {
   const counts = { added: 0, alreadySaved: 0, unreadable: 0 };
   for (const item of batch) {
     const landed = scope.attempt(() => landItem(scope, ids, item));

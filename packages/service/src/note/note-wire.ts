@@ -33,7 +33,8 @@ export interface NoteProjection extends DerivedBody {
 }
 
 // `gone`: the item is purged or never was, so the note stops pushing
-export type ProjectAnswer = "landed" | "stale" | "gone";
+export const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
+export type ProjectAnswer = z.infer<typeof projectAnswerSchema>;
 
 // how a session's socket on a note opens: writable, read-only (the item is in Deleted), or not at all
 export type NoteOpening = "live" | "read" | "missing";

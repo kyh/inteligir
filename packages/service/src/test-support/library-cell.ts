@@ -19,7 +19,9 @@ import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
 import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
-import { landedSchema, libraryHead } from "../library/library-engine";
+import { landedSchema, landWrite } from "../library/cell-writes";
+import type { ItemWrite } from "../library/cell-writes";
+import { libraryHead } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
 import { libraryRouter } from "../library/library-router";
 import { openCell } from "../library/open-cell";
@@ -103,6 +105,16 @@ export const createItem = (
 ) =>
   library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
     item: landNew(scope, input),
+  }));
+
+// one item's field ops, landed as the library's own procedure lands them
+export const writeItem = (
+  library: LibraryEngine,
+  actor: CellActor,
+  input: ItemWrite & { readonly opId?: string },
+) =>
+  library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
+    item: landWrite(scope, input),
   }));
 
 // an undo of sets that wrote no note's body, so no note has anything to answer first
