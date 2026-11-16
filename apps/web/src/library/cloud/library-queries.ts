@@ -1,9 +1,9 @@
 // The library's reads as the cell answers them, each a TanStack query under oRPC's own key, so the
-// account's socket invalidates a family by its key (`use-library-socket.ts`) and a mutation patches
-// what a screen shows by the same keys.
+// account's socket invalidates a family by its key (`@repo/client/library-cache`) and a mutation
+// patches what a screen shows by the same keys.
 
 import type { InferClientOutputs } from "@orpc/client";
-import { PAGE_MAX } from "@repo/contract/library/library-wire";
+import { threadQueries } from "@repo/client/thread-queries";
 import type { V1Client } from "@repo/contract/v1";
 import { keepPreviousData, queryOptions, skipToken } from "@tanstack/react-query";
 
@@ -17,9 +17,11 @@ type Outputs = InferClientOutputs<V1Client>["library"];
 const LISTING_PAGE = 200;
 // ⌘P's hits
 const SEARCH_LIMIT = 20;
-const EVENTS_PAGE = 500;
 
 export const libraryQueries = ({ client, orpc }: CloudWire) => ({
+  // the agent's threads and a thread's events, as every device reads them
+  ...threadQueries({ client, orpc }),
+
   // an item's row, its fields and card: its body is its note's, which the editor reads live
   item: (id: string) => orpc.library.items.row.queryOptions({ input: { id } }),
 
@@ -48,26 +50,6 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
 
   titles: () => orpc.library.listing.titles.queryOptions(),
 
-  // a thread's stored events in order: a thread only grows, so a refetch asks only for what came
-  // after the last one held
-  threadEvents: (threadId: string) =>
-    queryOptions({
-      ...orpc.library.agent.events.queryOptions({ input: { threadId } }),
-      queryFn: async ({ client: queryClient, queryKey, signal }) => {
-        const events = [...(queryClient.getQueryData(queryKey)?.events ?? [])];
-        for (;;) {
-          const page = await client.library.agent.events(
-            { after: events.at(-1)?.idx, limit: EVENTS_PAGE, threadId },
-            { signal },
-          );
-          events.push(...page.events);
-          if (!page.more || page.events.length === 0) {
-            return { events, more: false };
-          }
-        }
-      },
-    }),
-
   // a conversation's change sets, every page of them, which each finished turn's Undo and the
   // whole conversation's need; the socket asks again as a turn moves the thread, its set sealing
   // as it ends
@@ -78,22 +60,6 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
         changeSets: await everyChangeSet(client, { threadId }, signal),
         cursor: null,
       }),
-    }),
-
-  // every thread of the account, newest first
-  threads: () =>
-    queryOptions({
-      ...orpc.library.agent.list.queryOptions({ input: {} }),
-      queryFn: async ({ signal }): Promise<Outputs["agent"]["list"]> => {
-        const threads = [];
-        let cursor: string | undefined;
-        do {
-          const page = await client.library.agent.list({ cursor, limit: PAGE_MAX }, { signal });
-          threads.push(...page.threads);
-          cursor = page.cursor ?? undefined;
-        } while (cursor !== undefined);
-        return { cursor: null, threads };
-      },
     }),
 });
 

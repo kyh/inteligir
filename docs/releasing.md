@@ -315,7 +315,7 @@ The unpacked store build, against production, with no dev build loaded.
   a 48-megapixel JPEG and a hostile `og:image` cover each draw or refuse with no
   crash.
 - **The agent on the phone**: approvals, Stop beside a question, thinking shown,
-  and an offline send refused.
+  and an offline send, approval and Stop each refused with Needs a connection.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
   background, and mid-upload; the app's Library/Caches holds nothing after.
 
@@ -365,8 +365,9 @@ turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
   payload logs and a spend limit of $5 a day split by the `account` metadata
   key; its Anthropic workspace is separate and capped; the Deploy run names it.
 - **A real turn**, open in a tab and the Mac at once: events
-  stream, one change set, Undo keeps your typing, the allowance counts, and
-  cache reads show.
+  stream, the conversation follows the reply to its end and the reply does not
+  blink as it lands, one change set, Undo keeps your typing, the allowance
+  counts, and cache reads show.
 - **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
   spent per-account limit ends it as the day's allowance.
 - **Real-model behaviour**: a declined turn finishes on the fallback; approvals

@@ -3,7 +3,8 @@
 // deploy or a drop may have hidden a write meanwhile. partysocket dials, on a short-lived ticket an
 // authenticated call mints for each try, as a browser's socket carries no header, and dials again
 // on a doubling wait; this keeps it alive with the cell's auto-answered ping, drops one gone
-// silent, reads its frames, and holds it closed while it is unwanted or the host is offline.
+// silent, reads its frames, and holds it closed while it is unwanted or the host cannot reach the
+// cloud.
 
 import ReconnectingWebSocket from "partysocket/ws";
 import { z } from "zod";
@@ -29,8 +30,16 @@ const KEEPALIVE_MS = 45_000;
 // intervals, so a tick that runs late behind a busy loop drops no live socket
 const SILENCE_MS = 2 * KEEPALIVE_MS;
 
+// whether the host can reach the cloud, and a listener told each time that changes: the network
+// alone in a tab, the app in front too on a phone
+export interface Reach {
+  readonly get: () => boolean;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
 export interface AccountSocketArgs {
   readonly origin: string;
+  readonly reach: Reach;
   // a ticket the account mints for its socket; a rejection is no ticket this try, which waits and
   // goes again (no answer, or a refusal the client's next call hears for itself)
   readonly ticket: () => Promise<string>;
@@ -40,13 +49,10 @@ export interface AccountSocketArgs {
 }
 
 export interface AccountSocket {
-  // wanted from now: it dials unless the host said it is offline
+  // wanted from now: it dials whenever the host reaches the cloud, and lets go whenever it cannot
   readonly connect: () => void;
   // for good, until the next connect
   readonly close: () => void;
-  // the host's network: offline lets the socket go and dials nothing; online dials while wanted
-  readonly online: () => void;
-  readonly offline: () => void;
 }
 
 const frameJsonSchema = z.string().transform((text, context) => {
@@ -72,8 +78,8 @@ export const createAccountSocket = (args: AccountSocketArgs): AccountSocket => {
       WebSocket: args.WebSocket,
     },
   );
-  let wanted = false;
-  let reachable = true;
+  // wanted while it is subscribed to the reach
+  let unsubscribe: (() => void) | null = null;
   let up = false;
   let heardAt = 0;
   let keepalive: ReturnType<typeof setInterval> | undefined;
@@ -111,7 +117,7 @@ export const createAccountSocket = (args: AccountSocketArgs): AccountSocket => {
   });
 
   const judge = (): void => {
-    if (!wanted || !reachable) {
+    if (unsubscribe === null || !args.reach.get()) {
       socket.close();
     } else if (!socket.shouldReconnect) {
       socket.reconnect();
@@ -119,19 +125,12 @@ export const createAccountSocket = (args: AccountSocketArgs): AccountSocket => {
   };
   return {
     close: () => {
-      wanted = false;
+      unsubscribe?.();
+      unsubscribe = null;
       judge();
     },
     connect: () => {
-      wanted = true;
-      judge();
-    },
-    offline: () => {
-      reachable = false;
-      judge();
-    },
-    online: () => {
-      reachable = true;
+      unsubscribe ??= args.reach.subscribe(judge);
       judge();
     },
   };

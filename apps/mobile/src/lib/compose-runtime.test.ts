@@ -186,12 +186,13 @@ describe("the phone's runtime", () => {
 
     const again = runtimeOver(cell, { keys, storage: first.storage });
     again.network.setOffline(true);
+    again.runtime.setReach({ online: false });
     await again.runtime.start();
     const library = signedIn(again.runtime);
     expect(library.shares.waiting.get()).toHaveLength(1);
 
     again.network.setOffline(false);
-    again.runtime.resume();
+    again.runtime.setReach({ online: true });
     await expect.poll(() => library.shares.waiting.get()).toStrictEqual([]);
     expect([...cell.items().values()].map((item) => item.fields.url)).toStrictEqual([PAGE]);
   });
@@ -236,7 +237,8 @@ describe("the phone's runtime", () => {
     expect(runtime.session.get().kind).toBe("signed-in");
 
     keys.checks("ended");
-    runtime.resume();
+    runtime.setReach({ front: false });
+    runtime.setReach({ front: true });
     await expect
       .poll(() => runtime.session.get())
       .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
@@ -323,17 +325,21 @@ describe("the phone's runtime", () => {
     expect(keys.calls).not.toContain("signOut");
   });
 
-  it("asks the session once a return to the front, however many times it is told", async () => {
+  it("asks the session once the app is both in front and online again, however many times it is told", async () => {
     const keys = fakePhoneAuth(KEPT_SESSION);
     keys.checks("unknown");
     const { runtime } = runtimeOver(createFakeCell(), { keys });
     await runtime.start();
-    runtime.resume();
-    runtime.resume();
+    runtime.setReach({ front: true });
+    expect(keys.calls).toStrictEqual(["check"]);
+    runtime.setReach({ front: false });
+    runtime.setReach({ online: false });
+    runtime.setReach({ front: true });
+    expect(runtime.reach.get()).toBe(false);
+    expect(keys.calls).toStrictEqual(["check"]);
+    runtime.setReach({ online: true });
+    runtime.setReach({ online: true });
     expect(keys.calls).toStrictEqual(["check", "check"]);
-    runtime.suspend();
-    runtime.resume();
-    expect(keys.calls).toStrictEqual(["check", "check", "check"]);
   });
 
   it("does nothing on a return to the front while signed out", async () => {
@@ -341,8 +347,8 @@ describe("the phone's runtime", () => {
     const sockets = fakeSockets();
     const { runtime } = runtimeOver(createFakeCell(), { keys, sockets });
     await runtime.start();
-    runtime.suspend();
-    runtime.resume();
+    runtime.setReach({ front: false });
+    runtime.setReach({ front: true });
     expect(keys.calls).toStrictEqual([]);
     expect(sockets.sockets).toStrictEqual([]);
   });
@@ -353,12 +359,12 @@ describe("the phone's runtime", () => {
       keys: fakePhoneAuth(KEPT_SESSION),
       sockets,
     });
-    runtime.suspend();
+    runtime.setReach({ front: false });
     await runtime.start();
     await delay(20);
     expect(sockets.sockets).toStrictEqual([]);
 
-    runtime.resume();
+    runtime.setReach({ front: true });
     await expect.poll(() => sockets.sockets.length).toBe(1);
   });
 
@@ -436,9 +442,9 @@ const socketPhone = async () => {
 describe("the account's socket on the phone", () => {
   it("asks everything again once the app is back in front, since a write may have landed unsaid", async () => {
     const { asked, opened, runtime } = await socketPhone();
-    runtime.suspend();
+    runtime.setReach({ front: false });
     expect(asked()).toBe(false);
-    runtime.resume();
+    runtime.setReach({ front: true });
     await opened();
     expect(asked()).toBe(true);
   });
@@ -450,7 +456,7 @@ describe("the account's socket on the phone", () => {
 
     socket?.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
     expect(previews.get(thread)).toBe("Filing");
-    runtime.suspend();
+    runtime.setReach({ front: false });
     expect(socket?.closed).toBe(true);
     expect(previews.get(thread)).toBeNull();
   });

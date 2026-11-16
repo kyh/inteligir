@@ -159,6 +159,10 @@ const open = async (): Promise<TabOpening> => {
     origin,
     queries: wire.orpc,
     queryClient,
+    reach: {
+      get: () => onlineManager.isOnline(),
+      subscribe: (listener) => onlineManager.subscribe(listener),
+    },
   });
   const library: PageLibrary = {
     account: { email: user.email, name: user.name },

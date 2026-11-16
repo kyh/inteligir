@@ -1,9 +1,10 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryClient } from "@tanstack/query-core";
+import { QueryClient, QueryObserver } from "@tanstack/query-core";
 import type { QueryKey } from "@tanstack/query-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deferred } from "@repo/contract/deferred";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 
@@ -46,6 +47,7 @@ const openSocket = async () => {
     origin: "https://library.test",
     queries,
     queryClient,
+    reach: { get: () => true, subscribe: () => vi.fn<() => void>() },
     WebSocket,
   });
   const moved: ItemsMoved[] = [];
@@ -85,6 +87,17 @@ const openSocket = async () => {
     note,
     other,
     previews: socket.previews,
+    // a screen reading THREAD's events, whose next read lands when the suite says
+    screenReads: () => {
+      const read = deferred<string>();
+      const events: QueryKey = keys.events;
+      new QueryObserver(queryClient, {
+        queryFn: async () => await read.promise,
+        queryKey: events,
+        staleTime: Number.POSITIVE_INFINITY,
+      }).subscribe(() => {});
+      return read;
+    },
     // the dropped socket's wait, and the next one up
     redial: async () => {
       await vi.advanceTimersByTimeAsync(1000);
@@ -146,17 +159,33 @@ describe("what the account's socket reads again", () => {
     expect(moved).toStrictEqual([null]);
   });
 
-  it("holds the reply being written, reading nothing, until a write moves its thread", async () => {
-    const { hear, previews, staleOf } = await openSocket();
+  it("holds the reply being written until the read its thread's write asks for lands", async () => {
+    const { hear, previews, screenReads, staleOf } = await openSocket();
+    const read = screenReads();
     hear({ text: "Filing", threadId: THREAD, type: "preview" });
     hear({ text: "Look", threadId: OTHER_THREAD, type: "preview" });
     expect(staleOf()).toStrictEqual([]);
+    hear({ folders: false, items: [], threads: [THREAD, OTHER_THREAD], type: "moved" });
+    await vi.advanceTimersByTimeAsync(0);
     expect(previews.get(THREAD)).toBe("Filing");
-    hear({ folders: false, items: [], threads: [THREAD], type: "moved" });
-    expect(previews.get(THREAD)).toBeNull();
-    expect(previews.get(OTHER_THREAD)).toBe("Look");
-    hear({ folders: false, items: [], threads: "all", type: "moved" });
+    // no screen reads the other thread, so no read is on its way to replace its reply
     expect(previews.get(OTHER_THREAD)).toBeNull();
+    read.resolve("read again");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(previews.get(THREAD)).toBeNull();
+  });
+
+  it("keeps what the agent wrote while its thread was read again, until every thread moves", async () => {
+    const { hear, previews, screenReads } = await openSocket();
+    const read = screenReads();
+    hear({ text: "Filing", threadId: THREAD, type: "preview" });
+    hear({ folders: false, items: [], threads: [THREAD], type: "moved" });
+    hear({ text: "Filing the rest", threadId: THREAD, type: "preview" });
+    read.resolve("read again");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(previews.get(THREAD)).toBe("Filing the rest");
+    hear({ folders: false, items: [], threads: "all", type: "moved" });
+    expect(previews.get(THREAD)).toBeNull();
   });
 
   it("lets every reply being written go the moment it goes down", async () => {

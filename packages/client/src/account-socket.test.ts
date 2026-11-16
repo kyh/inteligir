@@ -1,3 +1,4 @@
+import { onlineManager } from "@tanstack/query-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferred } from "@repo/contract/deferred";
@@ -15,6 +16,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  onlineManager.setOnline(true);
   vi.useRealTimers();
 });
 
@@ -23,7 +25,8 @@ const pass = async (ms = 0): Promise<void> => {
   await vi.advanceTimersByTimeAsync(ms);
 };
 
-// a socket over the suite's sockets, recording every ticket asked, status and frame
+// a socket over the suite's sockets and the reach a tab hands it, recording every ticket asked,
+// status and frame
 const socketOver = (ticket: () => Promise<string> = async () => await Promise.resolve("t")) => {
   const { sockets, WebSocket } = fakeSockets();
   const statuses: string[] = [];
@@ -37,6 +40,10 @@ const socketOver = (ticket: () => Promise<string> = async () => await Promise.re
       statuses.push(status);
     },
     origin: "https://cell.test",
+    reach: {
+      get: () => onlineManager.isOnline(),
+      subscribe: (listener) => onlineManager.subscribe(listener),
+    },
     ticket: async () => {
       tickets += 1;
       return await ticket();
@@ -112,28 +119,28 @@ describe("the account's socket", () => {
     expect(sockets).toHaveLength(2);
   });
 
-  it("dials nothing while the host is offline, and once when it is back", async () => {
+  it("dials nothing while the host cannot reach the cloud, once when it can, and listens no more once closed", async () => {
     const { socket, sockets, statuses, tickets } = socketOver();
-    socket.offline();
+    onlineManager.setOnline(false);
     socket.connect();
     await pass(120_000);
     expect(tickets()).toBe(0);
 
-    socket.online();
-    socket.online();
+    onlineManager.setOnline(true);
     await pass();
     expect(tickets()).toBe(1);
     sockets[0]?.open();
-    socket.offline();
+    onlineManager.setOnline(false);
     expect(sockets[0]?.closed).toBe(true);
     expect(statuses).toStrictEqual(["up", "down"]);
     await pass(120_000);
     expect(tickets()).toBe(1);
 
-    socket.online();
+    onlineManager.setOnline(true);
     await pass();
     expect(sockets).toHaveLength(2);
     socket.close();
+    expect(onlineManager.hasListeners()).toBe(false);
   });
 
   it("opens one socket however a close and a connect meet a ticket on its way", async () => {
@@ -155,7 +162,7 @@ describe("the account's socket", () => {
     expect(sockets[0]?.closed).toBe(true);
   });
 
-  it("lets a ticket asked before the host went offline dial nothing", async () => {
+  it("lets a ticket asked before the host lost its reach dial nothing", async () => {
     const ticket = deferred();
     const { socket, sockets } = socketOver(async () => {
       await ticket.promise;
@@ -163,9 +170,10 @@ describe("the account's socket", () => {
     });
     socket.connect();
     await pass();
-    socket.offline();
+    onlineManager.setOnline(false);
     ticket.resolve();
     await pass();
     expect(sockets).toHaveLength(0);
+    socket.close();
   });
 });

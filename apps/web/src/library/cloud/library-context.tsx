@@ -1,16 +1,15 @@
 // The page's library, handed to every screen through one context: the wire to the account's cell,
-// the account's socket that says what moved, and what the host decides (where `/v1` is reached for
-// bytes, how the session ends and where a sign-out goes). Mounted once, above the router's routes,
-// so Settings and back keeps the one socket.
+// the account's socket that says what moved, wanted while the page shows the library, and what the
+// host decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes).
+// Mounted once, above the router's routes, so Settings and back keeps the one socket.
 
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 
 import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
 import type { SignedIn } from "#lib/auth-client";
-import { useLibrarySocket } from "./use-library-socket";
 import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "./v1";
 
@@ -61,6 +60,10 @@ export const PageLibraryProvider = ({
   library: PageLibrary;
   children: React.ReactNode;
 }) => {
-  useLibrarySocket(library.socket);
+  const { socket } = library;
+  useEffect(() => {
+    socket.connect();
+    return socket.close;
+  }, [socket]);
   return <PageLibraryContext value={library}>{children}</PageLibraryContext>;
 };

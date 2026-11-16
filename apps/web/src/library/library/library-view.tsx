@@ -28,7 +28,7 @@ import type { LibraryGridActions } from "./item-menu";
 import { KindChips } from "./kind-chips";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
-import type { ListingView } from "./listing";
+import type { ListingView } from "@repo/client/listing-view";
 import type { CellStanding } from "../cloud/needs-connection";
 
 // the scope's listing as the cell has answered it so far

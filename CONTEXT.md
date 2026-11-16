@@ -266,8 +266,8 @@ the whole of it, the tab's home.
 answers while the device is offline: the open item reads but takes no edit
 (`packages/editor/src/item/item-editor.tsx`), and in the library tab a call
 waits rather than fails (`apps/web/src/library/cloud/needs-connection.tsx`);
-the iPhone says it of a save, a photo and a delete, and keeps only a
-**waiting save**. Never said of a note that holds its edits back (full, or in
+the iPhone says it of a save, a photo, a delete and a message, an approval or
+a Stop to the agent, and keeps only a **waiting save**. Never said of a note that holds its edits back (full, or in
 Deleted): each says its own words, and a hold outranks the connection.
 
 **Undo** — "Undo this turn" under an **answer** and "Undo this conversation"

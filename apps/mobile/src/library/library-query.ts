@@ -34,28 +34,3 @@ export const listingPage = (filter: LibraryFilter, cursor?: number) => ({
   query: listingQuery(filter),
   words: filter.words === "" ? undefined : filter.words,
 });
-
-// what the header calls the scope
-export const scopeTitle = (
-  scope: LibraryScope,
-  folders: readonly { readonly id: string; readonly name: string }[],
-): string => {
-  switch (scope.kind) {
-    case "all": {
-      return "Library";
-    }
-    case "unsorted": {
-      return "Unsorted";
-    }
-    case "folder": {
-      return folders.find((folder) => folder.id === scope.folderId)?.name ?? "Folder";
-    }
-    case "tag": {
-      return `#${scope.tag}`;
-    }
-    case "deleted": {
-      return "Deleted";
-    }
-    // no default
-  }
-};

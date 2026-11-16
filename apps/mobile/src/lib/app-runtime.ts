@@ -100,41 +100,24 @@ const build = (): AppRuntime => {
     storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
     WebSocket,
   });
-  // the app reaches the cloud while it is in front and online, and the runtime hears each edge of
-  // that once, so a wake that also brings the network back resumes once; a phone back online in
-  // the background waits for the foreground
-  const reach = { front: true, online: true };
-  let reached = true;
-  const judge = (): void => {
-    const reaches = reach.front && reach.online;
-    if (reaches === reached) {
-      return;
-    }
-    reached = reaches;
-    if (reaches) {
-      rt.resume();
-    } else {
-      rt.suspend();
-    }
-  };
-  // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
-  // `inactive` is a passing state on iOS (a pulled-down notification centre), not a departure.
+  // never removed: the runtime lives as long as the app. `inactive` is a passing state on iOS (a
+  // pulled-down notification centre), not a departure.
   AppState.addEventListener("change", (state) => {
     focusManager.setFocused(state === "active");
     if (state === "active" || state === "background") {
-      reach.front = state === "active";
-      judge();
+      rt.setReach({ front: state === "active" });
     }
   });
   onlineManager.setEventListener((setOnline) => {
     const subscription = addNetworkStateListener((network) => {
-      reach.online = network.isInternetReachable ?? network.isConnected ?? false;
-      setOnline(reach.online);
-      judge();
+      setOnline(network.isInternetReachable ?? network.isConnected ?? false);
     });
     return () => {
       subscription.remove();
     };
+  });
+  onlineManager.subscribe((online) => {
+    rt.setReach({ online });
   });
   return rt;
 };
@@ -162,6 +145,12 @@ export const signUp = async (request: SignUpRequest): Promise<void> => {
 export const useSession = (): PhoneSession => {
   const { session } = getRuntime();
   return useSyncExternalStore(session.subscribe, session.get);
+};
+
+// whether the phone reaches the cloud: in front and online
+export const useReach = (): boolean => {
+  const { reach } = getRuntime();
+  return useSyncExternalStore(reach.subscribe, reach.get);
 };
 
 export const useLoginState = (): LoginState => {

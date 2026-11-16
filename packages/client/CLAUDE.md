@@ -5,9 +5,10 @@ What the library tab and the phone share above the contract. It names no platfor
 
 ## The library on a device
 
-- **The account's socket is partysocket's, and only its keepalive, its frames and its
-  online/offline gate are ours.** Its ticket is the URL provider and its backoff partysocket's, since
-  a hand-rolled redial machine is ours forever. `packages/client/src/account-socket.ts`.
+- **The account's socket is partysocket's, and only its keepalive, its frames and its gate on the
+  host's `Reach` are ours.** Its ticket is the URL provider and its backoff partysocket's, since a
+  hand-rolled redial machine is ours forever, and it subscribes to the reach itself, since a host
+  that pushes each edge holds a second copy. `packages/client/src/account-socket.ts`.
 - **One module says what a frame reads again, for the tab and the phone alike.** An item's read goes
   again only when the copy held is older than the frame's sequence, and a thread's by its key, since
   a copy per device drifts. `packages/client/src/library-cache.ts`.
@@ -23,3 +24,9 @@ What the library tab and the phone share above the contract. It names no platfor
 - **A conversation is read once, in order, and each approval and call has one state.**
   `conversationOf` is every device's one way in, since a set of answered calls over the whole thread
   hides an ask its answer arrives before. `packages/client/src/thread-entries.ts`.
+- **A thread's read is spelled once, beside the socket that reads it again.** Its events are one
+  query that asks only for what came after the last one held, since a paged copy downloads the
+  whole conversation on every frame of a turn. `packages/client/src/thread-queries.ts`.
+- **The reply being written goes when the read that brings its stored message lands.** A preview
+  let go on the frame leaves neither text on screen for a round trip, and one the agent wrote
+  more of meanwhile is the next message's. `packages/client/src/library-cache.ts`.

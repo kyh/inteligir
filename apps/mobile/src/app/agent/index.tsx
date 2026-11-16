@@ -12,7 +12,7 @@ import { screenStyle, useTheme } from "@/lib/theme";
 
 const ConversationsScreen = () => {
   const theme = useTheme();
-  const { more, threads = [] } = useThreads();
+  const threads = useThreads() ?? [];
   return (
     <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Toolbar placement="right">
@@ -30,7 +30,6 @@ const ConversationsScreen = () => {
         contentInsetAdjustmentBehavior="automatic"
         data={threads}
         keyExtractor={(thread) => thread.id}
-        onEndReached={more}
         ListEmptyComponent={
           <View className="items-center px-6 py-24">
             <Text className="text-center text-16 text-muted-foreground">{EMPTY_WORDS}</Text>
