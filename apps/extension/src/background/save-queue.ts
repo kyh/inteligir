@@ -15,8 +15,7 @@ import { browser } from "wxt/browser";
 import { z } from "zod";
 
 import type { OutcomeReason, WaitsFor } from "../messages";
-import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
-import { CALL_DEADLINE_MS, sent } from "./cloud";
+import { sent } from "./cloud";
 import type { Cloud, LinkSave, Saved, Sent } from "./cloud";
 import { forgetConnection, readConnection } from "./connection";
 import type { Session, SignIn } from "./sign-in";
@@ -25,20 +24,10 @@ const KEY_PREFIX = "save:";
 export const SEND_ALARM = "send-saves";
 // how often a waiting save is tried again
 const RETRY_MINUTES = 0.5;
-// the longest a first try's page takes to land (./save-page): every cover candidate it fetches,
-// each to its deadline, then the cover's put and the save, each to theirs
-const FIRST_TRY_MS = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
-// a save whose first try never said how it went is sent again once that try is past its longest,
-// since its worker was stopped mid-call; a resend sooner could land the link under the save's op id
-// while the first try's page was still on its way, and the cell would answer that with the link.
-// The margin is the page's reading, which runs before the first call
-const ABANDONED_MS = FIRST_TRY_MS + 30_000;
 
 const queuedSaveSchema = z.strictObject({
   // the account it was made under, whose library alone it lands in
   email: z.string().min(1),
-  // no try has gone unanswered yet, so the first may still be under way
-  firstTry: z.boolean(),
   // the item's id and the write's op id, minted once, so a resend after a lost answer lands once
   id: z.uuidv7(),
   opId: z.uuid(),
@@ -103,16 +92,6 @@ export const accountGone = async (email: string): Promise<void> => {
   await ensureSendAlarm();
 };
 
-// a try that went unanswered, or a session that ended: the save waits for the alarm, unless a pass
-// let it go while the try was on its way
-const markWaiting = async (save: QueuedSave): Promise<void> => {
-  const key = keyOf(save);
-  const held = await browser.storage.local.get(key);
-  if (held[key] !== undefined) {
-    await keepSave({ ...save, firstTry: false });
-  }
-};
-
 // a waiting save as the link it is sent as: its title only where it has one
 export const linkOf = (save: QueuedSave): LinkSave => {
   const link: LinkSave = { id: save.id, opId: save.opId, savedAt: save.savedAt, url: save.url };
@@ -169,11 +148,9 @@ export const settledBy = <T>(answer: Sent<T>): Settled<T> => {
   }
 };
 
-// a kept save's try, the first or a resend, and the one place its answer moves the save
-export const settle = async <T>(
-  save: QueuedSave,
-  send: () => Promise<Sent<T>>,
-): Promise<Settled<T>> => {
+// a kept save's try, the first or a resend, and the one place its answer moves the save: one that
+// waits stays as it was kept
+const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promise<Settled<T>> => {
   const settled = settledBy(await send());
   switch (settled.kind) {
     case "landed":
@@ -181,12 +158,11 @@ export const settle = async <T>(
       await dropSave(save);
       break;
     }
-    case "waiting": {
-      await markWaiting(save);
-      break;
-    }
     case "gone": {
       await accountGone(save.email);
+      break;
+    }
+    case "waiting": {
       break;
     }
     // no default
@@ -194,9 +170,28 @@ export const settle = async <T>(
   return settled;
 };
 
+// The saves whose first try this worker still runs, which a pass leaves to it: a resend meanwhile
+// could land the link under the save's op id while the page was on its way. The set dies with the
+// worker, so a save whose worker stopped mid-try is sent at the next pass like any that waits.
+const trying = new Set<string>();
+
+// a save's first try: kept before its call goes, then settled by the call's answer as every resend
+// is
+export const sendKept = async <T>(
+  save: QueuedSave,
+  send: () => Promise<Sent<T>>,
+): Promise<Settled<T>> => {
+  trying.add(save.opId);
+  try {
+    await keepSave(save);
+    return await settle(save, send);
+  } finally {
+    trying.delete(save.opId);
+  }
+};
+
 export interface SendDeps {
   readonly cloud: (session: Session) => Cloud;
-  readonly now: () => number;
   // the cloud asked who this browser is signed in as, null when it did not answer
   readonly signIn: () => Promise<SignIn | null>;
 }
@@ -205,13 +200,13 @@ export interface SendDeps {
 // there, not for this build, or not for this session, so the rest wait with it. Another account's
 // saves wait for that account, and a first try still under way for its own answer
 const sendPass = async (deps: SendDeps): Promise<void> => {
-  const saves = await queuedSaves();
+  const kept = await queuedSaves();
+  const saves = kept.filter((save) => !trying.has(save.opId));
   const signIn = saves.length === 0 ? null : await deps.signIn();
   if (signIn?.kind === "signed-in") {
     const cloud = deps.cloud(signIn.session);
     for (const save of saves) {
-      const due = !save.firstTry || deps.now() - save.savedAt >= ABANDONED_MS;
-      if (save.email !== signIn.session.email || !due) {
+      if (save.email !== signIn.session.email) {
         continue;
       }
       const settled = await settle(

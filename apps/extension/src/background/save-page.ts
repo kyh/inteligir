@@ -26,7 +26,7 @@ import type { Outcome, OutcomeReason, WaitsFor } from "../messages";
 import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { sendFile, sent } from "./cloud";
 import type { Cloud, Saved, Sent } from "./cloud";
-import { accountGone, keepSave, linkOf, settle, settledBy } from "./save-queue";
+import { accountGone, keepSave, linkOf, sendKept, settledBy } from "./save-queue";
 import type { QueuedSave, Settled } from "./save-queue";
 import type { Session, SignIn } from "./sign-in";
 
@@ -79,7 +79,7 @@ const outcomeOf = (settled: Settled<Saved>): Outcome => {
 
 // a save that waits for its account to sign in again, which the alarm then sends
 const waitsForSignIn = async (queued: QueuedSave): Promise<Outcome> => {
-  await keepSave({ ...queued, firstTry: false });
+  await keepSave(queued);
   return { kind: "queued", waitsFor: "sign-in" };
 };
 
@@ -137,17 +137,10 @@ const queuedFor = (
   return {
     ...save,
     email,
-    firstTry: true,
     id: uuidV7(now, deps.randomBytes(16)),
     opId: uuidV7(now, deps.randomBytes(16)),
     savedAt: now,
   };
-};
-
-// a save kept before its call goes, then settled by the call's answer as every resend is
-const sendKept = async (queued: QueuedSave, send: () => Promise<Sent<Saved>>): Promise<Outcome> => {
-  await keepSave(queued);
-  return outcomeOf(await settle(queued, send));
 };
 
 export interface TabSave {
@@ -198,7 +191,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   const read = html === null ? null : readCapture(deps, html, url);
   const cloud = deps.cloud(session);
   const saveLink = async () => await sent(async () => await cloud.saveLink(linkOf(queued)));
-  return await sendKept(queued, async () => {
+  const settled = await sendKept(queued, async (): Promise<Sent<Saved>> => {
     if (read === null) {
       return await saveLink();
     }
@@ -223,6 +216,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
     );
     return refusesReading(reading) ? await saveLink() : reading;
   });
+  return outcomeOf(settled);
 };
 
 // a link or a web picture a right-click names, saved by its address for the cloud to read: a
@@ -239,9 +233,12 @@ export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome>
     case "signed-in": {
       const queued = queuedFor(deps, signIn.session.email, { title: "", url });
       const cloud = deps.cloud(signIn.session);
-      return await sendKept(
-        queued,
-        async () => await sent(async () => await cloud.saveLink(linkOf(queued))),
+      return outcomeOf(
+        await sendKept(
+          queued,
+          async (): Promise<Sent<Saved>> =>
+            await sent(async () => await cloud.saveLink(linkOf(queued))),
+        ),
       );
     }
     // no default

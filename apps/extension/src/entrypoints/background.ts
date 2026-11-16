@@ -39,11 +39,7 @@ const saveDeps: SaveDeps = {
   signIn: saveSignIn,
 };
 
-const sendDeps: SendDeps = {
-  cloud: cloudFor,
-  now: () => Date.now(),
-  signIn: cloudSignIn,
-};
+const sendDeps: SendDeps = { cloud: cloudFor, signIn: cloudSignIn };
 
 const tabFacts = (tab: Browser.tabs.Tab): TabFacts | null =>
   tab.id === undefined ? null : { id: tab.id, title: tab.title, url: tab.url };

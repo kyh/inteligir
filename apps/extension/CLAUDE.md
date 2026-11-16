@@ -28,9 +28,9 @@ what it may reach, and how it builds.
   at a time.** `settle` reads the contract's `sharedFailure` as the tab and the phone do, since a
   pass per trigger sends each save twice. `apps/extension/src/background/cloud.ts`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
-  nothing.** `storage.local` is open to trusted contexts alone, so the capture script reads neither,
-  and every listener registers in `main()`'s first turn.
-  `apps/extension/src/entrypoints/background.ts`.
+  only what stops with it.** A pass and a first try under way are memory's, since a mark of either
+  on disk outlives the worker that made it; `storage.local` is open to trusted contexts alone, and
+  every listener registers in `main()`'s first turn. `apps/extension/src/entrypoints/background.ts`.
 - **`activeTab` and the cloud's site, never `<all_urls>`.** The site's host reads its session cookie
   with no CORS and a click grants the tab a save is made over, since `<all_urls>` warns that every
   page is readable at any time. `apps/extension/src/manifest.ts`.

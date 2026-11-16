@@ -4,8 +4,6 @@ import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { Outcome } from "../messages";
-import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
-import { CALL_DEADLINE_MS } from "./cloud";
 import type { Saved } from "./cloud";
 import { keepConnection, readConnection } from "./connection";
 import { saveTab } from "./save-page";
@@ -35,7 +33,6 @@ const THIRD = "01900000-0000-7000-8000-0000000000a3";
 
 const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   email: SESSION.email,
-  firstTry: false,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
   savedAt: NOW - 1000,
@@ -52,7 +49,6 @@ const depsWith = (
   return {
     asked: () => asked,
     cloud: () => cloud.cloud,
-    now: () => NOW,
     signIn: async () => {
       asked += 1;
       return signIn;
@@ -199,8 +195,7 @@ describe("a save's try settles it one way, the first and every resend alike", ()
   it.each(ROWS)("$met", async (row) => {
     const first = fakeCloud({ saveLink: row.answer });
     await expect(saveTabAsLink(first)).resolves.toStrictEqual(row.outcome);
-    const afterFirst = await queuedSaves();
-    expect(afterFirst.map((save) => save.firstTry)).toStrictEqual(row.waits ? [false] : []);
+    await expect(queuedSaves()).resolves.toHaveLength(row.waits ? 1 : 0);
     await expect(readConnection()).resolves.toStrictEqual(row.accountKept ? KEPT : null);
 
     fakeBrowser.reset();
@@ -221,7 +216,7 @@ describe("a save's try settles it one way, the first and every resend alike", ()
 
 describe("a save that waits", () => {
   it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
-    await keepSave(waiting({ firstTry: true }));
+    await keepSave(waiting());
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
@@ -240,22 +235,6 @@ describe("a save that waits", () => {
     ]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
-  });
-
-  it("leaves a first try still under way alone for as long as that try can run", async () => {
-    // every cover candidate fetched to its deadline, then the cover's put and the save to theirs
-    const longestTry = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
-    const cloud = fakeCloud({});
-    for (const age of [5000, 61_000, longestTry]) {
-      await keepSave(waiting({ firstTry: true, savedAt: NOW - age }));
-      await sendQueued(depsWith(cloud));
-      expect(cloud.links, `a first try ${String(age)} ms in`).toStrictEqual([]);
-    }
-    await expect(queuedSaves()).resolves.toHaveLength(1);
-    // its worker was stopped mid-call: nothing will say how it went, so it goes again
-    await keepSave(waiting({ firstTry: true, savedAt: NOW - 10 * 60_000 }));
-    await sendQueued(depsWith(cloud));
-    expect(cloud.links).toHaveLength(1);
   });
 
   it("is sent only under its own account's session", async () => {
@@ -365,8 +344,7 @@ describe("the queue's passes", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("never bring back a save another try let go while its call was on its way", async () => {
-    // a first try whose worker was presumed stopped, sent again by a pass while it still runs
+  it("leave a save to its first try while that try runs, however long, and send it once the try went unanswered", async () => {
     const held = deferred();
     const firstTry = fakeCloud({
       saveLink: async () => {
@@ -374,25 +352,26 @@ describe("the queue's passes", () => {
         throw new TypeError("Failed to fetch");
       },
     });
-    const old = NOW - 10 * 60_000;
-    const saving = saveTab(
-      {
-        capture: async () => null,
-        cloud: () => firstTry.cloud,
-        fetchCover: async () => null,
-        newBlockId: () => "block",
-        now: () => old,
-        randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-        signIn: async () => SIGNED_IN,
-      },
-      { tab: { id: 7, title: "File over app", url: "https://example.test/file-over-app" } },
-    );
+    const saving = saveTabAsLink(firstTry);
     await expect.poll(() => firstTry.links.length).toBe(1);
     const resent = fakeCloud({});
     await sendQueued(depsWith(resent));
-    expect(resent.links).toHaveLength(1);
+    expect(resent.links).toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toHaveLength(1);
     held.resolve();
     await expect(saving).resolves.toStrictEqual(waitingFor("connection"));
+    await sendQueued(depsWith(resent));
+    expect(resent.links.map((link) => link.opId)).toStrictEqual(
+      firstTry.links.map((link) => link.opId),
+    );
     await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("send a save whose worker stopped mid-try, which holds nothing of the try", async () => {
+    // what a stopped worker leaves: the save as it was kept before its first call
+    await keepSave(waiting());
+    const cloud = fakeCloud({});
+    await sendQueued(depsWith(cloud));
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([waiting().opId]);
   });
 });

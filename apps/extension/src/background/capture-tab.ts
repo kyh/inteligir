@@ -13,8 +13,8 @@ import type { CapturedPage } from "../capture/captured-page";
 const CAPTURE_SCRIPT = "/capture.js" satisfies PublicPath;
 
 // a cover candidate's fetch, and how many candidates a save fetches at most (the reader names no
-// more): together the longest a save's search for its cover runs (./save-queue)
-export const COVER_DEADLINE_MS = 10_000;
+// more): together the longest a save's search for its cover runs (./save-page)
+const COVER_DEADLINE_MS = 10_000;
 export const COVER_TRIES = 8;
 // the longest a save waits on the tab's own capture, which a page still loading or a main thread
 // stuck in a script never answers (./save-page)

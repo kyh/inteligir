@@ -173,7 +173,7 @@ describe("a tab saved", () => {
     });
     expect(ended.saves).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({ firstTry: false, url: URL_SAVED }),
+      expect.objectContaining({ url: URL_SAVED }),
     ]);
   });
 
@@ -277,7 +277,6 @@ describe("a tab saved", () => {
     });
     expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
       "email",
-      "firstTry",
       "id",
       "opId",
       "savedAt",
@@ -316,7 +315,6 @@ describe("a tab saved", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([
       expect.objectContaining({
         email: SESSION.email,
-        firstTry: false,
         title: TAB.title,
         url: URL_SAVED,
       }),
