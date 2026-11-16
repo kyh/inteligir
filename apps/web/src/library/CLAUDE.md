@@ -10,7 +10,8 @@ workspace and Settings, its code this folder. `library-tab.ts` opens the tab onc
 session, the wire, the account's socket and the QueryClient) in the route's `beforeLoad`, and
 `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
 queries, the writes and the socket; `workspace.tsx` the rail, the grid or the open item, the panel
-and the palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/`
+and the palette, and `workspace-store.ts` what they hold between them; `library/` the grid and its
+verbs; `item/` the open item; `panel/` Info; `agent/`
 the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the
 sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 
@@ -71,6 +72,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The panel starts closed, is flat-tabbed, and is dragged like the rail.** Info and the Agent,
   its width kept through the rail's own resize handle, so there is no second resize mechanism.
   `apps/web/src/library/panel/panel.tsx`.
+- **What the shell holds beside its address is one store the tab makes.** The panel's tab, ⌘P and
+  the agent's composer ride the page's library, since state in the workspace's hooks reaches a
+  screen only as a prop handed down. `apps/web/src/library/workspace-store.ts`.
 - **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
   the kind and the open item are the route's search, so Back and Forward walk them, a link opens
   them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside
@@ -139,8 +143,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   it stacks with them and their live region announces it; the updater is the shell's, so one store
   mirrors what it pushes and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
-- **The agent's composer is one state the workspace keeps.** Moved by `composerAfter` under one
-  `useReducer`, since a `useState` per concern lets a Tidy sit beside an open conversation.
+- **The agent's composer is one state the tab's store keeps, its words with it.** Moved by
+  `composerAfter`, a passage quoted by the event that asks about it, since a `useState` per concern
+  lets a Tidy sit beside an open conversation and drops a typed message with the tab that drew it.
   `apps/web/src/library/agent/agent-composer.ts`.
 
 ## Suites

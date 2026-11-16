@@ -3,7 +3,6 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -26,23 +25,6 @@ const spyActions = () =>
     saveLink: vi.fn<() => void>(),
     startTidy: vi.fn<() => void>(),
   }) satisfies PaletteActions;
-
-// the palette as the workspace holds it: open until it asks to close
-const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => void }) => {
-  const [open, setOpen] = useState(true);
-  return (
-    <CommandPalette
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          onClose();
-        }
-      }}
-      actions={actions}
-    />
-  );
-};
 
 const WORDS = z.object({ words: z.string() });
 
@@ -75,9 +57,14 @@ const drawPalette = () => {
     cell,
   });
   const actions = spyActions();
-  const onClose = vi.fn<() => void>();
-  renderOnLibrary(<Opened actions={actions} onClose={onClose} />, library);
-  return { actions, calls, onClose, plans };
+  library.workspace.setPaletteOpen(true);
+  renderOnLibrary(<CommandPalette actions={actions} />, library);
+  return {
+    actions,
+    calls,
+    isOpen: () => library.workspace.store.getState().paletteOpen,
+    plans,
+  };
 };
 
 const searches = (calls: readonly CellCall[]): unknown[] =>
@@ -125,7 +112,7 @@ describe("the palette", () => {
   });
 
   it("moves the light with the arrows while the field keeps focus, and runs the lit row on Enter", async () => {
-    const { actions, onClose } = drawPalette();
+    const { actions, isOpen } = drawPalette();
     await waitFor(() => {
       expect(document.activeElement).toBe(field());
     });
@@ -139,7 +126,7 @@ describe("the palette", () => {
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(actions.askSaveLink).toHaveBeenCalledOnce();
     expect(actions.newNote).not.toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(isOpen()).toBe(false);
   });
 
   it("searches the cell as the field changes, and opens a hit on the words it was found by", async () => {
@@ -198,11 +185,11 @@ describe("the palette", () => {
   });
 
   it("closes on Escape", async () => {
-    const { onClose } = drawPalette();
+    const { isOpen } = drawPalette();
     await waitFor(() => {
       expect(document.activeElement).toBe(field());
     });
     fireEvent.keyDown(field(), { key: "Escape" });
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(isOpen()).toBe(false);
   });
 });

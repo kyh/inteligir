@@ -20,6 +20,7 @@ import { z } from "zod";
 import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
 import { createPageQueryClient } from "../cloud/v1";
+import { createWorkspaceStore } from "../workspace-store";
 
 export type ThreadRow = z.infer<typeof threadRowSchema>;
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
@@ -125,6 +126,7 @@ export const fakePageLibrary = ({
         previews,
       },
       wire: { client, orpc: createTanstackQueryUtils(client) },
+      workspace: createWorkspaceStore(),
     },
     moved: items.tell,
     preview: previews.hear,

@@ -24,9 +24,10 @@ import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelli
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
+import { useStore } from "zustand";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
-import { useLibraryQueries } from "../cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { cellStanding } from "../cloud/needs-connection";
 import type { ListedItem } from "../library/listing";
 import { hotkeyFor } from "../shortcuts";
@@ -113,20 +114,14 @@ const searchShown = (
   }
 };
 
-export const CommandPalette = ({
-  open,
-  onOpenChange,
-  actions,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  actions: PaletteActions;
-}) => {
+export const CommandPalette = ({ actions }: { actions: PaletteActions }) => {
+  const { workspace } = usePageLibrary();
+  const open = useStore(workspace.store, (state) => state.paletteOpen);
   const [query, setQuery] = useState("");
   const typed = query.trim();
   const { hits, said } = searchShown(typed, useQuery(useLibraryQueries().search(typed)));
   const close = (): void => {
-    onOpenChange(false);
+    workspace.setPaletteOpen(false);
     setQuery("");
   };
   const run = (verb: () => void) => () => {
@@ -191,7 +186,7 @@ export const CommandPalette = ({
       open={open}
       onOpenChange={(next) => {
         if (next) {
-          onOpenChange(true);
+          workspace.setPaletteOpen(true);
         } else {
           close();
         }

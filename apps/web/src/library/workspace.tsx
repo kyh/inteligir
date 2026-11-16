@@ -24,12 +24,11 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
 import { cellStanding } from "./cloud/needs-connection";
-import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
@@ -47,7 +46,6 @@ import { LibraryView } from "./library/library-view";
 import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
-import type { PanelTab } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
@@ -70,7 +68,7 @@ interface TagSubject {
 }
 
 export const Workspace = ({ scope: addressed, kind, openItem, covered }: WorkspaceProps) => {
-  const { cloud, socket, wire } = usePageLibrary();
+  const { cloud, socket, wire, workspace } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
@@ -81,9 +79,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const [panelWidth, setPanelWidth] = usePref(windowLayout, "panelWidth");
   const [railOpen, setRailOpen] = usePref(windowLayout, "railOpen");
   const [railWidth, setRailWidth] = usePref(windowLayout, "railWidth");
-  const [tab, setTab] = useState<PanelTab>("info");
-  const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
@@ -132,14 +127,9 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
     });
   };
 
-  const revealPanel = (next: PanelTab): void => {
-    setTab(next);
-    setPanelOpen(true);
-  };
-
   const startTidy = (): void => {
-    dispatchComposer({ kind: "tidy" });
-    revealPanel("agent");
+    workspace.compose({ kind: "tidy" });
+    workspace.revealPanel("agent");
   };
   // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
@@ -147,8 +137,8 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   // the editor's host, made once for the page: links open items, a note the editor makes lands
   // beside the item open now, and "Ask the agent" quotes the passage in the panel's composer
   const hostAsksAgent = useEffectEvent((asked: string) => {
-    revealPanel("agent");
-    dispatchComposer({ kind: "asked", passage: asked });
+    workspace.compose({ kind: "asked", passage: asked });
+    workspace.revealPanel("agent");
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -214,11 +204,11 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
-        revealPanel("agent");
+        workspace.revealPanel("agent");
         break;
       }
       case "open-palette": {
-        setPaletteOpen(true);
+        workspace.setPaletteOpen(true);
         break;
       }
       case "open-settings": {
@@ -226,7 +216,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
         break;
       }
       case "toggle-panel": {
-        setPanelOpen(!panelOpen);
+        workspace.togglePanel();
         break;
       }
       case "toggle-rail": {
@@ -381,7 +371,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const actions: LibraryGridActions = {
     askAgent: (rows) => {
       selection.apply({ kind: "all", order: rows.map((row) => row.id) });
-      revealPanel("agent");
+      workspace.revealPanel("agent");
     },
     move: (rows) => {
       askMove(rows.map((row) => row.id));
@@ -438,7 +428,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
               itemOpen={openItem !== null}
               onScope={showScope}
               onOpenSearch={() => {
-                setPaletteOpen(true);
+                workspace.setPaletteOpen(true);
               }}
               onOpenSettings={openSettings}
               folders={{
@@ -524,9 +514,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                     onBack={() => {
                       open(null);
                     }}
-                    onTogglePanel={() => {
-                      setPanelOpen(!panelOpen);
-                    }}
                     onNote={(opened) => {
                       noteRef.current = opened;
                     }}
@@ -544,10 +531,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
               <Sidebar side="right" label="Panel" className="h-full print:hidden">
                 <Panel
                   itemId={panelItem}
-                  tab={tab}
-                  onTab={setTab}
-                  composer={composer}
-                  dispatchComposer={dispatchComposer}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     await noteRef.current?.holds();
@@ -567,11 +550,9 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
         </SidebarProvider>
       </div>
       <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
         actions={{
           askAgent: () => {
-            revealPanel("agent");
+            workspace.revealPanel("agent");
           },
           askSaveLink,
           newNote,
