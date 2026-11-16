@@ -21,6 +21,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   is invite-gated by a Worker route in front of it.** A fixed fallback mints
   reset links at the wrong deployment; `POST /api/sign-up` claims the invite
   atomically. `packages/service/src/auth/invite.ts`.
+- **The auth door answers the six Better Auth routes a client calls, by method
+  and path, and a plain 404 to every other.** A list of routes to shut leaves
+  open the one a release adds. `packages/service/src/auth/auth.ts`.
 - **Only Better Auth's own read slides a session, and a tab makes it on the
   hour.** A row and its cookie slide together or not at all, so the Worker's own
   reads pass `disableRefresh`. `packages/service/src/auth/auth.ts`.

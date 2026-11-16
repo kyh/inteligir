@@ -12,8 +12,9 @@ import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
-import { activeSession, keepSession, signInHref } from "#lib/auth-client";
+import { activeSession, keepSession } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
+import { signInHref } from "#lib/next-path";
 
 import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";
 import { createLeaveGuard } from "./cloud/leave-guard";
@@ -149,23 +150,15 @@ export const createTabSession = ({ read, guard, forget, location }: TabSessionAr
   return { end, store };
 };
 
-const readSession = async (): Promise<SessionState | null> => {
-  try {
-    return await activeSession();
-  } catch {
-    return null;
-  }
-};
-
 const open = async (): Promise<TabOpening> => {
   // before the first paint: a stored "off" must not flash red underlines
   applyStoredSpellcheck();
   installLightPrints();
   const { origin } = window.location;
-  const session = await readSession();
+  const session = await activeSession();
   // a fault of the site's says neither signed in nor out, so it never sends a signed-in person to
   // sign in again
-  if (session === null || session.kind === "unknown") {
+  if (session.kind === "unknown") {
     return { kind: "unreached" };
   }
   if (session.kind === "signed-out") {

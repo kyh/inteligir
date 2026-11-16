@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { requireSessionCookie } from "#lib/session-guard";
 import { LibraryLayout, seedScopes } from "#library/library-layout";
 import { librarySearchSchema } from "#library/library-search";
 import { RenderCrash } from "#library/render-crash";
@@ -7,11 +8,13 @@ import { RenderCrash } from "#library/render-crash";
 import libraryCss from "../library/styles/globals.css?url";
 
 // The library: drawn in the browser alone, over the account's cell, so the Worker serves its
-// document as a shell. The tab opens once a document, in its beforeLoad, which no split takes, so
-// the open is imported lazily and lands in the library's chunk with every other module only its
-// routes reach (src/library/CLAUDE.md § The library is one chunk).
+// document as a shell, and only to a request that carries a session cookie. The tab opens once a
+// document, in its beforeLoad, which no split takes, so the open is imported lazily and lands in
+// the library's chunk with every other module only its routes reach (src/library/CLAUDE.md § The
+// library is one chunk).
 export const Route = createFileRoute("/library")({
   ssr: false,
+  server: { middleware: [requireSessionCookie] },
   headers: () => ({
     // a deploy replaces the page, so its document is asked again every load
     "cache-control": "no-cache",

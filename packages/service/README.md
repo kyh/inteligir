@@ -39,9 +39,13 @@ src/            the doors, their routes and the build floor, the rate limits, th
 
 ## Seams
 
-- `doorsFor(env, ctx)` (`src/doors.ts`): a request's doors, each a
-  fetch-shaped function of the request alone, which `apps/web`'s routes reach
-  through Start's request context and the suites' Worker by `DOOR_ROUTES`.
+- `serviceFor(env, ctx)` (`src/doors.ts`): a fetch-shaped function of the
+  request alone, which picks the door by `DOOR_ROUTES`; `apps/web`'s mounts
+  reach it through Start's request context, and it is the suites' Worker's
+  fetch.
+- `signedInFor(env, ctx, request)` (`src/auth/signed-in.ts`): whether the
+  request is from someone signed in, which the site's sign-in and sign-up ask
+  through the same context as the Worker renders them.
 - `CellDb` (`src/library/cell-db.ts`): drizzle over the cell's storage, the one
   handle every statement of the cell runs on, the search's among them.
 - `openCell(ctx, env)` (`src/library/open-cell.ts`): the cell as one wake holds
@@ -62,8 +66,9 @@ the principal a library call carries into its cell;
 
 ## Auth
 
-`src/auth/auth.ts` builds Better Auth per request and shuts every route no
-client calls; `src/auth/invite.ts` gates sign-up by invite in front of it;
+`src/auth/auth.ts` builds Better Auth per request and names the six routes a
+client calls, all its door answers; `src/auth/invite.ts` gates sign-up by
+invite in front of it;
 `src/auth/session-devices.ts` makes the account's sessions its devices;
 `src/rate-limit.ts` holds the D1 windows and the Rate Limiting bindings every
 signed call spends; and `src/auth/delete-account.ts` with

@@ -25,11 +25,12 @@ object**'s. R2 holds the bytes it names by hash, and D1 only the accounts. Not
 what a device shows: a device keeps at most a cache of what it last read.
 
 **door** — where a request enters the cloud: a Start server route hands it to
-one of the service's doors (`packages/service/src/doors.ts`), which says whose
-it is. A session comes through the site's tab or the Mac app's window, the
-iPhone, or the browser extension, each a door of its own
-(`packages/service/src/wire/v1-principal.ts`); the connector is an assistant's
-door alone. Not a route: a door answers every method of its paths.
+the service, and its path names one of the service's doors
+(`packages/service/src/doors.ts`), which says whose it is. A session comes
+through the site's tab or the Mac app's window, the iPhone, or the browser
+extension, each a door of its own (`packages/service/src/wire/v1-principal.ts`);
+the connector is an assistant's door alone. Not a route: a door answers every
+method of its paths.
 
 **principal** — who a library call is by, as the Worker verified it at its
 **door**: the account and the actor whose **change set** its writes join (a

@@ -43,7 +43,7 @@ const ResetForm = ({
   token: string;
   onSettled: (view: SettledView) => void;
 }) => {
-  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
+  const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const newPassword = fieldValue(form, "password");
     if (newPassword !== fieldValue(form, "confirm")) {
       return "Passwords don't match.";
@@ -91,8 +91,8 @@ const ResetForm = ({
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={pending || !ready}>
-          {pending ? "Saving…" : "Set new password"}
+        <Button type="submit" disabled={busy || !ready}>
+          {busy ? "Saving…" : "Set new password"}
         </Button>
       </form>
     </AuthShell>

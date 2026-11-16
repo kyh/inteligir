@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SESSION_READ_MS, signInHref } from "#lib/auth-client";
+import { SESSION_READ_MS } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
+import { signInHref } from "#lib/next-path";
 
 import { createTabSession } from "./library-tab";
 
@@ -85,7 +86,7 @@ describe("where a tab's session stands", () => {
 
   it("finds out at the keeper's read that the session ended elsewhere, and leaves once", async () => {
     const { standing, went } = tabOver([
-      { kind: "unknown", message: "Something went wrong — try again." },
+      { kind: "unknown" },
       { kind: "signed-out" },
       { kind: "signed-out" },
     ]);

@@ -5,13 +5,13 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { authClient, authErrorMessage } from "#lib/auth-client";
 import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
-import { redirectWhenSignedIn, ssrWhenSignedOut } from "#lib/session-guard";
+import { redirectWhenSignedIn } from "#lib/session-guard";
 import { siteConfig } from "#lib/site-config";
 
 const SignInPage = () => {
   const router = useRouter();
   const { next } = Route.useSearch();
-  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
+  const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.signIn.email({
       email: fieldValue(form, "email"),
       password: fieldValue(form, "password"),
@@ -19,7 +19,8 @@ const SignInPage = () => {
     if (failure !== null) {
       return authErrorMessage(failure);
     }
-    await router.navigate({ href: signedInLanding(next), reloadDocument: true });
+    // in place of this form, which Back must not return to with its submit done
+    await router.navigate({ href: signedInLanding(next), reloadDocument: true, replace: true });
     return null;
   });
 
@@ -55,8 +56,8 @@ const SignInPage = () => {
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={pending || !ready}>
-          {pending ? "Signing in…" : "Sign in"}
+        <Button type="submit" disabled={busy || !ready}>
+          {busy ? "Signing in…" : "Sign in"}
         </Button>
         <Link
           to="/app/forgot-password"
@@ -71,7 +72,6 @@ const SignInPage = () => {
 };
 
 export const Route = createFileRoute("/_site/app/sign-in")({
-  ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
   beforeLoad: redirectWhenSignedIn,
   component: SignInPage,

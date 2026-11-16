@@ -10,8 +10,8 @@ are this app's [`CLAUDE.md`](CLAUDE.md), and the library tab's
 
 ```
 src/
-  routes/        Start's file routes: the site's pages (_site/), the library tab (library/), and one
-                 server route per door, each handing its request to the service
+  routes/        Start's file routes: the site's pages (_site/), the library tab (library/), and the
+                 six mounts, each a server route handing its request to the service
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, session guard, document policy, config and page markdown
@@ -35,12 +35,12 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                                         |
 | `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                              |
 | `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                                         |
-| `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                                                            |
-| `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                              |
+| `/app/sign-in`              | —               | Sign-in; the Worker redirects someone already signed in to where they were going (`lib/session-guard.ts`)             |
+| `/app/sign-up`              | —               | Sign-up form, redirected the same way; submits to the invite gate                                                     |
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                               |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                   |
-| `/library`, `/library/*`    | —               | The library in a tab (`src/library`), drawn in the browser; a signed-out visit goes to sign-in                        |
-| `/api/auth/*`               | —               | Better Auth (email+password; the session cookie, signed as the extension's bearer, under `expo-origin` for the phone) |
+| `/library`, `/library/*`    | session cookie  | The library in a tab (`src/library`), drawn in the browser; with no cookie the Worker redirects to sign-in            |
+| `/api/auth/*`               | —               | Better Auth, on the six routes a client calls: sign-in, sign-out, the session read and the three for a password reset |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form and the phone's                                |
 | `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable           |
 | `GET /v1/notes/:id`         | ticket          | An item's note: its live document's socket, on the account socket's ticket, to the note's own object                  |
@@ -49,16 +49,20 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/v1/blobs/:sha`            | session         | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                                      |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                                   |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                                      |
-| `/connect/extension`        | session         | The site's page that tells the browser extension where the site is and whose sign-in it found; it hands over nothing  |
+| `/connect/extension`        | session cookie  | The site's page that tells the browser extension where the site is and whose sign-in it found; it hands over nothing  |
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                               |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                         |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                   |
-| `/api/*`, `/v1/*` (else)    | —               | A plain `not found` 404, never the site's page                                                                        |
+| Else under a mount          | —               | A plain `not found` 404, never the site's page                                                                        |
 
-Every path but the site's own pages is a server route declaring `ANY` that
-hands the raw request to its door, `context.doors`, built per request in
-`src/worker/server.ts`. What each door does is `packages/service/README.md`
-§ The doors and § Auth.
+Every path but the site's own pages falls under one of six mounts (`api/$`,
+`v1/$`, `oauth/$`, `.well-known/$`, `connector`, `connect/authorize`), each a
+server route declaring `ANY` that hands the raw request to the service,
+`context.service`, built per request in `src/worker/server.ts`. The service
+names the door a path reaches (`packages/service/src/door-routes.ts`), and what
+each door does is `packages/service/README.md` § The doors and § Auth. The
+same context answers a page's guard whether its request is signed in,
+`context.signedIn`, read in process.
 
 ## Invites
 

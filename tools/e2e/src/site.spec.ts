@@ -3,30 +3,31 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
-import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
   socketUrl,
-  V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import { z } from "zod";
 import { test } from "./fixtures";
-import type { Cloud } from "./fixtures";
+import type { Account, Cloud } from "./fixtures";
 
 const REPO = path.resolve(import.meta.dirname, "../../..");
-const SHA = "a".repeat(64);
 const DEVICES = `${V1_RPC_PATH}/account/devices/list`;
 const statusOf = async (answer: Promise<APIResponse>): Promise<number> => {
   const response = await answer;
   return response.status();
 };
 const buildOf = (cloud: Cloud) => clientBuildHeaders({ platform: "mobile", version: cloud.build });
+// the browser's sign-in, as a request that is no browser's carries it
+const cookieOf = (account: Account): string =>
+  account.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+const wayBack = (asked: string): string => `?next=${encodeURIComponent(asked)}`;
 
 // the first heading of a doc and the first sentence under it, as its page renders them
 const docLandmarks = async (doc: string) => {
@@ -59,8 +60,8 @@ const LIBRARY_ASSET = /\/assets\/library-[\w-]{8}\.(?:js|css)/gu;
 
 // a document under the site's policy: its scripts run by a nonce of its own, and nothing inline
 // runs without it
-const documentAt = async (request: APIRequestContext, url: string) => {
-  const response = await request.get(url, { headers: { accept: "text/html" } });
+const documentAt = async (request: APIRequestContext, url: string, cookie = "") => {
+  const response = await request.get(url, { headers: { accept: "text/html", cookie } });
   expect(response.ok(), `GET ${url}`).toBe(true);
   const policy = response.headers()["content-security-policy"] ?? "";
   const scripts = policy.split("; ").find((directive) => directive.startsWith("script-src")) ?? "";
@@ -116,12 +117,42 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
-test("every document carries its own nonce policy, and the home page loads none of the library", async ({
+test("the Worker answers for the session before a page loads: with no cookie a signed-in page goes to sign in and back, and sign-in is skipped for someone signed in", async ({
+  account,
   cloud,
   request,
 }) => {
-  const library = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}`);
-  const settings = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}/settings`);
+  const signedIn = cookieOf(account);
+  const settings = `${LIBRARY_PAGE_PATH}/settings?from=mail`;
+  for (const [asked, cookie, status, location] of [
+    [LIBRARY_PAGE_PATH, "", 307, `/app/sign-in${wayBack(LIBRARY_PAGE_PATH)}`],
+    [settings, "", 307, `/app/sign-in${wayBack(settings)}`],
+    [CONNECT_EXTENSION_PATH, "", 307, `/app/sign-in${wayBack(CONNECT_EXTENSION_PATH)}`],
+    ["/app/sign-in", signedIn, 307, LIBRARY_PAGE_PATH],
+    [`/app/sign-up${wayBack(settings)}`, signedIn, 307, settings],
+    // a cookie whose session ended is no sign-in, so the form is served and nothing loops
+    ["/app/sign-in", "better-auth.session_token=ended", 200, undefined],
+  ] as const) {
+    const answer = await request.get(`${cloud.origin}${asked}`, {
+      headers: { cookie },
+      maxRedirects: 0,
+    });
+    expect([answer.status(), answer.headers().location], asked).toEqual([status, location]);
+  }
+});
+
+test("every document carries its own nonce policy, and the home page loads none of the library", async ({
+  account,
+  cloud,
+  request,
+}) => {
+  const cookie = cookieOf(account);
+  const library = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}`, cookie);
+  const settings = await documentAt(
+    request,
+    `${cloud.origin}${LIBRARY_PAGE_PATH}/settings`,
+    cookie,
+  );
   expect(library.nonce).not.toBe(settings.nonce);
   for (const { headers } of [library, settings]) {
     expect(headers).toMatchObject({
@@ -146,7 +177,7 @@ test("every document carries its own nonce policy, and the home page loads none 
   expect(await statusOf(request.get(`${cloud.origin}/no-route-answers-this`))).toBe(404);
 });
 
-test("each door answers in its own protocol through Start's routes", async ({
+test("each mount hands its request to the service, which answers in its door's protocol", async ({
   account,
   cloud,
   request,
@@ -158,22 +189,14 @@ test("each door answers in its own protocol through Start's routes", async ({
   expect(await devices({}), "an account call naming no build").toBe(426);
   expect(await devices(build), "an account call with no session").toBe(401);
 
-  // a route that declared its methods would hand a wrong one to the site's page, a 200 of HTML
+  // a path under each mount: one that declared its methods would hand a wrong one to the site's
+  // page, a 200 of HTML
   for (const { headers = {}, method, route, status } of [
     { method: "PUT", route: "/api/auth/get-session", status: 404 },
-    { method: "GET", route: AUTH_API_PATHS.signUp, status: 404 },
     { headers: build, method: "GET", route: DEVICES, status: 404 },
-    { headers: build, method: "DELETE", route: `${V1_BLOBS_PATH}/${SHA}`, status: 405 },
-    { method: "POST", route: V1_SOCKET_PATH, status: 400 },
-    { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
-    {
-      method: "POST",
-      route: `/.well-known/oauth-protected-resource${CONNECTOR_PATH}`,
-      status: 405,
-    },
-    { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
     { method: "GET", route: "/oauth/token", status: 405 },
-    { method: "GET", route: "/oauth/register", status: 405 },
+    { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
+    { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
     { method: "PUT", route: "/connect/authorize", status: 405 },
   ]) {
     const response = await request.fetch(`${cloud.origin}${route}`, { headers, method });
@@ -185,6 +208,8 @@ test("each door answers in its own protocol through Start's routes", async ({
   for (const [method, route] of [
     ["GET", "/v1/nope"],
     ["POST", "/api/nope"],
+    ["GET", "/oauth/nope"],
+    ["GET", "/.well-known/nope"],
   ] as const) {
     const response = await request.fetch(`${cloud.origin}${route}`, { method });
     expect([response.status(), await response.text()], `${method} ${route}`).toEqual([

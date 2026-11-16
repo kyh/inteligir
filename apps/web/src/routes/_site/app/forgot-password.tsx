@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Button } from "@repo/ui/components/button";
@@ -9,17 +8,12 @@ import { authPageSearchSchema, resetLanding } from "#lib/next-path";
 
 const ForgotPasswordPage = () => {
   const { next } = Route.useSearch();
-  const [sent, setSent] = useState(false);
-  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
+  const { busy, done, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.requestPasswordReset({
       email: fieldValue(form, "email"),
       redirectTo: resetLanding(next),
     });
-    if (failure !== null) {
-      return authErrorMessage(failure);
-    }
-    setSent(true);
-    return null;
+    return failure === null ? null : authErrorMessage(failure);
   });
 
   return (
@@ -32,7 +26,7 @@ const ForgotPasswordPage = () => {
         </Link>
       }
     >
-      {sent ? (
+      {done ? (
         <p className="text-center text-sm text-muted-foreground">
           If that address has an account, a reset link is on its way.
         </p>
@@ -48,8 +42,8 @@ const ForgotPasswordPage = () => {
             autoFocus
           />
           <AuthError message={error} />
-          <Button type="submit" disabled={pending || !ready}>
-            {pending ? "Sending…" : "Send reset link"}
+          <Button type="submit" disabled={busy || !ready}>
+            {busy ? "Sending…" : "Send reset link"}
           </Button>
         </form>
       )}

@@ -18,39 +18,28 @@ import { capSessions } from "./session-devices";
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
 // it is derived from the request origin, so localhost and prod need none.
 
-// The HTTP router's alone: auth.api still calls each. Every device calls sign-in, get-session and
-// sign-out, the site the reset pair too, and the invite gate forwards sign-up; a route no client
-// calls is surface with no user. `/callback/:id` stays, since an exact list cannot name it, and with
-// no social provider it has nothing to sign in with; the phone's plugin's proxy goes, since it
-// serves social sign-in alone. Deletion's one door is
-// `account.delete` (../wire/account-router.ts), which asks the password again, where Better Auth's
-// own route settles for a fresh session; listing and ending sessions are `account.devices.*`, which
-// never hand a token out.
-const DISABLED_PATHS = [
-  "/account-info",
-  "/change-email",
-  "/change-password",
-  "/delete-user",
-  "/delete-user/callback",
-  "/error",
-  "/expo-authorization-proxy",
-  "/get-access-token",
-  "/link-social",
-  "/list-accounts",
-  "/list-sessions",
-  "/ok",
-  "/refresh-token",
-  "/revoke-other-sessions",
-  "/revoke-session",
-  "/revoke-sessions",
-  "/send-verification-email",
-  "/sign-in/social",
-  "/unlink-account",
-  "/update-session",
-  "/update-user",
-  "/verify-email",
-  "/verify-password",
-];
+// The whole of Better Auth the door hands a request to (../doors.ts): every device signs in, reads
+// its session and signs out, and the site asks for a reset, follows its mailed link and sets the
+// password. Named rather than subtracted from Better Auth's own table, so a route a release adds is
+// never open; auth.api and the invite gate's forwarded sign-up call past the door. Deletion's one
+// door is `account.delete` (../wire/account-router.ts), which asks the password again, where Better
+// Auth's own route settles for a fresh session; listing and ending sessions are
+// `account.devices.*`, which never hand a token out.
+const CLIENT_ROUTES = new Set([
+  "GET /api/auth/get-session",
+  "POST /api/auth/request-password-reset",
+  "POST /api/auth/reset-password",
+  "POST /api/auth/sign-in/email",
+  "POST /api/auth/sign-out",
+]);
+
+// the mailed link, its token the path's last part
+const RESET_LINK = /^GET \/api\/auth\/reset-password\/[^/]+$/u;
+
+export const isClientRoute = (method: string, pathname: string): boolean => {
+  const route = `${method} ${pathname}`;
+  return CLIENT_ROUTES.has(route) || RESET_LINK.test(route);
+};
 
 const DAY_SECONDS = 24 * 60 * 60;
 
@@ -90,7 +79,6 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
         },
       },
     },
-    disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,
       enabled: true,
@@ -130,8 +118,8 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
     ],
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle
     rateLimit: {
-      // a session read proves nothing about a password, and every route guard and hover preload
-      // spends one, so a limit here throttles browsing rather than guessing
+      // a session read proves nothing about a password, and every tab, phone and extension spends
+      // one as it opens, so a limit here throttles use rather than guessing
       customRules: { "/get-session": false },
       // off in tests: the in-process Worker shares one IP, so a multi-user suite trips it
       enabled: env.RATE_LIMIT_DISABLED !== "true",
