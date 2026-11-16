@@ -50,16 +50,19 @@ const json = <T>(schema: z.ZodType<T>) =>
 
 const FIELDS = libraryItemFieldsSchema.shape;
 
-// a column with no declared type takes BLOB affinity and keeps what it is handed; `ANY` outside a
-// STRICT table takes NUMERIC affinity, which would hand the person's rules "42" back as 42
-const untyped = customType<{ data: string | number; driverData: string | number }>({
-  dataType: () => "",
-});
-
-export const meta = sqliteTable("meta", {
-  k: text().primaryKey(),
-  v: untyped(),
-});
+// what the cell holds once, in its one row: the sequence its last write took, when the account's
+// deletion began, the stray removals R2 has finished, and the person's filing rules
+export const cellState = sqliteTable(
+  "cell_state",
+  {
+    slot: integer().primaryKey(),
+    head: integer().notNull().default(0),
+    deletedAt: integer("deleted_at"),
+    blobRemovals: integer("blob_removals").notNull().default(0),
+    rules: text(),
+  },
+  (t) => [check("cell_state_slot", sql`${t.slot} = 1`)],
+);
 
 // an item, in Deleted or not, whole: its fields, and of its body where it lives, the digest its card
 // and index derive from, and for a note the version of the projection landed and the bytes its
@@ -233,7 +236,6 @@ export const blobs = sqliteTable("blobs", {
   sha256: text().primaryKey(),
   bytes: integer().notNull(),
   mime: text().notNull(),
-  refs: integer().notNull(),
 });
 
 export const itemBlobs = sqliteTable(
@@ -242,7 +244,7 @@ export const itemBlobs = sqliteTable(
     itemId: text("item_id").notNull(),
     sha256: text().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
+  (t) => [primaryKey({ columns: [t.itemId, t.sha256] }), index("item_blobs_sha").on(t.sha256)],
 );
 
 // A change set's item names its fields before and after by part, each kept once per item under its

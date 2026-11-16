@@ -8,17 +8,17 @@
 // last change set naming it went, and by the alarm a day after it landed or an item stopped naming
 // it otherwise.
 
-import { and, eq, exists, inArray, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, notExists, sql } from "drizzle-orm";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readCount, writeMeta } from "./library-queries";
+import { readCellState, writeCellState } from "./library-queries";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
-import { addFileBytes, holdRoomFor } from "./cell-quota";
+import { holdRoomFor } from "./cell-quota";
 
 export const blobKey = (accountId: string, sha: string): string => `acct/${accountId}/b/${sha}`;
 
@@ -53,16 +53,6 @@ export const missingBlobs = (db: CellDb, shas: readonly string[]): string[] => {
   const unique = [...new Set(shas)];
   const held = heldShas(db, unique);
   return unique.filter((sha) => !held.has(sha)).toSorted();
-};
-
-// how many items name each file, recounted for the files a write touched
-const recountRefs = (db: CellDb, shas: readonly string[]): void => {
-  for (const chunk of listChunks([...new Set(shas)])) {
-    db.update(blobs)
-      .set({ refs: db.$count(itemBlobs, eq(itemBlobs.sha256, blobs.sha256)) })
-      .where(inArray(blobs.sha256, chunk))
-      .run();
-  }
 };
 
 // ---- files change sets name ----
@@ -163,7 +153,6 @@ export const storeItemBlobs = (
   )) {
     db.insert(itemBlobs).values(chunk).run();
   }
-  recountRefs(db, [...before, ...shas]);
   for (const sha of before) {
     if (!shas.includes(sha)) {
       awaitName(db, sha, now);
@@ -180,7 +169,6 @@ export const dropItemBlobs = (db: CellDb, itemId: string, now: number): void => 
     .returning({ sha256: changeSetBlobs.sha256 })
     .all()
     .map((row) => row.sha256);
-  recountRefs(db, shas);
   for (const sha of new Set([...shas, ...kept])) {
     awaitNameAgain(db, sha, now);
   }
@@ -238,7 +226,6 @@ export const reserveUpload = (
       target: blobUploads.sha256,
     })
     .run();
-  addFileBytes(db, growth);
   scheduleJob(
     db,
     { id: uploadJobId(request.sha), kind: "upload", payload: { sha: request.sha } },
@@ -247,9 +234,8 @@ export const reserveUpload = (
   return { held: false };
 };
 
-const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
+const releaseHeld = (db: CellDb, sha: string): void => {
   db.delete(blobUploads).where(eq(blobUploads.sha256, sha)).run();
-  addFileBytes(db, -bytes);
   dropJob(db, uploadJobId(sha));
 };
 
@@ -261,8 +247,6 @@ const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
 // a settle whose look in R2 began before a removal ended lands nothing either, by the count of
 // removals it read first, so no file row ever names an object a removal took.
 
-const BLOB_REMOVALS = "blob_removals";
-
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
 const strayJob = (sha: string): JobRequest<"stray"> => ({
@@ -272,7 +256,7 @@ const strayJob = (sha: string): JobRequest<"stray"> => ({
 });
 
 // the removals the cell has finished, which a settle reads before it looks in R2
-export const blobRemovals = (db: CellDb): number => readCount(db, BLOB_REMOVALS);
+export const blobRemovals = (db: CellDb): number => readCellState(db)?.blobRemovals ?? 0;
 
 const strayPending = (db: CellDb, sha: string): boolean =>
   db
@@ -289,19 +273,15 @@ const strand = (db: CellDb, sha: string, now: number): void => {
 
 // room nobody used: the upload never settled, and whatever it put in R2 goes
 export const releaseUpload = (db: CellDb, sha: string, now: number): void => {
-  const held = heldUpload(db, sha);
-  if (held !== null) {
-    releaseHeld(db, sha, held.bytes);
+  if (heldUpload(db, sha) !== null) {
+    releaseHeld(db, sha);
     strand(db, sha, now);
   }
 };
 
 // an upload the cell would not take: its room goes, and so do its bytes in R2
 export const refuseUpload = (db: CellDb, sha: string, now: number): void => {
-  const held = heldUpload(db, sha);
-  if (held !== null) {
-    releaseHeld(db, sha, held.bytes);
-  }
+  releaseHeld(db, sha);
   strand(db, sha, now);
 };
 
@@ -309,9 +289,8 @@ export const refuseUpload = (db: CellDb, sha: string, now: number): void => {
 // holds of it is a stray the alarm takes out; a file an item or any change set names stays
 export const releaseUnnamed = (db: CellDb, shas: readonly string[], now: number): void => {
   for (const sha of new Set(shas)) {
-    const row = db
-      .select({ bytes: blobs.bytes, refs: blobs.refs })
-      .from(blobs)
+    const [unnamed] = db
+      .delete(blobs)
       .where(
         and(
           eq(blobs.sha256, sha),
@@ -321,14 +300,24 @@ export const releaseUnnamed = (db: CellDb, shas: readonly string[], now: number)
               .from(jobs)
               .where(eq(jobs.id, unnamedJobId(sha))),
           ),
-          sql`NOT EXISTS (SELECT 1 FROM change_set_blobs WHERE sha256 = ${sha})`,
+          notExists(
+            db
+              .select({ sha256: itemBlobs.sha256 })
+              .from(itemBlobs)
+              .where(eq(itemBlobs.sha256, sha)),
+          ),
+          notExists(
+            db
+              .select({ sha256: changeSetBlobs.sha256 })
+              .from(changeSetBlobs)
+              .where(eq(changeSetBlobs.sha256, sha)),
+          ),
         ),
       )
-      .get();
+      .returning({ sha256: blobs.sha256 })
+      .all();
     dropJob(db, unnamedJobId(sha));
-    if (row?.refs === 0) {
-      db.delete(blobs).where(eq(blobs.sha256, sha)).run();
-      addFileBytes(db, -row.bytes);
+    if (unnamed !== undefined) {
       ensureJob(db, strayJob(sha), now);
     }
   }
@@ -346,7 +335,7 @@ export const beginRemoval = (db: CellDb, sha: string): boolean => {
 
 // R2 holds nothing under the sha now
 export const endRemoval = (db: CellDb, sha: string): void => {
-  writeMeta(db, BLOB_REMOVALS, blobRemovals(db) + 1);
+  writeCellState(db, { blobRemovals: blobRemovals(db) + 1 });
   dropJob(db, strayJobId(sha));
 };
 
@@ -379,20 +368,14 @@ export const settleUpload = (
   }
   const held = heldUpload(db, sha);
   if (stored === null) {
-    if (held !== null) {
-      releaseHeld(db, sha, held.bytes);
-    }
+    releaseHeld(db, sha);
     return false;
   }
-  const reserved = held?.bytes ?? 0;
-  holdRoomFor(db, bytesCap, stored.bytes - reserved);
-  if (held !== null) {
-    releaseHeld(db, sha, reserved);
-  }
+  holdRoomFor(db, bytesCap, stored.bytes - (held?.bytes ?? 0));
+  releaseHeld(db, sha);
   db.insert(blobs)
-    .values({ bytes: stored.bytes, mime: held?.mime ?? stored.mime, refs: 0, sha256: sha })
+    .values({ bytes: stored.bytes, mime: held?.mime ?? stored.mime, sha256: sha })
     .run();
-  addFileBytes(db, stored.bytes);
   awaitName(db, sha, now);
   return true;
 };

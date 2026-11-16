@@ -52,8 +52,7 @@ CREATE TABLE `blob_uploads` (
 CREATE TABLE `blobs` (
 	`sha256` text PRIMARY KEY,
 	`bytes` integer NOT NULL,
-	`mime` text NOT NULL,
-	`refs` integer NOT NULL
+	`mime` text NOT NULL
 );
 
 CREATE TABLE `body_texts` (
@@ -61,6 +60,15 @@ CREATE TABLE `body_texts` (
 	`part` integer NOT NULL,
 	`text` text NOT NULL,
 	CONSTRAINT `body_texts_pk` PRIMARY KEY(`item_id`, `part`)
+);
+
+CREATE TABLE `cell_state` (
+	`slot` integer PRIMARY KEY,
+	`head` integer DEFAULT 0 NOT NULL,
+	`deleted_at` integer,
+	`blob_removals` integer DEFAULT 0 NOT NULL,
+	`rules` text,
+	CONSTRAINT "cell_state_slot" CHECK("slot" = 1)
 );
 
 CREATE TABLE `change_set_blobs` (
@@ -171,11 +179,6 @@ CREATE TABLE `links` (
 	`target_key` text
 );
 
-CREATE TABLE `meta` (
-	`k` text PRIMARY KEY,
-	`v` 
-);
-
 CREATE TABLE `note_sockets` (
 	`session_id` text NOT NULL,
 	`item_id` text NOT NULL,
@@ -227,6 +230,7 @@ CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);
 CREATE INDEX `change_set_blobs_sha` ON `change_set_blobs` (`sha256`);
 CREATE INDEX `change_set_items_item` ON `change_set_items` (`item_id`);
 CREATE INDEX `change_sets_open` ON `change_sets` (`actor`,`sealed_at`);
+CREATE INDEX `item_blobs_sha` ON `item_blobs` (`sha256`);
 CREATE INDEX `item_tags_tag` ON `item_tags` (`tag`);
 CREATE UNIQUE INDEX `items_id` ON `items` (`id`);
 CREATE UNIQUE INDEX `one_url` ON `items` (`url_key`) WHERE "items"."deleted_at" IS NULL AND "items"."url_key" IS NOT NULL;

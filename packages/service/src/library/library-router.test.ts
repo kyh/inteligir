@@ -17,10 +17,9 @@ import {
   landedValue,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
+import { holdFileOf } from "../test-support/library-files";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { FILL_ACTOR } from "./cell-fills";
-import { addFileBytes } from "./cell-quota";
-import { cellDbOf } from "./cell-db";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 const SHA = "a".repeat(64);
@@ -665,7 +664,7 @@ describe("the library's procedures", () => {
       ).resolves.toStrictEqual({ code: "CONFLICT", data: undefined, defined: true });
 
       // a full library still takes words in an item it holds, and refuses only a new one
-      addFileBytes(cellDbOf(state.storage), GiB);
+      holdFileOf(state.storage, GiB);
       await library.items.edit({
         edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
         id: item.id,

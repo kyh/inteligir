@@ -1,19 +1,18 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
-// its derived rows and `meta`, through drizzle's builders. A write binds every value and cuts every
-// many-row statement under a Durable Object's limits (`insertChunks`).
+// its derived rows and the cell's one row, through drizzle's builders. A write binds every value and
+// cuts every many-row statement under a Durable Object's limits (`insertChunks`).
 
 import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
-import { z } from "zod";
 
 import type { BODY_HOMES } from "@repo/db/cell/schema";
 import {
   bodyTexts,
+  cellState,
   items,
   itemTags,
   links,
-  meta,
   purgedItems,
   seedBlocks,
 } from "@repo/db/cell/schema";
@@ -230,41 +229,32 @@ export const linksTo = (db: CellDb, targetId: string): string[] =>
 export const linksToUrl = (db: CellDb, key: string): string[] =>
   liveSourcesWhere(db, eq(links.targetKey, key));
 
-// ---- meta ----
+// ---- the cell's one row ----
 
-export const readMeta = (db: CellDb, key: string): string | number | null =>
-  db.select({ v: meta.v }).from(meta).where(eq(meta.k, key)).get()?.v ?? null;
+// what the cell holds once; undefined before its first write, when each is as its column defaults
+export const readCellState = (db: CellDb) =>
+  db.select().from(cellState).where(eq(cellState.slot, 1)).get();
 
-const instantSchema = z.number().int().nonnegative();
-
-// a meta key holding a time or a count, null before its first write
-export const readInstant = (db: CellDb, key: string): number | null => {
-  const held = readMeta(db, key);
-  return held === null ? null : instantSchema.parse(held);
-};
-
-// a meta key holding a count, 0 before its first write
-export const readCount = (db: CellDb, key: string): number => readInstant(db, key) ?? 0;
-
-export const writeMeta = (db: CellDb, key: string, value: string | number): void => {
-  db.insert(meta)
-    .values({ k: key, v: value })
-    .onConflictDoUpdate({ set: { v: excluded(meta.v) }, target: meta.k })
+export const writeCellState = (
+  db: CellDb,
+  facts: Partial<Pick<typeof cellState.$inferInsert, "blobRemovals" | "deletedAt" | "rules">>,
+): void => {
+  db.insert(cellState)
+    .values({ ...facts, slot: 1 })
+    .onConflictDoUpdate({ set: facts, target: cellState.slot })
     .run();
 };
-
-const headSchema = z.number().int().positive();
 
 // the library's next sequence number: one per write, every row it touches stamped with it
 export const nextHead = (db: CellDb): number => {
   const [row] = db
-    .insert(meta)
-    .values({ k: "head", v: 1 })
-    .onConflictDoUpdate({ set: { v: sql`${meta.v} + 1` }, target: meta.k })
-    .returning({ v: meta.v })
+    .insert(cellState)
+    .values({ head: 1, slot: 1 })
+    .onConflictDoUpdate({ set: { head: sql`${cellState.head} + 1` }, target: cellState.slot })
+    .returning({ head: cellState.head })
     .all();
   if (row === undefined) {
     throw new LibraryRowError("the head did not come back from its own write");
   }
-  return headSchema.parse(row.v);
+  return row.head;
 };

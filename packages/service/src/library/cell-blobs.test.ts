@@ -72,9 +72,15 @@ const runAlarm = async ({ accountId, library }: Cell): Promise<void> => {
 const fileRows = ({ state }: Cell, sha: string): number =>
   state.storage.sql.exec("SELECT 1 FROM blobs WHERE sha256 = ?", sha).toArray().length;
 
+// the files' bytes the quota counts: every file's row, and every upload's room
 const bytesUsed = ({ state }: Cell): number => {
-  const [row] = state.storage.sql.exec("SELECT v FROM meta WHERE k = 'bytes_used'").toArray();
-  return Number(row?.v ?? 0);
+  const row = state.storage.sql
+    .exec(
+      `SELECT (SELECT coalesce(sum(bytes), 0) FROM blobs)
+            + (SELECT coalesce(sum(bytes), 0) FROM blob_uploads) AS bytes`,
+    )
+    .one();
+  return Number(row.bytes);
 };
 
 const inR2 = async ({ accountId }: Cell, sha: string): Promise<boolean> =>

@@ -45,7 +45,7 @@ export const agentRouter = {
   setEnabled: os.agent.setEnabled.handler(({ context, input }) =>
     answer(setAgentEnabled(context.agent, input)),
   ),
-  // a meta row of the library's, joining no change set: rules are no item's
+  // a fact of the cell's own, joining no change set: rules are no item's
   setRules: os.agent.setRules.handler(({ context, input }) =>
     context.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
       writeLibraryRules(scope.db, input.rules);

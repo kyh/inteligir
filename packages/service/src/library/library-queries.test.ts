@@ -15,14 +15,14 @@ import {
   linksToUrl,
   nextHead,
   purgeItem,
+  readCellState,
   readItem,
   readListingRows,
   readListingSince,
-  readMeta,
   storeItemRow,
   storeLinks,
   storeTags,
-  writeMeta,
+  writeCellState,
 } from "./library-queries";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
@@ -446,16 +446,21 @@ describe("links", () => {
   });
 });
 
-describe("meta", () => {
-  it("counts the head up one write at a time and keeps meta values as they were written", async () => {
+describe("the cell's one row", () => {
+  it("counts the head up one write at a time, and a fact written leaves the others as they were", async () => {
     await inLibrary(({ db }) => {
+      expect(readCellState(db)).toBeUndefined();
       expect(nextHead(db)).toBe(1);
       expect(nextHead(db)).toBe(2);
-      writeMeta(db, "deleted_at", 7);
-      writeMeta(db, "rules", "42");
-      expect(readMeta(db, "deleted_at")).toBe(7);
-      expect(readMeta(db, "rules")).toBe("42");
-      expect(readMeta(db, "missing")).toBeNull();
+      writeCellState(db, { deletedAt: 7 });
+      writeCellState(db, { rules: "42" });
+      expect(readCellState(db)).toStrictEqual({
+        blobRemovals: 0,
+        deletedAt: 7,
+        head: 2,
+        rules: "42",
+        slot: 1,
+      });
     });
   });
 });

@@ -277,8 +277,9 @@ describe("a write to the library cell", () => {
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
       });
-      const refs = state.storage.sql.exec("SELECT refs FROM blobs WHERE sha256 = ?", sha).one();
-      expect(refs.refs).toBe(1);
+      expect(
+        state.storage.sql.exec("SELECT item_id FROM item_blobs WHERE sha256 = ?", sha).toArray(),
+      ).toStrictEqual([{ item_id: itemId }]);
     });
   });
 

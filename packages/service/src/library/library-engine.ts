@@ -10,14 +10,7 @@
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
-import {
-  nextHead,
-  readCount,
-  readInstant,
-  purgeItem,
-  readItem,
-  writeMeta,
-} from "./library-queries";
+import { nextHead, purgeItem, readCellState, readItem, writeCellState } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
@@ -161,7 +154,7 @@ const undoSchema = z.object({
 const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
 // the last sequence number a write took, 0 before the first
-export const libraryHead = (db: CellDb): number => readCount(db, "head");
+export const libraryHead = (db: CellDb): number => readCellState(db)?.head ?? 0;
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
 // runs it between two (`removeStrays` in `./cell-library`)
@@ -186,7 +179,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, db, ids } = deps;
   const listing = holdListing();
 
-  const deletedAt = (): number | null => readInstant(db, "deleted_at");
+  const deletedAt = (): number | null => readCellState(db)?.deletedAt ?? null;
 
   // Every transaction that may write, and what follows it with no await between: the sockets told
   // what it moved, the alarm set to the earliest job. Once the deletion began no job runs, so one
@@ -534,7 +527,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const tombstone = (): void => {
     commit(() => {
       if (deletedAt() === null) {
-        writeMeta(db, "deleted_at", deps.now());
+        writeCellState(db, { deletedAt: deps.now() });
       }
     });
   };

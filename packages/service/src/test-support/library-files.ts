@@ -2,10 +2,13 @@
 // and its row settled, and the cell's alarm run until what it waits for is done.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
+import { blobs } from "@repo/db/cell/schema";
 import { blobKey } from "../library/cell-blobs";
+import { cellDbOf } from "../library/cell-db";
 import { settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
@@ -42,6 +45,14 @@ export const uploadedFile = async (
     throw new Error("the library did not settle the file");
   }
   return sha;
+};
+
+// a file's row of `bytes` that no upload made: what fills a library to its cap for a test
+export const holdFileOf = (storage: DurableObjectStorage, bytes: number): void => {
+  cellDbOf(storage)
+    .insert(blobs)
+    .values({ bytes, mime: UNKNOWN_FILE_TYPE, sha256: "f".repeat(64) })
+    .run();
 };
 
 // the cell's alarm run until `done` holds, at most `limit` times: the platform also runs an alarm

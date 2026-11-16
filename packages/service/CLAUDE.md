@@ -130,9 +130,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   batches, each item whole or not at all.** An alarm has 30 s of CPU and a zip
   in R2 is a second copy, so the device that holds the file reads it.
   `packages/service/src/library/cell-imports.ts`.
-- **A file is let go once nothing names it.** An item or a change set keeps it,
-  so releasing by `refs` alone drops a file only a change set holds.
-  `packages/service/src/library/change-set-prune.ts`.
+- **A file is let go once nothing names it, asked of the rows that name it.** An
+  item or a change set keeps it, and a count kept beside those rows is a second
+  spelling that can drift from them. `packages/service/src/library/cell-blobs.ts`.
 - **Filing rules are the person's own words, and only the person writes them.**
   They reach the agent above anything a saved page says, so an import reads an
   `AGENTS.md` as a note. `packages/service/src/library/library-rules.ts`.
