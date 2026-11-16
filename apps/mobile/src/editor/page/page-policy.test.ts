@@ -24,6 +24,8 @@ describe("the note page's content policy", () => {
     expect(directive(policy, "script-src")).toBe("'self'");
     expect(directive(policy, "img-src")).toBe("'self' data: blob:");
     expect(directive(policy, "media-src")).toBe("'self' blob:");
+    expect(directive(policy, "font-src")).toBe("'self' data:");
+    expect(directive(policy, "frame-src")).toBe("'self'");
     expect(directive(policy, "object-src")).toBe("'none'");
     expect(directive(policy, "form-action")).toBe("'none'");
   });

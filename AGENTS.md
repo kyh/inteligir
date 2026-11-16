@@ -64,7 +64,7 @@ packages/page-reader   * a saved page read into an item, over linkedom on every 
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads
 packages/agent-skills    the dialect spec the agent's instructions are built from
 packages/ui            * the shared components on Base UI
-tools/repo-guards      * four fitness tests over the repo
+tools/repo-guards      * the fitness test over the repo's product words
 tools/e2e                the Playwright flows `pnpm e2e` runs
 tools/messages-fake      a scripted Claude the local Worker, the e2e and the suites run the agent on
 ```

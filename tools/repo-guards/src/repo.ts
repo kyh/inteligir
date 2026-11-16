@@ -5,11 +5,6 @@ import { z } from "zod";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-// build output would answer for source, and an agent worktree under a dot-directory is a whole
-// checkout of this repo
-const isSkippedDir = (name: string): boolean =>
-  name.startsWith(".") || ["node_modules", "dist", "coverage", "target"].includes(name);
-
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/u;
 
 export interface Workspace {
@@ -52,9 +47,7 @@ const walk = (dir: string, out: string[]): void => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!isSkippedDir(entry.name)) {
-        walk(full, out);
-      }
+      walk(full, out);
     } else if (SOURCE_FILE.test(entry.name)) {
       out.push(path.relative(REPO_ROOT, full));
     }
@@ -67,20 +60,11 @@ const filesUnder = (dir: string): string[] => {
   return found.toSorted();
 };
 
-export const isTestFile = (relativePath: string): boolean =>
+const isTestFile = (relativePath: string): boolean =>
   /(?:^|\/)test-support\//u.test(relativePath) || /\.test\.[cm]?tsx?$/u.test(relativePath);
 
-interface WorkspaceFiles {
-  readonly shipped: string[];
-  readonly test: string[];
-}
-
-export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
-  const all = filesUnder(path.join(workspace.dir, "src"));
-  return { shipped: all.filter((file) => !isTestFile(file)), test: all.filter(isTestFile) };
-};
-
-export const workspaceSourceFiles = (workspace: Workspace): string[] => filesUnder(workspace.dir);
+export const shippedFiles = (workspace: Workspace): string[] =>
+  filesUnder(path.join(workspace.dir, "src")).filter((file) => !isTestFile(file));
 
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/u;
 

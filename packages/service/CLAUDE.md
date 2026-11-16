@@ -261,7 +261,7 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   carry the person's words to a site. `packages/service/src/agent/library-agent.ts`.
 - **No device draws a remote image, frame or media in an item.** The agent
   writes notes a saved page may steer, and a fetch on open is a request no person
-  made. `tools/repo-guards/src/remote-media.test.ts`.
+  made. `packages/editor/src/drawing-policy.ts`.
 - **A conversation's drive is one value, and a purge is a cut, never a stop.** A
   flag per concern lets a purged drive step again over tables being removed.
   `packages/service/src/agent/thread-drive.ts`.

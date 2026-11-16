@@ -78,8 +78,17 @@ export default defineConfig({
     // entry names Env.
     tanstackStart({ server: { entry: "./worker/server.ts" } }),
     viteReact(),
-    // the React Compiler, react.dev's Vite path (react.dev/learn/react-compiler/installation)
-    babel({ presets: [reactCompilerPreset({ logger: reportSkips })] }),
+    // the React Compiler, react.dev's Vite path (react.dev/learn/react-compiler/installation). It
+    // outlines a hook's closures to module scope, where an enclosing function's locals are gone,
+    // so a hook or component defined inside a function fails the build
+    babel({
+      presets: [
+        reactCompilerPreset({
+          environment: { validateNoDynamicallyCreatedComponentsOrHooks: true },
+          logger: reportSkips,
+        }),
+      ],
+    }),
     tailwindcss(),
   ],
   // strictPort: every doc and script names :5174, so failing to bind beats moving. No CORS of the

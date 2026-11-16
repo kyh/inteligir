@@ -6,8 +6,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 ## Repo guards, vendoring and tooling
 
 - **A guard is for a rule spanning workspaces that no tool checks**, and states
-  its rule and the file to change. Why: a guard repeating pnpm, tsc, knip or
-  oxlint is one more table to keep in step. `tools/repo-guards/README.md`.
+  its rule and the file to change. Why: a guard repeating pnpm, tsc, knip,
+  oxlint or a build is one more table to keep in step. `tools/repo-guards/README.md`.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
   conflict is no reason; the licences live in `tools/licenses`, and the .app
@@ -18,6 +18,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the compiler would key a value wrongly. Why: the suites run what ships, a
   `compiled-under-test` case fails without the preset, and the compiler
   memoizes the rest. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
+- **A hook or component defined inside a function fails the build**, the
+  site's, the extension's and the phone's alike. Why: the compiler outlines its
+  closures to module scope, past the enclosing function's locals, and says so
+  only under `validateNoDynamicallyCreatedComponentsOrHooks`.
+  `apps/web/vite.config.ts`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
   `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.

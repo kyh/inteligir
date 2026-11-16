@@ -11,7 +11,7 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
   the e2e apply the DDL `drizzle-kit export` prints. `tools/e2e/src/fixtures.ts`.
 - **Declare D1 uniques as named unique indexes, never `.unique()`.** drizzle-kit
   1.0 plans `.unique()` as a table recreate whose `DROP` cascades through every
-  child on D1. `tools/repo-guards/src/d1-unique-index.test.ts`.
+  child on D1, so lint refuses the modifier under `src/d1`. `oxlint.config.ts`.
 - **Each object's schema is its drizzle schema's DDL, and a different DDL wipes
   the object, until the no-users premise is struck** (owner decision: push, not
   migrations). A migration history serves no user; the cell's search index is

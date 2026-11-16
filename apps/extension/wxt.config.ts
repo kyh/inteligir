@@ -118,7 +118,19 @@ export default defineConfig({
   },
   srcDir: "src",
   vite: () => ({
-    plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+    plugins: [
+      viteReact(),
+      // a hook or component defined inside a function fails the build, as the site's does
+      // (apps/web/vite.config.ts)
+      babel({
+        presets: [
+          reactCompilerPreset({
+            environment: { validateNoDynamicallyCreatedComponentsOrHooks: true },
+          }),
+        ],
+      }),
+      tailwindcss(),
+    ],
     // the worker shares its chunks with the pages, so the bundle takes each package's worker build
     resolve: { conditions: WORKER_CONDITIONS },
   }),

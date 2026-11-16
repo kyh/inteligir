@@ -49,6 +49,12 @@ const NOTE_REENTRY = [
   { message: "the cell never blocks its own events", property: "blockConcurrencyWhile" },
   { message: "the cell writes in transactionSync alone (cell-db.ts)", property: "transaction" },
 ];
+// drizzle-kit plans `.unique()` as a table recreate, and D1 ignores `PRAGMA foreign_keys=OFF`, so
+// the recreate's DROP cascades through every ON DELETE CASCADE child; `push` applies it unasked
+const D1_UNIQUE = {
+  message: 'declare a D1 unique as uniqueIndex("<table>_<column>_unique") in the table\'s config',
+  property: "unique",
+};
 const THREAD_STUB_CALLERS = [
   "packages/service/src/library/library-do.ts",
   "packages/service/src/agent/agent-turns.ts",
@@ -259,6 +265,10 @@ export default defineConfig({
       excludeFiles: tests,
       files: ["packages/service/src/library/**"],
       rules: { "no-restricted-properties": ["error", ...NOTE_REENTRY] },
+    },
+    {
+      files: ["packages/db/src/d1/**"],
+      rules: { "no-restricted-properties": ["error", D1_UNIQUE] },
     },
     {
       // the model ships to runtimes without crypto, and React Native's URL is not WHATWG

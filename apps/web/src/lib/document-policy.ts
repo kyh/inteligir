@@ -5,6 +5,7 @@
 // own sandbox, the consent page), and one that is no document carries none.
 
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { DRAWING_DIRECTIVES } from "@repo/editor/drawing-policy";
 
 const NONCE_BYTES = 16;
 
@@ -19,13 +20,8 @@ const socketOrigin = (url: URL): string =>
 
 export const pagePolicy = (url: URL, nonce: string): string =>
   [
-    "default-src 'self'",
+    ...DRAWING_DIRECTIVES,
     `script-src 'self' 'nonce-${nonce}'`,
-    // React's style attributes and the editor's runtime <style> are not nonceable
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob:",
-    "font-src 'self' data:",
     // ipc: is the Mac app's command channel; blocked, Tauri falls back to postMessage, and no
     // browser has the scheme
     `connect-src 'self' ${socketOrigin(url)} ipc:`,

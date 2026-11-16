@@ -2,6 +2,8 @@
 // bytes the phone handed it, and the one connection it opens is the note's socket. Expo's page
 // template carries no policy, so the page inserts this before it draws an item.
 
+import { DRAWING_DIRECTIVES } from "@repo/editor/drawing-policy";
+
 const socketOriginOf = (cloudOrigin: string): string => {
   const url = new URL(cloudOrigin);
   return `${url.protocol === "https:" ? "wss" : "ws"}://${url.host}`;
@@ -9,12 +11,8 @@ const socketOriginOf = (cloudOrigin: string): string => {
 
 export const pagePolicy = (cloudOrigin: string): string =>
   [
-    "default-src 'self'",
+    ...DRAWING_DIRECTIVES,
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob:",
-    "font-src 'self' data:",
     `connect-src ${socketOriginOf(cloudOrigin)}`,
     "object-src 'none'",
     "base-uri 'self'",

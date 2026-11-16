@@ -92,6 +92,9 @@ catalog:
   eas-cli: 24.12.1
   # a block's order key, between two neighbours, with no renumbering
   fractional-indexing: ^4.0.0
+  # the range `expo` itself pins: the phone's babel.config.js names the preset, and Babel resolves
+  # it from the phone's own node_modules
+  babel-preset-expo: ~57.0.14
   expo: ~57.0.27
   expo-constants: ~57.0.21
   expo-crypto: ~57.0.3
@@ -190,6 +193,7 @@ catalogs:
 # nativewind too: its `latest` is the Tailwind 3 line, so a sweep would move the phone off Tailwind 4
 update:
   ignoreDeps:
+    - babel-preset-expo
     - expo
     - expo-*
     - "@expo/*"
