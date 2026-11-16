@@ -104,7 +104,8 @@ export const threadStatus = async (
 const SETTLE_MS = 20_000;
 
 // the thread's turns all ended and sealed, its waiting sends with them, and its object's outbox
-// empty: the cell holds no open turn of it and its status is idle
+// empty: the cell holds no open turn of it and its status is idle. Every read only looks, so a
+// thread that comes to rest here came to rest by its own wakes
 export const settled = async (
   account: AgentAccount,
   threadId: string,
@@ -118,8 +119,12 @@ export const settled = async (
         threadId,
       );
       const status = await threadStatus(account, threadId);
-      const inspection = await threadOf(account.accountId, threadId).inspect();
-      if (open.length > 0 || status !== "idle" || inspection.outbox > 0) {
+      const [unsent] = await threadRows(
+        account.accountId,
+        threadId,
+        "SELECT count(*) AS count FROM outbox",
+      );
+      if (open.length > 0 || status !== "idle" || countSchema.parse(unsent).count > 0) {
         throw new Error(`the thread is ${status ?? "gone"}, ${String(open.length)} turn open`);
       }
     },
