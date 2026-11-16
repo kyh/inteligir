@@ -36,7 +36,7 @@ import { ItemView } from "./item/item-view";
 import { leaveItem, useLeaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
-import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
+import type { CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
 import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
@@ -245,40 +245,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     })();
   };
 
-  const saveLinks = (links: readonly CapturedLink[]): void => {
-    void (async () => {
-      const made = [];
-      const unsaved =
-        links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.";
-      for (const link of links) {
-        try {
-          made.push(await verbs.saveLink(link.url, link.title, into()));
-        } catch (error) {
-          toast.error(refusalText(error, unsaved));
-          return;
-        }
-      }
-      const [only, ...more] = made;
-      if (only === undefined) {
-        return;
-      }
-      if (more.length > 0) {
-        toast.success(`Saved ${plural(made.length, "link")}.`);
-        return;
-      }
-      toast.success(only.created ? "Saved." : "Your library already holds that link.", {
-        action: {
-          label: "Open",
-          onClick: () => {
-            open(only.id);
-          },
-        },
-      });
-    })();
-  };
-
   const saveLink = (url: string): void => {
-    saveLinks([{ title: null, url }]);
+    void verbs.saveLinks([{ title: null, url }], into(), open);
   };
 
   // what a paste, a drop or the file picker handed over: each file and each link saved where the
@@ -287,26 +255,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     for (const sentence of payload.refused) {
       toast.error(sentence);
     }
-    if (payload.urls.length > 0) {
-      saveLinks(payload.urls);
-    }
-    if (payload.files.length > 0) {
-      void (async () => {
-        let made = 0;
-        for (const file of payload.files) {
-          try {
-            await verbs.addFile(file, into());
-          } catch (error) {
-            toast.error(refusalText(error, "Not every file could be added."));
-            break;
-          }
-          made += 1;
-        }
-        if (made > 0) {
-          toast.success(`Added ${plural(made, "file")}.`);
-        }
-      })();
-    }
+    void verbs.saveLinks(payload.urls, into(), open);
+    void verbs.addFiles(payload.files, into());
   };
 
   const { catcherRef, dropInto } = useWindowCapture({
@@ -345,21 +295,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       if (openItem !== null && ids.includes(openItem)) {
         open(null, { ignoreBlocker: true });
       }
-      let deleted: number;
-      try {
-        deleted = await verbs.remove(ids);
-      } catch (error) {
-        toast.error(refusalText(error, "That couldn't be deleted."));
-        return;
-      }
-      toast.success(`Moved ${plural(deleted, "item")} to Deleted.`, {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            verbs.restore(ids);
-          },
-        },
-      });
+      await verbs.remove(ids);
     })();
   };
 
@@ -431,7 +367,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       open(row.id);
     },
     pin: (rows, pinned) => {
-      verbs.pin(
+      void verbs.pin(
         rows.map((row) => row.id),
         pinned,
       );
@@ -446,7 +382,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       removeItems(rows.map((row) => row.id));
     },
     restore: (rows) => {
-      verbs.restore(rows.map((row) => row.id));
+      void verbs.restore(rows.map((row) => row.id));
     },
     tag: (rows) => {
       askTag(rows.map((row) => ({ id: row.id, tags: row.fields.tags })));

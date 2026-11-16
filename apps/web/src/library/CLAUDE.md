@@ -9,9 +9,9 @@ The tab is the site's `/library` route (`apps/web/src/routes/library.tsx`), its 
 workspace and Settings, its code this folder. `library-tab.ts` opens the tab once a document (the
 session, the wire, the account's socket and the QueryClient) in the route's `beforeLoad`, and
 `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
-queries and the socket; `workspace.tsx` the rail, the grid or the open item, the panel and the
-palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/` the
-agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the
+queries, the writes and the socket; `workspace.tsx` the rail, the grid or the open item, the panel
+and the palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/`
+the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the
 sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 
 ## The tab over the cell
@@ -24,6 +24,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   routes' `beforeLoad` context, so a loader and a component share one cache, and a socket frame
   reaches a family by oRPC's key, never one of ours.
   `apps/web/src/library/cloud/library-queries.ts`.
+- **A write is mutation options beside the reads, and says how it went once.** A screen mounts only
+  the write it asks, and its refusal is said by the write's options or by the flow that awaits it,
+  never by a callback handed to `mutate`, since TanStack drops that with the screen that asked.
+  `apps/web/src/library/cloud/library-writes.ts`.
 - **A cell call pauses offline and says so.** Every call only the cell answers runs with
   `networkMode: "online"`, so offline it waits under `NEEDS_CONNECTION`, the one sentence every
   device says, and a read's standing is one value, `cellStanding`.
@@ -82,9 +86,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The grid's selection is a store, a click selects and a double-click opens.** Finder's grammar by
   item id, and the store outlives an open item, since the selection is the panel's subject and the
   agent's context. `apps/web/src/library/library/library-selection.ts`.
-- **A bulk verb runs in chunks, under one toast with Stop.** One cell call a chunk, in order, a
-  failure saying how far it got, and a delete of more than fifty asks first.
-  `apps/web/src/library/library/bulk-actions.ts`.
+- **A verb that makes several calls is one run, under one toast with Stop.** A chunk of items or
+  one link or file a call, in order, a failure saying how far it got beside Delete's Undo of what
+  went, and a delete of more than fifty asks first, since a loop of a verb's own says less of what
+  landed. `apps/web/src/library/library/bulk-actions.ts`.
 - **A save from the window is a paste or a drop that no field claimed.** Each link and file goes
   where the grid's scope saves, and a file past 100 MB is refused before a byte is queued, since the
   grid has no save field of its own. `apps/web/src/library/library/capture/window-capture.ts`.
@@ -102,7 +107,7 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   `apps/web/src/library/panel/property-fields.tsx`.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
-  merges. `apps/web/src/library/library/library-verbs.ts`.
+  merges. `apps/web/src/library/cloud/library-writes.ts`.
 - **Undo is one queue of the agent's change sets.** A set goes back once the open note stored what
   was typed, so typing since stays, and every undo waits in press order; there is no version
   history, since ⌘Z and Deleted take back the person's own.

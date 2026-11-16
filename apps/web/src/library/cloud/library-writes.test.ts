@@ -1,7 +1,7 @@
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
 
-import { organizedOverlay } from "./library-verbs";
+import { organizedOverlay } from "./library-writes";
 
 describe(organizedOverlay, () => {
   it("lays a tag change over a row as the cell makes it, case by case", () => {

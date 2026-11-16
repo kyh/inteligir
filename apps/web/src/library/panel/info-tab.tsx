@@ -10,13 +10,12 @@ import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Switch } from "@repo/ui/components/switch";
-import { useIsMutating, useQuery } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
+import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { formatCount, isUrlItem } from "../library/item-labels";
-import { useLibraryVerbs } from "../library/library-verbs";
 import { PropertiesPanel } from "./properties-panel";
 
 export interface InfoActions {
@@ -55,7 +54,10 @@ const propertyText = (value: PropertyValue): string => {
 
 export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActions }) => {
   const queries = useLibraryQueries();
-  const verbs = useLibraryVerbs();
+  const writes = useLibraryWrites();
+  const pin = useMutation(writes.organize("That couldn't be pinned."));
+  const writeFields = useMutation(writes.writeFields());
+  const refresh = useMutation(writes.refresh());
   const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
@@ -129,7 +131,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
             <PropertiesPanel
               properties={fields.properties}
               onWrite={(op) => {
-                verbs.writeFields(id, [op]);
+                writeFields.mutate({ itemId: id, opId: crypto.randomUUID(), ops: [op] });
               }}
             />
           ) : null}
@@ -137,7 +139,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
             label="Pinned"
             checked={fields.pinnedAt !== null}
             onCheckedChange={(pinned) => {
-              verbs.pin([id], pinned);
+              pin.mutate({ ids: [id], pinned });
             }}
           />
           {isUrlItem(fields) ? (
@@ -148,7 +150,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
                 size="compact"
                 disabled={refreshing}
                 onClick={() => {
-                  verbs.refresh(id);
+                  refresh.mutate({ id });
                 }}
               >
                 Read the page again

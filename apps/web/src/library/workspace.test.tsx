@@ -119,7 +119,9 @@ describe("Save a link", () => {
     submit("https://example.com/page");
 
     await vi.waitFor(() => {
-      expect(failed).toHaveBeenCalledWith("That link couldn't be saved.");
+      expect(failed.mock.lastCall?.[0]).toBe(
+        "That link couldn't be saved. The library didn't answer.",
+      );
     });
   });
 });
@@ -158,6 +160,44 @@ describe("an open item's title", () => {
     const title = await screen.findByRole("textbox", { name: "Title" });
 
     expect(title.getAttribute("spellcheck")).toBe("false");
+  });
+
+  it("keeps the keyboard as Enter names it", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: NOTE });
+    pageAt(`/library?item=${id}`, cell);
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    title.focus();
+    fireEvent.change(title, { target: { value: "Field journal" } });
+    fireEvent.keyDown(title, { key: "Enter" });
+
+    await vi.waitFor(() => {
+      expect(cell.item(id)?.fields.title).toBe("Field journal");
+    });
+    expect(document.activeElement).toBe(title);
+    expect(title).toHaveProperty("value", "Field journal");
+  });
+
+  it("says why the cell refused a new one, and shows the one it holds", async () => {
+    const cell = createFakeCell();
+    pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell, (call) => {
+      if (call.path === "library.items.organize") {
+        throw new Error("the cell is down");
+      }
+    });
+    const failed = vi.spyOn(toast, "error");
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    fireEvent.change(title, { target: { value: "Field journal" } });
+    fireEvent.blur(title);
+
+    await vi.waitFor(() => {
+      expect(failed).toHaveBeenCalledWith("The title couldn't be changed.");
+    });
+    await vi.waitFor(() => {
+      expect(title).toHaveProperty("value", NOTE);
+    });
   });
 });
 

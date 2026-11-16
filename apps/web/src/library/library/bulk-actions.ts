@@ -1,8 +1,9 @@
-// A verb over a selection runs as sequential chunks under one progress toast: a move or a tag
-// and a purge each call the cell once for each chunk its route takes.
-// Stop ends after the chunk in flight; a chunk that fails stops the run at once and says how far it
-// got. Each chunk answers how many of it landed, and only those are counted in the closing
-// sentence, so a run where none landed says that, a failure among them, rather than a count of 0.
+// CLAUDE.md § A verb that makes several calls is one run, under one toast with Stop. A move, a tag, a
+// pin, a delete, a restore and a purge call the cell once for each chunk its route takes, and a save
+// once for each link or file. Stop ends after the call in flight; a call that fails stops the run at
+// once and says how far it got. Each call answers how many of it landed, and only those are counted
+// in the closing sentence, so a run where none landed says that, a failure among them, rather than a
+// count of 0.
 
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";

@@ -9,6 +9,8 @@ import { createContext, useContext, useEffect } from "react";
 import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
+import { libraryWrites } from "./library-writes";
+import type { LibraryWrites } from "./library-writes";
 import type { SignedIn } from "#lib/auth-client";
 import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "./v1";
@@ -52,6 +54,8 @@ export const usePageLibrary = (): PageLibrary => {
 };
 
 export const useLibraryQueries = (): LibraryQueries => libraryQueries(usePageLibrary().wire);
+
+export const useLibraryWrites = (): LibraryWrites => libraryWrites(usePageLibrary());
 
 export const PageLibraryProvider = ({
   library,
