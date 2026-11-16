@@ -450,7 +450,7 @@ Only once every check in § 5 has passed, and the three close together.
   updater has no build before it that reads `latest.json`, since 0.6.0 reads
   another feed and its people download this one, so that release skips this,
   and the next starts from that build. On a Mac running the previous release,
-  open the app, or choose Check for Updates… in the app menu. Passing: the
+  open the app, or choose Check for updates in Settings › About. Passing: the
   update's toast offers `<version>` (VoiceOver reads it), Download fills its
   bar, Settings › About says `Inteligir <version> installs when it restarts.`,
   and Restart to update relaunches the app; About Inteligir names `<version>`,

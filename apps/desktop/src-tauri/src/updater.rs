@@ -191,10 +191,6 @@ impl Updates {
         }
     }
 
-    pub fn enabled(&self) -> bool {
-        self.enabled
-    }
-
     fn lock(&self) -> MutexGuard<'_, Phase<Update>> {
         self.phase.lock().unwrap_or_else(PoisonError::into_inner)
     }
