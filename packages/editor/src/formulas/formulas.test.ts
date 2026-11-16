@@ -20,7 +20,7 @@ const evaluate = (source: string): number | null => {
   return outcome.ok ? outcome.value : null;
 };
 
-describe("the executable grammar (the skill's own examples)", () => {
+describe("the executable grammar (the prompt's own examples)", () => {
   it("computes plain arithmetic", () => {
     expect(evaluate("2+2")).toBe(4);
     expect(evaluate("1000*12")).toBe(12_000);
@@ -163,7 +163,7 @@ describe("an item's pills", () => {
   });
 });
 
-describe("the graph (the skill's own type-scale example)", () => {
+describe("the graph (the prompt's own type-scale example)", () => {
   const NOTE = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
   const doc = [
     `:formula[28]{source="28" meta="id=b371c6db-70db-48f1-99e2-9ea1ef6f1151;name=h1_size"}`,

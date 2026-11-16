@@ -294,6 +294,16 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A thread's status is what its open turn and queued sends say, written in one
   place.** Six writers choosing a status let it contradict the rows.
   `packages/service/src/agent/turn-rows.ts`.
+- **The agent's prompt is its own instructions then the dialect's spec, files
+  joined in the one order its module lists, the same bytes for every account.**
+  An index of the sections in their own text is a second order to keep in step,
+  and a byte of an account ends the one cached prefix.
+  `packages/service/src/agent/agent-prompt.ts`.
+- **The spec names a library tool, never a command or a path, and each example
+  in it reads as what it shows.** The agent has no shell and no files, and an
+  example the codec cannot hold teaches it to lose words; a construct lands in
+  the editor's rule table first, then in the words.
+  `packages/service/src/agent/dialect-examples.test.ts`.
 
 ## The program and its suites
 

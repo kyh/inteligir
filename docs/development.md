@@ -92,10 +92,10 @@ inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
 A raw, unsigned token is refused.
 
-The built-in agent's system prompt is `@repo/agent-skills`'s files, which
-`packages/service/src/agent/agent-prompt.ts` imports as text in the hub's
-order; a new skill is a row there beside its row in the hub
-(`packages/service/README.md` § The built-in agent).
+The built-in agent's system prompt is the files of
+`packages/service/src/agent/prompt/`, which `agent-prompt.ts` beside them
+imports as text in one order; a new section is a file there and a row in that
+list (`packages/service/README.md` § The built-in agent).
 
 ## Browser extension
 

@@ -54,7 +54,6 @@
     "@kyh/tsconfig": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
-    "@repo/agent-skills": "workspace:*",
     "@repo/messages-fake": "workspace:*",
     "@types/node": "catalog:",
     "cf": "catalog:",

@@ -28,8 +28,8 @@ block.
 
 In order: the grid marker, an optional single-line labels array, then grid rows.
 
-The grid is 120 columns by 60 rows. Missing cells pad empty, extra cells
-truncate, and a saved canvas normalizes to the full size.
+The grid is 120 columns by 60 rows. A cell you leave out is empty and one past
+the grid is dropped, so write only the rows and columns the sketch fills.
 
 **Every character except `.` and space becomes ink.** Letters do not stay
 readable — an `A` is a smudge, not a letter. All readable text goes in labels.

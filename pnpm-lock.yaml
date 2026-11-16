@@ -859,8 +859,6 @@ importers:
         specifier: 'catalog:'
         version: 4.153.0(@types/node@24.19.2)
 
-  packages/agent-skills: {}
-
   packages/client:
     dependencies:
       '@orpc/tanstack-query':
@@ -1274,9 +1272,6 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
-      '@repo/agent-skills':
-        specifier: workspace:*
-        version: link:../agent-skills
       '@repo/messages-fake':
         specifier: workspace:*
         version: link:../../tools/messages-fake

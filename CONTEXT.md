@@ -190,10 +190,11 @@ frontmatter, which an import reads into the item's fields once
 
 **dialect** — the markdown the library reads and writes: stock CommonMark and
 GFM with directives, item links, pills, alerts and **fence blocks**
-(`packages/editor/src/markdown/md-rules.ts`), which `@repo/agent-skills`
-teaches the agent. The **codec** is the headless converter between an item and
-its dialect (`@repo/editor/codec`), which an import and the agent's reads and
-edits run. Not the editor: the editor edits **blocks**, never markdown.
+(`packages/editor/src/markdown/md-rules.ts`), which the built-in agent's
+prompt teaches it (`packages/service/src/agent/prompt/`). The **codec** is the
+headless converter between an item and its dialect (`@repo/editor/codec`),
+which an import and the agent's reads and edits run. Not the editor: the editor
+edits **blocks**, never markdown.
 
 **node set** — the one vocabulary of what a body may hold, checked on every
 write (`@repo/contract/library/library-nodes`). Not the editor's kits, which

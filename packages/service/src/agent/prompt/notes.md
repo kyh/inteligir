@@ -7,8 +7,7 @@ answers the fields as data and the body as markdown in this dialect, and `edit_i
 anything it keeps is what this section describes. Before saving, filing or tagging an item, read
 inteligir Items below.
 
-The focused sections after this one own the exact contract for the constructs that need one; they
-are listed at the end of this section.
+The sections after this one own the exact contract for the constructs that need one.
 
 ## The Rules That Never Bend
 
@@ -154,8 +153,8 @@ An `inteligir-chart` fence holding JSON. Types are `bar`, `line`, `area`, and `s
 
 One series uses `data`; several use `series`, each with a `name` and its own `data`.
 `stacked-bar` takes `data` only. Every point needs a string `label` and a numeric `value`. JSON
-that does not parse or does not match stays a code block — which is the failure you will see if
-you guess at the shape.
+that does not parse or does not match is kept as you wrote it and draws no chart: the person sees
+its text under a warning, and no answer tells you, so never guess at the shape.
 
 ### Tabs
 
@@ -243,18 +242,6 @@ of the calendar stays text.
   an `inteligir-html` fence.
 - A highlight (`==…==`), a comment (`%%…%%`), a block id (`^ref`) and a footnote (`[^1]`) are
   plain text.
-
-## Focused Contracts
-
-Each is a section of this prompt, after this one:
-
-- Structure and readability: `inteligir-writing`
-- Items, saving, filing and tagging: `inteligir-items`
-- An item's fields: `inteligir-fields`
-- Links, embeds, files: `inteligir-links`
-- Formulas and variables: `inteligir-formulas`
-- Canvas: `inteligir-canvas`
-- HTML blocks: `inteligir-html`
 
 ## Before You Finish
 

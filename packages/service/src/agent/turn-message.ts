@@ -2,7 +2,7 @@
 // the last of them: before them, the screen they wrote from, as a fenced `view-context` block of
 // its JSON. The library's filing rules are no part of it: they are the definition's, sent after
 // the prompt on every call (`./thread-request`), since they hold for the whole turn and the view
-// context for one message (packages/agent-skills/built-in-agent.md says how the agent reads each).
+// context for one message (`./prompt/built-in-agent.md` says how the agent reads each).
 
 import type { TurnMessage } from "./turn-rows";
 
