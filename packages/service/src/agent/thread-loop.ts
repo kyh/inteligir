@@ -37,7 +37,7 @@ import { and, asc, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
-import { asksFirst } from "./agent-tools";
+import { callStart } from "./agent-tools";
 import { callFailureFields, isApiError, isSpendLimitRefusal } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import type { ThreadDb } from "./thread-db";
@@ -790,8 +790,9 @@ const resultBlock = (toolUseId: string, answer: ToolAnswer): ToolResultBlock => 
   return block;
 };
 
-// the reply's calls journaled, each asking one waiting on the person, the rest run in order by the
-// cell; once every one is answered, one message carries every result in the reply's order
+// the reply's calls journaled, each asking one waiting on the person unless its row refuses its
+// input, which answers it there, and the rest run in order by the cell; once every one is
+// answered, one message carries every result in the reply's order
 const toolRound = async (
   host: ThreadHost,
   turn: OpenTurn,
@@ -811,29 +812,27 @@ const toolRound = async (
       if (journaled !== undefined) {
         continue;
       }
-      const asks = asksFirst(use.name);
+      const start = callStart(use.name, use.input);
       db.insert(toolCalls)
         .values({
           idx: index,
           input: JSON.stringify(use.input),
           msgSeq: reply.seq,
           name: use.name,
-          status: asks ? "awaiting_approval" : "pending",
+          status: start.kind === "ask" ? "awaiting_approval" : "pending",
           toolUseId: use.id,
           turn: turn.turn,
         })
         .run();
-      if (asks) {
+      if (start.kind === "ask") {
         asked.push(use.id);
         enqueue(db, turn.turn, [
-          {
-            input: z.json().parse(use.input),
-            name: use.name,
-            toolUseId: use.id,
-            type: "approval.asked",
-            until,
-          },
+          { ask: start.ask, toolUseId: use.id, type: "approval.asked", until },
         ]);
+      }
+      if (start.kind === "refused") {
+        keepAnswer(db, use.id, start.answer);
+        enqueue(db, turn.turn, [resultEvent(use.id, start.answer.content, start.answer.isError)]);
       }
     }
   });

@@ -12,8 +12,7 @@ import { landPush } from "./agent-turns";
 import { threadStatusOf } from "./turn-rows";
 
 const asked: AgentEvent = {
-  input: { url: "https://example.com/a" },
-  name: "save_link",
+  ask: { kind: "save", url: "https://example.com/a" },
   toolUseId: "toolu_01",
   type: "approval.asked",
   until: Date.now() + 600_000,

@@ -22,13 +22,12 @@ import {
   toolWords,
   workWords,
 } from "@repo/client/thread-entries";
-import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/client/thread-entries";
+import type { ThreadBlock, ThreadEntry, WaitingApproval } from "@repo/client/thread-entries";
 import { shownTitle } from "@repo/contract/items/item-name";
-import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
-import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
+import { ApprovalCard } from "@repo/ui/ai/approval-card";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
-import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
+import { ToolChip, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
@@ -115,17 +114,6 @@ const EntryRow = ({
   }
 };
 
-const ToolRow = ({ use }: { use: ToolUse }) => (
-  <ToolChip
-    icon={readsOnly(use.name) ? "read" : "write"}
-    label={toolWords(use.name)}
-    chip={use.kind === "running" ? "…" : ""}
-    failed={use.kind === "failed"}
-  >
-    {use.kind === "failed" ? <ToolChipDetail>{use.message}</ToolChipDetail> : null}
-  </ToolChip>
-);
-
 // the agent's work between two messages: its notes, then the calls it made
 const WorkBlock = ({
   block,
@@ -146,7 +134,12 @@ const WorkBlock = ({
     {block.uses.length === 0 ? null : (
       <ToolChipList summary={plural(block.uses.length, "library call")}>
         {block.uses.map((use) => (
-          <ToolRow key={use.toolUseId} use={use} />
+          <ToolChip
+            key={use.toolUseId}
+            icon={readsOnly(use.name) ? "read" : "write"}
+            label={toolWords(use.name)}
+            use={use}
+          />
         ))}
       </ToolChipList>
     )}
@@ -198,6 +191,39 @@ const onSendRefused = (cause: unknown): void => {
   toast.error(sendRefusalWords(cause, Date.now()));
 };
 
+const APPROVAL_OPTIONS = [
+  { label: "Approve", value: "allow" },
+  { label: "Cancel", value: "deny" },
+] as const;
+
+// one call waiting on the person, and the answer to it: its options are held from the press until
+// the thread drops the card, and handed back when the answer is refused
+const Approval = ({
+  approval,
+  threadId,
+  titleOf,
+}: {
+  approval: WaitingApproval;
+  threadId: string;
+  titleOf: (id: string) => string | null;
+}) => {
+  const { orpc } = usePageLibrary().wire;
+  const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
+  const { detail, question } = approvalWords(approval, titleOf);
+  return (
+    <ApprovalCard
+      data-approval={approval.eventId}
+      prompt={question}
+      detail={detail}
+      options={APPROVAL_OPTIONS}
+      picked={respond.isPending || respond.isSuccess ? respond.variables.result : null}
+      onPick={(result) => {
+        respond.mutate({ eventId: approval.eventId, result, threadId });
+      }}
+    />
+  );
+};
+
 const Conversation = ({
   threadId,
   flushOpen,
@@ -214,7 +240,6 @@ const Conversation = ({
   const { blocks, waiting } = conversationOf(rows);
   const preview = useLivePreview(threadId);
   const changeSets = useQuery(queries.changeSets(threadId)).data?.changeSets;
-  const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   const undo = useMutation(
     orpc.library.history.undo.mutationOptions({
@@ -305,34 +330,14 @@ const Conversation = ({
           ),
         )}
         {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
-        {waiting.map((approval) => {
-          const { detail, question } = approvalWords(
-            approval,
-            (id) => titles.find((target) => target.id === id)?.title ?? null,
-          );
-          return (
-            <div key={approval.eventId} data-approval={approval.eventId}>
-              <ApprovalCard
-                sentLabel="Answered"
-                onSubmit={(answers: readonly ApprovalAnswer[]) => {
-                  const picked = answers[0]?.optionIds[0];
-                  if (picked === "allow" || picked === "deny") {
-                    respond.mutate({ eventId: approval.eventId, result: picked, threadId });
-                  }
-                }}
-              >
-                <ApprovalQuestion
-                  questionId={approval.eventId}
-                  prompt={question}
-                  detail={detail ?? undefined}
-                >
-                  <ApprovalOption optionId="allow">Approve</ApprovalOption>
-                  <ApprovalOption optionId="deny">Cancel</ApprovalOption>
-                </ApprovalQuestion>
-              </ApprovalCard>
-            </div>
-          );
-        })}
+        {waiting.map((approval) => (
+          <Approval
+            key={approval.eventId}
+            approval={approval}
+            threadId={threadId}
+            titleOf={(id) => titles.find((target) => target.id === id)?.title ?? null}
+          />
+        ))}
         <div className="flex flex-wrap items-center gap-1.5">
           {thread === undefined || statusWords(thread.status) === "" ? null : (
             <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>

@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { Children, useState } from "react";
+import { useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { ChevronDownIcon, FileIcon, PenIcon } from "lucide-react";
 
@@ -54,26 +54,28 @@ const ToolChipList = ({
   );
 };
 
-interface ToolChipProps extends HTMLAttributes<HTMLDivElement> {
+// one call as its row draws it: running under a pill, done, or failed, which alone opens onto why
+type ToolUse =
+  | { readonly kind: "running" }
+  | { readonly kind: "done" }
+  | { readonly kind: "failed"; readonly message: string };
+
+interface ToolChipProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   icon: ToolIcon;
   label: string;
-  chip: string;
-  failed?: boolean;
+  use: ToolUse;
 }
 
 const ToolChip = ({
   icon,
   label,
-  chip,
-  failed = false,
+  use,
   className,
-  children,
   ref,
   ...props
 }: ToolChipProps & RefAttributes<HTMLDivElement>) => {
   const [open, setOpen] = useState(false);
-  // oxlint-disable-next-line react/no-react-children -- expandability is exactly "did the caller pass a body", and only Children.count reads array and hole children the way React renders them
-  const expandable = Children.count(children) > 0;
+  const failed = use.kind === "failed";
   return (
     <div
       ref={ref}
@@ -83,8 +85,8 @@ const ToolChip = ({
     >
       <button
         type="button"
-        aria-expanded={expandable ? open : undefined}
-        disabled={!expandable}
+        aria-expanded={failed ? open : undefined}
+        disabled={!failed}
         onClick={() => {
           setOpen(!open);
         }}
@@ -94,13 +96,13 @@ const ToolChip = ({
           <span
             className={cn(
               "flex transition-opacity duration-100",
-              expandable && "group-hover/row:opacity-0",
+              failed && "group-hover/row:opacity-0",
               open && "opacity-0",
             )}
           >
             {ICONS[icon]}
           </span>
-          {expandable ? (
+          {failed ? (
             <ChevronDownIcon
               size={12}
               strokeWidth={2.2}
@@ -116,15 +118,22 @@ const ToolChip = ({
         >
           {label}
         </span>
-        <span className="inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2">
-          {chip}
-        </span>
+        {use.kind === "running" ? (
+          <span className="inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2">
+            …
+          </span>
+        ) : null}
       </button>
 
-      {expandable ? (
+      {failed ? (
         <Collapse open={open} innerClassName="min-h-0">
-          <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
-            {children}
+          <div className="mt-0.5 mb-1 ml-2 flex flex-col border-l border-line py-0.5 pl-3.5">
+            <span
+              data-slot="tool-chip-detail"
+              className="truncate text-caption leading-[1.6] text-ink-2"
+            >
+              {use.message}
+            </span>
           </div>
         </Collapse>
       ) : null}
@@ -132,20 +141,4 @@ const ToolChip = ({
   );
 };
 
-const ToolChipDetail = ({
-  className,
-  children,
-  ref,
-  ...props
-}: HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>) => (
-  <span
-    ref={ref}
-    data-slot="tool-chip-detail"
-    className={cn("truncate text-caption leading-[1.6] text-ink-2", className)}
-    {...props}
-  >
-    {children}
-  </span>
-);
-
-export { ToolChipList, ToolChip, ToolChipDetail };
+export { ToolChipList, ToolChip };

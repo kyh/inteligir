@@ -94,6 +94,20 @@ const folderTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
   .nullable();
 
+// the inputs of the two rows the built-in agent asks the person about, by name: its thread reads
+// a call through them before it asks (packages/service/src/agent/agent-tools.ts)
+export const saveLinkInputSchema = z.strictObject({
+  folder: folderTargetSchema.optional(),
+  id: newIdSchema.optional(),
+  note: z.string().max(MARKDOWN_MAX).optional(),
+  opId,
+  savedAt: FIELDS.savedAt.optional(),
+  tags: FIELDS.tags.optional(),
+  title: FIELDS.title.optional(),
+  url: FIELDS.url.unwrap(),
+});
+export const deleteInputSchema = z.strictObject({ ids, opId });
+
 const itemsContract = {
   list: signedBase
     .input(
@@ -242,18 +256,7 @@ const itemsContract = {
       [PayloadTooLargeError.code]: PayloadTooLargeError,
       [QuotaError.code]: QuotaError,
     })
-    .input(
-      z.strictObject({
-        folder: folderTargetSchema.optional(),
-        id: newIdSchema.optional(),
-        note: z.string().max(MARKDOWN_MAX).optional(),
-        opId,
-        savedAt: FIELDS.savedAt.optional(),
-        tags: FIELDS.tags.optional(),
-        title: FIELDS.title.optional(),
-        url: FIELDS.url.unwrap(),
-      }),
-    )
+    .input(saveLinkInputSchema)
     .output(saved),
 
   // exact passages of the note in the item's markdown view replaced in its body as it stands,
@@ -303,7 +306,7 @@ const itemsContract = {
 
   // to Deleted, where an item can be restored
   delete: signedBase
-    .input(z.strictObject({ ids, opId }))
+    .input(deleteInputSchema)
     .output(z.object({ deleted: changedIds, missing: changedIds })),
 
   // `addressHeld`: left in Deleted, each address another live item's now

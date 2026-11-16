@@ -9,6 +9,7 @@ import { getMcpToolMeta, mcp } from "@orpc/mcp";
 import type { AnyProcedureContract } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
+import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import { libraryContract } from "@repo/contract/library/library-contract";
 
 const { items, organize, search } = libraryContract;
@@ -30,7 +31,7 @@ export const libraryTools = {
         description:
           "Creates a note from markdown, optionally titled, tagged and filed in a folder. A link to another item is written [Title](mention:id), or [[Title]] for the one item so titled.",
         method: "POST",
-        operationId: "create_note",
+        operationId: "create_note" satisfies LibraryToolName,
         summary: "Create a note",
       }),
       adds,
@@ -40,7 +41,7 @@ export const libraryTools = {
         description:
           "Moves items to Deleted, where the person can restore them. The answer names the ids that matched nothing.",
         method: "DELETE",
-        operationId: "delete_items",
+        operationId: "delete_items" satisfies LibraryToolName,
         summary: "Move items to Deleted",
       }),
       changes,
@@ -50,7 +51,7 @@ export const libraryTools = {
         description:
           "Changes an item's note by exact passages of its markdown, as read_item returned it. Each old text must stand exactly once in the note as it is now, and an empty old text adds its new text after the note; other passages, and anything written there meanwhile, are left as they are. A saved page's article is the page as it was read, and no edit changes it. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
         method: "PATCH",
-        operationId: "edit_item",
+        operationId: "edit_item" satisfies LibraryToolName,
         summary: "Edit an item",
       }),
       changes,
@@ -60,7 +61,7 @@ export const libraryTools = {
         description:
           "Lists items by folder, tag, kind or pin, newest saved first unless sorted otherwise, 50 at most per page, with a cursor for the next.",
         method: "GET",
-        operationId: "list_items",
+        operationId: "list_items" satisfies LibraryToolName,
         summary: "List items",
       }),
       read,
@@ -70,7 +71,7 @@ export const libraryTools = {
         description:
           "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one change set.",
         method: "PUT",
-        operationId: "organize_items",
+        operationId: "organize_items" satisfies LibraryToolName,
         summary: "Organize items",
       }),
       changes,
@@ -80,7 +81,7 @@ export const libraryTools = {
         description:
           "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [Title](mention:id).",
         method: "GET",
-        operationId: "read_item",
+        operationId: "read_item" satisfies LibraryToolName,
         summary: "Read an item",
       }),
       read,
@@ -93,7 +94,7 @@ export const libraryTools = {
         description:
           "Saves a web address as an item, optionally titled, tagged, filed and with a note; the page is read in the background. A link the library already holds answers that item unchanged; tag or file it with organize_items.",
         method: "PUT",
-        operationId: "save_link",
+        operationId: "save_link" satisfies LibraryToolName,
         summary: "Save a link",
       }),
       // the only tool that reaches the web: the cloud reads the page it saves
@@ -106,7 +107,7 @@ export const libraryTools = {
       openapi({
         description: "Lists the folder tree and every tag, each with how many items it holds.",
         method: "GET",
-        operationId: "list_tags_and_folders",
+        operationId: "list_tags_and_folders" satisfies LibraryToolName,
         summary: "List tags and folders",
       }),
       read,
@@ -117,7 +118,7 @@ export const libraryTools = {
       description:
         "Searches item titles, notes and saved articles, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
       method: "GET",
-      operationId: "search_library",
+      operationId: "search_library" satisfies LibraryToolName,
       summary: "Search the library",
     }),
     read,

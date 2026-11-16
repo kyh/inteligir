@@ -36,6 +36,10 @@ clock, random bytes and fresh ids are injected.
 - **An item's reading is one value, which every writer moves and every surface
   reads alike.** Three fields set by hand can badge a failure over a read.
   `packages/contract/src/library/item-reading.ts`.
+- **A library tool has one name, in a plain table the connector's rows, the
+  agent's policies and each device's words are typed against.** A name spelled
+  in each package lets a rename compile and draw as "Used the library".
+  `packages/contract/src/library/agent-tools.ts`.
 
 ## Items and files
 

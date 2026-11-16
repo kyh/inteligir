@@ -7,7 +7,9 @@
 // its own way.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
-import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
+import type { AgentEvent, ApprovalAsk, TurnEndReason } from "@repo/contract/library/agent-events";
+import { isLibraryToolName, LIBRARY_TOOLS } from "@repo/contract/library/agent-tools";
+import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import { cleanUrl, urlHost } from "@repo/contract/items/item-url";
@@ -49,30 +51,10 @@ const entriesOf = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
       return parsed.success ? [{ at: row.at, event: parsed.data, eventId: row.eventId }] : [];
     });
 
-// what a call waiting on the person would do, read off its input: the items a delete would move,
-// the address a save would reach as the library would read it, or nothing this build can say
-type ApprovalAsk =
-  | { readonly kind: "delete"; readonly ids: readonly string[] }
-  | { readonly kind: "save"; readonly host: string; readonly url: string }
-  | { readonly kind: "unread" };
-
-const deleteInputSchema = z.object({ ids: z.array(z.string()).min(1) });
-const saveInputSchema = z.object({ url: z.string() });
-
-const askOf = ({ input, name }: Extract<AgentEvent, { type: "approval.asked" }>): ApprovalAsk => {
-  const deleting = name === "delete_items" ? deleteInputSchema.safeParse(input) : null;
-  if (deleting?.success === true) {
-    return { ids: [...new Set(deleting.data.ids)], kind: "delete" };
-  }
-  const saving = name === "save_link" ? saveInputSchema.safeParse(input) : null;
-  const url = saving?.success === true ? cleanUrl(saving.data.url) : null;
-  const host = url === null ? null : urlHost(url);
-  return url === null || host === null ? { kind: "unread" } : { host, kind: "save", url };
-};
-
-// an approval the person has not answered: the `approval.asked` event `respond` names
+// an approval the person has not answered: the `approval.asked` event `respond` names, and what
+// its call would do, or nothing this build can say
 export interface WaitingApproval {
-  readonly ask: ApprovalAsk;
+  readonly ask: ApprovalAsk | undefined;
   readonly eventId: string;
 }
 
@@ -97,7 +79,7 @@ const approvalNext = (
 ): Approval | undefined => {
   switch (event.type) {
     case "approval.asked": {
-      return approval ?? { ask: askOf(event), eventId, kind: "waiting" };
+      return approval ?? { ask: event.ask, eventId, kind: "waiting" };
     }
     case "approval.answered": {
       return approval?.kind === "waiting" ? { kind: "answered" } : approval;
@@ -109,20 +91,25 @@ const approvalNext = (
   }
 };
 
-// what a tool's name says to the person
-const TOOL_WORDS = new Map([
-  ["create_note", "Wrote a note"],
-  ["delete_items", "Moved items to Deleted"],
-  ["edit_item", "Edited an item"],
-  ["list_items", "Looked through the library"],
-  ["list_tags_and_folders", "Read the folders and tags"],
-  ["organize_items", "Filed items"],
-  ["read_item", "Read an item"],
-  ["save_link", "Saved a link"],
-  ["search_library", "Searched the library"],
-]);
+const TOOL_WORDS = {
+  create_note: "Wrote a note",
+  delete_items: "Moved items to Deleted",
+  edit_item: "Edited an item",
+  list_items: "Looked through the library",
+  list_tags_and_folders: "Read the folders and tags",
+  organize_items: "Filed items",
+  read_item: "Read an item",
+  save_link: "Saved a link",
+  search_library: "Searched the library",
+} satisfies Record<LibraryToolName, string>;
 
-export const toolWords = (name: string): string => TOOL_WORDS.get(name) ?? "Used the library";
+// what a tool's name says to the person; a tool a newer cell names used the library
+export const toolWords = (name: string): string =>
+  isLibraryToolName(name) ? TOOL_WORDS[name] : "Used the library";
+
+// a call that only reads the library, drawn with the read icon; every other one writes
+export const readsOnly = (name: string): boolean =>
+  isLibraryToolName(name) && LIBRARY_TOOLS[name].reads;
 
 // the most of a delete's items a card names; the rest it counts
 const TITLES_SHOWN = 10;
@@ -150,28 +137,36 @@ interface ApprovalWords {
   readonly detail: string | null;
 }
 
+const UNREAD: ApprovalWords = { detail: null, question: "The agent wants to use the library." };
+
 export const approvalWords = (
   { ask }: WaitingApproval,
   titleOf: (id: string) => string | null,
 ): ApprovalWords => {
-  switch (ask.kind) {
+  switch (ask?.kind) {
     case "delete": {
-      const one = ask.ids.length === 1;
+      const ids = [...new Set(ask.ids)];
       return {
-        detail: namedItems(ask.ids, titleOf),
-        question: one
-          ? "The agent wants to move an item to Deleted. You can restore it from there."
-          : `The agent wants to move ${String(ask.ids.length)} items to Deleted. You can restore them from there.`,
+        detail: namedItems(ids, titleOf),
+        question:
+          ids.length === 1
+            ? "The agent wants to move an item to Deleted. You can restore it from there."
+            : `The agent wants to move ${String(ids.length)} items to Deleted. You can restore them from there.`,
       };
     }
     case "save": {
-      return {
-        detail: ask.url,
-        question: `The agent wants to save a link from ${ask.host}. Reading its page shows that site this whole address.`,
-      };
+      // the address as the library would read it
+      const url = cleanUrl(ask.url);
+      const host = url === null ? null : urlHost(url);
+      return url === null || host === null
+        ? UNREAD
+        : {
+            detail: url,
+            question: `The agent wants to save a link from ${host}. Reading its page shows that site this whole address.`,
+          };
     }
-    case "unread": {
-      return { detail: null, question: "The agent wants to use the library." };
+    case undefined: {
+      return UNREAD;
     }
     // no default
   }
@@ -245,7 +240,7 @@ export const sendRefusalWords = (cause: unknown, nowMs: number): string => {
 
 // one call the agent made, as a run of work shows it: running until its result lands, which says
 // whether it failed, and in its first characters why
-export type ToolUse = { readonly toolUseId: string; readonly name: string } & (
+type ToolUse = { readonly toolUseId: string; readonly name: string } & (
   | { readonly kind: "running" }
   | { readonly kind: "done" }
   | { readonly kind: "failed"; readonly message: string }
@@ -391,8 +386,3 @@ export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation =>
     ),
   };
 };
-
-// the calls that only read the library, drawn with the read icon; every other one writes
-const READS = new Set(["list_items", "list_tags_and_folders", "read_item", "search_library"]);
-
-export const readsOnly = (name: string): boolean => READS.has(name);

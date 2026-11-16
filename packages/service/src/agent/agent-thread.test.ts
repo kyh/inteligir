@@ -529,6 +529,26 @@ describe("a conversation's object", () => {
     },
   );
 
+  it(
+    "answers a delete its row refuses as an error, and asks the person nothing",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const sent = await send(account, script('call delete_items {"ids":[]}'));
+      await settled(account, sent.threadId);
+      await expect(storedTypes(account, sent.threadId)).resolves.toStrictEqual([
+        "user.message",
+        "agent.progress",
+        "agent.tool_use",
+        "agent.tool_result",
+        "agent.message",
+        "turn.ended",
+      ]);
+      const [result] = await eventsOf(account, sent.threadId, "agent.tool_result");
+      expect(result?.event).toMatchObject({ isError: true });
+    },
+  );
+
   it("runs nothing the person denies, and says so", { timeout: TURN_MS }, async () => {
     const account = agentAccount();
     const itemId = await noteIn(account, "To keep.");

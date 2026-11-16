@@ -35,13 +35,10 @@ const row = (idx: number, event: StoredEvent) => ({
 const conversation = (...events: readonly StoredEvent[]) =>
   conversationOf(events.map((event, idx) => row(idx, event)));
 
-const asked = {
-  input: { ids: ["item-1"] },
-  name: "delete_items",
-  toolUseId: "t1",
-  type: "approval.asked",
-  until: 9,
-};
+// an approval asked with nothing said of what its call would do
+const askedBare = { toolUseId: "t1", type: "approval.asked", until: 9 };
+
+const asked = { ...askedBare, ask: { ids: ["item-1"], kind: "delete" } };
 
 const answered = (by: string, result: string) => ({
   by,
@@ -66,14 +63,17 @@ const result = (toolUseId: string, isError = false, summary = "[]") => ({
   type: "agent.tool_result",
 });
 
-// the approval waiting on a call of `name` with `input`
-const askedFor = (name: string, input: z.infer<ReturnType<typeof z.json>>) => {
-  const [approval] = conversation({ ...asked, input, name }).waiting;
+// the approval waiting once `event` asked
+const waitingOn = (event: StoredEvent) => {
+  const [approval] = conversation(event).waiting;
   if (approval === undefined) {
     throw new Error("no approval is waiting");
   }
   return approval;
 };
+
+// the approval waiting on a call its event says would do `ask`
+const askedFor = (ask: StoredEvent) => waitingOn({ ...askedBare, ask });
 
 const typesOf = (blocks: readonly ThreadBlock[]) =>
   blocks.map((block) => (block.kind === "entry" ? block.entry.event.type : "work"));
@@ -127,12 +127,12 @@ describe("a thread's entries", () => {
       ["b", "Recipes"],
     ]);
     const titleOf = (id: string): string | null => titles.get(id) ?? null;
-    const three = askedFor("delete_items", { ids: ["a", "b", "not-here-yet"] });
+    const three = askedFor({ ids: ["a", "b", "not-here-yet"], kind: "delete" });
     expect(approvalWords(three, titleOf)).toStrictEqual({
       detail: "Trip plan, Recipes and 1 more",
       question: "The agent wants to move 3 items to Deleted. You can restore them from there.",
     });
-    expect(approvalWords(askedFor("delete_items", { ids: ["a"] }), titleOf)).toStrictEqual({
+    expect(approvalWords(askedFor({ ids: ["a"], kind: "delete" }), titleOf)).toStrictEqual({
       detail: "Trip plan",
       question: "The agent wants to move an item to Deleted. You can restore it from there.",
     });
@@ -141,16 +141,17 @@ describe("a thread's entries", () => {
 
   it("counts an id the call names twice once, and names a long delete's first titles", () => {
     expect(
-      approvalWords(askedFor("delete_items", { ids: ["a", "a"] }), noTitles).question,
+      approvalWords(askedFor({ ids: ["a", "a"], kind: "delete" }), noTitles).question,
     ).toContain("an item");
     const ids = Array.from({ length: 100 }, (_, index) => String(index));
-    const { detail, question } = approvalWords(askedFor("delete_items", { ids }), (id) => `#${id}`);
+    const { detail, question } = approvalWords(askedFor({ ids, kind: "delete" }), (id) => `#${id}`);
     expect(question).toContain("100 items");
     expect(detail).toBe("#0, #1, #2, #3, #4, #5, #6, #7, #8, #9 and 90 more");
   });
 
   it("shows the whole address a save would send a site, as the library would read it", () => {
-    const approval = askedFor("save_link", {
+    const approval = askedFor({
+      kind: "save",
       url: "https://good.example@collector.example/?d=my%20private%20note&utm_source=x",
     });
     expect(approvalWords(approval, noTitles)).toStrictEqual({
@@ -160,13 +161,19 @@ describe("a thread's entries", () => {
     });
   });
 
-  it("claims nothing of a call it cannot read", () => {
+  it("claims nothing of an ask it cannot read, and still names the event to answer", () => {
     const unread = { detail: null, question: "The agent wants to use the library." };
-    expect(approvalWords(askedFor("save_link", { url: "not a link" }), noTitles)).toStrictEqual(
-      unread,
-    );
-    expect(approvalWords(askedFor("delete_items", { ids: [] }), noTitles)).toStrictEqual(unread);
-    expect(approvalWords(askedFor("a_later_tool", {}), noTitles)).toStrictEqual(unread);
+    const events: readonly StoredEvent[] = [
+      { ...askedBare, ask: { kind: "save", url: "not a link" } },
+      { ...askedBare, ask: { ids: [], kind: "delete" } },
+      { ...askedBare, ask: { kind: "from a newer cell" } },
+      askedBare,
+    ];
+    for (const event of events) {
+      const approval = waitingOn(event);
+      expect(approval.eventId).toBe(`${THREAD}:1:0`);
+      expect(approvalWords(approval, noTitles)).toStrictEqual(unread);
+    }
   });
 
   it("says a tool and an ending in the person's words", () => {

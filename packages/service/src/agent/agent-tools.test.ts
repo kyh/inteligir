@@ -28,6 +28,7 @@ import {
   AGENT_TOOL_DEFINITIONS,
   agentOpId,
   asksFirst,
+  callStart,
   runAgentTool,
 } from "./agent-tools";
 import { AGENT_TOOL_POLICIES } from "./library-agent";
@@ -52,6 +53,27 @@ describe("the built-in agent's tools", () => {
     expect(names).toStrictEqual(listed.toSorted());
     expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toStrictEqual(names);
     expect(names.filter(asksFirst)).toStrictEqual(["delete_items", "save_link"]);
+  });
+
+  it("reads a call that asks through its row's own input, and answers one the row refuses", () => {
+    const id = crypto.randomUUID();
+    expect(callStart("delete_items", { ids: [id] })).toStrictEqual({
+      ask: { ids: [id], kind: "delete" },
+      kind: "ask",
+    });
+    const url = "https://collector.example/?d=a-private-note";
+    expect(callStart("save_link", { tags: ["later"], url })).toStrictEqual({
+      ask: { kind: "save", url },
+      kind: "ask",
+    });
+    expect(callStart("organize_items", { ids: [] })).toStrictEqual({ kind: "run" });
+    const refused = {
+      answer: { content: expect.stringMatching(/^Input validation failed\n/u), isError: true },
+      kind: "refused",
+    };
+    expect(callStart("delete_items", { ids: [] })).toStrictEqual(refused);
+    expect(callStart("delete_items", { everything: true, ids: [id] })).toStrictEqual(refused);
+    expect(callStart("save_link", { url: "not a link" })).toStrictEqual(refused);
   });
 
   it("are defined as the committed snapshot holds them, with no op id the agent could write", async () => {
