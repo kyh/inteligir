@@ -25,7 +25,7 @@ CREATE TABLE `agent_turns` (
 	`turn` integer NOT NULL,
 	`message` text NOT NULL,
 	`waiting` integer DEFAULT 0 NOT NULL,
-	`cancel` integer DEFAULT 0 NOT NULL,
+	`cancel` integer DEFAULT false NOT NULL,
 	`started_at` integer NOT NULL,
 	`heard_at` integer NOT NULL,
 	CONSTRAINT "agent_turns_waiting" CHECK("waiting" >= 0),
@@ -218,7 +218,8 @@ CREATE TABLE `threads` (
 	`title` text NOT NULL,
 	`status` text NOT NULL,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`updated_at` integer NOT NULL,
+	CONSTRAINT "threads_status" CHECK("status" IN ('idle', 'queued', 'running', 'awaiting_approval'))
 );
 
 CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);

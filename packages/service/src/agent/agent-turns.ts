@@ -27,11 +27,9 @@ import type { LandingScope } from "../library/cell-landing";
 import type { CellDb } from "../library/cell-db";
 import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
-import { deleteThread } from "../library/cell-threads";
 import { sealChangeSet } from "../library/change-sets";
 import type { LibraryEngine } from "../library/library-engine";
 import { filingRules } from "../library/library-rules";
-import { jsonTextSchema } from "../library/sql-value";
 import { errorFields } from "../log";
 import { pushedEventId, storeEvent, turnEventId } from "./agent-events";
 import { allowanceOf, bookTurn, dayOf, nextDayAt, turnsLeft } from "./agent-allowance";
@@ -41,6 +39,7 @@ import { turnUserMessage } from "./turn-message";
 import {
   agentIsOn,
   createThread,
+  deleteThread,
   dequeueNext,
   dropQueuedFor,
   dropTurn,
@@ -332,8 +331,6 @@ export interface RespondInput {
   readonly result: "allow" | "deny";
 }
 
-const eventText = jsonTextSchema.pipe(agentEventSchema);
-
 // the call an `approval.asked` event asked about, or null for an event that asked nothing
 const askedCall = (db: CellDb, threadId: string, eventId: string): string | null => {
   knownThread(db, threadId);
@@ -348,7 +345,7 @@ const askedCall = (db: CellDb, threadId: string, eventId: string): string | null
       ),
     )
     .get();
-  const event = row === undefined ? null : eventText.safeParse(row.json);
+  const event = row === undefined ? null : agentEventSchema.safeParse(row.json);
   return event?.success === true && event.data.type === "approval.asked"
     ? event.data.toolUseId
     : null;

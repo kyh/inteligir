@@ -263,7 +263,7 @@ export const touchItem = (
       .values({
         beforeFields: fields,
         changeSetId: setId,
-        created: before === null ? 1 : 0,
+        created: before === null,
         itemId,
       })
       .run();

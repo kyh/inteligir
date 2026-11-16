@@ -321,7 +321,7 @@ const SET_ITEM_COLUMNS = {
 interface SetItemRow {
   readonly afterFields: string | null;
   readonly beforeFields: string | null;
-  readonly created: number;
+  readonly created: boolean;
   readonly itemId: string;
 }
 
@@ -335,7 +335,7 @@ const setItemOf = (db: CellDb, entry: SetItemRow) => {
     after = readFieldsPart(db, entry.itemId, entry.afterFields);
   }
   return {
-    created: entry.created === 1,
+    created: entry.created,
     deleted:
       after !== null && after.deletedAt !== null && (before === null || before.deletedAt === null),
     id: entry.itemId,

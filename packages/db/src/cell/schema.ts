@@ -15,14 +15,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-import type { z } from "zod";
+import { z } from "zod";
 
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyDigest, ItemCard } from "@repo/contract/library/derive-item";
 import { FETCH_STATES, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS, libraryBlockSchema } from "@repo/contract/library/library-nodes";
-import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
+import {
+  agentViewContextSchema,
+  CHANGE_SET_ACTORS,
+  THREAD_STATUSES,
+} from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
@@ -198,13 +202,17 @@ export const links = sqliteTable(
   ],
 );
 
-export const threads = sqliteTable("threads", {
-  id: text().primaryKey(),
-  title: text().notNull(),
-  status: text().notNull(),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-});
+export const threads = sqliteTable(
+  "threads",
+  {
+    id: text().primaryKey(),
+    title: text().notNull(),
+    status: text({ enum: THREAD_STATUSES }).notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [check("threads_status", sql`${t.status} IN (${oneOf(THREAD_STATUSES)})`)],
+);
 
 export const threadEvents = sqliteTable(
   "thread_events",
@@ -213,7 +221,7 @@ export const threadEvents = sqliteTable(
     threadId: text("thread_id").notNull(),
     idx: integer().notNull(),
     type: text().notNull(),
-    json: text().notNull(),
+    json: json(z.json())().notNull(),
     at: integer().notNull(),
   },
   (t) => [index("thread_events_thread").on(t.threadId, t.idx)],
@@ -269,7 +277,7 @@ export const changeSetItems = sqliteTable(
   {
     changeSetId: text("change_set_id").notNull(),
     itemId: text("item_id").notNull(),
-    created: integer().notNull(),
+    created: integer({ mode: "boolean" }).notNull(),
     beforeFields: text("before_fields"),
     afterFields: text("after_fields"),
   },
@@ -327,13 +335,19 @@ export const agentSwitch = sqliteTable(
   "agent_switch",
   {
     slot: integer().primaryKey(),
-    enabled: integer().notNull(),
+    enabled: integer({ mode: "boolean" }).notNull(),
   },
   (t) => [
     check("agent_switch_slot", sql`${t.slot} = 1`),
     check("agent_switch_enabled", sql`${t.enabled} IN (0, 1)`),
   ],
 );
+
+// what a send carries into its turn: the person's words, and the screen they wrote from
+const turnMessageSchema = z.object({
+  text: z.string().min(1),
+  viewContext: agentViewContextSchema.nullable(),
+});
 
 // each thread's open turn, at most one: its number in the thread, which keys the change set its
 // writes open, what the person sent, how many of its calls wait on the person, whether the person
@@ -344,9 +358,9 @@ export const agentTurns = sqliteTable(
   {
     threadId: text("thread_id").primaryKey(),
     turn: integer().notNull(),
-    message: text().notNull(),
+    message: json(turnMessageSchema)().notNull(),
     waiting: integer().notNull().default(0),
-    cancel: integer().notNull().default(0),
+    cancel: integer({ mode: "boolean" }).notNull().default(false),
     startedAt: integer("started_at").notNull(),
     heardAt: integer("heard_at").notNull(),
   },
@@ -369,7 +383,7 @@ export const agentQueue = sqliteTable(
   {
     id: text().primaryKey(),
     threadId: text("thread_id").notNull(),
-    message: text().notNull(),
+    message: json(turnMessageSchema)().notNull(),
     queuedAt: integer("queued_at").notNull(),
   },
   (t) => [index("agent_queue_order").on(t.queuedAt, t.id)],

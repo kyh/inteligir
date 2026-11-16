@@ -4,11 +4,9 @@
 // turn and its queued sends say, written by `restatus` alone. Each write of a thread or its events
 // names the thread in the moved frame its commit sends; the rest are the cell's alone.
 
-import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
-import { and, count, eq, notInArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, notInArray, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import { z } from "zod";
 
 import {
   agentPushes,
@@ -22,10 +20,10 @@ import type { CellActor } from "../library/cell-actor";
 import { excluded } from "../library/cell-db";
 import type { CellDb } from "../library/cell-db";
 import type { LandingScope } from "../library/cell-landing";
+import { offsetOf } from "../library/cell-reads";
 import { refuse } from "../library/cell-refusal";
-import { jsonTextSchema } from "../library/sql-value";
 
-type ThreadStatus = (typeof THREAD_STATUSES)[number];
+type ThreadStatus = (typeof threads.$inferSelect)["status"];
 
 // the built-in agent's change sets' label
 const AGENT_LABEL = "Agent";
@@ -33,30 +31,13 @@ const AGENT_LABEL = "Agent";
 // a thread's name: its first message's first line, as long as a row shows
 const TITLE_MAX = 80;
 
-// ---- a message ----
-
-// what a send carries into its turn: the person's words, and the screen they wrote from
-const turnMessageSchema = z.object({
-  text: z.string().min(1),
-  viewContext: agentViewContextSchema.nullable(),
-});
-
-export type TurnMessage = z.infer<typeof turnMessageSchema>;
-
-const messageText = jsonTextSchema.pipe(turnMessageSchema);
+export type TurnMessage = (typeof agentTurns.$inferSelect)["message"];
 
 // ---- threads ----
 
-const statusSchema = z.enum(THREAD_STATUSES);
-
-export const storedStatus = (db: CellDb, threadId: string): ThreadStatus | null => {
-  const row = db
-    .select({ status: threads.status })
-    .from(threads)
-    .where(eq(threads.id, threadId))
-    .get();
-  return row === undefined ? null : statusSchema.parse(row.status);
-};
+export const storedStatus = (db: CellDb, threadId: string): ThreadStatus | null =>
+  db.select({ status: threads.status }).from(threads).where(eq(threads.id, threadId)).get()
+    ?.status ?? null;
 
 // a thread that must exist for the call to mean anything
 export const knownThread = (db: CellDb, threadId: string): ThreadStatus =>
@@ -93,6 +74,32 @@ export const everyThreadId = (db: CellDb): string[] =>
     .all()
     .map(({ id }) => id);
 
+// the newest-touched first
+export const listThreads = (
+  db: CellDb,
+  input: { readonly cursor?: string | undefined; readonly limit: number },
+) => {
+  const offset = offsetOf(input.cursor);
+  const rows = db
+    .select()
+    .from(threads)
+    .orderBy(desc(threads.updatedAt), desc(threads.id))
+    .limit(input.limit + 1)
+    .offset(offset)
+    .all();
+  return {
+    cursor: rows.length > input.limit ? String(offset + input.limit) : null,
+    threads: rows.slice(0, input.limit),
+  };
+};
+
+// the thread and every event it stored
+export const deleteThread = (scope: LandingScope, threadId: string): void => {
+  scope.db.delete(threadEvents).where(eq(threadEvents.threadId, threadId)).run();
+  scope.db.delete(threads).where(eq(threads.id, threadId)).run();
+  scope.moved.thread(threadId);
+};
+
 // ---- the open turns ----
 
 export interface OpenTurn {
@@ -107,12 +114,8 @@ export interface OpenTurn {
   readonly heardAt: number;
 }
 
-export const openTurnOf = (db: CellDb, threadId: string): OpenTurn | null => {
-  const row = db.select().from(agentTurns).where(eq(agentTurns.threadId, threadId)).get();
-  return row === undefined
-    ? null
-    : { ...row, cancel: row.cancel === 1, message: messageText.parse(row.message) };
-};
+export const openTurnOf = (db: CellDb, threadId: string): OpenTurn | null =>
+  db.select().from(agentTurns).where(eq(agentTurns.threadId, threadId)).get() ?? null;
 
 // the actor a turn's writes are by, which every call it runs joins
 export const turnActor = (turn: Pick<OpenTurn, "threadId" | "turn">): CellActor => ({
@@ -143,7 +146,7 @@ export const insertTurn = (
   db.insert(agentTurns)
     .values({
       heardAt: turn.at,
-      message: JSON.stringify(turnMessageSchema.parse(turn.message)),
+      message: turn.message,
       startedAt: turn.at,
       threadId: turn.threadId,
       turn: turn.turn,
@@ -167,7 +170,7 @@ export const moveWaiting = (db: CellDb, threadId: string, by: 1 | -1): void => {
 };
 
 export const markCancel = (db: CellDb, threadId: string): void => {
-  db.update(agentTurns).set({ cancel: 1 }).where(eq(agentTurns.threadId, threadId)).run();
+  db.update(agentTurns).set({ cancel: true }).where(eq(agentTurns.threadId, threadId)).run();
 };
 
 export const dropTurn = (db: CellDb, threadId: string): void => {
@@ -186,9 +189,7 @@ export interface QueuedSend {
 }
 
 export const enqueue = (db: CellDb, send: QueuedSend): void => {
-  db.insert(agentQueue)
-    .values({ ...send, message: JSON.stringify(turnMessageSchema.parse(send.message)) })
-    .run();
+  db.insert(agentQueue).values(send).run();
 };
 
 // the send that has waited longest of a thread with no open turn, of `thread` when it names one
@@ -215,7 +216,7 @@ export const dequeueNext = (db: CellDb, first: string | null): QueuedSend | null
     return null;
   }
   db.delete(agentQueue).where(eq(agentQueue.id, row.id)).run();
-  return { ...row, message: messageText.parse(row.message) };
+  return row;
 };
 
 export const dropQueuedFor = (db: CellDb, threadId: string): void => {
@@ -278,15 +279,12 @@ export const forgetPushes = (db: CellDb, threadId: string): void => {
 
 // on unless the person turned it off: there is nothing to make for it to be on
 export const agentIsOn = (db: CellDb): boolean =>
-  (db
-    .select({ enabled: agentSwitch.enabled })
-    .from(agentSwitch)
-    .where(eq(agentSwitch.slot, 1))
-    .get()?.enabled ?? 1) === 1;
+  db.select({ enabled: agentSwitch.enabled }).from(agentSwitch).where(eq(agentSwitch.slot, 1)).get()
+    ?.enabled ?? true;
 
 export const setSwitch = (db: CellDb, enabled: boolean): void => {
   db.insert(agentSwitch)
-    .values({ enabled: enabled ? 1 : 0, slot: 1 })
+    .values({ enabled, slot: 1 })
     .onConflictDoUpdate({
       set: { enabled: excluded(agentSwitch.enabled) },
       target: agentSwitch.slot,
