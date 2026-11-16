@@ -165,5 +165,6 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
-  the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and
-  input of our own respell what Plate's mention does. `packages/editor/src/kits/mention-kit.tsx`.
+  the item's id, so no rename breaks it, and its rows are data handed to Base UI's Autocomplete,
+  since a trigger and input of our own respell what Plate's mention does.
+  `packages/editor/src/kits/mention-kit.tsx`.

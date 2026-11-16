@@ -10,14 +10,9 @@ import { titleKey } from "@repo/contract/library/derive-item";
 import { shownTitle } from "@repo/contract/items/item-name";
 
 import { useLibraryTitles } from "@repo/editor/host";
-import {
-  InlineCombobox,
-  InlineComboboxContent,
-  InlineComboboxEmpty,
-  InlineComboboxGroup,
-  InlineComboboxItem,
-  InlineComboboxInput,
-} from "@repo/editor/inline-combobox";
+import type { LinkTarget } from "@repo/editor/host-io";
+import { InlineCombobox } from "@repo/editor/inline-combobox";
+import type { PickerRow } from "@repo/editor/inline-combobox";
 import { createAndLink, insertPageLink } from "@repo/editor/mention/mention-insert";
 import { rankTitles } from "@repo/editor/mention/rank-titles";
 
@@ -26,6 +21,13 @@ const CREATE_VALUE = "__create__";
 // Ranked and cut before any row mounts, never filtered per row: a row per item is a mount per
 // item, each one re-filtering on every keystroke.
 export const MENTION_PICKER_MAX_ROWS = 50;
+
+// an item to link, or the note to make under the typed title
+type MentionRow = PickerRow &
+  (
+    | { readonly kind: "link"; readonly target: LinkTarget }
+    | { readonly kind: "create"; readonly title: string }
+  );
 
 export const MentionInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
@@ -44,51 +46,53 @@ export const MentionInputElement = (props: PlateElementProps) => {
     insertPageLink(editor, named);
   };
 
-  const createTitle = typed === "" || byKey.has(titleKey(typed)) ? null : typed;
-
-  const shown = rankTitles(targets, typed).slice(0, MENTION_PICKER_MAX_ROWS);
+  const rows = rankTitles(targets, typed)
+    .slice(0, MENTION_PICKER_MAX_ROWS)
+    .map((target): MentionRow => ({
+      kind: "link",
+      onSelect: (picked) => {
+        insertPageLink(picked, target);
+      },
+      target,
+      value: target.id,
+    }));
+  if (typed !== "" && !byKey.has(titleKey(typed))) {
+    rows.push({
+      kind: "create",
+      onSelect: (picked) => {
+        void createAndLink(picked, typed);
+      },
+      title: typed,
+      value: CREATE_VALUE,
+    });
+  }
 
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox
-        element={element}
-        trigger="["
-        value={value}
-        setValue={setValue}
         closeOn={{ pick: linkWords, suffix: "]]", words: (words) => words.trim() }}
-        filter={false}
+        element={element}
+        empty="Nothing found"
+        filter={null}
+        groups={[{ items: rows }]}
+        query={{ onChange: setValue, value }}
+        trigger="["
       >
-        <InlineComboboxInput />
-        <InlineComboboxContent>
-          <InlineComboboxEmpty>Nothing found</InlineComboboxEmpty>
-          <InlineComboboxGroup>
-            {shown.map((target) => (
-              <InlineComboboxItem
-                key={target.id}
-                value={target.id}
-                onClick={() => {
-                  insertPageLink(editor, target);
-                }}
-              >
-                <FileTextIcon className="mr-2 text-muted-foreground" />
-                <span className="truncate">{shownTitle(target.title)}</span>
-              </InlineComboboxItem>
-            ))}
-            {createTitle !== null && (
-              <InlineComboboxItem
-                value={CREATE_VALUE}
-                onClick={() => {
-                  void createAndLink(editor, createTitle);
-                }}
-              >
-                <FilePlusIcon className="mr-2 text-muted-foreground" />
-                <span>
-                  Create <span className="font-medium">{createTitle}</span>
-                </span>
-              </InlineComboboxItem>
-            )}
-          </InlineComboboxGroup>
-        </InlineComboboxContent>
+        {(row) =>
+          row.kind === "link" ? (
+            <>
+              <FileTextIcon className="mr-2 text-muted-foreground" />
+              <span className="truncate">{shownTitle(row.target.title)}</span>
+            </>
+          ) : (
+            <>
+              <FilePlusIcon className="mr-2 text-muted-foreground" />
+              <span>
+                Create <span className="font-medium">{row.title}</span>
+              </span>
+            </>
+          )
+        }
       </InlineCombobox>
       {props.children}
     </PlateElement>
