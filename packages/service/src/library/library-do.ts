@@ -31,7 +31,7 @@ import { errorFields } from "../log";
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
 import { landArticle } from "./article-landing";
-import type { UploadRequest, UploadRoom } from "./cell-blobs";
+import type { Settlement, UploadRequest, UploadRoom } from "./cell-blobs";
 import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { collectMoved } from "./cell-moved";
@@ -55,7 +55,6 @@ import {
 } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
-import type { UploadSettlement } from "./library-engine";
 import { openCell } from "./open-cell";
 import type { Cell } from "./open-cell";
 
@@ -251,7 +250,7 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // the file's row once its upload is in R2, at the size R2 holds (`settleStored`)
-  async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
+  async settleBlob(sha: string): Promise<CellResult<Settlement>> {
     const { accountId, library } = this.#cell;
     return await settleStored(this.env, accountId, library, sha);
   }

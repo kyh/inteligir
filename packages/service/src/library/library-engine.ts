@@ -34,14 +34,16 @@ import {
   blobRemovals,
   dropItemBlobs,
   endRemoval,
+  failRemoval,
   hurryUnnamed,
   refuseUpload,
   releaseUnnamed,
   releaseUpload,
   reserveUpload,
+  SETTLEMENTS,
   settleUpload,
 } from "./cell-blobs";
-import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
+import type { Settlement, StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { bodyWriter } from "./cell-body";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
@@ -130,10 +132,6 @@ export interface NotesUndone {
 export interface NotePurge {
   readonly job: DueJob<"note-purge">;
   readonly itemId: string;
-}
-
-export interface UploadSettlement {
-  readonly settled: boolean;
 }
 
 // a stray file whose removal from R2 has begun
@@ -344,12 +342,10 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     sha: string,
     stored: StoredObject | null,
     removalsSeen: number,
-  ): CellResult<UploadSettlement> => {
+  ): CellResult<Settlement> => {
     const result = transact(
-      { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => ({
-        settled: settleUpload(db, bytesCap, { removalsSeen, sha, stored }, scope.now),
-      }),
+      { answer: z.enum(SETTLEMENTS), openSet: noSet, opId: undefined },
+      (scope) => settleUpload(db, bytesCap, { removalsSeen, sha, stored }, scope.now),
     );
     if (!result.ok && result.refusal.kind === "quota") {
       commit(() => {
@@ -369,7 +365,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }),
     );
 
-  // the removals R2 took, or the ones it failed, which wait their turn again
+  // the removals R2 took, or the ones it failed
   const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
     const now = deps.now();
     commit(() => {
@@ -377,7 +373,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         if (removed) {
           endRemoval(db, removal.sha);
         } else {
-          retryJob(db, removal.job, now);
+          failRemoval(db, removal.job, now);
         }
       }
     });

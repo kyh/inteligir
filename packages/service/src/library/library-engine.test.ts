@@ -272,7 +272,7 @@ describe("a write to the library cell", () => {
         held: false,
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
-      expect(settled.ok && settled.value).toStrictEqual({ settled: true });
+      expect(landedValue(settled)).toBe("held");
       landedValue(library.write(FILL_ACTOR, { itemId, ops: [cover] }));
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
@@ -298,9 +298,7 @@ describe("a write to the library cell", () => {
       ).toMatchObject({
         kind: "quota",
       });
-      expect(landedValue(library.settle(sha, null, library.blobRemovals()))).toStrictEqual({
-        settled: false,
-      });
+      expect(landedValue(library.settle(sha, null, library.blobRemovals()))).toBe("absent");
       landedValue(library.reserve({ bytes: 600, mime: "image/png", sha: "c".repeat(64) }));
     });
   });
@@ -316,21 +314,15 @@ describe("a write to the library cell", () => {
       });
       expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toStrictEqual([]);
       // what R2 showed may be the refused bytes, or gone under the removal: nothing lands
-      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toStrictEqual({
-        settled: false,
-      });
+      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toBe("removing");
       const before = library.blobRemovals();
       const removals = library.beginStrayRemovals();
       expect(removals.map((removal) => removal.sha)).toStrictEqual([sha]);
       library.endStrayRemovals(removals, true);
       expect(library.beginStrayRemovals()).toStrictEqual([]);
       // a settle that looked in R2 before the removal ended lands nothing; one after it lands
-      expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
-      const settled = library.settle(sha, png(500), library.blobRemovals());
-      expect(settled).toStrictEqual({
-        ok: true,
-        value: { settled: true },
-      });
+      expect(landedValue(library.settle(sha, png(500), before))).toBe("stale");
+      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toBe("held");
     });
   });
 
@@ -362,6 +354,29 @@ describe("a write to the library cell", () => {
       expect(strays()).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
       expect(library.blobRemovals()).toBe(count);
       expect(library.beginStrayRemovals()).toStrictEqual([]);
+    });
+  });
+
+  it("calls off a removal R2 failed once an upload's room holds its sha, and that upload's settle looks again", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt();
+      const { library } = cellIn(state, { clock });
+      const sha = "1".repeat(64);
+      landedValue(library.reserve({ ...png(500), sha }));
+      clock.now += 60 * 60_000;
+      library.runDueJobs(() => {});
+      const removals = library.beginStrayRemovals();
+      expect(removals.map((removal) => removal.sha)).toStrictEqual([sha]);
+      // a device asks for room while R2 is asked, and R2 fails the removal
+      landedValue(library.reserve({ ...png(500), sha }));
+      const before = library.blobRemovals();
+      library.endStrayRemovals(removals, false);
+      expect(
+        state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'stray'").toArray(),
+      ).toStrictEqual([]);
+      // a removal that failed may have removed, so what a settle read of R2 under it is read again
+      expect(landedValue(library.settle(sha, png(500), before))).toBe("stale");
+      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toBe("held");
     });
   });
 });

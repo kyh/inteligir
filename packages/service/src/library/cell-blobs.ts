@@ -16,8 +16,8 @@ import { readCellState, writeCellState } from "./library-queries";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
-import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
-import type { JobRequest } from "./cell-jobs";
+import { dropJob, ensureJob, retryJob, scheduleJob } from "./cell-jobs";
+import type { DueJob, JobRequest } from "./cell-jobs";
 import { holdRoomFor } from "./cell-quota";
 
 export const blobKey = (accountId: string, sha: string): string => `acct/${accountId}/b/${sha}`;
@@ -245,7 +245,7 @@ const releaseHeld = (db: CellDb, sha: string): void => {
 // whose room was let go before it settled. Its removal is a job the alarm runs between two
 // transactions, since it waits on R2. While the job waits a settle of that sha lands nothing, and
 // a settle whose look in R2 began before a removal ended lands nothing either, by the count of
-// removals it read first, so no file row ever names an object a removal took.
+// removals it read first, and looks again, so no file row ever names an object a removal took.
 
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
@@ -339,16 +339,31 @@ export const endRemoval = (db: CellDb, sha: string): void => {
   dropJob(db, strayJobId(sha));
 };
 
+// R2 failed the removal, which waits its turn again, unless an upload's room took the sha while it
+// ran: that upload's settle or release decides what stays, as when a removal is about to begin, and
+// what a settle read of R2 meanwhile it reads again, since a removal that failed may have removed
+export const failRemoval = (db: CellDb, job: DueJob<"stray">, now: number): void => {
+  if (heldUpload(db, job.payload.sha) === null) {
+    retryJob(db, job, now);
+  } else {
+    endRemoval(db, job.payload.sha);
+  }
+};
+
 // what R2 holds under the file's key, read before the transaction: null when nothing landed
 export interface StoredObject {
   readonly bytes: number;
   readonly mime: string;
 }
 
+// What a settle found. `held`: a file row holds the sha. Nothing landed otherwise: `absent`, R2
+// held nothing, so the upload's room went back; `removing`, a stray's removal of the sha waits;
+// `stale`, a removal ended after R2 was read, so what R2 showed may be gone and a fresh look says
+export const SETTLEMENTS = ["held", "absent", "removing", "stale"] as const;
+export type Settlement = (typeof SETTLEMENTS)[number];
+
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
-// in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read: a
-// stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
-// uploads again into the room it holds. False when no file row holds the sha
+// in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read
 export const settleUpload = (
   db: CellDb,
   bytesCap: number,
@@ -358,18 +373,21 @@ export const settleUpload = (
     readonly removalsSeen: number;
   },
   now: number,
-): boolean => {
+): Settlement => {
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(db, [sha]).size > 0) {
-    return true;
+    return "held";
   }
-  if (strayPending(db, sha) || blobRemovals(db) !== removalsSeen) {
-    return false;
+  if (strayPending(db, sha)) {
+    return "removing";
+  }
+  if (blobRemovals(db) !== removalsSeen) {
+    return "stale";
   }
   const held = heldUpload(db, sha);
   if (stored === null) {
     releaseHeld(db, sha);
-    return false;
+    return "absent";
   }
   holdRoomFor(db, bytesCap, stored.bytes - (held?.bytes ?? 0));
   releaseHeld(db, sha);
@@ -377,5 +395,5 @@ export const settleUpload = (
     .values({ bytes: stored.bytes, mime: held?.mime ?? stored.mime, sha256: sha })
     .run();
   awaitName(db, sha, now);
-  return true;
+  return "held";
 };

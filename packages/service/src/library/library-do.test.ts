@@ -258,7 +258,7 @@ describe("the library cell", () => {
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
       ok: true,
-      value: { settled: false },
+      value: "absent",
     });
     await stub.reserveBlob(request);
     await env.BLOBS.put(blobKey(accountId, SHA), "bytes", {
@@ -266,7 +266,7 @@ describe("the library cell", () => {
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
       ok: true,
-      value: { settled: true },
+      value: "held",
     });
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
       ok: true,

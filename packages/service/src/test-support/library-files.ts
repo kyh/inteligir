@@ -41,7 +41,7 @@ export const uploadedFile = async (
     sha256: sha,
   });
   const settled = await settleStored(env, accountId, library, sha);
-  if (!settled.ok || !settled.value.settled) {
+  if (!settled.ok || settled.value !== "held") {
     throw new Error("the library did not settle the file");
   }
   return sha;
