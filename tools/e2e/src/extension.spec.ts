@@ -177,4 +177,11 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-here")).toBeDefined();
   expect(await signedInAs()).toBe(account.email);
+
+  // the toolbar's popup, opened as a tab of its own: the tab it saves is itself, which is no web
+  // page, and it says so beside who is signed in
+  const popup = await extension.newPage();
+  await popup.goto(`${EXTENSION_ORIGIN}/popup.html`);
+  await expect(popup.getByRole("alert")).toHaveText("Inteligir can't save this kind of page");
+  await expect(popup.getByText(`Signed in as ${account.email}`)).toBeVisible();
 });
