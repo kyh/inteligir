@@ -1,6 +1,7 @@
-// The cloud's reading as the cell lands it: only the article and the facts a fill owns, in a
-// change set of its own, over an item still waiting for it, at the address it was saved at; and
-// the reading's ask kept as a job row, which the alarm sends, and again until the queue took it.
+// The cloud's reading as the cell lands it: only the article and the facts a fill owns, over an
+// item still waiting for it, at the address it was saved at, and folded into the change set of the
+// agent's turn that saved it; and the reading's ask kept as a job row, which the alarm sends, and
+// again until the queue took it.
 
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
@@ -17,6 +18,8 @@ import {
   headOf,
   inCell,
   newAccountId,
+  openTurn,
+  PERSON,
 } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
@@ -67,7 +70,7 @@ const fillJobs = (state: DurableObjectState) =>
   state.storage.sql.exec("SELECT id, payload FROM jobs WHERE kind = 'fill' ORDER BY id").toArray();
 
 describe("a page's reading, landed", () => {
-  it("lands only the article and the facts a fill owns, in a change set of its own", async () => {
+  it("lands only the article and the facts a fill owns, and keeps no change set", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const { client: library, library: engine } = cellIn(state);
@@ -93,10 +96,7 @@ describe("a page's reading, landed", () => {
         tags: ["reading"],
         title: "The page's own title",
       });
-      const sets = state.storage.sql
-        .exec("SELECT label, sealed_at FROM change_sets WHERE actor = 'fill'")
-        .toArray();
-      expect(sets).toStrictEqual([{ label: "Read from the web", sealed_at: expect.any(Number) }]);
+      expect(state.storage.sql.exec("SELECT id FROM change_sets").toArray()).toStrictEqual([]);
     });
   });
 
@@ -109,15 +109,12 @@ describe("a page's reading, landed", () => {
         url: "https://pages.example/b",
       });
       const { id } = saved.item;
-      const edited = engine.write(
-        { kind: "person", label: "You on phone", sessionId: "phone" },
-        {
-          itemId: id,
-          ops: [
-            { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
-          ],
-        },
-      );
+      const edited = engine.write(PERSON, {
+        itemId: id,
+        ops: [
+          { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
+        ],
+      });
       expect(edited.ok).toBe(true);
       engine.landReading(
         read({ itemId: id, url: "https://pages.example/b" }, [paragraph("p1", "The article.")]),
@@ -199,14 +196,13 @@ describe("a page's reading, landed", () => {
   it("asks for the reading again when an undo brings a link still waiting back", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const clock = clockAt(Date.now());
-      const { client: library, library: engine } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock: clockAt(Date.now()) });
+      const { client: library, library: engine } = cell;
       const saved = await library.items.saveLink({ url: "https://pages.example/undone" });
       await sendFills(state, env, engine);
-      clock.now += 120_000;
-      await library.items.delete({ ids: [saved.item.id] });
-      clock.now += 120_000;
-      engine.runDueJobs(() => {});
+      const turn = openTurn(cell);
+      await turn.client.items.delete({ ids: [saved.item.id] });
+      turn.end();
       const { changeSets } = await library.history.list({});
       const deleted = changeSets.find((set) =>
         set.items.some((item) => item.id === saved.item.id && item.deleted),
@@ -383,16 +379,24 @@ const madeSetOf = async (library: ReturnType<typeof cellIn>["client"], itemId: s
 const undoSave = async (library: ReturnType<typeof cellIn>["client"], itemId: string) =>
   await library.history.undo({ changeSetIds: [await madeSetOf(library, itemId)] });
 
-describe("Undo of a saved link, once its page is read", () => {
-  const PHONE = { kind: "person", label: "You on phone", sessionId: "phone" } as const;
+// a link the built-in agent saved in a turn that then ended, so the reading it held is let go
+const savedByTurn = async (cell: ReturnType<typeof cellIn>, url: string) => {
+  const turn = openTurn(cell);
+  const { item } = await turn.client.items.saveLink({ url });
+  turn.end();
+  return item;
+};
+
+describe("Undo of a link the agent saved, once its page is read", () => {
   const HOUR = 3_600_000;
 
-  it("takes a link the reading named to Deleted, a fill being no person", async () => {
+  it("takes a link the reading named to Deleted, the reading folded into the turn's set", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/named";
-      const { item } = await library.items.saveLink({ url });
+      const item = await savedByTurn(cell, url);
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       expect(stateOf(state, item.id)?.fields.title).toBe("The page's own title");
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
@@ -403,16 +407,34 @@ describe("Undo of a saved link, once its page is read", () => {
     });
   });
 
+  it("takes a link to Deleted whose reading landed before its turn ended", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
+      const url = "https://pages.example/early";
+      const turn = openTurn(cell);
+      const { item } = await turn.client.items.saveLink({ url });
+      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
+      turn.end();
+      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+        kept: [],
+        reverted: [item.id],
+      });
+    });
+  });
+
   it("takes a link that answered with a file to Deleted", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/figure.png";
       const originalSha = await uploadedFile(engine, accountId, {
         bytes: pngOf(800, 600),
         mime: "image/png",
       });
-      const { item } = await library.items.saveLink({ url });
+      const item = await savedByTurn(cell, url);
       engine.landReading(
         {
           fileKind: "image",
@@ -436,11 +458,12 @@ describe("Undo of a saved link, once its page is read", () => {
   it("keeps a link renamed once the reading named it", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/renamed";
-      const { item } = await library.items.saveLink({ url });
+      const item = await savedByTurn(cell, url);
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
-      const renamed = engine.write(PHONE, {
+      const renamed = engine.write(PERSON, {
         itemId: item.id,
         ops: [{ base: "The page's own title", field: "title", op: "set", value: "Mine" }],
       });
@@ -456,10 +479,11 @@ describe("Undo of a saved link, once its page is read", () => {
   it("keeps a link renamed while it waited, the reading leaving that name", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/waited";
-      const { item } = await library.items.saveLink({ url });
-      const renamed = engine.write(PHONE, {
+      const item = await savedByTurn(cell, url);
+      const renamed = engine.write(PERSON, {
         itemId: item.id,
         ops: [{ base: item.fields.title, field: "title", op: "set", value: "Mine" }],
       });
@@ -490,17 +514,18 @@ describe("Undo of a saved link, once its page is read", () => {
       const accountId = newAccountId();
       await inCell(cellOf(accountId), async (state) => {
         const clock = clockAt();
-        const { client: library, library: engine } = cellIn(state, { clock });
+        const cell = cellIn(state, { clock });
+        const { client: library, library: engine } = cell;
         const url = "https://pages.example/final";
-        const holder = await library.items.saveLink({ url });
-        engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]), null);
+        const holder = await savedByTurn(cell, url);
+        engine.landReading(read({ itemId: holder.id, url }, [paragraph("h", "Held.")]), null);
         clock.now += HOUR;
         const again = await library.items.saveLink({ ...carried, url });
-        expect(again).toMatchObject({ created: false, item: { id: holder.item.id } });
-        expect(stateOf(state, holder.item.id)?.fields).toMatchObject({ folderId: null, tags: [] });
-        await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
+        expect(again).toMatchObject({ created: false, item: { id: holder.id } });
+        expect(stateOf(state, holder.id)?.fields).toMatchObject({ folderId: null, tags: [] });
+        await expect(undoSave(library, holder.id)).resolves.toMatchObject({
           kept: [],
-          reverted: [holder.item.id],
+          reverted: [holder.id],
         });
       });
     },

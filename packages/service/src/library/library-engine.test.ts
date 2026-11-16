@@ -10,8 +10,9 @@ import {
   cellIn,
   headOf,
   inCell,
+  openTurn,
   landedValue,
-  person,
+  PERSON,
   placed,
   refusalOf,
   storedItemOf,
@@ -28,19 +29,12 @@ const TITLE = "A note";
 
 const newItemId = (): string => crypto.randomUUID();
 
-const laptopSet = (state: DurableObjectState): string => {
-  const [row] = state.storage.sql
-    .exec("SELECT id FROM change_sets WHERE session_id = 'laptop'")
-    .toArray();
-  return z.string().parse(row?.id);
-};
-
-const undoneBy = (state: DurableObjectState, id: string): string | null =>
+const undoneAt = (state: DurableObjectState, id: string): number | null =>
   z
-    .string()
+    .number()
     .nullable()
     .parse(
-      state.storage.sql.exec("SELECT undone_by FROM change_sets WHERE id = ?", id).one().undone_by,
+      state.storage.sql.exec("SELECT undone_at FROM change_sets WHERE id = ?", id).one().undone_at,
     );
 
 const setCount = (state: DurableObjectState): number =>
@@ -69,21 +63,22 @@ const png = (bytes: number) => ({ bytes, mime: "image/png" });
 describe("a write to the library cell", () => {
   it("lands each field only over the value it was read at, and answers a stale one with the field as it is", async () => {
     await inCell(cellOf(), (state) => {
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
       const made = landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       expect(made.item.seq).toBe(1);
 
-      const write = library.write(person("phone"), {
+      const write = library.write(PERSON, {
         itemId,
         ops: [{ base: TITLE, field: "title", op: "set", value: "Edited" }],
       });
       expect(landedValue(write).item.seq).toBe(2);
 
       // a second writer read the title before that edit, and the description as it stands
-      const stale = library.write(person("tablet"), {
+      const stale = library.write(PERSON, {
         itemId,
         ops: [
           { base: null, field: "description", op: "set", value: "landed only with the rest" },
@@ -101,14 +96,15 @@ describe("a write to the library cell", () => {
 
   it("merges two writers' edits to different fields with no conflict", async () => {
     await inCell(cellOf(), (state) => {
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      retitle(library, person("laptop"), itemId, TITLE, "From the laptop");
+      retitle(library, PERSON, itemId, TITLE, "From the laptop");
       landedValue(
-        library.write(person("phone"), {
+        library.write(PERSON, {
           itemId,
           ops: [{ base: null, field: "description", op: "set", value: "From the phone" }],
         }),
@@ -121,16 +117,17 @@ describe("a write to the library cell", () => {
 
   it("answers a resend by its op id with what landed, and moves nothing", async () => {
     await inCell(cellOf(), (state) => {
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
       const opId = crypto.randomUUID();
-      const first = createItem(library, person(), {
+      const first = createItem(library, PERSON, {
         blocks: placed([A]),
         fields: noteFixture(),
         id: itemId,
         opId,
       });
-      const again = createItem(library, person(), {
+      const again = createItem(library, PERSON, {
         blocks: placed([A]),
         fields: noteFixture(),
         id: itemId,
@@ -155,7 +152,8 @@ describe("a write to the library cell", () => {
         "statement too long",
       );
 
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
       const blocks = Array.from({ length: 2000 }, (_, index) =>
         paragraph(`p${String(index)}`, `line ${String(index)}`),
@@ -174,7 +172,8 @@ describe("a write to the library cell", () => {
   // its text is past 8 MiB on purpose
   it("refuses an item's text past 8 MiB as too large", { timeout: 30_000 }, async () => {
     await inCell(cellOf(), (state) => {
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const line = "x".repeat(500 * 1024);
       const blocks = Array.from({ length: 17 }, (_, index) => paragraph(`p${String(index)}`, line));
       expect(17 * line.length).toBeGreaterThan(ITEM_TEXT_MAX_BYTES);
@@ -259,7 +258,8 @@ describe("a write to the library cell", () => {
 
   it("refuses a write naming a file the library does not hold, and lands it once the file is in", async () => {
     await inCell(cellOf(), (state) => {
-      const { library } = cellIn(state, { clock: clockAt() });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
       landedValue(
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -338,7 +338,8 @@ describe("a write to the library cell", () => {
   it("takes out of R2 what an upload left once its room is let go, unless the sha is held again", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const [kept, retried] = ["f".repeat(64), "0".repeat(64)];
       for (const sha of [kept, retried]) {
         landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }));
@@ -368,162 +369,153 @@ describe("a write to the library cell", () => {
 });
 
 describe("change sets and undo", () => {
-  it("joins a person's writes into one set until 15 s of quiet, then seals it with its after", async () => {
+  it("keeps each turn of the built-in agent as one change set, its writes joined into one way back, sealed as the turn ends, and nobody else's writes", async () => {
     await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const { alarmAt, library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
       const itemId = newItemId();
-      const start = clock.now;
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      clock.now = start + 10_000;
-      retitle(library, person(), itemId, TITLE, "Typed on");
-      const sets = () => state.storage.sql.exec("SELECT id, sealed_at FROM change_sets").toArray();
-      const after = () =>
+      retitle(library, PERSON, itemId, TITLE, "Typed by the person");
+      retitle(library, FILL_ACTOR, itemId, "Typed by the person", "A reading");
+      expect(setCount(state)).toBe(0);
+      const turn = openTurn(cell);
+      retitle(library, turn.actor, itemId, "A reading", "The agent's title");
+      retitle(library, turn.actor, itemId, "The agent's title", "The agent's second title");
+      const sets = () => state.storage.sql.exec("SELECT sealed_at FROM change_sets").toArray();
+      expect(
         state.storage.sql
-          .exec("SELECT after_fields FROM change_set_items WHERE item_id = ?", itemId)
-          .one().after_fields;
-      expect(sets()).toHaveLength(1);
-      clock.now = start + 24_000;
-      library.runDueJobs(() => {});
-      expect(sets()[0]?.sealed_at).toBeNull();
-      expect(after()).toBeNull();
-      expect(alarmAt()).toBe(start + 25_000);
-      clock.now = start + 25_000;
-      library.runDueJobs(() => {});
-      expect(sets()[0]?.sealed_at).toBe(start + 25_000);
-      expect(after()).not.toBeNull();
+          .exec("SELECT made, inverse FROM change_set_items WHERE item_id = ?", itemId)
+          .one(),
+      ).toStrictEqual({
+        inverse: JSON.stringify([
+          { base: "The agent's second title", field: "title", op: "set", value: "A reading" },
+        ]),
+        made: null,
+      });
+      expect(sets()).toStrictEqual([{ sealed_at: null }]);
+      turn.end();
+      expect(sets()[0]?.sealed_at).not.toBeNull();
+      expect(
+        refusalOf(
+          library.write(turn.actor, {
+            itemId,
+            ops: [{ base: "The agent's second title", field: "title", op: "set", value: "Late" }],
+          }),
+        ),
+      ).toStrictEqual({ kind: "turn-ended" });
     });
   });
 
-  it("seals a person's set a minute after its first write however busy, and opens the next", async () => {
+  it("undoes sets newest first, keeps an item edited since, and refuses a second undo", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { alarmAt, library } = cellIn(state, { clock });
-      const itemId = newItemId();
-      const start = clock.now;
-      landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
-      );
-      let title = TITLE;
-      for (const at of [10_000, 20_000, 30_000, 40_000, 50_000]) {
-        clock.now = start + at;
-        const next = `Typed at ${String(at)}`;
-        retitle(library, person(), itemId, title, next);
-        title = next;
-      }
-      expect(alarmAt()).toBe(start + 60_000);
-      clock.now = start + 60_000;
-      library.runDueJobs(() => {});
-      clock.now = start + 61_000;
-      retitle(library, person(), itemId, title, "After the cap");
-      const sets = state.storage.sql
-        .exec("SELECT opened_at, sealed_at FROM change_sets ORDER BY opened_at")
-        .toArray();
-      expect(sets).toStrictEqual([
-        { opened_at: start, sealed_at: start + 60_000 },
-        { opened_at: start + 61_000, sealed_at: null },
-      ]);
-    });
-  });
-
-  it("undoes sets newest first in one of its own, keeps an item edited since, and refuses a second undo", async () => {
-    await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const kept = newItemId();
       const undone = newItemId();
       for (const id of [kept, undone]) {
         landedValue(
-          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id }),
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id }),
         );
       }
+      const turn = openTurn(cell);
       for (const itemId of [kept, undone]) {
-        retitle(library, person("laptop"), itemId, TITLE, "The laptop's title");
+        retitle(library, turn.actor, itemId, TITLE, "The agent's title");
       }
-      const setId = laptopSet(state);
-      // the phone changes one of the two again since
+      turn.end();
+      const setId = turn.setId();
+      // the person changes one of the two again since
       clock.now += 120_000;
-      retitle(library, person("phone"), kept, "The laptop's title", "The phone's title");
-      const answer = landedValue(undoFields(library, person("laptop"), [setId]));
+      retitle(library, PERSON, kept, "The agent's title", "The person's title");
+      const answer = landedValue(undoFields(library, [setId]));
       expect(answer.kept).toStrictEqual([kept]);
       expect(answer.reverted).toStrictEqual([undone]);
       expect(titleOf(library, undone)).toBe(TITLE);
-      expect(titleOf(library, kept)).toBe("The phone's title");
-      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toStrictEqual({
+      expect(titleOf(library, kept)).toBe("The person's title");
+      expect(undoneAt(state, setId)).toBe(clock.now);
+      expect(setCount(state)).toBe(1);
+      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({
         changeSetId: setId,
         kind: "already-undone",
-        undoneBy: answer.changeSetId,
       });
-      expect(refusalOf(undoFields(library, person(), [crypto.randomUUID()]))).toStrictEqual({
+      expect(refusalOf(undoFields(library, [crypto.randomUUID()]))).toStrictEqual({
         kind: "not-found",
       });
     });
   });
 
+  it("refuses to undo a turn still open, since what it did is not yet fixed", async () => {
+    await inCell(cellOf(), (state) => {
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
+      const itemId = newItemId();
+      landedValue(
+        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+      );
+      const turn = openTurn(cell);
+      retitle(library, turn.actor, itemId, TITLE, "The agent's title");
+      const setId = turn.setId();
+      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "conflict" });
+      expect(titleOf(library, itemId)).toBe("The agent's title");
+      turn.end();
+      expect(landedValue(undoFields(library, [setId]))).toMatchObject({ reverted: [itemId] });
+    });
+  });
+
   describe("an undo that takes nothing back", () => {
-    it("leaves the set undoable, opens no set of its own, and lands once the edit since is gone", async () => {
+    it("leaves the set undoable, and lands once the edit since is gone", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
-        const { library } = cellIn(state, { clock });
+        const cell = cellIn(state, { clock });
+        const { library } = cell;
         const itemId = newItemId();
         landedValue(
-          createItem(library, FILL_ACTOR, {
-            blocks: placed([A]),
-            fields: noteFixture(),
-            id: itemId,
-          }),
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
         );
-        retitle(library, person("laptop"), itemId, TITLE, "The laptop's title");
-        const setId = laptopSet(state);
+        const turn = openTurn(cell);
+        retitle(library, turn.actor, itemId, TITLE, "The agent's title");
+        turn.end();
+        const setId = turn.setId();
         clock.now += 120_000;
-        retitle(library, person("phone"), itemId, "The laptop's title", "The phone's title");
-        const sets = setCount(state);
+        retitle(library, PERSON, itemId, "The agent's title", "The person's title");
 
-        const answer = landedValue(undoFields(library, person("laptop"), [setId]));
-        expect(answer).toStrictEqual({
-          changeSetId: null,
-          kept: [itemId],
-          lostText: [],
-          refused: [],
-          reverted: [],
-        });
-        expect(undoneBy(state, setId)).toBeNull();
-        expect(setCount(state)).toBe(sets);
+        const answer = landedValue(undoFields(library, [setId]));
+        expect(answer).toStrictEqual({ kept: [itemId], lostText: [], refused: [], reverted: [] });
+        expect(undoneAt(state, setId)).toBeNull();
 
-        retitle(library, person("phone"), itemId, "The phone's title", "The laptop's title");
-        const again = landedValue(undoFields(library, person("laptop"), [setId]));
+        retitle(library, PERSON, itemId, "The person's title", "The agent's title");
+        const again = landedValue(undoFields(library, [setId]));
         expect(again).toMatchObject({ kept: [], reverted: [itemId] });
-        expect(undoneBy(state, setId)).toBe(again.changeSetId);
+        expect(undoneAt(state, setId)).toBe(clock.now);
       });
     });
 
     it("marks only the sets that took something back when one undo names several", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
-        const { library } = cellIn(state, { clock });
+        const cell = cellIn(state, { clock });
+        const { library } = cell;
         const [held, back] = [newItemId(), newItemId()];
         for (const id of [held, back]) {
           landedValue(
-            createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id }),
+            createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id }),
           );
         }
-        retitle(library, person("laptop"), held, TITLE, "An edit");
-        const heldSet = laptopSet(state);
+        const first = openTurn(cell);
+        retitle(library, first.actor, held, TITLE, "An edit");
+        first.end();
         clock.now += 120_000;
-        retitle(library, person("tablet"), held, "An edit", "Edited again");
-        retitle(library, person("phone"), back, TITLE, "An edit");
-        const backSet = z
-          .string()
-          .parse(
-            state.storage.sql.exec("SELECT id FROM change_sets WHERE session_id = 'phone'").one()
-              .id,
-          );
-        const answer = landedValue(undoFields(library, person("laptop"), [heldSet, backSet]));
+        retitle(library, PERSON, held, "An edit", "Edited again");
+        const second = openTurn(cell);
+        retitle(library, second.actor, back, TITLE, "An edit");
+        second.end();
+        const [heldSet, backSet] = [first.setId(), second.setId()];
+        const answer = landedValue(undoFields(library, [heldSet, backSet]));
         expect(answer).toMatchObject({ kept: [held], refused: [], reverted: [back] });
-        expect(undoneBy(state, backSet)).toBe(answer.changeSetId);
-        expect(undoneBy(state, heldSet)).toBeNull();
+        expect(undoneAt(state, backSet)).toBe(clock.now);
+        expect(undoneAt(state, heldSet)).toBeNull();
       });
     });
   });
@@ -531,102 +523,95 @@ describe("change sets and undo", () => {
   it("waits while another item holds the address, and lands once it no longer does", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const url = "https://example.com/one";
       const gone = newItemId();
       const holder = newItemId();
       landedValue(
-        createItem(library, FILL_ACTOR, {
+        createItem(library, PERSON, {
           blocks: placed([]),
           fields: noteFixture({ url }),
           id: gone,
         }),
       );
+      const turn = openTurn(cell);
       landedValue(
-        library.write(person("laptop"), {
+        library.write(turn.actor, {
           itemId: gone,
           ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
         }),
       );
-      const setId = laptopSet(state);
+      turn.end();
+      const setId = turn.setId();
       landedValue(
-        createItem(library, FILL_ACTOR, {
+        createItem(library, PERSON, {
           blocks: placed([]),
           fields: noteFixture({ url }),
           id: holder,
         }),
       );
-      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toStrictEqual({
-        kind: "url-held",
-      });
-      expect(undoneBy(state, setId)).toBeNull();
+      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "url-held" });
+      expect(undoneAt(state, setId)).toBeNull();
       landedValue(
-        library.write(FILL_ACTOR, {
+        library.write(PERSON, {
           itemId: holder,
           ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
         }),
       );
-      expect(landedValue(undoFields(library, person("laptop"), [setId]))).toMatchObject({
+      expect(landedValue(undoFields(library, [setId]))).toMatchObject({
         refused: [],
         reverted: [gone],
       });
     });
   });
 
-  it("writes each set's after when its state stops being the item's, so each is the item as that set left it", async () => {
+  it("keeps an edit the person made between two of the turn's writes of an item", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
-      const itemId = newItemId();
-      const start = clock.now;
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
+      const [pinned, renamed] = [newItemId(), newItemId()];
+      for (const id of [pinned, renamed]) {
+        landedValue(
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id }),
+        );
+      }
+      const turn = openTurn(cell);
+      for (const id of [pinned, renamed]) {
+        retitle(library, turn.actor, id, TITLE, "Typed by the agent");
+      }
       landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        library.write(PERSON, {
+          itemId: pinned,
+          ops: [{ base: null, field: "pinnedAt", op: "set", value: clock.now }],
+        }),
       );
-      // the person's set stays open while a reading's write seals as it lands, then the person
-      // takes the item back within the same set
-      clock.now = start + 1000;
-      retitle(library, person(), itemId, TITLE, "Typed by the person");
-      clock.now = start + 2000;
-      retitle(library, FILL_ACTOR, itemId, "Typed by the person", "A later reading");
-      clock.now = start + 3000;
-      retitle(library, person(), itemId, "A later reading", "The person again");
-      clock.now = start + 62_000;
-      library.runDueJobs(() => {});
-      const titleSchema = z.object({ title: z.string() });
-      const afters = state.storage.sql
-        .exec(
-          `SELECT sets.actor AS actor, parts.json AS fields
-           FROM change_set_items items JOIN change_sets sets ON sets.id = items.change_set_id
-           JOIN snapshot_parts parts ON parts.item_id = items.item_id
-             AND parts.hash = items.after_fields
-           WHERE items.item_id = ? ORDER BY sets.opened_at`,
-          itemId,
-        )
-        .toArray()
-        .map((row) => ({
-          actor: row.actor,
-          title: titleSchema.parse(JSON.parse(z.string().parse(row.fields))).title,
-        }));
-      // the reading that made the item, the person's set, and the reading in its middle
-      expect(afters).toStrictEqual([
-        { actor: "fill", title: TITLE },
-        { actor: "person", title: "The person again" },
-        { actor: "fill", title: "A later reading" },
-      ]);
-      expect(titleOf(library, itemId)).toBe("The person again");
+      retitle(library, PERSON, renamed, "Typed by the agent", "Typed by the person");
+      retitle(library, turn.actor, pinned, "Typed by the agent", "The agent again");
+      retitle(library, turn.actor, renamed, "Typed by the person", "The agent again");
+      turn.end();
+      const answer = landedValue(undoFields(library, [turn.setId()]));
+      expect(answer).toMatchObject({ kept: [], reverted: [pinned, renamed].toSorted() });
+      expect(storedItemOf(library, pinned)).toMatchObject({
+        fields: { pinnedAt: clock.now, title: TITLE },
+      });
+      expect(titleOf(library, renamed)).toBe("Typed by the person");
     });
   });
 
-  it("takes an item a set made to Deleted when its set is undone", async () => {
+  it("takes an item a turn made to Deleted when its set is undone", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = newItemId();
+      const turn = openTurn(cell);
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, turn.actor, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
-      landedValue(undoFields(library, person(), [z.string().parse(set?.id)]));
+      turn.end();
+      landedValue(undoFields(library, [turn.setId()]));
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { deletedAt: clock.now },
         kind: "live",
@@ -637,22 +622,25 @@ describe("change sets and undo", () => {
   it("empties Deleted: the item stays a tombstone, and what its change sets kept goes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = newItemId();
+      const turn = openTurn(cell);
       landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, turn.actor, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       landedValue(
-        library.write(FILL_ACTOR, {
+        library.write(turn.actor, {
           itemId,
           ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
         }),
       );
+      turn.end();
       expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toStrictEqual([
         itemId,
       ]);
       expect(storedItemOf(library, itemId)).toMatchObject({ kind: "purged" });
-      for (const table of ["snapshot_parts", "change_set_items", "seed_blocks"]) {
+      for (const table of ["change_set_items", "change_set_blobs", "seed_blocks"]) {
         expect(
           state.storage.sql
             .exec(`SELECT count(*) AS n FROM ${table} WHERE item_id = ?`, itemId)
@@ -667,9 +655,10 @@ describe("the cell's alarm", () => {
   it("drops a job whose payload its kind no longer reads, so no run fails on it again", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       for (const [id, kind] of [
-        ["seal:unread", "seal"],
+        ["upload:unread", "upload"],
         ["stray:unread", "stray"],
       ] as const) {
         state.storage.sql.exec(

@@ -10,7 +10,7 @@ import type { JsonValue } from "./canonical-json";
 import { libraryItemFieldsSchema, propertyKeySchema } from "./library-item";
 import type { LibraryItemField, LibraryItemFields, PropertyValue } from "./library-item";
 
-export type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
+type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
 
 const isScalarField = (field: keyof LibraryItemFields): field is ScalarField =>
   field !== "aliases" && field !== "properties" && field !== "tags";
@@ -55,7 +55,7 @@ export const mergeListField = (
 export const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((entry, index) => entry === b[index]);
 
-export const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
+const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
 
 const FIELDS = libraryItemFieldsSchema.shape;
@@ -126,7 +126,7 @@ export type FieldOp = z.infer<typeof fieldOpSchema>;
 // base nor its value, which a list field never does
 type FieldVerdict = "apply" | "satisfied" | "conflict";
 
-const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
+const propertyAt = (fields: LibraryItemFields, key: string): PropertyValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
 const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
@@ -238,4 +238,69 @@ export const applyFieldOps = (fields: LibraryItemFields, ops: readonly FieldOp[]
   return refused.length > 0
     ? { fields: refused, kind: "invalid" }
     : { changed, fields: next, kind: "applied" };
+};
+
+// what an op writes: a field by its name, a property by its key
+const slotOf = (op: FieldOp): string => {
+  switch (op.op) {
+    case "set": {
+      return op.field;
+    }
+    case "property": {
+      return `property:${op.key}`;
+    }
+    case "tags":
+    case "aliases": {
+      return op.op;
+    }
+    // no default
+  }
+};
+
+// the ops that take `from` to `to`, each guarded by `from`
+const opsBetween = (from: LibraryItemFields, to: LibraryItemFields): FieldOp[] => {
+  const ops: FieldOp[] = [];
+  for (const field of SCALAR_FIELDS) {
+    if (from[field] !== to[field]) {
+      // the parse ties the values to the field's own type, which TypeScript cannot follow through
+      // a loop over every field
+      ops.push(fieldOpSchema.parse({ base: from[field], field, op: "set", value: to[field] }));
+    }
+  }
+  for (const op of ["tags", "aliases"] as const) {
+    if (!sameList(from[op], to[op])) {
+      ops.push({ base: from[op], op, value: to[op] });
+    }
+  }
+  for (const key of new Set([...Object.keys(from.properties), ...Object.keys(to.properties)])) {
+    const [base, value] = [propertyAt(from, key), propertyAt(to, key)];
+    if (!sameOptionalJson(base, value)) {
+      ops.push({ base, key, op: "property", value });
+    }
+  }
+  return ops;
+};
+
+// The ops that take an item back from `after` to where `inverse` takes `before`: a writer's way
+// back, one more landing of its own taken in. Each slot the landing changed gets one op, guarded by
+// `after`, back to `before` with the earlier op landed, or to `before` as it stands where someone
+// else changed the slot since; every other slot keeps its op. So an edit made between two of the
+// writer's landings is never taken back, and one made since the writer last wrote a slot meets
+// that slot's guard.
+export const composeInverse = (
+  inverse: readonly FieldOp[],
+  before: LibraryItemFields,
+  after: LibraryItemFields,
+): FieldOp[] => {
+  const landed = new Set(opsBetween(before, after).map(slotOf));
+  let target = before;
+  for (const op of inverse) {
+    if (landed.has(slotOf(op)) && fieldVerdict(target, op) === "apply") {
+      target = landFieldOp(target, op);
+    }
+  }
+  return [
+    ...inverse.filter((op) => !landed.has(slotOf(op))),
+    ...opsBetween(after, target).filter((op) => landed.has(slotOf(op))),
+  ];
 };

@@ -69,7 +69,7 @@ export const libraryTools = {
     organize: items.organize.meta(
       openapi({
         description:
-          "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one change set.",
+          "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one write.",
         method: "PUT",
         operationId: "organize_items" satisfies LibraryToolName,
         summary: "Organize items",

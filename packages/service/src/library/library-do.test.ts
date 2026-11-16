@@ -19,7 +19,8 @@ import {
   inCell,
   landedValue,
   newAccountId,
-  person,
+  openTurn,
+  PERSON,
   placed,
   refusalOf,
 } from "../test-support/library-cell";
@@ -52,13 +53,14 @@ const principal = (accountId: string): NamedPrincipal => ({
 const itemCount = (state: DurableObjectState): number =>
   Number(state.storage.sql.exec("SELECT count(*) AS n FROM items").one().n);
 
-// a person's note, landed on the platform's alarm
+// a person's note, landed on the platform's alarm, its op's answer kept until the prune
 const writeNote = (state: DurableObjectState): void => {
   landedValue(
-    createItem(cellIn(state, { alarm: "platform" }).library, person(), {
+    createItem(cellIn(state, { alarm: "platform" }).library, PERSON, {
       blocks: placed([paragraph("a", "typed just now")]),
       fields: noteFixture(),
       id: crypto.randomUUID(),
+      opId: crypto.randomUUID(),
     }),
   );
 };
@@ -157,31 +159,6 @@ describe("the library cell", () => {
     }
   });
 
-  it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {
-    const stub = cellOf();
-    const written = Date.now() - 20_000;
-    await inCell(stub, async (state) => {
-      const { library } = cellIn(state, { clock: clockAt(written) });
-      landedValue(
-        createItem(library, person(), {
-          blocks: placed([paragraph("a", "typed a while ago")]),
-          fields: noteFixture(),
-          id: crypto.randomUUID(),
-        }),
-      );
-      // the job is due; the alarm is held a minute out so the test runs it, not the clock
-      await state.storage.setAlarm(Date.now() + 60_000);
-    });
-    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
-    const after = await inCell(stub, async (state) => ({
-      alarm: await state.storage.getAlarm(),
-      sealed: state.storage.sql.exec("SELECT sealed_at FROM change_sets").one().sealed_at,
-    }));
-    expect(after.sealed).toStrictEqual(expect.any(Number));
-    // the prune job, a day after the seal
-    expect(after.alarm).toBeGreaterThan(Date.now() + 23 * 60 * 60_000);
-  });
-
   it("sets its alarm in the turn a write commits, so a cell cut off there keeps both or neither", async () => {
     const accountId = newAccountId();
     const held = async () =>
@@ -200,30 +177,30 @@ describe("the library cell", () => {
     await expect(held()).resolves.toStrictEqual({ alarm: expect.any(Number), items: 1 });
   });
 
-  it("loses nothing to an eviction: the rows, the open set and its alarm", async () => {
+  it("loses nothing to an eviction: the rows and the open turn's set", async () => {
     const stub = cellOf();
     const itemId = crypto.randomUUID();
-    const alarm = await inCell(stub, async (state) => {
-      createItem(cellIn(state, { alarm: "platform" }).library, person(), {
-        blocks: placed([paragraph("a", "before the eviction")]),
-        fields: noteFixture(),
-        id: itemId,
-      });
-      return await state.storage.getAlarm();
+    await inCell(stub, (state) => {
+      const cell = cellIn(state, { alarm: "platform" });
+      landedValue(
+        createItem(cell.library, openTurn(cell).actor, {
+          blocks: placed([paragraph("a", "before the eviction")]),
+          fields: noteFixture(),
+          id: itemId,
+        }),
+      );
     });
-    expect(alarm).toStrictEqual(expect.any(Number));
     await evictDurableObject(stub);
-    const after = await inCell(stub, async (state) => {
+    const after = await inCell(stub, (state) => {
       const { library } = cellIn(state);
       return {
-        alarm: await state.storage.getAlarm(),
         body: blocksOf(library, itemId).length,
         open: state.storage.sql
           .exec("SELECT count(*) AS n FROM change_sets WHERE sealed_at IS NULL")
           .one().n,
       };
     });
-    expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
+    expect(after).toStrictEqual({ body: 1, open: 1 });
   });
 
   it("wakes started over empty when another build's DDL made it", async () => {
@@ -365,10 +342,11 @@ describe("deleting the account from its cell", () => {
     await inCell(cellOf(accountId), async (state) => {
       const cell = cellIn(state, { alarm: "platform" });
       landedValue(
-        createItem(cell.library, person(), {
+        createItem(cell.library, PERSON, {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFixture(),
           id: crypto.randomUUID(),
+          opId: crypto.randomUUID(),
         }),
       );
       for (const threadId of threadIds) {
@@ -378,7 +356,7 @@ describe("deleting the account from its cell", () => {
           threadId,
         );
       }
-      // the write's set waits to seal, so the alarm is set until the tombstone takes it
+      // the write's op answer waits for the prune, so the alarm is set until the tombstone takes it
       await expect(state.storage.getAlarm()).resolves.toStrictEqual(expect.any(Number));
       const scope = { cell, ctx: state, email };
       for (const step of ACCOUNT_PURGE_STEPS) {

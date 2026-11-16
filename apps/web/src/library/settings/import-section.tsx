@@ -1,7 +1,7 @@
 // Bringing a library in: a Raindrop export or a zip of markdown, an Obsidian vault among them, read
-// on this device and landed a batch at a time (`../import/import-run`), every item it adds in one
-// change set. Stop ends it where it stands, keeping what it added; so does closing the tab, and
-// choosing the file again carries on. It needs a connection.
+// on this device and landed a batch at a time (`../import/import-run`). Stop ends it where it
+// stands, keeping what it added; so does closing the tab, and choosing the file again carries on.
+// It needs a connection.
 
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { Button } from "@repo/ui/components/button";

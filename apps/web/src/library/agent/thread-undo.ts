@@ -1,8 +1,8 @@
 // "Undo this turn" and "Undo this conversation": the change sets the built-in agent's turns made in
 // one thread, as the cell lists them (newest first), less those already undone or still open. A
 // turn's writes are one set, so its undo is that set; a conversation's is every one of them,
-// newest first, in one undo of its own, or in as few as the cell takes when the conversation made
-// more sets than one undo names.
+// newest first, in one undo, or in as few as the cell takes when the conversation made more sets
+// than one undo names.
 
 import type { changeSetSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
@@ -27,7 +27,7 @@ export const changeSetsOf = (
   );
 };
 
-const undoable = (set: ChangeSet): boolean => set.undoneBy === null && set.closedAt !== null;
+const undoable = (set: ChangeSet): boolean => set.undoneAt === null && set.closedAt !== null;
 
 // the set one turn made, while it can be undone; null for a turn that changed nothing
 export const turnUndo = (sets: readonly ChangeSet[], turn: number): string[] | null => {
@@ -37,6 +37,6 @@ export const turnUndo = (sets: readonly ChangeSet[], turn: number): string[] | n
 
 // every set the thread's turns made that can still be undone, newest first
 export const conversationUndo = (sets: readonly ChangeSet[]): string[] | null => {
-  const ids = sets.filter((set) => set.threadId !== null && undoable(set)).map((set) => set.id);
+  const ids = sets.filter(undoable).map((set) => set.id);
   return ids.length === 0 ? null : ids;
 };

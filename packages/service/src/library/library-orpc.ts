@@ -42,7 +42,7 @@ export interface CellContext {
   readonly read: <T>(work: (db: CellDb) => T) => T;
   // a read over the listing, caught up to the library's head
   readonly readListing: <T>(work: (listing: LibraryIndex<ListingRow>, db: CellDb) => T) => T;
-  // a write by the call's actor, joining its change set
+  // a write by the call's actor, joining its turn's change set when it is the built-in agent's
   readonly land: <S extends z.ZodType>(
     request: WriteRequest<S>,
     work: (scope: LandingScope, actor: CellActor) => Built<z.input<S>>,
@@ -96,9 +96,7 @@ const refusalError = (refusal: CellRefusal): Error => {
       return new BlobMissingError({ data: { shas: [...refusal.shas] } });
     }
     case "already-undone": {
-      return new AlreadyUndoneError({
-        data: { changeSetId: refusal.changeSetId, undoneBy: refusal.undoneBy },
-      });
+      return new AlreadyUndoneError({ data: { changeSetId: refusal.changeSetId } });
     }
     case "edit-refused": {
       return new EditRefusedError({

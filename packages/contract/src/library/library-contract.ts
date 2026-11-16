@@ -36,7 +36,6 @@ import {
   folderPathNames,
   isoDate,
   idSchema,
-  IMPORT_SOURCES,
   IMPORT_STANDINGS,
   itemReadSchema,
   itemSummarySchema,
@@ -406,17 +405,17 @@ const organizeContract = {
   ),
 };
 
-// the change sets the cell keeps, each until seven days after it closed
+// the built-in agent's turns' change sets, each kept until seven days after its turn closed
 const historyContract = {
   // the sets one conversation's turns made, or the library's newest
   list: signedBase
     .input(z.strictObject({ cursor, limit, threadId: idSchema.optional() }))
     .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
 
-  // newest first, in one change set of its own; an item a later edit overlaps is named under
-  // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
-  // only kept items remain stays undoable too, and `changeSetId` is null when no item went back
-  // and no set was undone. When a rule held back all that could land, its own error is the answer
+  // newest first, in one write; an item a later edit overlaps is named under `kept`, and one a
+  // rule refuses under `refused`, its set left to undo again. A set of which only kept items remain
+  // stays undoable too, and a set whose turn is still open is a conflict. When a rule held back all
+  // that could land, its own error is the answer
   undo: signedBase
     .errors({
       [AlreadyUndoneError.code]: AlreadyUndoneError,
@@ -428,7 +427,6 @@ const historyContract = {
     .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(
       z.object({
-        changeSetId: idSchema.nullable(),
         kept: z.array(idSchema),
         // the items whose undo took text someone wrote inside a block the undone turn added
         lostText: z.array(idSchema),
@@ -482,19 +480,11 @@ const importsContract = {
     .input(z.strictObject({ shas: z.array(shaSchema).min(1).max(BULK_ITEMS_MAX) }))
     .output(z.object({ named: z.array(shaSchema), originals: z.array(shaSchema) })),
 
-  // a batch in the import's own change set, which `importId` names: an item the library holds
-  // already is counted, one a rule refuses is counted unreadable while the rest land, and a
-  // library too full for the batch takes none of it
+  // a batch: an item the library holds already is counted, one a rule refuses is counted
+  // unreadable while the rest land, and a library too full for the batch takes none of it
   land: signedBase
     .errors({ [QuotaError.code]: QuotaError })
-    .input(
-      z.strictObject({
-        importId: idSchema,
-        items: z.array(importedItemSchema).min(1).max(BULK_ITEMS_MAX),
-        opId,
-        source: z.enum(IMPORT_SOURCES),
-      }),
-    )
+    .input(z.strictObject({ items: z.array(importedItemSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(z.object({ added: count, alreadySaved: count, unreadable: count })),
 };
 

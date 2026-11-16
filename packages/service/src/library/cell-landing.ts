@@ -19,8 +19,7 @@ import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
-import { touchItem } from "./change-sets";
-import type { OpenSet } from "./change-sets";
+import { recordLanding } from "./change-sets";
 import { storeSearchRow } from "../search/search-index";
 import { storeItemRow, storeLinks, storeTags } from "./library-queries";
 import type { ItemBody, LiveStoredItem } from "./library-queries";
@@ -54,14 +53,15 @@ export type Landing =
       readonly seed: readonly BodyBlock[] | null;
     };
 
-// what a write lands under: its one sequence number and time, and its actor's set, each taken on
-// the first landing so a write that lands nothing moves nothing; and what it moved, for the sockets
+// what a write lands under: its one sequence number and time, and the change set of the agent's
+// turn it is by, null for any other writer, each taken on the first landing so a write that lands
+// nothing moves nothing; and what it moved, for the sockets
 export interface LandingScope {
   readonly db: CellDb;
   readonly bytesCap: number;
   readonly now: number;
   readonly seq: () => number;
-  readonly set: () => OpenSet;
+  readonly set: () => string | null;
   readonly moved: MovedCollector;
   // a part of the write that lands whole or not at all while the write goes on: what it wrote is
   // taken back when a rule refuses it, and the refusal answered
@@ -203,8 +203,11 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const { before, fields, itemId } = landing;
   const { derived, landed, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
-  const set = scope.set();
-  touchItem(db, { before: before?.fields ?? null, itemId, setId: set.id });
+  recordLanding(
+    db,
+    { after: fields, before: before?.fields ?? null, itemId, setId: scope.set() },
+    scope.now,
+  );
   const stored = storeItemRow(db, {
     body: landed.body,
     card: derived.card,

@@ -40,7 +40,8 @@ import {
   createItem,
   inCell,
   landedValue,
-  person,
+  openTurn,
+  PERSON,
   placed,
 } from "../test-support/library-cell";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
@@ -126,7 +127,7 @@ const signedInTab = async (email: string) => {
 const writeInCell = async (accountId: string): Promise<{ id: string; seq: number }> =>
   await inCell(cellOf(accountId), (state) => {
     const id = crypto.randomUUID();
-    const result = createItem(cellIn(state).library, person(), {
+    const result = createItem(cellIn(state).library, PERSON, {
       blocks: placed([paragraph("a", "a new note")]),
       fields: noteFixture(),
       id,
@@ -491,14 +492,20 @@ describe("the moved frame", () => {
   });
 
   it("names what an undo took back", async () => {
-    const { phone, ticket } = await signedInPhone("moved-undo@example.test");
+    const { accountId, phone, ticket } = await signedInPhone("moved-undo@example.test");
     const opened = await openWithTicket(ticket);
     const { library } = v1Link(phoneHeaders(phone));
-    const { item } = await library.items.createNote({ markdown: "Before." });
+    const item = await inCell(cellOf(accountId), async (state) => {
+      const turn = openTurn(cellIn(state));
+      const made = await turn.client.items.createNote({ markdown: "Before." });
+      turn.end();
+      return made.item;
+    });
     const { changeSets } = await library.history.list({});
+    const heard = movedOf(opened).length;
     await library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
-    await until(() => movedOf(opened).length === 2);
-    const [, undone] = movedOf(opened);
+    await until(() => movedOf(opened).length === heard + 1);
+    const undone = movedOf(opened).at(-1);
     expect(undone).toMatchObject({ folders: false, threads: [], type: "moved" });
     expect(undone?.items).toStrictEqual([{ id: item.id, seq: expect.any(Number) }]);
   });

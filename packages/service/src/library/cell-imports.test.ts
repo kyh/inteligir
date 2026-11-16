@@ -1,7 +1,6 @@
 // An import as the cell takes it from the device that reads the file: how each note it planned
-// stands, which of its files the library's items name, and its items landed a batch at a time into
-// one change set, an item a rule refuses counted while the rest land, and a full library refusing
-// the batch.
+// stands, which of its files the library's items name, and its items landed a batch at a time, an
+// item a rule refuses counted while the rest land, and a full library refusing the batch.
 
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import type { ImportedFields } from "@repo/editor/codec/item-markdown";
@@ -64,7 +63,7 @@ const note = (
 });
 
 const land = async (cell: Cell, items: Parameters<Cell["client"]["imports"]["land"]>[0]["items"]) =>
-  await cell.client.imports.land({ importId: crypto.randomUUID(), items, source: "markdown" });
+  await cell.client.imports.land({ items });
 
 const titles = ({ state }: Cell): unknown[] =>
   state.storage.sql
@@ -114,24 +113,14 @@ describe("how an import's notes stand", () => {
 });
 
 describe("an import's batch", () => {
-  it("lands every item it adds in one change set, in the folders its paths name", async () => {
+  it("lands every item it adds, keeping no change set, in the folders its paths name", async () => {
     await inLibrary(async (cell) => {
       const { state } = cell;
-      const importId = crypto.randomUUID();
       for (const title of ["Alpha", "Beta"]) {
-        await cell.client.imports.land({
-          importId,
-          items: [note(cell, title, { folder: "Projects/Specs" })],
-          source: "raindrop",
-        });
+        await land(cell, [note(cell, title, { folder: "Projects/Specs" })]);
       }
       expect(titles(cell)).toStrictEqual(["Alpha", "Beta"]);
-      expect(
-        state.storage.sql
-          .exec("SELECT label FROM change_sets")
-          .toArray()
-          .map((row) => row.label),
-      ).toStrictEqual(["Imported from Raindrop"]);
+      expect(state.storage.sql.exec("SELECT id FROM change_sets").toArray()).toStrictEqual([]);
       expect(
         state.storage.sql
           .exec("SELECT name FROM folders ORDER BY name")

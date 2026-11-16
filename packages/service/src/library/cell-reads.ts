@@ -39,7 +39,8 @@ import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
 import { searchHits } from "../search/search-hits";
 import { listedWhole } from "./cell-listing";
-import { readFieldsPart } from "./cell-parts";
+import { ENTRY_COLUMNS, entryOf } from "./change-sets";
+import type { SetEntry } from "./revert-change";
 import { refuse } from "./cell-refusal";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
@@ -313,35 +314,20 @@ export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
 // the items one set's entry names, at most a page of them
 const SET_ITEMS_SHOWN = 50;
 
-const SET_ITEM_COLUMNS = {
-  afterFields: changeSetItems.afterFields,
-  beforeFields: changeSetItems.beforeFields,
-  created: changeSetItems.created,
-  itemId: changeSetItems.itemId,
-};
+// whether the set moved the item to Deleted: its way back brings the item out
+const movedToDeleted = (entry: SetEntry): boolean =>
+  entry.kind === "made"
+    ? entry.fields.deletedAt !== null
+    : entry.inverse.some((op) => op.op === "set" && op.field === "deletedAt" && op.value === null);
 
-interface SetItemRow {
-  readonly afterFields: string | null;
-  readonly beforeFields: string | null;
-  readonly created: number;
-  readonly itemId: string;
-}
-
-const setItemOf = (db: CellDb, entry: SetItemRow) => {
-  const now = readItem(db, entry.itemId);
-  const before =
-    entry.beforeFields === null ? null : readFieldsPart(db, entry.itemId, entry.beforeFields);
-  // a set still open has written no after: the item is as it left it
-  let after: LibraryItemFields | null = now?.kind === "live" ? now.fields : null;
-  if (entry.afterFields !== null) {
-    after = readFieldsPart(db, entry.itemId, entry.afterFields);
-  }
+// an entry names a live item alone, since emptying Deleted drops the item's entries
+const setItemOf = (db: CellDb, itemId: string, entry: SetEntry) => {
+  const now = readItem(db, itemId);
   return {
-    created: entry.created === 1,
-    deleted:
-      after !== null && after.deletedAt !== null && (before === null || before.deletedAt === null),
-    id: entry.itemId,
-    title: now?.kind === "live" ? now.card.title : (after?.title ?? before?.title ?? ""),
+    created: entry.kind === "made",
+    deleted: movedToDeleted(entry),
+    id: itemId,
+    title: now?.kind === "live" ? now.card.title : "",
   };
 };
 
@@ -369,24 +355,22 @@ export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
   return {
     changeSets: shown.map((set): ChangeSet => {
       const setItems = db
-        .select(SET_ITEM_COLUMNS)
+        .select({ ...ENTRY_COLUMNS, itemId: changeSetItems.itemId })
         .from(changeSetItems)
         .where(eq(changeSetItems.changeSetId, set.id))
         .orderBy(asc(changeSetItems.itemId))
         .limit(SET_ITEMS_SHOWN)
         .all()
-        .map((entry) => setItemOf(db, entry));
+        .map(({ itemId, ...row }) => setItemOf(db, itemId, entryOf(row)));
       return {
-        actor: set.actor,
         closedAt: set.sealedAt === null ? null : isoOf(set.sealedAt),
         id: set.id,
         itemCount: set.itemCount,
         items: setItems,
-        label: set.label,
         openedAt: isoOf(set.openedAt),
         threadId: set.threadId,
         turn: set.turn,
-        undoneBy: set.undoneBy,
+        undoneAt: set.undoneAt === null ? null : isoOf(set.undoneAt),
       };
     }),
     cursor: sets.length > input.limit ? String(offset + input.limit) : null,

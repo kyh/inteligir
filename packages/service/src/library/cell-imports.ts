@@ -1,9 +1,9 @@
 // An import as the cell takes it: the device reads the file (`apps/web/src/library/import`) and asks
 // how each note it planned stands, which of the files it uploaded the landed items name, and lands
 // its items a batch at a time. Each item lands whole or not at all inside its batch, so one a rule
-// refuses leaves the rest, and every item one import adds joins its own change set.
+// refuses leaves the rest.
 
-import type { IMPORT_SOURCES, IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
+import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
 import type { importedItemSchema } from "@repo/contract/library/library-contract";
 import { urlKey } from "@repo/contract/items/item-url";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -22,7 +22,6 @@ import type { LandingScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 import { readItem } from "./library-queries";
 
-type ImportSource = (typeof IMPORT_SOURCES)[number];
 type ImportedItem = z.infer<typeof importedItemSchema>;
 
 interface NoteStanding {
@@ -30,15 +29,7 @@ interface NoteStanding {
   readonly standing: (typeof IMPORT_STANDINGS)[number];
 }
 
-const LABELS = {
-  markdown: "Imported from Markdown",
-  raindrop: "Imported from Raindrop",
-} as const satisfies Record<ImportSource, string>;
-
-export const importActor = (input: {
-  readonly importId: string;
-  readonly source: ImportSource;
-}): CellActor => ({ importId: input.importId, kind: "import", label: LABELS[input.source] });
+export const IMPORT_ACTOR: CellActor = { kind: "import" };
 
 const heldByUrl = (db: CellDb, url: string | null): { readonly id: string } | null => {
   const key = url === null ? null : urlKey(url);

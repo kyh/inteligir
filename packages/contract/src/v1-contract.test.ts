@@ -156,14 +156,14 @@ describe("/v1's error statuses", () => {
     },
     {
       code: "ALREADY_UNDONE",
-      data: { changeSetId: UUID_V7, undoneBy: UUID_V4 },
+      data: { changeSetId: UUID_V7 },
       refusal: async (client) =>
         await refusalOf(client.library.history.undo({ changeSetIds: [UUID_V7] })),
       router: {
         library: {
           history: {
             undo: os.library.history.undo.handler(({ errors }) => {
-              throw errors.ALREADY_UNDONE({ data: { changeSetId: UUID_V7, undoneBy: UUID_V4 } });
+              throw errors.ALREADY_UNDONE({ data: { changeSetId: UUID_V7 } });
             }),
           },
         },

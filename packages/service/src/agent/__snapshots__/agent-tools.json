@@ -198,7 +198,7 @@
     "name": "list_tags_and_folders"
   },
   {
-    "description": "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one change set.",
+    "description": "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one write.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {

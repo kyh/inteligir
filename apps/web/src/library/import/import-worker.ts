@@ -10,11 +10,10 @@ import { isOrpcError, QuotaError } from "@repo/contract/v1/errors";
 import type { V1Client } from "@repo/contract/v1";
 import { configure } from "@zip.js/zip.js/lib/zip-core-native.js";
 
-import { newId } from "../library/new-id";
 import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";
 import type { ImportCell } from "./import-landing";
 import { importAskSchema } from "./import-news";
-import type { ImportAsk, ImportNews } from "./import-news";
+import type { ImportNews } from "./import-news";
 import { IMPORT_INTERRUPTED, readImport } from "./import-reading";
 
 // zip.js would start codec workers of its own from a script the build does not ship; this thread
@@ -30,52 +29,45 @@ const sessionEnded = (end: SessionEnd): void => {
   tell({ end, kind: "session-ended" });
 };
 
-const cellOver = (client: V1Client, transport: V1Transport, ask: ImportAsk): ImportCell => {
-  const importId = newId();
-  return {
-    keep: async (bytes, mime) => {
-      const sha = fileSha(bytes);
-      const outcome = await uploadBlob(transport, { bytes, mime, sha });
-      switch (outcome.kind) {
-        case "stored": {
-          return sha;
-        }
-        case "refused": {
-          if (outcome.code === QuotaError.code) {
-            throw new ImportStoppedError(LIBRARY_FULL);
-          }
-          return null;
-        }
-        case "failed": {
-          if (outcome.failure.kind === "session") {
-            sessionEnded(outcome.failure.end);
-          }
-          throw new ImportStoppedError(IMPORT_INTERRUPTED);
-        }
-        // no default
+const cellOver = (client: V1Client, transport: V1Transport): ImportCell => ({
+  keep: async (bytes, mime) => {
+    const sha = fileSha(bytes);
+    const outcome = await uploadBlob(transport, { bytes, mime, sha });
+    switch (outcome.kind) {
+      case "stored": {
+        return sha;
       }
-    },
-    land: async (items) => {
-      try {
-        return await client.library.imports.land({
-          importId,
-          items: [...items],
-          source: ask.source,
-        });
-      } catch (error) {
-        if (isOrpcError(error) && error.code === QuotaError.code) {
+      case "refused": {
+        if (outcome.code === QuotaError.code) {
           throw new ImportStoppedError(LIBRARY_FULL);
         }
-        throw error;
+        return null;
       }
-    },
-    named: async (shas) => await client.library.imports.named({ shas: [...shas] }),
-    settle: async (notes) => {
-      const settled = await client.library.imports.settle({ notes: [...notes] });
-      return settled.notes;
-    },
-  };
-};
+      case "failed": {
+        if (outcome.failure.kind === "session") {
+          sessionEnded(outcome.failure.end);
+        }
+        throw new ImportStoppedError(IMPORT_INTERRUPTED);
+      }
+      // no default
+    }
+  },
+  land: async (items) => {
+    try {
+      return await client.library.imports.land({ items: [...items] });
+    } catch (error) {
+      if (isOrpcError(error) && error.code === QuotaError.code) {
+        throw new ImportStoppedError(LIBRARY_FULL);
+      }
+      throw error;
+    }
+  },
+  named: async (shas) => await client.library.imports.named({ shas: [...shas] }),
+  settle: async (notes) => {
+    const settled = await client.library.imports.settle({ notes: [...notes] });
+    return settled.notes;
+  },
+});
 
 // one file a thread: the page starts another for the next
 self.addEventListener(
@@ -90,11 +82,7 @@ self.addEventListener(
       origin: self.location.origin,
     };
     // it tells its own end, a failure included, so nothing waits on it
-    void readImport(
-      ask.data,
-      cellOver(v1Client(transport, sessionEnded), transport, ask.data),
-      tell,
-    );
+    void readImport(ask.data, cellOver(v1Client(transport, sessionEnded), transport), tell);
   },
   { once: true },
 );

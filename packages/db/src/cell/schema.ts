@@ -18,7 +18,6 @@ import {
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { FETCH_STATES } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
-import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
@@ -222,71 +221,53 @@ export const itemBlobs = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
 );
 
-// A change set's item names its fields before and after by part, each kept once per item under its
-// content hash (`snapshot_parts`), so no row nears a Durable Object's 2 MB. A set's after is null
-// while the set is open and the item is as it left it; it is written when the set seals, or when
-// another set is about to change the item. A body is no part: the agent's edits to it are its
-// note's turn log, and a person's typing is no change set
+// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one
 export const changeSets = sqliteTable(
   "change_sets",
   {
     id: text().primaryKey(),
-    actor: text({ enum: CHANGE_SET_ACTORS }).notNull(),
-    actorId: text("actor_id"),
-    label: text().notNull(),
-    sessionId: text("session_id"),
-    threadId: text("thread_id"),
-    turn: integer(),
-    clientId: text("client_id"),
+    threadId: text("thread_id").notNull(),
+    turn: integer().notNull(),
     openedAt: integer("opened_at").notNull(),
-    touchedAt: integer("touched_at").notNull(),
     sealedAt: integer("sealed_at"),
-    undoneBy: text("undone_by"),
+    undoneAt: integer("undone_at"),
   },
   (t) => [
-    index("change_sets_open").on(t.actor, t.sealedAt),
-    check("change_sets_actor", sql`${t.actor} IN (${oneOf(CHANGE_SET_ACTORS)})`),
+    uniqueIndex("change_sets_turn").on(t.threadId, t.turn),
+    check("change_sets_undone", sql`${t.undoneAt} IS NULL OR ${t.sealedAt} IS NOT NULL`),
   ],
 );
 
+// What a set did to one item, as JSON: the fields of an item it made, as it last left them, or the
+// ops that take its changes back (`packages/service/src/library/revert-change.ts`). Either is at
+// most twice an item's fields, so no row nears a Durable Object's 2 MB. A body is neither: the
+// turn's edits to it are its note's turn log
 export const changeSetItems = sqliteTable(
   "change_set_items",
   {
     changeSetId: text("change_set_id").notNull(),
     itemId: text("item_id").notNull(),
-    created: integer().notNull(),
-    beforeFields: text("before_fields"),
-    afterFields: text("after_fields"),
+    made: text(),
+    inverse: text(),
   },
   (t) => [
     primaryKey({ columns: [t.changeSetId, t.itemId] }),
     index("change_set_items_item").on(t.itemId),
-    check("change_set_items_created", sql`${t.created} IN (0, 1)`),
-    check("change_set_items_made", sql`(${t.created} = 1) = (${t.beforeFields} IS NULL)`),
+    check("change_set_items_entry", sql`(${t.made} IS NULL) <> (${t.inverse} IS NULL)`),
   ],
 );
 
-export const snapshotParts = sqliteTable(
-  "snapshot_parts",
-  {
-    itemId: text("item_id").notNull(),
-    hash: text().notNull(),
-    json: text().notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.itemId, t.hash] })],
-);
-
-// the files each fields part names, so whether any change set still holds a file is one lookup,
-// never a read of the parts themselves
+// the files each entry's ops would name again, so whether any change set still holds a file is one
+// lookup, never a read of the ops themselves
 export const changeSetBlobs = sqliteTable(
   "change_set_blobs",
   {
     itemId: text("item_id").notNull(),
-    hash: text().notNull(),
+    changeSetId: text("change_set_id").notNull(),
     sha256: text().notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.itemId, t.hash, t.sha256] }),
+    primaryKey({ columns: [t.itemId, t.changeSetId, t.sha256] }),
     index("change_set_blobs_sha").on(t.sha256),
   ],
 );

@@ -4,7 +4,7 @@
 // writer's origin, logging an agent's around its update under the turn's change set for Undo. A
 // block someone moved since the read is read again once and the edit run again; past that the edit
 // is refused with the block as it is. The write that follows re-checks the op, the item and the
-// writer's turn, and lands the note's answered body in the writer's change set when it is newer.
+// writer's turn, and lands the note's answered body when it is newer.
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { editItemView } from "@repo/editor/codec/item-edit";
@@ -18,7 +18,7 @@ import { cellCodec, logReadFailure } from "./cell-codec";
 import { landProjection } from "./cell-notes";
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import { refuse } from "./cell-refusal";
-import { touchItem } from "./change-sets";
+import { recordLanding } from "./change-sets";
 import type { LibraryEngine } from "./library-engine";
 import { readLiveItem } from "./library-queries";
 
@@ -36,31 +36,13 @@ export interface EditDeps {
 }
 
 const editedSchema = z.object({ seq: z.number() });
-const joinedSchema = z.object({ changeSetId: z.string() });
+const enteredSchema = z.object({ changeSetId: z.string().nullable() });
 
 type Edited = z.output<typeof editedSchema>;
 
 // what names a writer's edits in the note's document
-const originOf = (actor: CellActor): string => {
-  switch (actor.kind) {
-    case "agent": {
-      return `agent:${actor.threadId}:${actor.turn}`;
-    }
-    case "person": {
-      return `person:${actor.sessionId}`;
-    }
-    case "assistant": {
-      return `assistant:${actor.grantId}`;
-    }
-    case "import": {
-      return `import:${actor.importId}`;
-    }
-    case "fill": {
-      return "fill";
-    }
-    // no default
-  }
-};
+const originOf = (actor: CellActor): string =>
+  actor.kind === "agent" ? `agent:${actor.threadId}:${actor.turn}` : actor.kind;
 
 // an edit the codec did not land: its own refusal as it is, and new text a rule failed on as
 // text the library cannot keep
@@ -77,16 +59,31 @@ const refused = (refusal: CellRefusal): CellResult<never> => ({ ok: false, refus
 const heldRefusal = (held: NoteHeld): CellRefusal =>
   held === "full" ? { kind: "too-large" } : { kind: "not-found" };
 
-// the change set an agent's edit is logged under, joined before the note applies it, since the
-// note keeps the turn's log by it; any other writer's edit is logged nowhere
-const logSetOf = (library: LibraryEngine, actor: CellActor): CellResult<string | null> => {
+// The change set an agent's edit is logged under, which takes the item before the note applies the
+// edit: the note keeps the turn's log by the set's id, and a turn that ends before the edit lands
+// still names the note for its Undo. Any other writer's edit is logged nowhere.
+const logSetOf = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+): CellResult<string | null> => {
   if (actor.kind !== "agent") {
     return { ok: true, value: null };
   }
-  const joined = library.land(actor, { answer: joinedSchema, opId: undefined }, (scope) => ({
-    changeSetId: scope.set().id,
-  }));
-  return joined.ok ? { ...joined, value: joined.value.changeSetId } : joined;
+  const entered = library.land(actor, { answer: enteredSchema, opId: undefined }, (scope) => {
+    const item = readLiveItem(scope.db, itemId);
+    if (item?.fields.deletedAt !== null) {
+      return refuse({ kind: "not-found" });
+    }
+    const changeSetId = scope.set();
+    recordLanding(
+      scope.db,
+      { after: item.fields, before: item.fields, itemId, setId: changeSetId },
+      scope.now,
+    );
+    return { changeSetId };
+  });
+  return entered.ok ? { ...entered, value: entered.value.changeSetId } : entered;
 };
 
 export const editByNote = async (deps: EditDeps, input: EditInput): Promise<CellResult<Edited>> => {
@@ -99,7 +96,7 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
     return { ok: true, value: prior.value };
   }
   const actor = deps.actor();
-  const logSet = logSetOf(library, actor);
+  const logSet = logSetOf(library, actor, input.id);
   if (!logSet.ok) {
     return logSet;
   }
@@ -154,7 +151,6 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
-    touchItem(scope.db, { before: item.fields, itemId: item.id, setId: scope.set().id });
     landProjection(scope, item.id, landed);
     return { seq: readLiveItem(scope.db, item.id)?.seq ?? item.seq };
   });

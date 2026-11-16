@@ -45,17 +45,15 @@ const row = (idx: number, event: ThreadEventRow["event"]): ThreadEventRow => ({
   type: "event",
 });
 
-const set = (id: string, turn: number, undoneBy: string | null = null) => ({
-  actor: "agent",
+const set = (id: string, turn: number, undoneAt: string | null = null) => ({
   closedAt: "2026-11-05T10:00:00.000Z",
   id,
   itemCount: 1,
   items: [],
-  label: "Agent",
   openedAt: "2026-11-05T09:59:00.000Z",
   threadId: THREAD,
   turn,
-  undoneBy,
+  undoneAt,
 });
 
 const panel = (
@@ -84,7 +82,7 @@ const oneFinishedTurn = [
   row(1, { reason: "done", turn: 1, type: "turn.ended" }),
 ];
 
-const UNDONE = { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] };
+const UNDONE = { kept: [], lostText: [], refused: [], reverted: ["i1"] };
 
 const ALREADY_UNDONE = "That change was already undone.";
 
@@ -150,7 +148,9 @@ const takesBackOnce = (
     await hold(call);
     if (call.path === "library.history.list") {
       return {
-        changeSets: sets.map((held) => (undone.has(held.id) ? { ...held, undoneBy: "u1" } : held)),
+        changeSets: sets.map((held) =>
+          undone.has(held.id) ? { ...held, undoneAt: "2026-11-05T10:01:00.000Z" } : held,
+        ),
         cursor: null,
       };
     }
@@ -366,7 +366,7 @@ describe("the agent panel's conversation", () => {
             ? { changeSets: [set("s1", 1)], cursor: null }
             : { changeSets: [set("s2", 2)], cursor: "1" };
         }
-        return { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] };
+        return { kept: [], lostText: [], refused: [], reverted: ["i1"] };
       },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
@@ -436,7 +436,7 @@ describe("the agent panel's conversation", () => {
       answer: ({ path }) =>
         path === "library.history.list"
           ? { changeSets: listed, cursor: null }
-          : { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] },
+          : { kept: [], lostText: [], refused: [], reverted: ["i1"] },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
         row(1, { reason: "done", turn: 1, type: "turn.ended" }),
@@ -841,7 +841,7 @@ describe("the agent panel's conversation", () => {
     });
     renderOnLibrary(panel(), library);
     const turn = await screen.findByRole("button", { name: "Undo this turn" });
-    listed = [set("s1", 1, "u9")];
+    listed = [set("s1", 1, "2026-11-05T10:01:00.000Z")];
     fireEvent.click(turn);
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith(ALREADY_UNDONE);
@@ -853,7 +853,7 @@ describe("the agent panel's conversation", () => {
   });
 
   it.each([
-    ["another device took it all back", [set("s1", 1, "u9")]],
+    ["another device took it all back", [set("s1", 1, "2026-11-05T10:01:00.000Z")]],
     ["none of its sets is left", []],
   ])("sends nothing and says so when %s", async (_case, read) => {
     const said = vi.spyOn(toast, "info");
@@ -912,7 +912,7 @@ describe("the agent panel's conversation", () => {
           return { changeSets: [set("s1", 1)], cursor: null };
         }
         return path === "library.history.undo"
-          ? { changeSetId: "u1", kept: [], lostText: [note], refused: [], reverted: [note] }
+          ? { kept: [], lostText: [note], refused: [], reverted: [note] }
           : undefined;
       },
       cell,

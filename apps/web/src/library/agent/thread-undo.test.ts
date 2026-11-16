@@ -10,18 +10,16 @@ const THREAD = "0199a4c2-0000-7000-8000-00000000000a";
 const set = (
   id: string,
   turn: number,
-  more: { undoneBy?: string; closedAt?: string | null } = {},
+  more: { undoneAt?: string; closedAt?: string | null } = {},
 ) => ({
-  actor: "agent" as const,
   closedAt: more.closedAt === undefined ? "2026-11-05T10:00:00.000Z" : more.closedAt,
   id,
   itemCount: 1,
   items: [],
-  label: "Agent",
   openedAt: "2026-11-05T09:59:00.000Z",
   threadId: THREAD,
   turn,
-  undoneBy: more.undoneBy ?? null,
+  undoneAt: more.undoneAt ?? null,
 });
 
 describe("an agent conversation's undo", () => {
@@ -35,11 +33,11 @@ describe("an agent conversation's undo", () => {
     const sets = [
       set("d", 4, { closedAt: null }),
       set("c", 3),
-      set("b", 2, { undoneBy: "x" }),
+      set("b", 2, { undoneAt: "2026-11-05T10:01:00.000Z" }),
       set("a", 1),
     ];
     expect(conversationUndo(sets)).toStrictEqual(["c", "a"]);
-    expect(conversationUndo([set("b", 2, { undoneBy: "x" })])).toBeNull();
+    expect(conversationUndo([set("b", 2, { undoneAt: "2026-11-05T10:01:00.000Z" })])).toBeNull();
   });
 });
 

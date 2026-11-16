@@ -29,7 +29,7 @@ import {
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
-import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
+import { cellIn, cellOf, clockAt, inCell, openTurn } from "../test-support/library-cell";
 
 const DAY_MS = 86_400_000;
 
@@ -95,8 +95,6 @@ describe("the one wire's door", () => {
     const { item } = await phone.library.items.createNote({ markdown: "From the phone." });
     const read = await phone.library.items.read({ id: item.id });
     expect(read.view.markdown).toBe("From the phone.\n");
-    const history = await phone.library.history.list({});
-    expect(history.changeSets[0]?.label).toBe("You on your iPhone");
 
     for (const headers of [
       { ...buildHeaders(), cookie: phoneCookie },
@@ -111,12 +109,14 @@ describe("the one wire's door", () => {
     }
   });
 
-  it("reads the extension's bearer, the browser's own signed cookie, and names its writes by it", async () => {
+  it("reads the extension's bearer, the browser's own signed cookie", async () => {
     const { cookie } = await signedUp("rpc-extension@example.test");
     const extension = v1Link(extensionHeaders(cookie));
-    await extension.library.items.createNote({ markdown: "Saved from the toolbar." });
-    const { changeSets } = await extension.library.history.list({});
-    expect(changeSets[0]?.label).toBe("You from the browser extension");
+    const { item } = await extension.library.items.createNote({
+      markdown: "Saved from the toolbar.",
+    });
+    const listed = await extension.library.items.list({});
+    expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
     const { devices } = await extension.account.devices.list();
     expect(devices.filter((device) => device.current)).toHaveLength(1);
   });
@@ -152,11 +152,8 @@ describe("the one wire's door", () => {
     const { cookie } = await signedUp("rpc-cookie@example.test");
     const tab = v1Link(sessionHeaders(cookie));
     const { item } = await tab.library.items.createNote({ markdown: "From the tab." });
-    const history = await tab.library.history.list({});
-    expect(history.changeSets[0]).toMatchObject({
-      items: [expect.objectContaining({ id: item.id })],
-      label: "You in the browser",
-    });
+    const listed = await tab.library.items.list({});
+    expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
 
     // another site's page riding the same cookie: a build header gets it past the floor, and the
     // cookie still counts for nothing
@@ -204,8 +201,6 @@ describe("the one wire's door", () => {
 
     const listed = await mine.phone.library.items.list({});
     expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
-    const history = await mine.phone.library.history.list({});
-    expect(history.changeSets[0]?.label).toBe("You on your iPhone");
     const elsewhere = await theirs.phone.library.items.list({});
     expect(elsewhere.items).toStrictEqual([]);
 
@@ -240,7 +235,13 @@ describe("the one wire's door", () => {
 
 describe("every refusal's status", () => {
   it("answers the library's refusals under the statuses the wire declares", async () => {
-    const { phone } = await signedUp("rpc-statuses@example.test");
+    const { accountId, phone } = await signedUp("rpc-statuses@example.test");
+    // a turn of the built-in agent's, the one writer whose writes Undo takes back
+    await inCell(cellOf(accountId), async (state) => {
+      const turn = openTurn(cellIn(state));
+      await turn.client.items.createNote({ markdown: "The agent's." });
+      turn.end();
+    });
     const { item } = await phone.library.items.createNote({ markdown: "One.\n\nTwo." });
     await phone.library.items.edit({
       edits: [{ newText: "Two, edited.", oldText: "Two." }],
