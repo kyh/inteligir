@@ -14,7 +14,7 @@
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { decodable } from "@repo/contract/items/link-fill";
 import { pixelSize, sniffMedia } from "@repo/contract/items/sniff-media";
-import { serialLock } from "../lib/serial-lock";
+import { serialLock } from "@repo/client/serial-lock";
 
 // the one folder the files are kept in, each by its name
 export interface FileFolder {

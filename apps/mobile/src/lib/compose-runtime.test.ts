@@ -17,8 +17,8 @@ import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";
 import type { MemoryFolder } from "../test-support/memory-folder";
-import { memoryKv } from "../test-support/memory-kv";
-import type { MemoryKv } from "../test-support/memory-kv";
+import { memoryKv } from "@repo/client/test-support/memory-kv";
+import type { MemoryKv } from "@repo/client/test-support/memory-kv";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
 

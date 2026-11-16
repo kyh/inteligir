@@ -26,7 +26,7 @@ import { phoneAuthOver } from "../auth/phone-auth";
 import type { PhoneAuth } from "../auth/phone-auth";
 import { expoFileFolder } from "../files/expo-file-folder";
 import { shrinkToThumbnail } from "../files/expo-thumbnail";
-import type { KvStorage } from "../items/share-outbox";
+import type { KvStorage } from "@repo/client/waiting-saves";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";

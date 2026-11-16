@@ -1,7 +1,7 @@
-// The phone's key-value store in memory, as its suites hold it: what a relaunch reads is whatever
-// the last run left in the same map.
+// A host's key-value store in memory, as a suite holds it: what a relaunch reads is whatever the
+// last run left in the same map.
 
-import type { KvStorage } from "../items/share-outbox";
+import type { KvStorage } from "../waiting-saves";
 
 export interface MemoryKv extends KvStorage {
   readonly held: ReadonlyMap<string, string>;

@@ -6,6 +6,7 @@
 // by its sha the same way, before the write naming it. A save never throws: it answers what became
 // of it. Platform-free: its suites run it under node.
 
+import type { SaveStamp } from "@repo/client/waiting-saves";
 import { outcomeOf, uploaded } from "@repo/contract/library/call-outcome";
 import type { CallOutcome, UploadOutcome } from "@repo/contract/library/call-outcome";
 import type { V1Client } from "@repo/contract/v1";
@@ -18,13 +19,6 @@ import type { ShareSave } from "./share-payload";
 // where a save lands: the scope's folder, or Unsorted
 interface SaveTarget {
   readonly folderId: string | null;
-}
-
-// the ids a save names and when it was made, minted before its first call
-interface SaveStamp {
-  readonly id: string;
-  readonly opId: string;
-  readonly savedAt: number;
 }
 
 // the item a save landed as. `created` false: an item already held the address, and is answered as

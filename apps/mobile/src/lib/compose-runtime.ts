@@ -18,6 +18,7 @@ import type { PersistQueryClientProviderProps } from "@tanstack/react-query-pers
 import type { WebSocketClass } from "@repo/client/live-socket";
 import { createLibrarySocket, retryUnlessRefused } from "@repo/client/library-cache";
 import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/library-cache";
+import type { KvStorage } from "@repo/client/waiting-saves";
 import { clientBuildValue } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
 import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
@@ -29,7 +30,7 @@ import type { FileCache, FileCachePorts, FileFolder } from "../files/file-cache"
 import { createPhoneSaves } from "../items/phone-saves";
 import type { PhoneSaves } from "../items/phone-saves";
 import { clearStoredShares, createShareOutbox } from "../items/share-outbox";
-import type { KvStorage, ShareOutbox } from "../items/share-outbox";
+import type { ShareOutbox } from "../items/share-outbox";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import { messageOf } from "./error-message";

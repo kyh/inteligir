@@ -14,6 +14,17 @@ What the library tab and the phone share above the contract. It names no platfor
   again only when the copy held is older than the frame's sequence, and a thread's by its key, since
   a copy per device drifts. `packages/client/src/library-cache.ts`.
 
+## A save that waits
+
+- **A waiting save is one queue over its host's key-value store, and a call's outcome moves a save
+  one way.** One record shape and one pass for every host that keeps a save, and one the library
+  refuses is parked with its words, since a queue per host lets one drop what another parks.
+  `packages/client/src/waiting-saves.ts`.
+- **The queue reads its store at every step and changes it one step at a time.** Nothing rests on
+  memory a stopped host loses, and a try's answer never brings back a save let go while its call
+  was on its way, since a read and a write a clear can land between is a save that returns.
+  `packages/client/src/waiting-saves.ts`.
+
 ## The agent's panel
 
 - **A conversation's logic is one package, and each device draws it** (owner decision). Pure

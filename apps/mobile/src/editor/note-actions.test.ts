@@ -12,7 +12,7 @@ import { z } from "zod";
 import { composeRuntime } from "../lib/compose-runtime";
 import { fakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";
-import { memoryKv } from "../test-support/memory-kv";
+import { memoryKv } from "@repo/client/test-support/memory-kv";
 import { noteActions } from "./note-actions";
 
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
