@@ -310,6 +310,19 @@ describe("a page the tree cannot hold", () => {
     expect(wordsOf(deep.article.blocks)).toBe("deep words here\nafter them\n");
   });
 
+  // the deepest the extractor hands the tree's parser: no stack runs out under it on the way
+  it.each([
+    ["sections", "<div>", "</div>", "rich"],
+    ["marks", "<em>", "</em>", "rich"],
+    ["quotes", "<blockquote>", "</blockquote>", "text"],
+  ])("keeps the words under 250 nested %s", (_name, open, close, rung) => {
+    const deep = readOf(
+      articlePage(`${open.repeat(250)}<p>deep words here</p>${close.repeat(250)}`),
+    );
+    expect(deep.rung).toBe(rung);
+    expect(wordsOf(deep.article.blocks)).toContain("deep words here");
+  });
+
   it("reads as its words when the tree would lose them to a block no store takes", () => {
     const depth = 40;
     const quoted = readOf(
