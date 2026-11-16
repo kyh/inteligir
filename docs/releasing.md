@@ -267,7 +267,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   ⌘F match a screen away glide there, and one far off lands at once and stays.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
   a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
-  play in WebKit; Download lands in Downloads.
+  play in WebKit, and a recording in a note seeks before it has all loaded;
+  Download lands in Downloads, from an item and from a file in a note.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
 - **Import** from Settings › Import: a real Obsidian vault's zip and a Raindrop
@@ -298,8 +299,8 @@ The unpacked store build, against production, with no dev build loaded.
   lock and a restart (Keychain); Safari's sign-in stays Safari's; no iCloud
   backup growth; a restored backup on another phone signs in as itself.
 - **The editor on real WebKit**: typing, autocorrect, the keyboard's mic, the
-  `[[` picker, a 20,000-word paste, and the Embed dialog covering the screen on
-  iOS 26.
+  `[[` picker, a 20,000-word paste, the Embed dialog covering the screen on
+  iOS 26, and New note opening with the caret at its end and the keyboard up.
 - **The editor's edges** on the oldest supported iPhone and on iOS 16.4: a cold
   open under a second, Inter and KaTeX faces, no zoom, the caret above the
   keyboard, Mermaid in dark mode.

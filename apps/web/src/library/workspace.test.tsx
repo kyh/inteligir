@@ -57,7 +57,10 @@ const pageOverALiveNote = async (alsoInAddress = "") => {
     },
   ]);
   const { router } = pageAt(`/library?item=${id}${alsoInAddress}`, cell);
-  await screen.findByText("Typed on the Mac.");
+  // read whole, since a find in the address marks its words in the commit that draws them
+  await waitFor(() => {
+    expect(document.querySelector("[data-slate-editor]")?.textContent).toBe("Typed on the Mac.");
+  });
   return { id, router, server };
 };
 

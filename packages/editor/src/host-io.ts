@@ -1,3 +1,4 @@
+import type { Reach } from "@repo/client/live-socket";
 import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
@@ -65,9 +66,13 @@ export interface EditorHostIo {
   readonly readItemBlocks: (itemId: string) => Promise<readonly LibraryBlock[] | null>;
   // these items moved, or `null`: any of them may have
   readonly onItemsChanged: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
-  // a file of the library by its sha, from where this device draws its files, its type the one the
-  // file was kept as; rejects while the device can reach no copy of it
-  readonly readFile: (sha: string) => Promise<Blob>;
+  // where an <img> or a <video> loads a file of the library by its sha: the cloud's own address
+  // where the page reaches it, or one of the page's own over bytes the device holds; rejects while
+  // the device can reach no copy of it
+  readonly fileSrc: (sha: string) => Promise<string>;
+  // a file's bytes whole, for a file card's Download, where the host can hand a file to the system
+  // to save, as a browser tab and the Mac's window can; null where it cannot, as on the phone
+  readonly readFile: ((sha: string) => Promise<Blob>) | null;
   // bytes a block is about to name (a picture pasted into the text): kept on this device by their
   // sha and sent up ahead of the write that names them; rejects when they could not be kept
   readonly keepFile: (
@@ -76,25 +81,20 @@ export interface EditorHostIo {
   ) => Promise<{ readonly sha: string }>;
   // the most one file can be, past which the library takes none
   readonly fileMaxBytes: number;
-  // whether a file card can hand a file's bytes to the system to save, as a browser tab and the
-  // Mac's window can; the phone's page cannot
-  readonly savesFiles: boolean;
   readonly notes: NoteHost;
 }
 
 // How a note's live document is reached (`item/note-connection.ts`): its socket dials the cloud's
-// origin, at the path the Worker answers the note at, on the account socket's ticket.
+// origin, on the account socket's ticket.
 export interface NoteHost {
   // the cloud's origin (`https://…`), named by the host, since a page loaded from a file or a dev
   // server has a location of its own
   readonly socketOrigin: string;
   // asked again on every dial, so a ticket that ran out is never sent twice
   readonly socketTicket: () => Promise<string>;
-  readonly notePath: (itemId: string) => string;
-  // the host's own word that it has no connection, which turns an open note read-only at once,
-  // ahead of any socket noticing
-  readonly offline: () => boolean;
-  readonly onOfflineChange: (listener: () => void) => () => void;
+  // the host's own word on whether it reaches the cloud, which turns an open note read-only at
+  // once, ahead of any socket noticing
+  readonly reach: Reach;
 }
 
 export interface AgentRequestActions {

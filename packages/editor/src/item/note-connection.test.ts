@@ -2,25 +2,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
-import {
-  DOWN_GRACE_MS,
-  PING_EVERY_MS,
-  PONG_WITHIN_MS,
-  REDIAL_MS,
-  noteConnection,
-} from "@repo/editor/item/note-connection";
+import { DOWN_GRACE_MS, noteConnection } from "@repo/editor/item/note-connection";
 import type { NoteConnection, NoteEdits, NoteStatus } from "@repo/editor/item/note-connection";
+import { PING_EVERY_MS, PONG_WITHIN_MS, REDIAL_MOST_MS } from "@repo/editor/item/note-socket";
 
 import { noteServer } from "../test-support/note-server";
 import type { NoteServer } from "../test-support/note-server";
 
-// the provider's longest wait between dials
-const BACKOFF_MS = 2500;
-// long enough for the provider's first redials, and two of them short of the grace
+// long enough for the socket's first redials, and two of them short of the grace
 const BLIP_MS = 1000;
 
 interface TestHost extends NoteHost {
@@ -45,13 +38,14 @@ const testHost = ({
         listener();
       }
     },
-    notePath,
-    offline: () => offline,
-    onOfflineChange: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+    reach: {
+      get: () => !offline,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
     },
     socketOrigin,
     socketTicket: async () => {
@@ -65,7 +59,7 @@ const testHost = ({
   };
 };
 
-// runs whatever the sockets and the provider have queued, and the timers due in `ms`
+// runs whatever the sockets have queued, and the timers due in `ms`
 const pass = async (ms = 0): Promise<void> => {
   await vi.advanceTimersByTimeAsync(ms);
   await vi.advanceTimersByTimeAsync(0);
@@ -145,7 +139,7 @@ describe("a note's live document over its socket", () => {
     const note = await connect(host);
     expect(server.sockets[0]?.ticket).toBe("ticket-1");
     server.drop();
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(server.sockets.map((socket) => socket.ticket)).toStrictEqual(["ticket-1", "ticket-2"]);
     const { doc } = opened(note.status());
     doc.getText("probe").insert(0, "mine ");
@@ -155,13 +149,11 @@ describe("a note's live document over its socket", () => {
     expect(textOf(doc)).toBe("mine held theirs");
   });
 
-  it("dials again when no ticket could be had", async () => {
+  it("dials again on its backoff when no ticket could be had", async () => {
     const host = testHost({ failTickets: 2 });
     const note = await connect(host);
     expect(note.status()).toStrictEqual(FRESH);
-    await pass(REDIAL_MS);
-    expect(note.status()).toStrictEqual(FRESH);
-    await pass(REDIAL_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
     expect(host.tickets()).toBe(3);
   });
@@ -170,7 +162,7 @@ describe("a note's live document over its socket", () => {
     server.answer = "missing";
     const note = await connect(testHost());
     expect(note.status()).toStrictEqual({ kind: "missing" });
-    await pass(BACKOFF_MS * 4);
+    await pass(REDIAL_MOST_MS * 4);
     expect(server.sockets).toHaveLength(1);
     await expect(note.holds()).resolves.toBe(true);
   });
@@ -186,7 +178,7 @@ describe("a note's live document over its socket", () => {
     server.answer = "open";
     const hung = server.sockets.at(-1);
     hung?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
 
@@ -197,7 +189,7 @@ describe("a note's live document over its socket", () => {
     expect(editsOf(note)).toStrictEqual(OFFLINE);
     server.answer = "refuse";
     server.drop();
-    await pass(BACKOFF_MS * 2);
+    await pass(REDIAL_MOST_MS * 2);
     const dials = server.sockets.length;
     server.answer = "open";
     host.goOffline(false);
@@ -210,7 +202,7 @@ describe("a note's live document over its socket", () => {
     const note = await connect(testHost());
     const [first] = server.sockets;
     await pass(PING_EVERY_MS);
-    expect(first?.texts).toStrictEqual([NOTE_SOCKET.ping]);
+    expect(first?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.ping)]);
     server.answersPings = false;
     await pass(PING_EVERY_MS);
     expect(first?.readyState).toBe(WebSocket.OPEN);
@@ -218,7 +210,7 @@ describe("a note's live document over its socket", () => {
     expect(first?.readyState).toBe(WebSocket.CLOSED);
     expect(editsOf(note)).toStrictEqual(LIVE);
     server.answersPings = true;
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(server.open()).toHaveLength(1);
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
@@ -233,6 +225,8 @@ describe("a note's live document over its socket", () => {
     server.silence(first);
     await pass(PING_EVERY_MS);
     await pass(PONG_WITHIN_MS);
+    // the fake clock runs a zero wait set within a tick a millisecond on
+    await pass(1);
     expect(first.readyState).toBe(WebSocket.CLOSING);
     expect(server.open()).toHaveLength(1);
     expect(server.open()[0]).not.toBe(first);
@@ -242,22 +236,16 @@ describe("a note's live document over its socket", () => {
     expect(textOf(server.note("n1").doc)).toBe("still held");
   });
 
-  it("probes at once when the page is shown again or the connection is back", async () => {
+  it("pings at once when the page is shown again", async () => {
     await connect(testHost());
     const [first] = server.sockets;
     window.dispatchEvent(new Event("pageshow"));
     document.dispatchEvent(new Event("visibilitychange"));
     await pass();
-    expect(first?.texts).toStrictEqual([NOTE_SOCKET.ping, NOTE_SOCKET.ping]);
-    server.answer = "refuse";
-    server.drop();
-    await pass(BACKOFF_MS);
-    const dials = server.sockets.length;
-    server.answer = "open";
-    window.dispatchEvent(new Event("online"));
-    await pass();
-    expect(server.sockets).toHaveLength(dials + 1);
-    expect(server.open()).toHaveLength(1);
+    expect(first?.texts).toStrictEqual([
+      noteWordFrame(NOTE_SOCKET.ping),
+      noteWordFrame(NOTE_SOCKET.ping),
+    ]);
   });
 
   it("holds a note in Deleted read-only, and lets it go once a restore reopens it", async () => {
@@ -266,7 +254,7 @@ describe("a note's live document over its socket", () => {
     expect(editsOf(note)).toStrictEqual({ held: "deleted", kind: "held" });
     server.note("n1").greeting = null;
     server.drop(4409);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
     server.say("n1", NOTE_SOCKET.deleted);
     await pass();
@@ -286,13 +274,13 @@ describe("a note's live document over its socket", () => {
     });
     server.answer = "open";
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     const after = opened(note.status());
     expect(after.edits).toStrictEqual({ held: "full", kind: "held" });
     expect(after.doc).not.toBe(before);
     expect(textOf(after.doc)).toBe("held");
     const dials = server.sockets.length;
-    await pass(BACKOFF_MS * 4);
+    await pass(REDIAL_MOST_MS * 4);
     expect(server.sockets).toHaveLength(dials);
   });
 
@@ -306,7 +294,7 @@ describe("a note's live document over its socket", () => {
     server.refuse(socket);
     before.getText("probe").insert(0, "too much ");
     const leaving = note.holds();
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     await expect(leaving).resolves.toBe(true);
     const after = opened(note.status());
     expect(after.doc).not.toBe(before);
@@ -328,7 +316,7 @@ describe("a note's live document over its socket", () => {
     doc.getText("probe").insert(0, "b");
     expect(opened(note.status()).unsaved).toBe(true);
     await expect(Promise.all([note.holds(), pass()])).resolves.toStrictEqual([true, undefined]);
-    expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
+    expect(server.sockets[0]?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.savedAsk)]);
     expect(opened(note.status()).unsaved).toBe(false);
     expect(heard).toBe(2);
     await expect(note.holds()).resolves.toBe(true);
@@ -407,7 +395,7 @@ describe("a note's live document over its socket", () => {
     expect(turned).toBeGreaterThan(0);
     server.answer = "open";
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(opened(note.status()).unsent).toBe(false);
     expect(heard).toBeGreaterThan(turned);
     expect(textOf(server.note("n1").doc)).toBe("typed sent held");
@@ -419,7 +407,7 @@ describe("a note's live document over its socket", () => {
     const note = openNote("n1", host);
     note.close();
     ticket.resolve("late");
-    await pass(BACKOFF_MS * 2);
+    await pass(REDIAL_MOST_MS * 2);
     expect(server.open()).toStrictEqual([]);
   });
 
@@ -449,7 +437,7 @@ describe("a note's live document over its socket", () => {
     await expect(leaving).resolves.toBe(true);
     await expect(note.holds()).resolves.toBe(true);
     expect(opened(note.status()).unsaved).toBe(false);
-    expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
+    expect(server.sockets[0]?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.savedAsk)]);
   });
 
   it("lets a leave go when the note closes before it answers", async () => {
@@ -473,7 +461,7 @@ describe("a note's live document over its socket", () => {
     const tickets = host.tickets();
     window.dispatchEvent(new Event("online"));
     window.dispatchEvent(new Event("pageshow"));
-    await pass(BACKOFF_MS * 8);
+    await pass(REDIAL_MOST_MS * 8);
     expect(server.sockets).toHaveLength(dials);
     expect(host.tickets()).toBe(tickets);
     expect(editsOf(note)).toStrictEqual(OFFLINE);
@@ -488,7 +476,7 @@ describe("a note's live document over its socket", () => {
     const host = testHost();
     host.goOffline(true);
     const note = openNote("n1", host);
-    await pass(BACKOFF_MS * 4);
+    await pass(REDIAL_MOST_MS * 4);
     expect(note.status()).toStrictEqual({ kind: "opening", stalled: true });
     expect(server.sockets).toStrictEqual([]);
     expect(host.tickets()).toBe(0);
@@ -499,7 +487,7 @@ describe("a note's live document over its socket", () => {
     expect(note.status()).toStrictEqual({ kind: "opening", stalled: true });
     server.answer = "open";
     server.sockets[0]?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
 
@@ -525,7 +513,7 @@ describe("a note's live document over its socket", () => {
     expect(editsOf(note)).toStrictEqual({ kind: "refused" });
     server.answer = "open";
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
 
@@ -543,7 +531,7 @@ describe("a note's live document over its socket", () => {
     await expect(note.holds()).resolves.toBe(true);
     server.answer = "open";
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     await expect(note.holds()).resolves.toBe(true);
   });
 
@@ -556,7 +544,7 @@ describe("a note's live document over its socket", () => {
     expect(opened(note.status()).unsent).toBe(true);
     server.answer = "missing";
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(note.status()).toStrictEqual({ kind: "missing" });
   });
 
@@ -566,7 +554,7 @@ describe("a note's live document over its socket", () => {
     expect(editsOf(note)).toStrictEqual({ held: "full", kind: "held" });
     server.note("n1").greeting = null;
     server.drop(NOTE_SOCKET.reopenCode);
-    await pass(BACKOFF_MS);
+    await pass(REDIAL_MOST_MS);
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
 

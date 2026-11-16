@@ -66,7 +66,7 @@ const NOTE_STUB_CALLERS = [
 ];
 // Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
 const NO_ORPC_IN_PAGE = {
-  message: "the editor, @repo/ui and the phone's note page reach no oRPC module",
+  message: "the editor, @repo/ui, the live socket and the phone's note page reach no oRPC module",
   regex:
     "^(?:@orpc/|@repo/contract/(?:v1(?:/|$)|refusal-text$|library/(?:library-contract|call-outcome)$))",
 };
@@ -196,6 +196,16 @@ export default defineConfig({
       "@repo/page-reader reads over its host's DOM",
     ),
     platformPurity("packages/client", CLIENT_IMPORTS, "@repo/client names no platform and no UI"),
+    {
+      // the editor dials a note on it, inside the phone's note page
+      files: ["packages/client/src/live-socket.ts"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          { message: "@repo/client names no platform and no UI", regex: CLIENT_IMPORTS },
+          NO_ORPC_IN_PAGE,
+        ]),
+      },
+    },
     platformPurity("apps/extension", NODE, "@repo/extension runs in the browser"),
     platformPurity("packages/ui", NODE, "@repo/ui is browser-only", NO_ORPC_IN_PAGE),
     {

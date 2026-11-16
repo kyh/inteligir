@@ -1,8 +1,9 @@
-// The slash combobox unmounts itself on selection, so the item cannot host UI;
-// it calls the module-level opener instead.
+// The Embed row's url prompt, open by an option of the editor whose row ran: the slash combobox
+// unmounts itself on a pick, so the prompt is drawn after the editable instead.
 
-import { useEffect, useState } from "react";
-import { useEditorRef } from "platejs/react";
+import { useState } from "react";
+import type { PluginConfig } from "platejs";
+import { createTPlatePlugin, useEditorRef, usePluginOption } from "platejs/react";
 
 import { Button } from "@repo/ui/components/button";
 import {
@@ -17,32 +18,16 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 
-let activeOpener: (() => void) | null = null;
+const EmbedPromptOptions = createTPlatePlugin<PluginConfig<"embedPrompt", { open: boolean }>>({
+  key: "embedPrompt",
+  options: { open: false },
+});
 
-export const openEmbedUrlDialog = (): void => {
-  activeOpener?.();
-};
-
-export const EmbedUrlDialogHost = () => {
+// mounted only while the prompt is open, so each opening starts empty
+const EmbedUrlForm = () => {
   const editor = useEditorRef();
-  const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [refused, setRefused] = useState(false);
-
-  useEffect(() => {
-    const opener = () => {
-      setUrl("");
-      setRefused(false);
-      setOpen(true);
-    };
-    activeOpener = opener;
-    return () => {
-      if (activeOpener === opener) {
-        activeOpener = null;
-      }
-    };
-  }, []);
-
   const trimmed = url.trim();
 
   const submit = () => {
@@ -53,12 +38,52 @@ export const EmbedUrlDialogHost = () => {
       setRefused(true);
       return;
     }
-    setOpen(false);
+    editor.setOption(EmbedPromptOptions, "open", false);
     editor.tf.focus();
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <div className="flex flex-col gap-3">
+      <Input
+        autoFocus
+        aria-invalid={refused}
+        value={url}
+        onChange={(e) => {
+          setUrl(e.target.value);
+          setRefused(false);
+        }}
+        placeholder="https://…"
+        onKeyDown={(e) => {
+          if (isImeComposing(e)) {
+            return;
+          }
+          if (e.key === "Enter") {
+            submit();
+          }
+        }}
+      />
+      {refused ? (
+        <p className="text-body text-destructive">
+          Only a web link embeds. Paste one that starts with https://
+        </p>
+      ) : null}
+      <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
+        Embed
+      </Button>
+    </div>
+  );
+};
+
+const EmbedPrompt = () => {
+  const editor = useEditorRef();
+  const open = usePluginOption(EmbedPromptOptions, "open");
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        editor.setOption(EmbedPromptOptions, "open", next);
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Embed from URL</DialogTitle>
@@ -67,35 +92,12 @@ export const EmbedUrlDialogHost = () => {
             card that opens in your browser.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <Input
-            autoFocus
-            aria-invalid={refused}
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setRefused(false);
-            }}
-            placeholder="https://…"
-            onKeyDown={(e) => {
-              if (isImeComposing(e)) {
-                return;
-              }
-              if (e.key === "Enter") {
-                submit();
-              }
-            }}
-          />
-          {refused ? (
-            <p className="text-body text-destructive">
-              Only a web link embeds. Paste one that starts with https://
-            </p>
-          ) : null}
-          <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
-            Embed
-          </Button>
-        </div>
+        <EmbedUrlForm />
       </DialogContent>
     </Dialog>
   );
 };
+
+export const EmbedPromptPlugin = EmbedPromptOptions.extend({
+  render: { afterEditable: EmbedPrompt },
+});

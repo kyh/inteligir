@@ -15,7 +15,8 @@ import { toast } from "@repo/ui/components/sonner";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { blockOfElement } from "@repo/editor/live/element-block";
 import { ownUndoStep } from "@repo/editor/live/yjs-binding";
-import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
+import { getLiveEditor } from "@repo/editor/live-editor";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
 const TITLE_MAX_CHARS = 80;
@@ -72,8 +73,10 @@ export const extractBlocksToNote = async (
 ): Promise<string | null> => {
   const sorted = [...paths].toSorted(PathApi.compare);
   const elements = blocksAt(editor, sorted);
-  const itemId = liveEditorItemId(editor);
-  if (elements.length === 0 || itemId === null) {
+  const itemId = editor.getOption(OpenItemPlugin, "itemId");
+  // only the editor answering for its item moves its blocks: a held item's draws what it cannot edit
+  const answers = (): boolean => itemId !== null && getLiveEditor(itemId) === editor;
+  if (elements.length === 0 || !answers()) {
     return null;
   }
   const blocks = storedBlocks(elements);
@@ -105,7 +108,7 @@ export const extractBlocksToNote = async (
   const unchanged =
     at !== undefined &&
     current.length === refs.length &&
-    getLiveEditor(itemId) === editor &&
+    answers() &&
     now !== null &&
     sameJson(now, blocks);
   if (!unchanged) {

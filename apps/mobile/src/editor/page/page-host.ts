@@ -8,7 +8,6 @@
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
-import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { LibraryActions } from "./library-actions";
@@ -99,8 +98,26 @@ export const installPageHost = (first: PageProps): PageHost => {
   let note: OpenNote | null = null;
   let stopNote = nothingToDo;
   let reported: NoteState | null = null;
-  const offlineListeners = new Set<() => void>();
+  const reachListeners = new Set<() => void>();
   const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
+
+  // one address per file for the page's life, so blocks naming one file read its bytes once; a
+  // read that failed is let go, so the next ask reads again
+  const fileSrcs = new Map<string, Promise<string>>();
+  const srcOf = async (sha: string): Promise<string> => {
+    try {
+      const file = await props.readFile(sha);
+      if (file !== null) {
+        return URL.createObjectURL(
+          new Blob([bytesFromBase64(file.base64)], { type: file.mediaType }),
+        );
+      }
+    } catch {
+      // native reached no copy either
+    }
+    fileSrcs.delete(sha);
+    throw new Error("the phone holds no copy of this file now");
+  };
 
   const readTargets = oneReadAtATime(async () => {
     setLibraryTitles(await props.linkTargets());
@@ -129,16 +146,22 @@ export const installPageHost = (first: PageProps): PageHost => {
     },
     io: {
       fileMaxBytes: BLOB_MAX_BYTES,
+      fileSrc: async (sha) => {
+        const src = fileSrcs.get(sha) ?? srcOf(sha);
+        fileSrcs.set(sha, src);
+        return await src;
+      },
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
-        notePath,
-        offline: () => props.offline,
-        onOfflineChange: (listener) => {
-          offlineListeners.add(listener);
-          return () => {
-            offlineListeners.delete(listener);
-          };
+        reach: {
+          get: () => !props.offline,
+          subscribe: (listener) => {
+            reachListeners.add(listener);
+            return () => {
+              reachListeners.delete(listener);
+            };
+          },
         },
         socketOrigin: first.cloudOrigin,
         socketTicket: async () => await props.socketTicket(),
@@ -152,15 +175,8 @@ export const installPageHost = (first: PageProps): PageHost => {
       openItem: (itemId) => {
         props.openItem(itemId);
       },
-      readFile: async (sha) => {
-        const file = await props.readFile(sha);
-        if (file === null) {
-          throw new Error("the phone holds no copy of this file now");
-        }
-        return new Blob([bytesFromBase64(file.base64)], { type: file.mediaType });
-      },
+      readFile: null,
       readItemBlocks: async (itemId) => await props.readItem(itemId),
-      savesFiles: false,
     },
   });
 
@@ -173,7 +189,7 @@ export const installPageHost = (first: PageProps): PageHost => {
         void readTargets();
       }
       if (next.offline !== before.offline) {
-        for (const listener of offlineListeners) {
+        for (const listener of reachListeners) {
           listener();
         }
       }

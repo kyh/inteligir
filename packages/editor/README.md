@@ -44,7 +44,8 @@ styles.css       the rules, their selectors spelled in `style-hooks.ts`
   host that leaves one out fails to typecheck. `host.ts` is React's door to the
   library's titles.
 - `item/note-connection.ts`: a note's live document over the host's `notes`
-  port, and `item/item-editor.tsx` its surface.
+  port, `item/note-socket.ts` its sync over a live socket, and
+  `item/item-editor.tsx` its surface.
 - `editor-profile.tsx`: the touch profile a phone host sets around the column.
 - `live-editor.ts`: a mounted editor reached by the id of the item it holds.
 

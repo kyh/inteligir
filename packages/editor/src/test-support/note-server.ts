@@ -1,65 +1,26 @@
 // Notes' objects in memory, each a Y.Doc served over fake sockets that speak y-partyserver's wire:
-// the y-sync protocol, its custom messages, and the ping an object answers without waking. A suite
+// y-protocols' sync, the words beside it, and the ping an object answers without waking. A suite
 // installs the server's socket as the page's WebSocket and drives the objects: refuse, drop or
 // silence a socket, say a note is held, or that it is gone.
 
+import * as decoding from "lib0/decoding";
+import * as encoding from "lib0/encoding";
 import { vi } from "vitest";
+import * as sync from "y-protocols/sync";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
 
-const CUSTOM = "__YPS:";
+// y-partyserver's message types
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
-const STEP_1 = 0;
-const STEP_2 = 1;
-const UPDATE = 2;
-const SEVEN_BITS = 0x80;
 
-// lib0's variable-length unsigned integer, as the y-sync protocol frames each part
-const varUint = (value: number): number[] => {
-  const out: number[] = [];
-  let rest = value;
-  while (rest >= SEVEN_BITS) {
-    out.push(SEVEN_BITS + (rest % SEVEN_BITS));
-    rest = Math.floor(rest / SEVEN_BITS);
-  }
-  out.push(rest);
-  return out;
-};
-
-const syncFrame = (step: number, payload: Uint8Array): ArrayBuffer =>
-  new Uint8Array([
-    ...varUint(MESSAGE_SYNC),
-    ...varUint(step),
-    ...varUint(payload.length),
-    ...payload,
-  ]).buffer;
-
-interface Reader {
-  readonly bytes: Uint8Array;
-  at: number;
-}
-
-const readVarUint = (reader: Reader): number => {
-  let value = 0;
-  let scale = 1;
-  for (;;) {
-    const byte = reader.bytes[reader.at] ?? 0;
-    reader.at += 1;
-    value += (byte % SEVEN_BITS) * scale;
-    if (byte < SEVEN_BITS) {
-      return value;
-    }
-    scale *= SEVEN_BITS;
-  }
-};
-
-const readBytes = (reader: Reader): Uint8Array => {
-  const length = readVarUint(reader);
-  const bytes = reader.bytes.slice(reader.at, reader.at + length);
-  reader.at += length;
-  return bytes;
+// a sync message as the object frames it
+const syncFrame = (write: (encoder: encoding.Encoder) => void): ArrayBuffer => {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_SYNC);
+  write(encoder);
+  return encoding.toUint8Array(encoder).buffer;
 };
 
 // how the object answers a dial: opened, refused before the upgrade (a browser reads a plain
@@ -105,7 +66,7 @@ class NoteSocket extends EventTarget {
   readyState = NoteSocket.CONNECTING;
   binaryType = "blob";
   readonly url: string;
-  // every text frame this socket sent, the provider's custom messages among them
+  // every text frame this socket sent, each a word in its frame
   readonly texts: string[] = [];
   silent = false;
   private readonly server: NoteServer;
@@ -206,7 +167,11 @@ export const noteServer = (): NoteServer => {
     doc.on("update", (update, origin) => {
       for (const socket of open(itemId)) {
         if (socket !== origin) {
-          socket.deliver(syncFrame(UPDATE, update));
+          socket.deliver(
+            syncFrame((encoder) => {
+              sync.writeUpdate(encoder, update);
+            }),
+          );
         }
       }
     });
@@ -237,9 +202,13 @@ export const noteServer = (): NoteServer => {
           socket.ended(NOTE_SOCKET.missingCode);
           return;
         }
-        socket.deliver(syncFrame(STEP_1, Y.encodeStateVector(object.doc)));
+        socket.deliver(
+          syncFrame((encoder) => {
+            sync.writeSyncStep1(encoder, object.doc);
+          }),
+        );
         if (object.greeting !== null) {
-          socket.deliver(`${CUSTOM}${object.greeting}`);
+          socket.deliver(noteWordFrame(object.greeting));
         }
       });
     },
@@ -252,47 +221,48 @@ export const noteServer = (): NoteServer => {
     open,
     received: (socket, data) => {
       if (!ArrayBuffer.isView(data)) {
-        if (data === NOTE_SOCKET.ping && server.answersPings) {
-          socket.deliver(NOTE_SOCKET.pong);
+        if (data === noteWordFrame(NOTE_SOCKET.ping) && server.answersPings) {
+          socket.deliver(noteWordFrame(NOTE_SOCKET.pong));
         }
         // as the object, a socket held read-only is told nothing of what it sent
         const held = refusing.has(socket) || note(socket.itemId).greeting !== null;
-        if (data === `${CUSTOM}${NOTE_SOCKET.savedAsk}` && server.answersSaved && !held) {
-          socket.deliver(`${CUSTOM}${NOTE_SOCKET.saved}`);
+        if (data === noteWordFrame(NOTE_SOCKET.savedAsk) && server.answersSaved && !held) {
+          socket.deliver(noteWordFrame(NOTE_SOCKET.saved));
         }
         return;
       }
-      const reader: Reader = {
-        at: 0,
-        bytes: new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
-      };
-      const kind = readVarUint(reader);
+      const decoder = decoding.createDecoder(
+        new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+      );
+      const kind = decoding.readVarUint(decoder);
       if (kind === MESSAGE_AWARENESS) {
         awareness += 1;
         return;
       }
-      if (kind !== MESSAGE_SYNC) {
+      // a socket held read-only has its step 1 answered still, and lands nothing it sends
+      if (
+        kind !== MESSAGE_SYNC ||
+        (refusing.has(socket) && decoding.peekVarUint(decoder) !== sync.messageYjsSyncStep1)
+      ) {
         return;
       }
-      const step = readVarUint(reader);
-      const payload = readBytes(reader);
-      const object = note(socket.itemId);
-      if (step === STEP_1) {
-        socket.deliver(syncFrame(STEP_2, Y.encodeStateAsUpdate(object.doc, payload)));
-      } else if (!refusing.has(socket)) {
-        Y.applyUpdate(object.doc, payload, socket);
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, MESSAGE_SYNC);
+      sync.readSyncMessage(decoder, encoder, note(socket.itemId).doc, socket);
+      if (encoding.length(encoder) > 1) {
+        socket.deliver(encoding.toUint8Array(encoder).buffer);
       }
     },
     refuse: (socket) => {
       refusing.add(socket);
-      socket.deliver(`${CUSTOM}${NOTE_SOCKET.refused}`);
+      socket.deliver(noteWordFrame(NOTE_SOCKET.refused));
     },
     silence: (socket) => {
       socket.silent = true;
     },
     say: (itemId, message) => {
       for (const socket of open(itemId)) {
-        socket.deliver(`${CUSTOM}${message}`);
+        socket.deliver(noteWordFrame(message));
       }
     },
     sockets,

@@ -21,6 +21,7 @@ import {
 import { KEYS, RangeApi } from "platejs";
 import type { RangeRef, TRange } from "platejs";
 import {
+  createPlatePlugin,
   useEditorReadOnly,
   useEditorRef,
   useEditorSelection,
@@ -204,7 +205,7 @@ type BarMode =
 
 const BAR: BarMode = { kind: "bar" };
 
-export const SelectionToolbar = () => {
+const SelectionToolbar = () => {
   const editor = useEditorRef();
   const readOnly = useEditorReadOnly();
 
@@ -370,3 +371,11 @@ export const SelectionToolbar = () => {
     </div>
   );
 };
+
+// drawn from the plugin tree, inside the positioning context @platejs/floating computes against
+export const SelectionToolbarKit = [
+  createPlatePlugin({
+    key: "selectionToolbar",
+    render: { afterEditable: () => <SelectionToolbar /> },
+  }),
+];

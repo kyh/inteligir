@@ -15,12 +15,12 @@ import { createPlatePlugin } from "platejs/react";
 import { keptFileType } from "@repo/contract/items/item-kind";
 import { toast } from "@repo/ui/components/sonner";
 
-import { announceFileKeep } from "@repo/editor/file-keeps";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { editsReachNote } from "@repo/editor/live/yjs-binding";
 import { ImageElement } from "@repo/editor/nodes/image-node";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 
 const MB = 1024 * 1024;
 
@@ -104,7 +104,7 @@ const placeFiles = async (
 };
 
 const keepFiles = (editor: SlateEditor, files: readonly File[], at: TRange | null): void => {
-  announceFileKeep(editor, placeFiles(editor, files, at));
+  editor.getOption(OpenItemPlugin, "onFileKeep")(placeFiles(editor, files, at));
 };
 
 // a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist

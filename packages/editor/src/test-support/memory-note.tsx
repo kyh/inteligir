@@ -6,6 +6,7 @@
 
 import { act, render } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
+import { vi } from "vitest";
 
 import { importItem } from "../codec/item-markdown";
 import { ItemEditor } from "../item/item-editor";
@@ -17,6 +18,11 @@ import type { NoteServer } from "./note-server";
 
 // how many turns of the microtask queue a note's dial and sync get before the mount gives up
 const OPEN_TURNS = 100;
+
+// a dial waits out its backoff on a timer, even a zero one, which a suite on fake timers runs here
+const nextTurn = async (): Promise<void> => {
+  await (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(0) : Promise.resolve());
+};
 
 // seeds the note's object with the item `markdown` reads in as
 const seedNote = (server: NoteServer, itemId: string, markdown: string): void => {
@@ -49,7 +55,7 @@ export const mountNote = async (itemId: string, markdown: string): Promise<Mount
       return { editable, editor, server, unmount: view.unmount };
     }
     await act(async () => {
-      await Promise.resolve();
+      await nextTurn();
     });
   }
   throw new Error("the note opened in no editor");

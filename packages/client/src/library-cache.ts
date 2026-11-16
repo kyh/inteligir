@@ -14,7 +14,8 @@ import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { V1Client } from "@repo/contract/v1";
 
 import { createAccountSocket } from "./account-socket";
-import type { AccountSocket, Reach, WebSocketClass } from "./account-socket";
+import type { AccountSocket } from "./account-socket";
+import type { Reach, WebSocketClass } from "./live-socket";
 
 export type V1Queries = RouterUtils<V1Client>;
 

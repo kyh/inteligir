@@ -1,7 +1,14 @@
-import { NOTE_SOCKET, notePath, SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
+import {
+  NOTE_SOCKET,
+  notePath,
+  noteWordFrame,
+  SOCKET_TICKET_PARAM,
+} from "@repo/contract/library/library-socket";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { appliedOps, noteMeta, noteUpdates } from "@repo/db/note/schema";
+import { NoteSocket } from "@repo/editor/item/note-socket";
+import type { NoteSocketEvent } from "@repo/editor/item/note-socket";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { applyBodyChanges } from "@repo/editor/live/body-change";
 import type { BodyChange } from "@repo/editor/live/body-change";
@@ -143,7 +150,12 @@ const converged = async (
 const rootPartsSchema = z.array(z.object({ insert: z.unknown() }));
 
 // a person's typing: the text inserted into a block's own Y text, as the editor's binding writes it
-const typeInto = (client: Client, blockIndex: number, offset: number, text: string): void => {
+const typeInto = (
+  client: Pick<Client, "doc">,
+  blockIndex: number,
+  offset: number,
+  text: string,
+): void => {
   const part = rootPartsSchema.parse(noteRoot(client.doc).toDelta())[blockIndex]?.insert;
   if (!(part instanceof Y.XmlText)) {
     throw new TypeError(`no block at ${String(blockIndex)}`);
@@ -250,8 +262,6 @@ const socketOf = (response: Response): WebSocket => {
   }
   return response.webSocket;
 };
-
-const custom = (message: string): string => `__YPS:${message}`;
 
 describe("a note edited live", () => {
   it("carries two devices' typing through its door, and the cell's search finds it within the save's debounce", async () => {
@@ -425,21 +435,38 @@ describe("a note edited live", () => {
     expect(ops).toStrictEqual([{ opId: "op-now" }]);
   });
 
-  it("answers a ping without waking, and a device's ask before it closes once its frames are stored", async () => {
-    const { itemId, ticket } = await signedIn("note-saved@example.test");
-    const a = await openClient(itemId, ticket, "saved-a");
-    typeInto(a, 0, 0, "kept ");
-    a.provider.sendMessage(NOTE_SOCKET.savedAsk);
-    await until(() => a.messages.includes(NOTE_SOCKET.saved));
-    a.provider.destroy();
+  it("answers a ping without waking, and an editor's ask before it closes once its frames are stored", async () => {
+    const { accountId, itemId, ticket } = await signedIn("note-saved@example.test");
+    const doc = new Y.Doc();
+    const events: NoteSocketEvent[] = [];
+    const editor = new NoteSocket({
+      doc,
+      heard: (event) => {
+        events.push(event);
+      },
+      itemId,
+      origin: ORIGIN,
+      reach: { get: () => true, subscribe: () => () => {} },
+      ticket,
+      WebSocket: FetchWebSocket,
+    });
+    await until(() => events.some(({ kind }) => kind === "synced"));
+    expect(textOf(readBlocks(doc))).toStrictEqual(["Above the fox.", X_TEXT, "Below the fox."]);
+    typeInto({ doc }, 0, 0, "kept ");
+    editor.say(NOTE_SOCKET.savedAsk);
+    await until(() =>
+      events.some((event) => event.kind === "said" && event.word === NOTE_SOCKET.saved),
+    );
+    editor.close();
+    await until(async () => (await serverLine(accountId, itemId, 0)) === "kept Above the fox.");
 
     const socket = socketOf(
       await dial(`${notePath(itemId)}?${SOCKET_TICKET_PARAM}=${await ticket()}`),
     );
     const { texts } = heard(socket);
-    socket.send(NOTE_SOCKET.ping);
-    await until(() => texts.includes(NOTE_SOCKET.pong));
-    expect(texts).toContain(NOTE_SOCKET.pong);
+    socket.send(noteWordFrame(NOTE_SOCKET.ping));
+    await until(() => texts.includes(noteWordFrame(NOTE_SOCKET.pong)));
+    expect(texts).toContain(noteWordFrame(NOTE_SOCKET.pong));
     socket.close();
   });
 });
@@ -492,7 +519,7 @@ describe("a note's door", () => {
     });
     const socket = socketOf(forged);
     const { texts } = heard(socket);
-    await until(() => texts.includes(custom(NOTE_SOCKET.deleted)));
+    await until(() => texts.includes(noteWordFrame(NOTE_SOCKET.deleted)));
     socket.close();
 
     const reader = await openClient(itemId, ticket, "deleted-reader");

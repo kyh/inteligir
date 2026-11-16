@@ -1,8 +1,7 @@
-// A file of the library, by its sha, drawn from where the host draws its files (`readFile`) into an
-// object URL of the page's own, so an <img> or a <video> shows the bytes this device holds and
-// fetches nothing the page's policy refuses. The media type rides the Blob, so this file owns no
-// extension table that could drift from the file's own. A read that failed while the host was
-// offline reads again once it is back.
+// A file of the library, by its sha, at the address the host draws its files from (`fileSrc`), so
+// an <img> or a <video> loads, caches and seeks it as the page does any file it draws. The address
+// is asked for, and the element may still fail to load it: either while the host was offline is
+// asked again once it is back.
 
 import { useEffect, useState } from "react";
 
@@ -10,13 +9,13 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 
 type FileRead =
   | { readonly kind: "loading" }
-  | { readonly kind: "ready"; readonly url: string; readonly type: string }
+  | { readonly kind: "ready"; readonly url: string }
   // the device can reach no copy of it now: offline and never fetched, or not in the library;
-  // `offline` when the host was offline as the read failed
+  // `offline` when the host was offline as it failed
   | { readonly kind: "unavailable"; readonly offline: boolean };
 
 type FileEvent =
-  | { readonly kind: "read"; readonly url: string; readonly type: string }
+  | { readonly kind: "addressed"; readonly url: string }
   | { readonly kind: "failed"; readonly offline: boolean }
   | { readonly kind: "online" };
 
@@ -24,11 +23,11 @@ const LOADING: FileRead = { kind: "loading" };
 
 const fileReadAfter = (read: FileRead, event: FileEvent): FileRead => {
   switch (event.kind) {
-    case "read": {
-      return read.kind === "loading" ? { kind: "ready", type: event.type, url: event.url } : read;
+    case "addressed": {
+      return read.kind === "loading" ? { kind: "ready", url: event.url } : read;
     }
     case "failed": {
-      return read.kind === "loading" ? { kind: "unavailable", offline: event.offline } : read;
+      return read.kind === "unavailable" ? read : { kind: "unavailable", offline: event.offline };
     }
     case "online": {
       return read.kind === "unavailable" && read.offline ? LOADING : read;
@@ -37,7 +36,13 @@ const fileReadAfter = (read: FileRead, event: FileEvent): FileRead => {
   }
 };
 
-export const useLibraryFile = (sha: string): FileRead => {
+const failedNow = (): FileEvent => ({
+  kind: "failed",
+  offline: !getEditorHostIo().notes.reach.get(),
+});
+
+// the file's read, and what the element drawing its address calls when that would not load
+export const useLibraryFile = (sha: string): readonly [FileRead, () => void] => {
   const [read, setRead] = useState<FileRead>(LOADING);
   // re-keyed during the render that changes the sha, so no frame shows the previous file
   const [readSha, setReadSha] = useState(sha);
@@ -46,30 +51,21 @@ export const useLibraryFile = (sha: string): FileRead => {
     setRead(LOADING);
   }
   const loading = read.kind === "loading";
-  const url = read.kind === "ready" ? read.url : null;
 
   useEffect(() => {
     if (!loading) {
       return;
     }
     let cancelled = false;
-    const io = getEditorHostIo();
     void (async () => {
+      let event: FileEvent;
       try {
-        const file = await io.readFile(sha);
-        if (!cancelled) {
-          const drawn: FileEvent = {
-            kind: "read",
-            type: file.type,
-            url: URL.createObjectURL(file),
-          };
-          setRead((was) => fileReadAfter(was, drawn));
-        }
+        event = { kind: "addressed", url: await getEditorHostIo().fileSrc(sha) };
       } catch {
-        if (!cancelled) {
-          const failed: FileEvent = { kind: "failed", offline: io.notes.offline() };
-          setRead((was) => fileReadAfter(was, failed));
-        }
+        event = failedNow();
+      }
+      if (!cancelled) {
+        setRead((was) => fileReadAfter(was, event));
       }
     })();
     return () => {
@@ -77,24 +73,18 @@ export const useLibraryFile = (sha: string): FileRead => {
     };
   }, [sha, loading]);
 
-  useEffect(
-    () =>
-      url === null
-        ? undefined
-        : () => {
-            URL.revokeObjectURL(url);
-          },
-    [url],
-  );
-
   useEffect(() => {
-    const { notes } = getEditorHostIo();
-    return notes.onOfflineChange(() => {
-      if (!notes.offline()) {
+    const { reach } = getEditorHostIo().notes;
+    return reach.subscribe(() => {
+      if (reach.get()) {
         setRead((was) => fileReadAfter(was, { kind: "online" }));
       }
     });
   }, []);
 
-  return read;
+  const failed = (): void => {
+    const event = failedNow();
+    setRead((was) => fileReadAfter(was, event));
+  };
+  return [read, failed];
 };

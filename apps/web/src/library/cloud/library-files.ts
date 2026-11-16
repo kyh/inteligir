@@ -15,7 +15,7 @@ export interface FileCloud extends V1Transport {
 
 export const fileUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
 
-// a file's bytes whole, as the editor draws a picture in a note and a Download saves one
+// a file's bytes whole, as a Download saves one
 export const readFile = async (cloud: V1Transport, sha: string): Promise<Blob> => {
   const response = await cloud.fetch(new Request(`${cloud.origin}${fileUrl(sha)}`));
   if (!response.ok) {

@@ -6,7 +6,7 @@ import type { PlateEditor } from "platejs/react";
 import { fileSha } from "@repo/contract/library/file-sha";
 
 import { fileNotKept, fileTooLarge, filesToKeep } from "@repo/editor/kits/image-kit";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { FILES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./test-support/editor-harness";
@@ -26,13 +26,8 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2
 const picture = (): File => new File([PNG], "shot.png", { type: "image/png" });
 const pdf = (): File => new File(["%PDF-1.7"], "Lecture notes.pdf", { type: "application/pdf" });
 
-// jsdom has no object URLs, and no isContentEditable, without which slate hands no paste on
+// jsdom has no isContentEditable, without which slate hands no paste on
 beforeAll(() => {
-  Object.defineProperty(URL, "createObjectURL", {
-    configurable: true,
-    value: () => "blob:test/kept",
-  });
-  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => {} });
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
     configurable: true,
     get(this: HTMLElement) {
@@ -46,8 +41,6 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  Reflect.deleteProperty(URL, "createObjectURL");
-  Reflect.deleteProperty(URL, "revokeObjectURL");
   Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
 });
 
@@ -102,7 +95,7 @@ describe("what the editor keeps from a paste or a drop", () => {
 });
 
 describe("a picture pasted into a note's text", () => {
-  it("is kept once, by its sha, and drawn from the bytes the host answers", async () => {
+  it("is kept once, by its sha, and drawn from the address the host answers", async () => {
     const { editable, editor, host } = mount();
 
     const pasted = fireEvent.paste(editable, { clipboardData: transfer([picture()]) });
@@ -115,7 +108,9 @@ describe("a picture pasted into a note's text", () => {
       { action: "keepFile", args: [PNG, "image/png"] },
     ]);
     await waitFor(() => {
-      expect(document.querySelector("img")?.getAttribute("src")).toBe("blob:test/kept");
+      expect(document.querySelector("img")?.getAttribute("src")).toBe(
+        `${FILES_ORIGIN}/${fileSha(PNG)}`,
+      );
     });
     expect(toast.error).not.toHaveBeenCalled();
   });

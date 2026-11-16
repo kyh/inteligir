@@ -4,8 +4,7 @@
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
 // but takes no edit and says why above the text, and a note whose opening stalled shows what the
-// host holds of it until it opens. A formula's display follows the pills it names, and the desktop
-// draws the outline beside the text.
+// host holds of it until it opens. A formula's display follows the pills it names.
 
 import {
   useEffect,
@@ -30,7 +29,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { closeOwnPickers } from "@repo/editor/combobox-input";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
-import { watchFileKeeps } from "@repo/editor/file-keeps";
 import {
   followItemFormulas,
   scheduleFormulaRecompute,
@@ -45,9 +43,8 @@ import {
   noteRoot,
   yjsBindingPlugin,
 } from "@repo/editor/live/yjs-binding";
-import { registerLiveEditor } from "@repo/editor/live-editor";
-import { OpenItemProvider } from "@repo/editor/open-item";
-import { TableOfContents } from "@repo/editor/toc";
+import { getLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 
 import { HeldItem } from "./held-item";
 import { noteConnection } from "./note-connection";
@@ -97,15 +94,14 @@ export interface ItemEditorProps {
 
 interface FollowedNote extends OpenNote {
   readonly connection: NoteConnection;
-  // the editor drawn over the note now, whose keeps and unsent edits a leave waits for
-  readonly bind: (editor: SlateEditor) => () => void;
+  // a file being kept for a block of this note, which a leave waits for
+  readonly keep: (kept: Promise<void>) => void;
 }
 
 const followNote = (itemId: string, host: NoteHost): FollowedNote => {
   const connection = noteConnection(itemId, host);
   const keeping = new Set<Promise<void>>();
   const listeners = new Set<() => void>();
-  let bound: SlateEditor | null = null;
   const moved = (): void => {
     for (const listener of listeners) {
       listener();
@@ -133,27 +129,20 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
     listeners.delete(resolve);
   };
   return {
-    bind: (editor) => {
-      bound = editor;
-      watchFileKeeps(editor, (kept) => {
-        void track(kept);
-      });
-      return () => {
-        if (bound === editor) {
-          bound = null;
-        }
-      };
-    },
     connection,
     holds: async () => {
       while (keeps()) {
         await nextMove();
       }
       // Slate hands the binding an edit only once its change settles, a moment after the edit
-      if (bound !== null) {
-        flushEdits(bound);
+      const drawn = getLiveEditor(itemId);
+      if (drawn !== null) {
+        flushEdits(drawn);
       }
       return await connection.holds();
+    },
+    keep: (kept) => {
+      void track(kept);
     },
     subscribe: (listener) => {
       listeners.add(listener);
@@ -171,6 +160,14 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
 const FormulaRecompute = ({ itemId }: { itemId: string }) => {
   const editor = useEditorRef();
   useEffect(() => followItemFormulas(editor, itemId, getEditorHostIo()), [editor, itemId]);
+  return null;
+};
+
+// The editor answers for its item by the item's id, where a writer outside the surface finds it,
+// once Plate has drawn its text: mounted after the container, in the commit that draws it.
+const AnswersForItem = ({ itemId }: { itemId: string }) => {
+  const editor = useEditorRef();
+  useEffect(() => registerLiveEditor(itemId, editor), [editor, itemId]);
   return null;
 };
 
@@ -226,6 +223,7 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
     nodeId: true,
     plugins: [
       ...PROFILE_KITS[profile],
+      OpenItemPlugin.configure({ options: { itemId, onFileKeep: note.keep } }),
       yjsBindingPlugin({ localOrigin: Symbol(itemId), root: noteRoot(doc) }),
       YHistoryPlugin,
     ],
@@ -234,14 +232,11 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
   const binding = useMemo(() => bindingOf(editor), [editor]);
   const connects = useSyncExternalStore(binding.subscribe, binding.connects);
   useLayoutEffect(() => binding.connect(), [binding]);
-  // the editor answers for its item by the item's id, where a writer outside the surface finds it
-  useEffect(() => registerLiveEditor(itemId, editor), [itemId, editor]);
-  useEffect(() => note.bind(editor), [editor, note]);
   if (connects === 0) {
     return null;
   }
   return (
-    <OpenItemProvider itemId={itemId}>
+    <>
       {notice === null ? null : <Notice profile={profile} text={notice} />}
       <Plate
         key={connects}
@@ -254,10 +249,10 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
         <EditorContainer>
           <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
         </EditorContainer>
+        <AnswersForItem itemId={itemId} />
         {notice === null ? <FormulaRecompute itemId={itemId} /> : null}
-        {profile === "desktop" ? <TableOfContents /> : null}
       </Plate>
-    </OpenItemProvider>
+    </>
   );
 };
 

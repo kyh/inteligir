@@ -11,7 +11,7 @@ import type { Value } from "platejs";
 import type { EditorProfile } from "@repo/editor/editor-profile";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
-import { OpenItemProvider } from "@repo/editor/open-item";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 
 export const EditorHarness = ({
@@ -41,7 +41,7 @@ export const EditorHarness = ({
     // Plate's own default unless a size is asked for
     chunking: chunkSize === undefined ? true : { chunkSize, contentVisibilityAuto: false },
     nodeId: nodeIds,
-    plugins: PROFILE_KITS[profile],
+    plugins: [...PROFILE_KITS[profile], OpenItemPlugin.configure({ options: { itemId } })],
     value,
   });
   useImperativeHandle(ref, () => editor, [editor]);
@@ -52,20 +52,18 @@ export const EditorHarness = ({
     return registerLiveEditor(itemId, editor);
   }, [itemId, editor]);
   return (
-    <OpenItemProvider itemId={itemId}>
-      <Plate editor={editor} readOnly={readOnly}>
-        <PlateContent
-          renderChunk={({ attributes, children, lowest }) =>
-            lowest ? (
-              <div {...attributes} className={EDITOR_CHUNK}>
-                {children}
-              </div>
-            ) : (
-              children
-            )
-          }
-        />
-      </Plate>
-    </OpenItemProvider>
+    <Plate editor={editor} readOnly={readOnly}>
+      <PlateContent
+        renderChunk={({ attributes, children, lowest }) =>
+          lowest ? (
+            <div {...attributes} className={EDITOR_CHUNK}>
+              {children}
+            </div>
+          ) : (
+            children
+          )
+        }
+      />
+    </Plate>
   );
 };

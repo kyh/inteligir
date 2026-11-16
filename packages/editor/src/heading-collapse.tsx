@@ -21,7 +21,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
-import { useOpenItemId } from "@repo/editor/open-item";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
@@ -127,7 +127,7 @@ const DerivedContext = createContext<Derived | null>(null);
 
 const CollapseProvider = ({ children }: { children: ReactNode }) => {
   // subscribed once here rather than per block, so the fold set and every chevron name the same item
-  const itemId = useOpenItemId();
+  const itemId = useEditorRef().getOption(OpenItemPlugin, "itemId");
   const folded = useStore(foldsStore, (folds) =>
     itemId === null ? NO_FOLDS : (folds[itemId] ?? NO_FOLDS),
   );

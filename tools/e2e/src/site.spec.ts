@@ -10,6 +10,7 @@ import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
   socketUrl,
+  V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { V1_RPC_PATH } from "@repo/contract/v1";
@@ -235,7 +236,7 @@ test("each mount hands its request to the service, which answers in its door's p
 
   // the account's socket, opened on its ticket through Start to the cell, answers its keepalive
   const { ticket } = await account.client.socketTicket();
-  const socket = new WebSocket(socketUrl(cloud.origin, ticket));
+  const socket = new WebSocket(socketUrl(cloud.origin, V1_SOCKET_PATH, ticket));
   await once(socket, "open");
   const answered = once(socket, "message");
   socket.send(SOCKET_KEEPALIVE_PING);

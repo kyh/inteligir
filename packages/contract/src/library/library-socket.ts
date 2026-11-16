@@ -11,11 +11,11 @@ import { idSchema, seqSchema } from "./library-wire";
 export const V1_SOCKET_PATH = "/v1/socket";
 export const SOCKET_TICKET_PARAM = "ticket";
 
-// the socket's address on the cloud's origin, its scheme the origin's own made a socket's
-export const socketUrl = (origin: string, ticket: string): string => {
+// a socket's address at `path` on the cloud's origin, its scheme the origin's own made a socket's
+export const socketUrl = (origin: string, path: string, ticket: string): string => {
   const scheme = origin.startsWith("https:") ? "wss:" : "ws:";
   const rest = origin.replace(/^https?:/u, "");
-  return `${scheme}${rest}${V1_SOCKET_PATH}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`;
+  return `${scheme}${rest}${path}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`;
 };
 
 // the cell answers the literal ping by auto-response, without waking from hibernation
@@ -36,8 +36,8 @@ export const V1_NOTES_PATH = "/v1/notes";
 
 export const notePath = (itemId: string): string => `${V1_NOTES_PATH}/${itemId}`;
 
-// What a note's socket says beside y-sync: the ping its object answers without waking, the words
-// it sends as text, and the codes it closes with.
+// What a note's socket says beside y-sync: the words each end sends as text, the ping its object
+// answers without waking among them, and the codes it closes with.
 export const NOTE_SOCKET = {
   ping: "ping",
   pong: "pong",
@@ -57,6 +57,9 @@ export const NOTE_SOCKET = {
   // the session that opened the socket ended
   revokedCode: SOCKET_REVOKED_CLOSE_CODE,
 } as const;
+
+// a word as it crosses a note's socket, in y-partyserver's frame for a message beside y-sync
+export const noteWordFrame = (word: string): string => `__YPS:${word}`;
 
 // what one landed write moved, so a client refetches only what it shows of that: each item at the
 // sequence it now holds, whether any folder moved, and which threads did; "all" when the write

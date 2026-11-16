@@ -38,7 +38,7 @@ import {
   insertHtmlBlock,
 } from "@repo/editor/kits/rich-blocks-kit";
 import { insertTabGroup } from "@repo/editor/kits/tabs-kit";
-import { openEmbedUrlDialog } from "@repo/editor/embed-url-dialog";
+import { EmbedPromptPlugin } from "@repo/editor/embed-url-dialog";
 import { insertHorizontalRule } from "@repo/editor/kits/basic-blocks-kit";
 import { insertMermaid } from "@repo/editor/kits/code-block-kit";
 import { insertColumnGroup } from "@repo/editor/kits/column-kit";
@@ -290,8 +290,8 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         icon: <FilmIcon />,
         keywords: ["youtube", "tweet", "twitter", "pdf", "embed", "video", "link"],
         label: "Embed",
-        onSelect: () => {
-          openEmbedUrlDialog();
+        onSelect: (editor) => {
+          editor.setOption(EmbedPromptPlugin, "open", true);
         },
         value: "embed",
       },

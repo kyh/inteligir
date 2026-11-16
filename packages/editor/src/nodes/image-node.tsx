@@ -44,12 +44,14 @@ const LibraryPicture = ({
   selected: boolean;
   sha: string;
 }) => {
-  const file = useLibraryFile(sha);
+  const [file, failed] = useLibraryFile(sha);
   if (file.kind === "ready") {
     return (
       <img
         alt={alt}
         className={cn("max-w-full rounded-md", selected && "ring-2 ring-ring ring-offset-2")}
+        loading="lazy"
+        onError={failed}
         src={file.url}
       />
     );

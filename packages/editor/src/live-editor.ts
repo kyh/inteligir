@@ -5,13 +5,10 @@
 import type { SlateEditor } from "platejs";
 
 const editors = new Map<string, SlateEditor>();
-// weak: a strong reverse map would pin every editor a session built.
-const itemIds = new WeakMap<SlateEditor, string>();
 const waiting = new Map<string, Set<(editor: SlateEditor) => void>>();
 
 export const registerLiveEditor = (itemId: string, editor: SlateEditor): (() => void) => {
   editors.set(itemId, editor);
-  itemIds.set(editor, itemId);
   for (const run of waiting.get(itemId) ?? []) {
     run(editor);
   }
@@ -45,6 +42,3 @@ export const onLiveEditor = (itemId: string, run: (editor: SlateEditor) => void)
     }
   };
 };
-
-// the item an editor holds, kept after it unmounts: `getLiveEditor` says whether it still answers
-export const liveEditorItemId = (editor: SlateEditor): string | null => itemIds.get(editor) ?? null;

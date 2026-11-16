@@ -1,8 +1,7 @@
 // A file a note embeds that no picture or player draws (a PDF, a sound, a document, any other
 // file) is a card naming it, its glyph read from its name. Where the host can hand a file on
-// (`savesFiles`), its Download reads the bytes from where the host draws its files and saves them
-// under that name; the page itself never opens one, since a blob of its own origin is a page that
-// could run script.
+// (`readFile`), its Download reads the bytes whole and saves them under that name; the page itself
+// never opens one, since a blob of its own origin is a page that could run script.
 
 import {
   FileArchiveIcon,
@@ -52,9 +51,13 @@ export const FileKindIcon = ({ name, ...props }: { name: string } & LucideProps)
   }
 };
 
-const download = async (sha: string, name: string): Promise<void> => {
+const download = async (
+  readFile: (sha: string) => Promise<Blob>,
+  sha: string,
+  name: string,
+): Promise<void> => {
   try {
-    saveBlob(await getEditorHostIo().readFile(sha), name);
+    saveBlob(await readFile(sha), name);
   } catch {
     toast.error(`${name} isn't on this device yet. Try again once you're online.`);
   }
@@ -68,26 +71,29 @@ export const FileCard = ({
   sha: string;
   name: string;
   selected: boolean;
-}) => (
-  <div
-    data-file-card=""
-    className={cn(
-      "flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2",
-      selected && "ring-2 ring-ring ring-offset-2",
-    )}
-  >
-    <FileKindIcon name={name} className="size-4 shrink-0 text-muted-foreground" />
-    <p className="m-0 min-w-0 flex-1 truncate text-subtitle">{name}</p>
-    {getEditorHostIo().savesFiles ? (
-      <Button
-        variant="secondary"
-        size="compact"
-        onClick={() => {
-          void download(sha, name);
-        }}
-      >
-        Download
-      </Button>
-    ) : null}
-  </div>
-);
+}) => {
+  const { readFile } = getEditorHostIo();
+  return (
+    <div
+      data-file-card=""
+      className={cn(
+        "flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2",
+        selected && "ring-2 ring-ring ring-offset-2",
+      )}
+    >
+      <FileKindIcon name={name} className="size-4 shrink-0 text-muted-foreground" />
+      <p className="m-0 min-w-0 flex-1 truncate text-subtitle">{name}</p>
+      {readFile === null ? null : (
+        <Button
+          variant="secondary"
+          size="compact"
+          onClick={() => {
+            void download(readFile, sha, name);
+          }}
+        >
+          Download
+        </Button>
+      )}
+    </div>
+  );
+};

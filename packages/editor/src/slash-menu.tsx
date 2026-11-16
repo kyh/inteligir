@@ -1,10 +1,10 @@
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { KEYS } from "platejs";
 import type { PlateElementProps } from "platejs/react";
-import { PlateElement, createPlatePlugin } from "platejs/react";
+import { PlateElement } from "platejs/react";
 
 import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
-import { EmbedUrlDialogHost } from "@repo/editor/embed-url-dialog";
+import { EmbedPromptPlugin } from "@repo/editor/embed-url-dialog";
 import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
@@ -61,9 +61,5 @@ export const SlashKit = [
     },
   }),
   SlashInputPlugin.withComponent(SlashInputElement),
-  // the embed item's url prompt must live outside the self-unmounting combobox.
-  createPlatePlugin({
-    key: "embed-url-dialog",
-    render: { afterEditable: () => <EmbedUrlDialogHost /> },
-  }),
+  EmbedPromptPlugin,
 ];

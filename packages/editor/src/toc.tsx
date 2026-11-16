@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ElementApi, KEYS, NodeApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
-import { useEditorRef, useEditorSelector } from "platejs/react";
+import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -173,7 +173,7 @@ export const activeHeadingAt = (
   return active;
 };
 
-export const TableOfContents = () => {
+const TableOfContents = () => {
   const editor = useEditorRef();
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
     equalityFn: sameHeadings,
@@ -273,3 +273,11 @@ export const TableOfContents = () => {
     </div>
   );
 };
+
+// the desktop's outline, beside the text: after the container, inside the host's scroller
+export const TocKit = [
+  createPlatePlugin({
+    key: "tableOfContents",
+    render: { afterContainer: () => <TableOfContents /> },
+  }),
+];

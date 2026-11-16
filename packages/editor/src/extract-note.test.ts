@@ -14,6 +14,7 @@ import {
 } from "@repo/editor/extract-note";
 import type { ItemActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { seedDoc } from "@repo/editor/live/note-blocks";
 import { YjsEditor } from "@slate-yjs/core";
@@ -26,9 +27,14 @@ type NewNote = Parameters<ItemActions["createNote"]>[0];
 const h2 = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "h2" });
 const p = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "p" });
 
+const showing = (itemId: string | null) => [
+  ...EDITOR_KIT,
+  OpenItemPlugin.configure({ options: { itemId } }),
+];
+
 // an item's editor, answering for the item by its id as the item editor does
 const editorOver = (value: Value, itemId: string | null = "item-1") => {
-  const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
+  const editor = createPlateEditor({ plugins: showing(itemId), value });
   if (itemId !== null) {
     registerLiveEditor(itemId, editor);
   }
@@ -128,7 +134,7 @@ describe("the extract", () => {
       doc,
       blocks.map((block) => ({ block, section: "note" })),
     );
-    const editor = liveEditor(doc, { kit: EDITOR_KIT });
+    const editor = liveEditor(doc, { kit: showing("item-1") });
     registerLiveEditor("item-1", editor);
     editor.tf.insertText("!", { at: editor.api.end([0]) });
 
@@ -194,7 +200,7 @@ describe("the extract", () => {
     }
   });
 
-  it("changes nothing when the note is not made, nothing is selected or no item is open", async () => {
+  it("changes nothing when the note is not made, nothing is selected or the editor answers for no item", async () => {
     installFakeEditorHost({
       createNote: async () => await Promise.reject(new Error("the library is unreachable")),
     });
@@ -209,6 +215,10 @@ describe("the extract", () => {
     const unheld = editorOver([p("b1", "only")], null);
     selectAll(unheld);
     await expect(extractBlocksToNote(unheld, selectedTopLevelPaths(unheld))).resolves.toBeNull();
+    // a held item's editor shows the item, which another editor answers for
+    const held = createPlateEditor({ plugins: showing("item-1"), value: [p("b1", "only")] });
+    selectAll(held);
+    await expect(extractBlocksToNote(held, selectedTopLevelPaths(held))).resolves.toBeNull();
     expect(calls).toStrictEqual([]);
   });
 });
