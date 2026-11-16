@@ -1,6 +1,5 @@
 // CLAUDE.md § What the tab remembers is a field of a persisted store
 
-import { libraryScopeSchema } from "@repo/contract/library-scope";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
@@ -102,10 +101,8 @@ export const windowLayout = persisted(
 export const accountPrefs = persisted(
   "inteligir.account",
   z.object({
-    // whose these are: its opaque id, as nothing here needs its address
+    // whose the page's account storage is: its opaque id, as nothing here needs its address
     accountId: field(z.string().nullable(), null),
-    // the scope the library opens on; a folder that is no longer listed reads as every item
-    libraryScope: field(libraryScopeSchema, { kind: "all" }),
   }),
 );
 

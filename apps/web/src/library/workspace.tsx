@@ -2,8 +2,8 @@
 // the right panel (Info, the agent), over the account's library cell. Every screen reads the cell
 // through the page's queries and writes through its mutations, so each needs a connection and says
 // so without one. A link or a file pasted or dropped where no field takes it is saved where the
-// grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
-// open it.
+// grid's scope saves. Where the tab is rides the url, the grid's scope and kind and the item open
+// over them, so a reload, Back and a link all open it.
 
 import { viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
@@ -33,7 +33,7 @@ import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
-import { leaveItem, useLeaveItem } from "./item/leave-item";
+import { useLeaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturePayload } from "./library/capture/capture-payload";
@@ -49,10 +49,13 @@ import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
-import { accountPrefs, usePref, windowLayout } from "./prefs";
+import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
+  // where the tab is, as its address says
+  readonly scope: LibraryScope;
+  readonly kind: ItemKind | null;
   readonly openItem: string | null;
   // another surface draws over the workspace: it goes inert and its window-level chords stand down
   readonly covered: boolean;
@@ -67,20 +70,18 @@ interface TagSubject {
   readonly tags: readonly string[];
 }
 
-export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
+export const Workspace = ({ scope: addressed, kind, openItem, covered }: WorkspaceProps) => {
   const { cloud, socket, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
-  const [storedScope, storeScope] = usePref(accountPrefs, "libraryScope");
   const [sort, setSort] = usePref(windowLayout, "librarySort");
   const [panelOpen, setPanelOpen] = usePref(windowLayout, "panelOpen");
   const [panelWidth, setPanelWidth] = usePref(windowLayout, "panelWidth");
   const [railOpen, setRailOpen] = usePref(windowLayout, "railOpen");
   const [railWidth, setRailWidth] = usePref(windowLayout, "railWidth");
-  const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
   const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -99,8 +100,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const selected = useStore(selection.store, (state) => state.selected);
   const counts = useQuery(queries.scopes()).data;
   const folders = counts?.folders ?? [];
-  // a remembered folder is judged once the rail's folders have answered
-  const scope = counts === undefined ? storedScope : listedScope(storedScope, folders);
+  // an addressed folder is judged once the rail's folders have answered
+  const scope = counts === undefined ? addressed : listedScope(addressed, folders);
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
@@ -120,15 +121,19 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     });
   };
 
-  // to the grid with a change of its scope, made only once the leave is allowed, so Stay keeps the
-  // scope too; asked here, since a navigation the blocker refuses never settles to say so
-  const leaveTo = (scoped: () => void): void => {
-    void (async () => {
-      if (await leaveItem(noteRef.current, confirm)) {
-        scoped();
-        open(null, { ignoreBlocker: true });
-      }
-    })();
+  // a new entry with no kind and no item, so Back walks scopes and the leave guard asks once; All
+  // items is the bare address, which a fresh tab opens on
+  const showScope = (next: LibraryScope): void => {
+    void navigate({ search: { scope: next.kind === "all" ? undefined : next }, to: "/library" });
+  };
+
+  // a narrowing of the scope, not a place of its own, so it replaces the entry Back would return to
+  const showKind = (next: ItemKind | null): void => {
+    void navigate({
+      replace: true,
+      search: (prior) => ({ ...prior, kind: next ?? undefined }),
+      to: ".",
+    });
   };
 
   const revealPanel = (next: PanelTab): void => {
@@ -153,9 +158,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     open(itemId);
   });
   const hostShowsTag = useEffectEvent((tag: string) => {
-    leaveTo(() => {
-      storeScope({ kind: "tag", tag });
-    });
+    showScope({ kind: "tag", tag });
   });
   // in the folder of the item open now, whose row its view has read
   const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
@@ -184,6 +187,17 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     }
   }, [titles]);
 
+  // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since the
+  // prune below waits for the scope's listing and keeps an id both scopes list
+  const scopeKey = JSON.stringify(scope);
+  const selectedIn = useRef(scopeKey);
+  useEffect(() => {
+    if (selectedIn.current !== scopeKey) {
+      selectedIn.current = scopeKey;
+      selection.apply({ kind: "clear" });
+    }
+  }, [scopeKey, selection]);
+
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
   const listed = view?.items;
   useEffect(() => {
@@ -196,14 +210,6 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       selection.apply({ gone: new Set(gone), kind: "prune" });
     }
   }, [listed, selection]);
-
-  const chooseScope = (next: LibraryScope): void => {
-    leaveTo(() => {
-      storeScope(next);
-      setKind(null);
-      selection.apply({ kind: "clear" });
-    });
-  };
 
   const openSettings = (): void => {
     void navigate({ search: true, to: "/library/settings" });
@@ -415,7 +421,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
             <Rail
               scope={scope}
               itemOpen={openItem !== null}
-              onScope={chooseScope}
+              onScope={showScope}
               onOpenSearch={() => {
                 setPaletteOpen(true);
               }}
@@ -487,7 +493,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
                       }),
                     }}
                     kind={kind}
-                    onKindChange={setKind}
+                    onKindChange={showKind}
                     sort={sort}
                     onSortChange={setSort}
                     selection={selection}

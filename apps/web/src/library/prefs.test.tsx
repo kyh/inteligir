@@ -50,10 +50,7 @@ describe("a store with nothing stored", () => {
       railTagsOpen: true,
       railWidth: 260,
     });
-    expect(accountPrefs.getState()).toStrictEqual({
-      accountId: null,
-      libraryScope: { kind: "all" },
-    });
+    expect(accountPrefs.getState()).toStrictEqual({ accountId: null });
   });
 });
 
@@ -74,10 +71,7 @@ describe("a blob already in storage", () => {
         railWidth: 9999,
       }),
     );
-    window.localStorage.setItem(
-      "inteligir.account",
-      blob({ accountId: "user-1", libraryScope: { kind: "tag", tag: "" } }),
-    );
+    window.localStorage.setItem("inteligir.account", blob({ accountId: 7 }));
     await devicePrefs.persist.rehydrate();
     await windowLayout.persist.rehydrate();
     await accountPrefs.persist.rehydrate();
@@ -95,10 +89,7 @@ describe("a blob already in storage", () => {
       railTagsOpen: false,
       railWidth: SIDEBAR_MAX_WIDTH,
     });
-    expect(accountPrefs.getState()).toStrictEqual({
-      accountId: "user-1",
-      libraryScope: { kind: "all" },
-    });
+    expect(accountPrefs.getState()).toStrictEqual({ accountId: null });
   });
 
   it("reads one it cannot parse as every default", async () => {
@@ -114,18 +105,11 @@ describe("a blob already in storage", () => {
 describe("a write", () => {
   it("stores the whole blob, its theme where the no-flash script reads it", () => {
     devicePrefs.setState({ theme: "dark" });
-    accountPrefs.setState({
-      libraryScope: { folderId: "0199a4c2-0000-7000-8000-000000000001", kind: "folder" },
-    });
+    accountPrefs.setState({ accountId: "user-1" });
     expect(stored("inteligir.prefs")).toBe(
       blob({ appearance: APPEARANCE_DEFAULTS, spellcheck: true, theme: "dark" }),
     );
-    expect(stored("inteligir.account")).toBe(
-      blob({
-        accountId: null,
-        libraryScope: { folderId: "0199a4c2-0000-7000-8000-000000000001", kind: "folder" },
-      }),
-    );
+    expect(stored("inteligir.account")).toBe(blob({ accountId: "user-1" }));
   });
 
   it("keeps the choice for the session when storage refuses it", () => {

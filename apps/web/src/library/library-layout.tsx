@@ -3,8 +3,8 @@
 // update (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and
 // the library the tab opened once (`library-tab.ts`). The covering child draws in a full-window
 // layer here rather than in its own component, so its crash boundary lands in the layer too instead
-// of below a workspace it left inert (CLAUDE.md § The open item rides the URL, and Settings covers a
-// workspace that stays mounted).
+// of below a workspace it left inert (CLAUDE.md § Where the tab is rides the URL, and Settings covers
+// a workspace that stays mounted).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
@@ -33,12 +33,17 @@ const TOO_OLD =
   "This browser is too old to open your library. Update it, or open the library in another browser.";
 
 const WorkspaceLayout = () => {
-  const { item } = libraryRoute.useSearch();
+  const { item, kind, scope } = libraryRoute.useSearch();
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/library/", shouldThrow: false }) === undefined;
   return (
     <>
-      <Workspace openItem={item ?? null} covered={covered} />
+      <Workspace
+        scope={scope ?? { kind: "all" }}
+        kind={kind ?? null}
+        openItem={item ?? null}
+        covered={covered}
+      />
       {covered ? (
         <div className="fixed inset-0 bg-surface text-ink">
           <Outlet />

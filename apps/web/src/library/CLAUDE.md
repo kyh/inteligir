@@ -57,9 +57,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
   with the cell's count, and a waiting call is the layout's one notice, since an online tab has
   nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
-- **A library scope has one spelling, `@repo/contract/library-scope`.** The pref, the grid's listing
-  and a view context read one set of zod arms, a folder by its id, since a scope per surface drifts
-  and a folder by path leaves every remembered scope on a rename.
+- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, the grid's
+  listing and a view context read one set of zod arms, a folder by its id, since a scope per surface
+  drifts and a folder by path breaks every link to it on a rename.
   `packages/contract/src/library-scope.ts`.
 - **There is one search surface, and it is ⌘P.** One field over the cell's full-text index, ranked
   as the cell ranks it for every device, and ⌘F searches the open item, since an index of the tab's
@@ -67,14 +67,16 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The panel starts closed, is flat-tabbed, and is dragged like the rail.** Info and the Agent,
   its width kept through the rail's own resize handle, so there is no second resize mechanism.
   `apps/web/src/library/panel/panel.tsx`.
-- **The open item rides the URL, and Settings covers a workspace that stays mounted.** `?item=<id>`
-  is a history entry, so Back and Forward work, a search's words ride beside it as `?find=` until
-  the item's find bar is on them, and Settings is a layer over the inert workspace, since a sibling
-  route unmounts the item. `apps/web/src/library/library-search.ts`.
+- **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
+  the kind and the open item are the route's search, so Back and Forward walk them, a link opens
+  them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside
+  the item as `?find=` until its find bar is on them, and Settings is a layer over the inert
+  workspace, since a view held beside the router is one Back cannot reach and a sibling route
+  unmounts the item. `apps/web/src/library/library-search.ts`.
 - **What the tab remembers is a field of a persisted store, by whose it is.** The device's (the
   site's theme, the dials, spell check) reach every window, the window's layout opens the next, and
-  the account's scope goes with the account, each a zod field behind `usePref`, since a pref
-  nothing subscribes to grows a sync of its own. `apps/web/src/library/prefs.ts`.
+  the account's id goes with the account, each a zod field behind `usePref`, since a pref nothing
+  subscribes to grows a sync of its own. `apps/web/src/library/prefs.ts`.
 - **Spell check is the tab's attribute.** WKWebView has no session-wide spell-check switch, so it
   is a pref on the document root. `apps/web/src/library/document-prefs.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is

@@ -77,6 +77,8 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
     .click();
   await expect(scopeTitle(page)).toHaveText("#field");
   await expect(grid.getByRole("gridcell")).toHaveText([/Field notes/u]);
+  await page.goBack();
+  await expect(scopeTitle(page)).toHaveText("Reading");
 
   await page
     .getByRole("list", { name: "Library" })
