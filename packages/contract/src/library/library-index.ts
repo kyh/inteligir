@@ -1,16 +1,24 @@
-// The library listing over the cell's rows: which items a grid shows, in what order and how many
-// of each kind, answered from memory, and the apps' three reads of it (a screen's page, the rail's
-// counts and every title), assembled here once for the cell and the fake cell alike. A page costs
-// its own rows; only a filter walks the members. Pinned items lead every order; Deleted lists what
-// was deleted and nothing else, and a purged item is never a row here.
+// The library listing over the cell's rows: which items a list shows, in what order and how many
+// of each kind, answered from memory, and what is read of it (a screen's page, the rail's counts,
+// every title, an item as a list names it to an agent), assembled here once for the cell and the
+// fake cell alike. A page costs its own rows; only a filter walks the members. Pinned items lead
+// every order; Deleted lists what was deleted and nothing else, and a purged item is never a row
+// here.
 
 import type { z } from "zod";
 
 import type { ItemKind } from "../items/item-kind";
-import { siteMatches, urlHost } from "../items/item-url";
+import type { LibraryScope } from "../library-scope";
 import type { ItemCard } from "./derive-item";
 import type { LibraryItemFields } from "./library-item";
-import type { listedItemSchema, listingQuerySchema } from "./library-wire";
+import type {
+  folderCountSchema,
+  itemSummarySchema,
+  listedItemSchema,
+  listingPageInputSchema,
+  listingSortSchema,
+  tagCountSchema,
+} from "./library-wire";
 import { compareText } from "./order-key";
 
 // what the listing reads of an item; a host's row type adds whatever its cards draw
@@ -37,7 +45,10 @@ export interface ListingFolder {
   readonly sort: string;
 }
 
-type ListingSort = "saved" | "modified" | "title" | "relevance";
+type ListingSort = z.infer<typeof listingSortSchema>;
+
+// id → rank from a search, lower is better
+type SearchRanks = ReadonlyMap<string, number>;
 
 export interface ListingQuery {
   // the library, or Deleted
@@ -45,17 +56,16 @@ export interface ListingQuery {
   readonly kinds?: readonly ItemKind[];
   // a tag and every tag under it
   readonly tag?: string;
-  readonly untagged?: boolean;
-  // a folder by id, or null for the items in none (Unsorted)
+  // a folder and every folder under it, or null for the items in none (Unsorted)
   readonly folderId?: string | null;
-  readonly subfolders?: boolean;
-  readonly site?: string;
+  readonly pinned?: boolean;
   // saved at or after this, and before that
   readonly sinceMs?: number;
   readonly beforeMs?: number;
-  // id → rank from a search (lower is better); only these answer
-  readonly within?: ReadonlyMap<string, number>;
-  readonly sort: ListingSort;
+  // by a browse's sort, or by a search's ranks, which only its hits answer, best first
+  readonly order:
+    | { readonly by: ListingSort }
+    | { readonly by: "rank"; readonly rank: SearchRanks };
   readonly limit: number;
   readonly offset: number;
 }
@@ -63,49 +73,19 @@ export interface ListingQuery {
 export interface ListingPage<R extends ListingRow> {
   readonly items: readonly R[];
   readonly total: number;
+  // where the next page starts, null when this one ends the list
+  readonly next: number | null;
   // the filtered set's count per kind, the query's own kinds ignored
   readonly kindCounts: Readonly<Record<ItemKind, number>>;
 }
 
-interface FolderCount extends ListingFolder {
-  // items in it and in every folder under it
-  readonly items: number;
-}
-
-interface TagCount {
-  readonly tag: string;
-  readonly items: number;
-}
-
-// the rail's counts, as `library.listing.scopes` answers them
-interface ListingScopes {
-  readonly total: number;
-  readonly unsorted: number;
-  readonly untagged: number;
-  readonly deleted: number;
-  // in rail order: a parent before its children, siblings by their order key, then name
-  readonly folders: FolderCount[];
-  // each under the spelling met first in saved order, the most held first
-  readonly tags: TagCount[];
-}
-
-interface TitleTarget {
-  readonly id: string;
-  readonly title: string;
-}
-
-// every live item's title, as `library.listing.titles` answers them
-interface ListingTitles {
-  readonly targets: TitleTarget[];
-}
+type FolderCount = z.infer<typeof folderCountSchema>;
+type TagCount = z.infer<typeof tagCountSchema>;
 
 interface Entry<R extends ListingRow> {
   readonly row: R;
-  readonly host: string | null;
   readonly tagKeys: readonly string[];
 }
-
-type CachedSort = Exclude<ListingSort, "relevance">;
 
 const emptyKindCounts = (): Record<ItemKind, number> => ({
   audio: 0,
@@ -125,7 +105,7 @@ const inTagFamily = (tagKeys: readonly string[], tag: string): boolean => {
 const pinRank = (row: ListingRow): number => (row.pinnedAt === null ? 1 : 0);
 
 // each sort's order between two rows, the most recent first for the times
-const bySort = (a: ListingRow, b: ListingRow, sort: CachedSort): number => {
+const bySort = (a: ListingRow, b: ListingRow, sort: ListingSort): number => {
   switch (sort) {
     case "saved": {
       return b.savedAt - a.savedAt;
@@ -148,11 +128,7 @@ export class LibraryIndex<R extends ListingRow> {
 
   upsert(row: R): void {
     const prior = this.entries.get(row.id)?.row;
-    this.entries.set(row.id, {
-      host: row.url === null ? null : urlHost(row.url),
-      row,
-      tagKeys: row.tags.map((tag) => tag.toLowerCase()),
-    });
+    this.entries.set(row.id, { row, tagKeys: row.tags.map((tag) => tag.toLowerCase()) });
     if (
       prior === undefined ||
       prior.deletedAt !== row.deletedAt ||
@@ -196,10 +172,13 @@ export class LibraryIndex<R extends ListingRow> {
   items(query: ListingQuery): ListingPage<R> {
     const kinds = query.kinds === undefined ? null : new Set(query.kinds);
     const order =
-      query.sort === "relevance" && query.within !== undefined
-        ? this.relevanceOrder(query.deleted, query.within)
-        : this.membersSorted(query.deleted, query.sort === "relevance" ? "saved" : query.sort);
-    const folderIds = this.folderScope(query);
+      query.order.by === "rank"
+        ? this.rankOrder(query.deleted, query.order.rank)
+        : this.membersSorted(query.deleted, query.order.by);
+    const folderIds =
+      query.folderId === undefined || query.folderId === null
+        ? null
+        : this.folderTree(query.folderId);
     const kindCounts = emptyKindCounts();
     const matched: R[] = [];
     for (const id of order) {
@@ -212,14 +191,20 @@ export class LibraryIndex<R extends ListingRow> {
         matched.push(entry.row);
       }
     }
+    const end = query.offset + query.limit;
     return {
-      items: matched.slice(query.offset, query.offset + query.limit),
+      items: matched.slice(query.offset, end),
       kindCounts,
+      next: end < matched.length ? end : null,
       total: matched.length,
     };
   }
 
-  scopes(): ListingScopes {
+  // the rail's counts, as `library.listing.scopes` answers them: the folders in rail order (a
+  // parent before its children, siblings by their order key, then name), each with the items in it
+  // and in every folder under it; each tag under the spelling met first in saved order, the most
+  // held first
+  scopes() {
     const direct = new Map<string, number>();
     const tags = new Map<string, TagCount>();
     let total = 0;
@@ -271,8 +256,9 @@ export class LibraryIndex<R extends ListingRow> {
     };
   }
 
-  // every live item by its card's title, which a note's links resolve against
-  titles(): ListingTitles {
+  // every live item by its card's title, as `library.listing.titles` answers them, which a note's
+  // links resolve against
+  titles() {
     return {
       targets: this.rowsOf(this.membersSorted(false, "title")).map(({ id, title }) => ({
         id,
@@ -289,24 +275,20 @@ export class LibraryIndex<R extends ListingRow> {
     return row.folderId !== null && this.folders.has(row.folderId) ? row.folderId : null;
   }
 
-  // the folders a query's folder answers for: it alone, or it and every folder under it
-  private folderScope(query: ListingQuery): ReadonlySet<string> | null {
-    if (query.folderId === undefined || query.folderId === null) {
-      return null;
-    }
-    const scope = new Set([query.folderId]);
-    if (query.subfolders === true) {
-      const pending = [query.folderId];
-      for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-        for (const child of this.children.get(next) ?? []) {
-          scope.add(child.id);
-          pending.push(child.id);
-        }
+  // a folder and every folder under it
+  private folderTree(folderId: string): ReadonlySet<string> {
+    const tree = new Set([folderId]);
+    const pending = [folderId];
+    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+      for (const child of this.children.get(next) ?? []) {
+        tree.add(child.id);
+        pending.push(child.id);
       }
     }
-    return scope;
+    return tree;
   }
 
+  // whether a row of the query's side answers its filters, `folderIds` its folder's tree
   private passes(
     entry: Entry<R>,
     query: ListingQuery,
@@ -315,24 +297,21 @@ export class LibraryIndex<R extends ListingRow> {
     const { row } = entry;
     const folderId = this.liveFolderOf(row);
     return (
-      (query.deleted ? row.deletedAt !== null : row.deletedAt === null) &&
       (query.folderId !== null || folderId === null) &&
       (folderIds === null || (folderId !== null && folderIds.has(folderId))) &&
       (query.tag === undefined || inTagFamily(entry.tagKeys, query.tag)) &&
-      (query.untagged !== true || row.tags.length === 0) &&
-      (query.site === undefined || siteMatches(entry.host, query.site)) &&
+      (query.pinned === undefined || (row.pinnedAt !== null) === query.pinned) &&
       (query.sinceMs === undefined || row.savedAt >= query.sinceMs) &&
-      (query.beforeMs === undefined || row.savedAt < query.beforeMs) &&
-      (query.within === undefined || query.within.has(row.id))
+      (query.beforeMs === undefined || row.savedAt < query.beforeMs)
     );
   }
 
-  private dropSort(sort: CachedSort): void {
+  private dropSort(sort: ListingSort): void {
     this.sorted.delete(`live:${sort}`);
     this.sorted.delete(`deleted:${sort}`);
   }
 
-  private membersSorted(deleted: boolean, sort: CachedSort): readonly string[] {
+  private membersSorted(deleted: boolean, sort: ListingSort): readonly string[] {
     const cacheKey = `${deleted ? "deleted" : "live"}:${sort}`;
     const cached = this.sorted.get(cacheKey);
     if (cached !== undefined) {
@@ -347,9 +326,9 @@ export class LibraryIndex<R extends ListingRow> {
     return order;
   }
 
-  // a search's hits in rank order, pinned first, then the saved order between equals
-  private relevanceOrder(deleted: boolean, within: ReadonlyMap<string, number>): string[] {
-    return [...within.keys()]
+  // a search's hits on one side in rank order, pinned first, then the saved order between equals
+  private rankOrder(deleted: boolean, ranks: SearchRanks): string[] {
+    return [...ranks.keys()]
       .flatMap((id) => {
         const row = this.entries.get(id)?.row;
         return row === undefined || (row.deletedAt !== null) !== deleted ? [] : [row];
@@ -357,7 +336,7 @@ export class LibraryIndex<R extends ListingRow> {
       .toSorted(
         (a, b) =>
           pinRank(a) - pinRank(b) ||
-          (within.get(a.id) ?? 0) - (within.get(b.id) ?? 0) ||
+          (ranks.get(a.id) ?? 0) - (ranks.get(b.id) ?? 0) ||
           b.savedAt - a.savedAt ||
           compareText(a.id, b.id),
       )
@@ -422,43 +401,75 @@ export const listedItem = (row: ItemListing, snippet?: string): ListedItem => {
   return listed;
 };
 
-export interface ListingPageInput {
-  readonly query: z.infer<typeof listingQuerySchema>;
-  // the position the last page ended at
-  readonly cursor?: number | undefined;
-  readonly limit: number;
-}
-
 export interface SearchHits {
   // each hit's place, best first
-  readonly rank: ReadonlyMap<string, number>;
+  readonly rank: SearchRanks;
   // the passage a hit was found by, cut for a row a page shows; null when only its title holds it
   readonly passage: (id: string) => string | null;
 }
 
-// a page of a screen's listing; `hits`, a search's, narrows it to them and ranks them under the
-// `relevance` sort; `whole` gives a row of the page as an answer carries it, so an index may hold
-// only what it filters and orders by
+// what a scope asks the listing: every item, those in no folder, a folder and what is under it, a
+// tag and its children, or what was deleted
+const scopeFilter = (scope: LibraryScope): Pick<ListingQuery, "deleted" | "folderId" | "tag"> => {
+  switch (scope.kind) {
+    case "all": {
+      return { deleted: false };
+    }
+    case "unsorted": {
+      return { deleted: false, folderId: null };
+    }
+    case "folder": {
+      return { deleted: false, folderId: scope.folderId };
+    }
+    case "tag": {
+      return { deleted: false, tag: scope.tag };
+    }
+    case "deleted": {
+      return { deleted: true };
+    }
+    // no default
+  }
+};
+
+// a page of a scope's listing, as `library.listing.page` answers it: its words go to `search` on
+// the scope's side (Deleted, or the library), whose hits alone answer, best first, each with its
+// passage; `whole` gives a row of the page as an answer carries it, so an index may hold only what
+// it filters and orders by
 export const listingPageOf = <R extends ListingRow>(
   index: LibraryIndex<R>,
-  input: ListingPageInput,
-  hits: SearchHits | null,
+  input: z.output<typeof listingPageInputSchema>,
+  search: (words: string, deleted: boolean) => SearchHits,
   whole: (row: R) => ItemListing,
 ) => {
-  const offset = input.cursor ?? 0;
+  const filter = scopeFilter(input.scope);
+  const hits = input.words === undefined ? null : search(input.words, filter.deleted);
   const page = index.items({
-    ...input.query,
+    ...filter,
+    kinds: input.kinds,
     limit: input.limit,
-    offset,
-    within: hits?.rank,
+    offset: input.cursor,
+    order: hits === null ? { by: input.sort } : { by: "rank", rank: hits.rank },
   });
-  const end = offset + page.items.length;
   return {
+    cursor: page.next,
     items: page.items.map((row) =>
       listedItem(whole(row), hits === null ? undefined : (hits.passage(row.id) ?? row.title)),
     ),
     kindCounts: page.kindCounts,
-    nextCursor: end < page.total ? end : null,
     total: page.total,
   };
 };
+
+// ---- an agent's answers ----
+
+// an item as a list names it to an agent: ids and names, every tag it carries, its time ISO 8601
+export const itemSummary = (row: ListingRow): z.infer<typeof itemSummarySchema> => ({
+  folderId: row.folderId,
+  id: row.id,
+  kind: row.kind,
+  pinned: row.pinnedAt !== null,
+  savedAt: new Date(row.savedAt).toISOString(),
+  tags: [...row.tags],
+  title: row.title,
+  url: row.url,
+});

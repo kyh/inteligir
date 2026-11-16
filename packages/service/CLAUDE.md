@@ -162,6 +162,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **The cell keeps its listing in memory, caught up by sequence, and builds it
   again as it wakes.** A build on every read costs about 245 ms at 10,000 items,
   measured. `packages/service/src/library/cell-listing.ts`.
+- **An agent's list, search, outline and summaries are the held listing's
+  answers, as the rail's are.** A count or a tag set read again in SQL folds a
+  tag's case its own way, so an outline disagrees with the tag filter beside
+  it. `packages/service/src/library/cell-reads.ts`.
 
 ## Fills
 

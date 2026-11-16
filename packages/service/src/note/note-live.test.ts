@@ -267,7 +267,7 @@ describe("a note edited live", () => {
     const found = async (): Promise<boolean> => {
       const page = await library.listing.page({
         limit: 10,
-        query: { deleted: false, sort: "title" },
+        scope: { kind: "all" },
         words: "zanzibar",
       });
       return page.items.some(({ id }) => id === itemId);

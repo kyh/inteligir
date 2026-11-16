@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  cleanUrl,
-  isWebUrl,
-  kindForUrl,
-  siteMatches,
-  urlHost,
-  urlKey,
-  urlSearchText,
-} from "./item-url";
+import { cleanUrl, isWebUrl, kindForUrl, urlHost, urlKey, urlSearchText } from "./item-url";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
 describe(isWebUrl, () => {
@@ -125,7 +117,7 @@ describe(kindForUrl, () => {
   });
 });
 
-describe("urlHost, urlSearchText and siteMatches", () => {
+describe("urlHost and urlSearchText", () => {
   it("reads the host without www. or a port", () => {
     expect(urlHost("https://WWW.Example.com:8080/x")).toBe("example.com");
     expect(urlHost("https://example.com./")).toBe("example.com");
@@ -140,20 +132,6 @@ describe("urlHost, urlSearchText and siteMatches", () => {
       "example.com café menu html",
     );
     expect(urlSearchText("nope")).toBe("");
-  });
-
-  it.each([
-    ["blog.example.com", "example.com", true],
-    ["example.com", "example.com", true],
-    ["example.com", "Example.COM", true],
-    ["notexample.com", "example.com", false],
-    ["youtube.com", "https://www.youtube.com/watch?v=1", true],
-    ["example.com", "www.example.com", true],
-    ["example.com", "example.com/path", true],
-    ["example.com", "", false],
-    [null, "example.com", false],
-  ])("%s within %j is %s", (host, filter, expected) => {
-    expect(siteMatches(host, filter)).toBe(expected);
   });
 });
 

@@ -2,6 +2,7 @@
 // it: an item whole, a listing's pages, the rail's counts and every title.
 
 import { isOrpcError } from "@repo/contract/v1/errors";
+import type { LibraryScope } from "@repo/contract/library-scope";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { describe, expect, it } from "vitest";
 
@@ -28,7 +29,7 @@ const codeOf = async (call: Promise<unknown>): Promise<string> => {
   throw new Error("the call landed what the test expected it to refuse");
 };
 
-const LIVE = { deleted: false, sort: "title" } as const;
+const BY_TITLE = { scope: { kind: "all" }, sort: "title" } as const;
 
 describe("what the apps read of the library", () => {
   it("answers an item whole, one in Deleted too, and none once it is purged", async () => {
@@ -81,24 +82,22 @@ describe("what the apps read of the library", () => {
       }
       await library.items.saveLink({ url: "https://example.com/durian" });
 
-      const first = await library.listing.page({
-        limit: 2,
-        query: { ...LIVE, kinds: ["note"] },
-      });
+      const first = await library.listing.page({ ...BY_TITLE, kinds: ["note"], limit: 2 });
       expect(first.items.map(({ card }) => card.title)).toStrictEqual(["Apple", "Banana"]);
-      expect(first).toMatchObject({ kindCounts: { link: 1, note: 3 }, nextCursor: 2, total: 3 });
+      expect(first).toMatchObject({ cursor: 2, kindCounts: { link: 1, note: 3 }, total: 3 });
 
       const last = await library.listing.page({
-        cursor: first.nextCursor ?? 0,
+        ...BY_TITLE,
+        cursor: first.cursor ?? 0,
+        kinds: ["note"],
         limit: 2,
-        query: { ...LIVE, kinds: ["note"] },
       });
       expect(last.items.map(({ card }) => card.title)).toStrictEqual(["Cherry"]);
-      expect(last.nextCursor).toBeNull();
+      expect(last.cursor).toBeNull();
     });
   });
 
-  it("lists a tag with the tags under it, a folder with its subfolders, and Unsorted", async () => {
+  it("lists a tag with the tags under it, a folder with what is under it, and Unsorted", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = laptopIn(state);
       const filed = await library.items.createNote({ markdown: "Filed.", title: "Filed" });
@@ -112,24 +111,19 @@ describe("what the apps read of the library", () => {
       const { folders } = await library.organize.outline();
       const projects = folders.find(({ name }) => name === "Projects")?.id ?? "";
 
-      const titlesOf = async (query: {
-        readonly folderId?: string | null;
-        readonly subfolders?: boolean;
-        readonly tag?: string;
-      }) => {
-        const page = await library.listing.page({ limit: 10, query: { ...LIVE, ...query } });
+      const titlesOf = async (scope: LibraryScope) => {
+        const page = await library.listing.page({ limit: 10, scope, sort: "title" });
         return page.items.map(({ card }) => card.title);
       };
-      await expect(titlesOf({ tag: "work" })).resolves.toStrictEqual(["Filed"]);
-      await expect(titlesOf({ folderId: projects })).resolves.toStrictEqual([]);
-      await expect(titlesOf({ folderId: projects, subfolders: true })).resolves.toStrictEqual([
+      await expect(titlesOf({ kind: "tag", tag: "work" })).resolves.toStrictEqual(["Filed"]);
+      await expect(titlesOf({ folderId: projects, kind: "folder" })).resolves.toStrictEqual([
         "Filed",
       ]);
-      await expect(titlesOf({ folderId: null })).resolves.toStrictEqual(["Loose"]);
+      await expect(titlesOf({ kind: "unsorted" })).resolves.toStrictEqual(["Loose"]);
     });
   });
 
-  it("searches the side its query lists, ranked, each item with the passage that matched", async () => {
+  it("searches the side its scope lists, ranked, each item with the passage that matched", async () => {
     await inCell(cellOf(), async (state) => {
       const { clock, engine, library } = laptopIn(state);
       const gone = await library.items.createNote({ markdown: "A fox long gone." });
@@ -140,17 +134,13 @@ describe("what the apps read of the library", () => {
       const kept = await library.items.createNote({ markdown: "The fox naps in the sun." });
       await library.items.createNote({ markdown: "The dog barks." });
 
-      const live = await library.listing.page({
-        limit: 10,
-        query: { deleted: false, sort: "relevance" },
-        words: "fox",
-      });
+      const live = await library.listing.page({ limit: 10, scope: { kind: "all" }, words: "fox" });
       expect(live.items.map(({ id }) => id)).toStrictEqual([kept.item.id]);
       expect(live.items[0]?.snippet).toContain("fox");
 
       const deleted = await library.listing.page({
         limit: 10,
-        query: { deleted: true, sort: "relevance" },
+        scope: { kind: "deleted" },
         words: "fox",
       });
       expect(deleted.items.map(({ id }) => id)).toStrictEqual([gone.item.id]);
@@ -220,7 +210,7 @@ describe("what the apps read of the library", () => {
     await inCell(cellOf(), async (state) => {
       const { clock, engine, library } = laptopIn(state);
       const titles = async () => {
-        const page = await library.listing.page({ limit: 10, query: LIVE });
+        const page = await library.listing.page({ ...BY_TITLE, limit: 10 });
         return page.items.map(({ card }) => card.title);
       };
       const seal = () => {

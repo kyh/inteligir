@@ -29,9 +29,9 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
   // on screen until its first page answers
   listing: (query: ListingQuery) =>
     orpc.library.listing.page.infiniteOptions({
-      getNextPageParam: (last) => last.nextCursor,
+      getNextPageParam: (last) => last.cursor,
       initialPageParam: undefined,
-      input: (cursor: number | undefined) => ({ cursor, limit: LISTING_PAGE, query }),
+      input: (cursor: number | undefined) => ({ ...query, cursor, limit: LISTING_PAGE }),
       placeholderData: keepPreviousData,
     }),
 
@@ -41,10 +41,7 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
   // cell; the hits typed before stay up while the next words are asked
   search: (words: string) =>
     orpc.library.listing.page.queryOptions({
-      input:
-        words === ""
-          ? skipToken
-          : { limit: SEARCH_LIMIT, query: { deleted: false, sort: "relevance" }, words },
+      input: words === "" ? skipToken : { limit: SEARCH_LIMIT, scope: { kind: "all" }, words },
       placeholderData: keepPreviousData,
     }),
 

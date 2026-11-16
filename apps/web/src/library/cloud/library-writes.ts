@@ -370,10 +370,10 @@ export const libraryWrites = ({
             const page = await client.library.listing.page({
               cursor,
               limit: LISTING_PAGE_MAX,
-              query: { deleted: true, sort: "saved" },
+              scope: { kind: "deleted" },
             });
             ids.push(...page.items.map((row) => row.id));
-            cursor = page.nextCursor ?? undefined;
+            cursor = page.cursor ?? undefined;
           } while (cursor !== undefined);
           return ids;
         },

@@ -13,8 +13,6 @@ import { paragraph } from "./library-items";
 
 const idOf = (n: number): string => `0190a000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
 
-const LIVE = { deleted: false, sort: "title" } as const;
-
 const codeOf = async (call: Promise<unknown>): Promise<string> => {
   try {
     await call;
@@ -91,28 +89,24 @@ describe("what a client reads of the fake cell", () => {
   it("lists every tag an item carries, its field's and its body's, each spelling once", async () => {
     const { library, note } = laptop();
     const id = await note(["Weeding the #garden, #garden again."], { tags: ["Work"] });
-    const page = await library.listing.page({ limit: 10, query: LIVE });
+    const page = await library.listing.page({ limit: 10, scope: { kind: "all" } });
     expect(page.items).toMatchObject([{ id, tags: ["Work", "garden"] }]);
   });
 
-  it("searches the side its query lists, each item with the passage that matched", async () => {
+  it("searches the side its scope lists, each item with the passage that matched", async () => {
     const { library, note } = laptop();
     const gone = await note(["A fox long gone."]);
     await library.items.delete({ ids: [gone] });
     const kept = await note(["The fox naps in the sun."]);
     await note(["The dog barks."]);
 
-    const live = await library.listing.page({
-      limit: 10,
-      query: { deleted: false, sort: "relevance" },
-      words: "FOX",
-    });
+    const live = await library.listing.page({ limit: 10, scope: { kind: "all" }, words: "FOX" });
     expect(live.items.map(({ id }) => id)).toStrictEqual([kept]);
     expect(live.items[0]?.snippet).toContain("fox");
 
     const deleted = await library.listing.page({
       limit: 10,
-      query: { deleted: true, sort: "relevance" },
+      scope: { kind: "deleted" },
       words: "fox",
     });
     expect(deleted.items.map(({ id }) => id)).toStrictEqual([gone]);
@@ -129,13 +123,13 @@ describe("what a screen writes of the fake cell beyond its ops", () => {
     expect(again.item.id).not.toBe(item.id);
   });
 
-  it("organizes as the cell does: tags case by case, a folder by its id, a pin and a title", async () => {
+  it("organizes as the cell does: tags case by case, a folder by its id, a pin and a title, and answers every tag the item carries", async () => {
     const { library, newId, note } = laptop();
     const reading = newId();
     await library.folders.write({
       ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
     });
-    const id = await note(["Plans."], { tags: ["Spring", "trips"], title: "Plans" });
+    const id = await note(["Plans for #later."], { tags: ["Spring", "trips"], title: "Plans" });
 
     const { items } = await library.items.organize({
       addTags: ["SPRING", "plans"],
@@ -147,7 +141,7 @@ describe("what a screen writes of the fake cell beyond its ops", () => {
     });
 
     expect(items).toMatchObject([
-      { folderId: reading, id, pinned: true, tags: ["Spring", "plans"], title: "Trip" },
+      { folderId: reading, id, pinned: true, tags: ["Spring", "later", "plans"], title: "Trip" },
     ]);
     await expect(library.items.get({ id })).resolves.toMatchObject({
       fields: { folderId: reading, tags: ["Spring", "plans"], title: "Trip" },
@@ -204,10 +198,7 @@ describe("the rows a suite seeds in the fake cell", () => {
     const id = cell.seed.item({ folderId: reading, tags: ["spring"], title: "Plans" });
     const gone = cell.seed.item({ deletedAt: 1 });
 
-    const page = await library.listing.page({
-      limit: 10,
-      query: { deleted: false, sort: "saved" },
-    });
+    const page = await library.listing.page({ limit: 10, scope: { kind: "all" } });
     expect(page.items).toStrictEqual([cell.listed(id)]);
     await expect(library.items.get({ id })).resolves.toStrictEqual(cell.held(id));
     await expect(library.listing.scopes()).resolves.toMatchObject({

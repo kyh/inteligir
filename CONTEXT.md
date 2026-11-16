@@ -171,7 +171,8 @@ a PDF and a note the person wrote are each one, and "item" is the only word for
 them: a page is a web page, and a bookmark Raindrop's. The cell holds the
 listing over its items between calls
 (`@repo/contract/library/library-index`), which answers a screen's pages, the
-rail's counts and the titles a link shows. Not a doc or a file on disk.
+rail's counts, the titles a link shows and an agent's lists. Not a doc or a
+file on disk.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
 or `file` (`ITEM_KINDS` in `@repo/contract/items/item-kind`). A saved file's is

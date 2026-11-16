@@ -67,9 +67,9 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
   with the cell's count, and a waiting call is the layout's one notice, since an online tab has
   nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
-- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, the grid's
-  listing and a view context read one set of zod arms, a folder by its id, since a scope per surface
-  drifts and a folder by path breaks every link to it on a rename.
+- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, a listing's
+  page on the wire and a view context read one set of zod arms, a folder by its id, since a scope
+  per surface drifts and a folder by path breaks every link to it on a rename.
   `packages/contract/src/library-scope.ts`.
 - **There is one search surface, and it is ⌘P.** One field over the cell's full-text index, ranked
   as the cell ranks it for every device, and ⌘F searches the open item, since an index of the tab's

@@ -40,7 +40,7 @@ const drawPalette = () => {
           message: "",
         });
       }
-      return { items: hits.get(words) ?? [], kindCounts: {}, nextCursor: null, total: 0 };
+      return { items: hits.get(words) ?? [], cursor: null, kindCounts: {}, total: 0 };
     },
     cell,
   });
@@ -121,9 +121,7 @@ describe("the palette", () => {
     const { calls, commands, plans } = drawPalette();
     fireEvent.change(field(), { target: { value: "spring" } });
     const hit = await screen.findByRole("option", { name: /Plans/u });
-    expect(searches(calls)).toStrictEqual([
-      { limit: 20, query: { deleted: false, sort: "relevance" }, words: "spring" },
-    ]);
+    expect(searches(calls)).toStrictEqual([{ limit: 20, scope: { kind: "all" }, words: "spring" }]);
     expect(hit.dataset.searchHit).toBe(plans);
     expect(within(hit).getByText("a trip in spring")).toBeDefined();
     // the hits come first, so the light lands on the first of them

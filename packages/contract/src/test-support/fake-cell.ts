@@ -48,6 +48,7 @@ import {
 import {
   answerCard,
   itemListing,
+  itemSummary,
   LibraryIndex,
   listedItem,
   listingPageOf,
@@ -128,18 +129,6 @@ const derivedOf = (item: CellItem) => {
 const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
 const shasIn = (json: string): Set<string> =>
   new Set([...json.matchAll(SHA_KEY_RE)].flatMap((match) => match.groups?.sha ?? []));
-
-// an item as an organize answers it, concisely
-const summaryOf = ({ card, fields, id }: LiveRow) => ({
-  folderId: fields.folderId,
-  id,
-  kind: fields.kind,
-  pinned: fields.pinnedAt !== null,
-  savedAt: new Date(fields.savedAt).toISOString(),
-  tags: [...fields.tags],
-  title: card.title,
-  url: fields.url,
-});
 
 export const createFakeCell = (): FakeCell => {
   let head = 0;
@@ -409,7 +398,9 @@ export const createFakeCell = (): FakeCell => {
         }),
         get: os.library.items.get.handler(({ input }) => held(input.id)),
         organize: os.library.items.organize.handler(({ input }) =>
-          once(input.opId, organizedSchema, () => ({ items: organize(input).map(summaryOf) })),
+          once(input.opId, organizedSchema, () => ({
+            items: organize(input).map(({ id }) => itemSummary(listingRow(id, holding(id)))),
+          })),
         ),
         // emptying Deleted: an item there goes for good, and any other id is missing
         purge: os.library.items.purge.handler(({ input }) =>
@@ -504,12 +495,7 @@ export const createFakeCell = (): FakeCell => {
       },
       listing: {
         page: os.library.listing.page.handler(({ input }) =>
-          listingPageOf(
-            listing(),
-            input,
-            input.words === undefined ? null : searchHits(input.words, input.query.deleted),
-            (row) => row,
-          ),
+          listingPageOf(listing(), input, searchHits, (row) => row),
         ),
         scopes: os.library.listing.scopes.handler(() => listing().scopes()),
         titles: os.library.listing.titles.handler(() => listing().titles()),

@@ -30,6 +30,7 @@ import {
   changeSetSchema,
   cursorSchema,
   eventIdSchema,
+  folderCountSchema,
   folderNameSchema,
   folderOpSchema,
   FOLDER_NAME_MAX,
@@ -44,8 +45,7 @@ import {
   FILING_RULES_MAX,
   folderRowSchema,
   listedItemSchema,
-  LISTING_PAGE_MAX,
-  listingQuerySchema,
+  listingPageInputSchema,
   listingSortSchema,
   MARKDOWN_MAX,
   MESSAGE_MAX,
@@ -58,6 +58,7 @@ import {
   seqSchema,
   shaSchema,
   bodyBlockSchema,
+  tagCountSchema,
   THREAD_STATUSES,
   threadEventRowSchema,
   threadRowSchema,
@@ -362,44 +363,25 @@ const count = z.number().int().nonnegative();
 
 // what the apps' screens list, each answered from the cell's rows as they stand
 const listingContract = {
-  // a page of the items a query names, from `cursor`, the position the last page ended at; with
-  // `words`, only the items a search on the query's side (the library, or Deleted) finds, each with
-  // the passage that matched, ranked under the query's `relevance` sort. `kindCounts` counts the
-  // query's items by kind, its own kinds aside
-  page: signedBase
-    .input(
-      z.strictObject({
-        cursor: count.optional(),
-        limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
-        query: listingQuerySchema,
-        words: z.string().trim().min(1).max(500).optional(),
-      }),
-    )
-    .output(
-      z.object({
-        items: z.array(listedItemSchema),
-        kindCounts: z.record(FIELDS.kind, count),
-        nextCursor: count.nullable(),
-        total: count,
-      }),
-    ),
+  // a page of a scope's items, each a search found with the passage that matched. `kindCounts`
+  // counts the scope's items by kind, the page's own kinds aside
+  page: signedBase.input(listingPageInputSchema).output(
+    z.object({
+      cursor: nextCursor,
+      items: z.array(listedItemSchema),
+      kindCounts: z.record(FIELDS.kind, count),
+      total: count,
+    }),
+  ),
 
   // what the rail counts: the library, Unsorted, untagged and Deleted; every live folder in rail
-  // order (a parent before its children, siblings by their order key) with the items in it and
-  // under it; every tag with the items carrying it, its first spelling, the most held first
+  // order (a parent before its children, siblings by their order key); every tag under its first
+  // spelling, the most held first
   scopes: signedBase.output(
     z.object({
       deleted: count,
-      folders: z.array(
-        z.object({
-          id: idSchema,
-          items: count,
-          name: z.string(),
-          parentId: idSchema.nullable(),
-          sort: z.string(),
-        }),
-      ),
-      tags: z.array(z.object({ items: count, tag: z.string() })),
+      folders: z.array(folderCountSchema),
+      tags: z.array(tagCountSchema),
       total: count,
       unsorted: count,
       untagged: count,
@@ -413,18 +395,11 @@ const listingContract = {
 };
 
 const organizeContract = {
-  // the folder tree and every tag, each with how many live items it holds
+  // the folder tree and every tag as the rail counts them, for an agent
   outline: signedBase.output(
     z.object({
-      folders: z.array(
-        z.object({
-          id: idSchema,
-          items: z.number().int().nonnegative(),
-          name: z.string(),
-          parentId: idSchema.nullable(),
-        }),
-      ),
-      tags: z.array(z.object({ items: z.number().int().nonnegative(), tag: z.string() })),
+      folders: z.array(folderCountSchema.omit({ sort: true })),
+      tags: z.array(tagCountSchema),
     }),
   ),
 };

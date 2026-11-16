@@ -424,9 +424,57 @@ describe("the library's procedures", () => {
         ids: [item.id],
         removeTags: ["Foo"],
       });
-      expect(respelled.items[0]?.tags).toStrictEqual(["foo", "bar"]);
+      expect(respelled.items[0]?.tags).toStrictEqual(["bar", "foo"]);
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        fields: { tags: ["foo", "bar"] },
+      });
       const { tags } = await library.organize.outline();
       expect(tags.map(({ tag }) => tag).toSorted()).toStrictEqual(["bar", "foo"]);
+    });
+  });
+
+  it("answers an agent's outline, list and summaries as the rail's listing counts them", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const library = clientIn(state, clock);
+      const older = await library.items.createNote({
+        folder: { path: "Projects/Garden" },
+        markdown: "Weeding the #beds.",
+        tags: ["Work"],
+      });
+      clock.now += 1000;
+      const newer = await library.items.createNote({ markdown: "Plans.", tags: ["work"] });
+
+      // a tag counts once however it is spelled, and a folder holds what its children hold
+      const outline = await library.organize.outline();
+      const scopes = await library.listing.scopes();
+      expect(outline.tags).toStrictEqual([
+        { items: 2, tag: "work" },
+        { items: 1, tag: "beds" },
+      ]);
+      expect(outline.tags).toStrictEqual(scopes.tags);
+      expect(outline.folders).toStrictEqual(
+        scopes.folders.map(({ id, items, name, parentId }) => ({ id, items, name, parentId })),
+      );
+      expect(outline.folders.map(({ items, name }) => [name, items])).toStrictEqual([
+        ["Projects", 1],
+        ["Garden", 1],
+      ]);
+
+      const tagged = await library.items.list({ tag: "WORK" });
+      expect(tagged.items.map(({ id }) => id)).toStrictEqual([newer.item.id, older.item.id]);
+      // a summary names every tag its item carries, the one written in its note too
+      const inNote = await library.items.list({ tag: "beds" });
+      expect(inNote.items).toMatchObject([{ id: older.item.id, tags: ["Work", "beds"] }]);
+      const pinned = await library.items.organize({ ids: [older.item.id], pinned: true });
+      expect(pinned.items).toStrictEqual([{ ...inNote.items[0], pinned: true }]);
+      const projects = outline.folders.find(({ name }) => name === "Projects")?.id;
+      await expect(
+        library.items.list({ folderId: projects, pinned: true, tag: "work" }),
+      ).resolves.toStrictEqual({ cursor: null, items: pinned.items });
+      await expect(library.items.list({ pinned: false })).resolves.toMatchObject({
+        items: [{ id: newer.item.id }],
+      });
     });
   });
 
