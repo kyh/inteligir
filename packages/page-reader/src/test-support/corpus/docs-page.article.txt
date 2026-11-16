@@ -1,0 +1,27 @@
+The daemon reads its settings from ~/.config/tidepool/sync.toml when it starts. Changes take effect after a restart.
+Settings
+Key	Default	Meaning
+interval	60	Seconds between passes
+paths	[]	Folders to watch
+conflicts	"copy"	What to do when both sides changed
+Example
+interval = 30
+paths = ["~/Notes", "~/Projects"]
+conflicts = "copy"
+Run the daemon in the foreground to check your settings:
+tidepool sync --foreground --verbose
+The status page draws itself from a snippet like this one:
+<b>Synced</b> at noon
+{"type": "bar"}
+Nested settings
+Open the settings file.
+On macOS it lives under your home folder.
+On Linux it follows the XDG rules.
+Add a [remote] table.
+Restart the daemon.
+Note: a path that does not exist is skipped with a warning, never created.
+Troubleshooting
+The daemon exits at once
+Check the file for a syntax error; the log names the line.
+Nothing syncs
+Make sure the paths are absolute.

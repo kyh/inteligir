@@ -1,6 +1,7 @@
 // the reader over a committed corpus of synthetic pages: what a page says about itself, the
-// article rules, the dialect escapes, and the body ladder's promise that every article is
-// already the editor's own fixpoint, over linkedom, the DOM the
+// article rules, the dialect escapes, the body ladder's promise that every article is
+// already the editor's own fixpoint, and the words each page's item reads as (`*.article.txt`,
+// rewritten by `vitest -u`), over linkedom, the DOM the
 // Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in: defuddle picks
 // the whole body).
 
@@ -10,6 +11,8 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalizeImported, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
+import { deriveBody } from "@repo/contract/library/derive-item";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { extractPage, KEPT_MIN } from "./extract-page";
 import type { ExtractedPage } from "./page-facts";
@@ -292,6 +295,12 @@ const counter = (): (() => string) => {
   };
 };
 
+// the text an item's article reads as, a block's lines after the last's
+const wordsOf = (blocks: readonly LibraryBlock[]): string => {
+  const { text } = deriveBody(blocks.map((block) => ({ block, section: "article" })));
+  return text === "" ? "" : `${text}\n`;
+};
+
 describe("the article as blocks", () => {
   const names = readdirSync(CORPUS)
     .filter((file) => file.endsWith(".html"))
@@ -310,6 +319,13 @@ describe("the article as blocks", () => {
       (node.text ?? "").split(/\W+/u).filter((word) => word !== ""),
     );
     expect(words.filter((word) => !stored.includes(word))).toStrictEqual([]);
+  });
+
+  it.each(names)("%s reads as the words its snapshot holds", async (name) => {
+    const read = readHtml({ html: page(name), prefer: "article", url: PAGE_URL }, counter());
+    await expect(wordsOf(read.article.blocks)).toMatchFileSnapshot(
+      path.join(CORPUS, `${name}.article.txt`),
+    );
   });
 
   it("keeps a page's hashtag and highlight spelling as the page's text", () => {

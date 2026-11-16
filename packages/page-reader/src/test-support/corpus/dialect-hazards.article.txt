@@ -1,0 +1,9 @@
+Templates write {{x}} and {{ user.name }} in their source, and this sentence means them literally.
+The meeting moved to @2026-01-02, then to @2026-01-09.
+A comment marker in a wiki is %% hidden %%, and a container line starts with:::tabs in some tools.
+It costs $$5 or $5, maybe $10 with tax; $x$ is not math here.
+The tag <div> and the entity &copy; should appear as written.
+Some writers use ~x~ for emphasis and [[x]] for links, and ==this== for highlights.
+* not a bullet, # not a heading, > not a quote, 1. not a list, | not | a | table |
+Backslashes \ and \\ and back`ticks` in prose stay as they are.
+Annotations look like %%i:abc:start%% this %%i:abc:end%% in the file.
