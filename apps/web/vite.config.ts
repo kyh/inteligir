@@ -22,11 +22,10 @@ const reportSkips: Logger = {
 };
 
 // src/library/CLAUDE.md § The library is one chunk. A route file's own module stays out, since the
-// route tree the site's entry imports holds its options, and so do the router's split halves of
-// it, each a chunk of its own: grouped, rolldown 1.2 hands the router a namespace its facade never
-// defines. What they reach goes in, and so does what the beforeLoad imports lazily, the tab's
-// open. A module the site reaches too is left to rolldown's own chunks, which the library's chunk
-// imports.
+// route tree the site's entry imports holds its options. Every library route's split halves go in,
+// so a loaded tab opens Settings with nothing to fetch, and so do what they reach and what the
+// beforeLoad imports lazily, the tab's open. A module the site reaches too is left to rolldown's
+// own chunks, which the library's chunk imports.
 const LIBRARY_ROUTE_SPLIT = /[\\/]src[\\/]routes[\\/]library(?:\.tsx|[\\/])[^?]*\?tsr-split=/u;
 const LIBRARY_ROUTE_FILE = /[\\/]src[\\/]routes[\\/]library\.tsx$/u;
 
@@ -64,9 +63,6 @@ const reachedOnlyFromLibrary = (
 const answers = new WeakMap<ChunkingContext, Map<string, boolean>>();
 
 const libraryChunk = (id: string, context: ChunkingContext): string | null => {
-  if (LIBRARY_ROUTE_SPLIT.test(id)) {
-    return null;
-  }
   const known = answers.get(context) ?? new Map<string, boolean>();
   answers.set(context, known);
   return reachedOnlyFromLibrary(id, context, known) ? "library" : null;
