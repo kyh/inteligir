@@ -2,9 +2,13 @@
 // again later: offline, a timeout, a resolver that did not answer, or a site saying it is busy
 // (429, 503) leave the link waiting for a retry; anything else is said on the item.
 
-// what a fetch refuses to ask: a saved address whose spelling names private space, a public page's
-// redirect into it, or space no host holds
-type FetchRefusal = "reserved" | "private-from-public" | "private-network";
+// what a fetch refuses to ask: an address off the web or off its ports, one written as numbers, a
+// saved name for private space, or a public page's redirect to one
+export type FetchRefusal =
+  | "off-web"
+  | "address-literal"
+  | "private-from-public"
+  | "private-network";
 
 export type FetchFailure =
   | { kind: "refused"; refusal: FetchRefusal }
@@ -114,7 +118,13 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
             transient: false,
           };
         }
-        case "reserved": {
+        case "address-literal": {
+          return {
+            sentence: "The cloud opens pages by name, so an address written as numbers isn't read.",
+            transient: false,
+          };
+        }
+        case "off-web": {
           return { sentence: "This address isn't one a page can be read from.", transient: false };
         }
         default: {

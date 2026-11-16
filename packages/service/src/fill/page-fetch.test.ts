@@ -37,7 +37,7 @@ describe("what the cloud never asks", () => {
   ])("refuses %s, off the web or off its ports", async (url) => {
     const web = serveWeb({});
     await expect(fetchPage(asking(url))).resolves.toStrictEqual({
-      failure: { kind: "refused", refusal: "reserved" },
+      failure: { kind: "refused", refusal: "off-web" },
       ok: false,
     });
     expect(web.asked).toStrictEqual([]);
@@ -45,22 +45,10 @@ describe("what the cloud never asks", () => {
 
   it.each([
     ["http://localhost/"],
-    ["http://127.0.0.1/"],
-    ["http://10.1.2.3/"],
-    ["http://172.16.0.9/"],
-    ["http://192.168.1.1/"],
-    ["http://169.254.169.254/latest/meta-data/"],
-    ["http://[::1]/"],
-    ["http://[fd00::1]/"],
+    ["http://app.localhost/"],
+    ["http://nas/"],
     ["http://printer.local/"],
     ["http://metadata.google.internal/"],
-    ["http://0.0.0.0/"],
-    // the spellings a parser folds into a private address
-    ["http://2130706433/"],
-    ["http://0177.0.0.1/"],
-    ["http://0x7f.0.0.1/"],
-    ["http://0xa000001/"],
-    ["http://[::ffff:192.168.0.1]/"],
   ])("refuses %s, a name for private space, as the saved address's own place", async (url) => {
     const web = serveWeb({});
     await expect(fetchPage(asking(url))).resolves.toStrictEqual({
@@ -70,33 +58,36 @@ describe("what the cloud never asks", () => {
     expect(web.asked).toStrictEqual([]);
   });
 
-  it.each([["http://192.0.2.10/post"], ["http://203.0.113.1/"], ["http://[2001:db8::1]/"]])(
-    "refuses %s, an address no host holds, as no address a page is read from",
-    async (url) => {
-      const web = serveWeb({});
-      await expect(fetchPage(asking(url))).resolves.toStrictEqual({
-        failure: { kind: "refused", refusal: "reserved" },
-        ok: false,
-      });
-      expect(web.asked).toStrictEqual([]);
-    },
-  );
+  it.each([
+    ["http://93.184.216.34/post"],
+    ["http://[2606:4700:4700::1111]/"],
+    ["http://127.0.0.1/"],
+    ["http://192.168.1.1/"],
+    ["http://169.254.169.254/latest/meta-data/"],
+    ["http://192.0.2.10/post"],
+    ["http://[::1]/"],
+    ["http://[fd00::1]/"],
+    // the spellings a parser folds into a dotted quad or a bracketed address
+    ["http://2130706433/"],
+    ["http://0177.0.0.1/"],
+    ["http://0x7f.0.0.1/"],
+    ["http://0xa000001/"],
+    ["http://127.1/"],
+    ["http://127.0.0.1./"],
+    ["http://[::ffff:192.168.0.1]/"],
+  ])("refuses %s, an address written as numbers, wherever it points", async (url) => {
+    const web = serveWeb({});
+    await expect(fetchPage(asking(url))).resolves.toStrictEqual({
+      failure: { kind: "refused", refusal: "address-literal" },
+      ok: false,
+    });
+    expect(web.asked).toStrictEqual([]);
+  });
 
-  it("asks a public address written out as it would ask its name", async () => {
-    const web = serveWeb({
-      "http://93.184.216.34/post": htmlPage("<p>an address</p>"),
-      "http://[2606:4700:4700::1111]/": htmlPage("<p>a v6 address</p>"),
-    });
-    await expect(fetchPage(asking("http://93.184.216.34/post"))).resolves.toMatchObject({
-      ok: true,
-    });
-    await expect(fetchPage(asking("http://[2606:4700:4700::1111]/"))).resolves.toMatchObject({
-      ok: true,
-    });
-    expect(web.asked.map((hop) => hop.url)).toStrictEqual([
-      "http://93.184.216.34/post",
-      "http://[2606:4700:4700::1111]/",
-    ]);
+  it("asks a name that only holds numbers as any other name", async () => {
+    const web = serveWeb({ "https://172.16.example/": htmlPage("<p>a name</p>") });
+    await expect(fetchPage(asking("https://172.16.example/"))).resolves.toMatchObject({ ok: true });
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://172.16.example/"]);
   });
 
   it("drops a credential the address carries, and sends no cookie of its own", async () => {
@@ -127,28 +118,28 @@ describe("a redirect", () => {
     ]);
   });
 
-  it("to private space is refused as the public page's pointing there, and not asked", async () => {
-    for (const location of [
-      "http://127.0.0.1/",
-      "http://10.0.0.5/",
-      "http://router.lan/",
-      "http://0x7f.1/",
-      "http://[::ffff:a00:5]/",
-    ]) {
-      const web = serveWeb({ "https://a.example/start": redirect(location) });
-      await expect(fetchPage(asking("https://a.example/start"))).resolves.toStrictEqual({
-        failure: { kind: "refused", refusal: "private-from-public" },
-        ok: false,
-      });
-      expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://a.example/start"]);
-      vi.restoreAllMocks();
-    }
+  it.each([
+    ["http://localhost/", "private-from-public"],
+    ["http://router.lan/", "private-from-public"],
+    ["http://nas/", "private-from-public"],
+    ["http://127.0.0.1/", "address-literal"],
+    ["http://10.0.0.5/", "address-literal"],
+    ["http://0x7f.1/", "address-literal"],
+    ["http://[::ffff:a00:5]/", "address-literal"],
+    ["http://93.184.216.34/", "address-literal"],
+  ])("to %s is refused as %s, and not asked", async (location, refusal) => {
+    const web = serveWeb({ "https://a.example/start": redirect(location) });
+    await expect(fetchPage(asking("https://a.example/start"))).resolves.toStrictEqual({
+      failure: { kind: "refused", refusal },
+      ok: false,
+    });
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://a.example/start"]);
   });
 
   it("off the web is refused too", async () => {
     serveWeb({ "https://a.example/start": redirect("ftp://a.example/file") });
     await expect(fetchPage(asking("https://a.example/start"))).resolves.toStrictEqual({
-      failure: { kind: "refused", refusal: "reserved" },
+      failure: { kind: "refused", refusal: "off-web" },
       ok: false,
     });
   });

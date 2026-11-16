@@ -1,7 +1,7 @@
 // what a host's spelling alone says about where it is, read with no lookup: a name every resolver
 // that honours RFC 6761 answers with this very device, a name no public resolver answers, and an
-// address written out. The cloud's fill refuses the first two before it asks for anything, and
-// the extension, whose fetches have no lookup to vet, judges a page's claims by all three.
+// address written out. The cloud's fill refuses all three before it asks for anything, and the
+// extension, whose fetches have no lookup to vet, judges a page's claims by them.
 
 import { urlHost } from "./item-url";
 
@@ -36,7 +36,7 @@ export const isPrivateUseName = (host: string): boolean => {
 // quad, and an IPv6 one in its brackets
 const IPV4 = /^\d+\.\d+\.\d+\.\d+$/u;
 
-const isAddressLiteral = (host: string): boolean => IPV4.test(host) || host.startsWith("[");
+export const isAddressLiteral = (host: string): boolean => IPV4.test(host) || host.startsWith("[");
 
 // whether a web address names a place off the public internet by its spelling alone: this device, a
 // name no public resolver answers, or an address written out, which a public page has no cause to
