@@ -89,8 +89,7 @@ describe("a page's reading, landed", () => {
       expect(sectionOf(state, id, "article")).toHaveLength(1);
       expect(stateOf(state, id)?.fields).toMatchObject({
         author: "A. Writer",
-        fetchError: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         site: "Pages",
         tags: ["reading"],
         title: "The page's own title",
@@ -175,7 +174,7 @@ describe("a page's reading, landed", () => {
       expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
       expect(stateOf(state, stub.item.id)?.fields).toMatchObject({
         deletedAt: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         tags: ["later"],
         title: "The page's own title",
         url: short,
@@ -330,8 +329,7 @@ describe("a page's reading, landed", () => {
         null,
       );
       expect(stateOf(state, saved.item.id)?.fields).toMatchObject({
-        fetchError: "The page took too long to answer.",
-        fetchState: "failed",
+        reading: { error: "The page took too long to answer.", state: "failed" },
         title: saved.item.fields.title,
       });
     });
@@ -356,7 +354,7 @@ describe("a page's reading, landed", () => {
       cellOf(accountId),
       (state) => stateOf(state, saved.item.id)?.fields,
     );
-    expect(fields?.fetchState).toBe("pending");
+    expect(fields?.reading.state).toBe("pending");
   });
 
   it("lands the article by the item's note while that note is still opening", async () => {
@@ -376,7 +374,7 @@ describe("a page's reading, landed", () => {
       cell,
       async (state) => await cellIn(state).client.items.read({ id: saved.item.id }),
     );
-    expect(item.fields.fetchState).toBe("filled");
+    expect(item.fields.reading.state).toBe("read");
     expect(item.view.markdown).toContain("For Tuesday.");
     expect(item.view.markdown).toContain("The article.");
   });

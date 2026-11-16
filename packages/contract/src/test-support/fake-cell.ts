@@ -435,7 +435,7 @@ export const createFakeCell = (): FakeCell => {
             if (fields.url === null) {
               throw new NotFoundError();
             }
-            return write({ itemId: input.id, ops: readingOps(fields, { kind: "asked" }) });
+            return write({ itemId: input.id, ops: readingOps(fields.reading, { kind: "asked" }) });
           }),
         ),
         restore: os.library.items.restore.handler(({ input }) =>

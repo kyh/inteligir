@@ -81,10 +81,10 @@ const fieldOps = (
     const was = before[field];
     const made = after[field];
     const is = now[field];
-    if (was === made || is === was) {
+    if (sameJson(was, made) || sameJson(is, was)) {
       continue;
     }
-    if (is !== made) {
+    if (!sameJson(is, made)) {
       return null;
     }
     ops.push(setOp(field, is, was));
@@ -122,12 +122,14 @@ const personTouched = (
   const { fields } = now;
   const fillWrote = (field: ScalarField): boolean =>
     fills.some(
-      (fill) => fill.after[field] === fields[field] && fill.before[field] !== fill.after[field],
+      (fill) =>
+        sameJson(fill.after[field], fields[field]) &&
+        !sameJson(fill.before[field], fill.after[field]),
     );
   return (
     now.bodyEdited ||
     !(
-      SCALAR_FIELDS.every((field) => fields[field] === left[field] || fillWrote(field)) &&
+      SCALAR_FIELDS.every((field) => sameJson(fields[field], left[field]) || fillWrote(field)) &&
       fields.folderId === left.folderId &&
       sameList(fields.tags, left.tags) &&
       sameList(fields.aliases, left.aliases) &&

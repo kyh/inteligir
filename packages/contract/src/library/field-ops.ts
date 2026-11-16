@@ -1,7 +1,7 @@
 // What a write does to an item's fields, apart from its body: each op names the base it was computed
-// from and lands only where that base holds, a scalar set whole, a list merged as a set and a
-// property by its key. A batch lands whole or not at all, an op already true is satisfied, and a
-// batch whose fields break a cap lands none.
+// from and lands only where that base holds, a scalar or the reading set whole and met by its
+// value, a list merged as a set and a property by its key. A batch lands whole or not at all, an
+// op already true is satisfied, and a batch whose fields break a cap lands none.
 
 import { z } from "zod";
 
@@ -74,9 +74,6 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("coverSha"),
   setOf("deletedAt"),
   setOf("description"),
-  setOf("fetchError"),
-  setOf("fetchState"),
-  setOf("fetchedAt"),
   setOf("folderId"),
   setOf("kind"),
   setOf("lang"),
@@ -84,6 +81,7 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("originalSha"),
   setOf("pinnedAt"),
   setOf("published"),
+  setOf("reading"),
   setOf("savedAt"),
   setOf("site"),
   setOf("title"),
@@ -133,10 +131,10 @@ const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
   switch (op.op) {
     case "set": {
       const current = fields[op.field];
-      if (current === op.base) {
+      if (sameJson(current, op.base)) {
         return "apply";
       }
-      return current === op.value ? "satisfied" : "conflict";
+      return sameJson(current, op.value) ? "satisfied" : "conflict";
     }
     case "tags":
     case "aliases": {

@@ -5,7 +5,6 @@
 // a connection.
 
 import { KIND_LABELS } from "@repo/client/library-labels";
-import { readingOf } from "@repo/contract/library/item-reading";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
@@ -142,7 +141,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
           />
           {isUrlItem(fields) ? (
             <div className="flex flex-col gap-1.5">
-              <ReadFailure reading={readingOf(fields)} />
+              <ReadFailure reading={fields.reading} />
               <Button
                 variant="secondary"
                 size="compact"

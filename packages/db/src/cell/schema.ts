@@ -20,7 +20,7 @@ import { z } from "zod";
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyDigest, ItemCard } from "@repo/contract/library/derive-item";
-import { FETCH_STATES, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS, libraryBlockSchema } from "@repo/contract/library/library-nodes";
 import {
   agentViewContextSchema,
@@ -88,9 +88,7 @@ export const items = sqliteTable(
     coverSha: text("cover_sha"),
     originalSha: text("original_sha"),
     originalName: text("original_name"),
-    fetchState: text("fetch_state", { enum: FETCH_STATES }).notNull(),
-    fetchedAt: integer("fetched_at"),
-    fetchError: text("fetch_error"),
+    reading: json(FIELDS.reading)().notNull(),
     savedAt: integer("saved_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     pinnedAt: integer("pinned_at"),
@@ -110,7 +108,6 @@ export const items = sqliteTable(
       .where(sql`${t.deletedAt} IS NULL AND ${t.urlKey} IS NOT NULL`),
     index("items_seq").on(t.seq),
     check("items_kind", sql`${t.kind} IN (${oneOf(ITEM_KINDS)})`),
-    check("items_fetch_state", sql`${t.fetchState} IN (${oneOf(FETCH_STATES)})`),
     check("items_body_home", sql`${t.bodyHome} IN (${oneOf(BODY_HOMES)})`),
   ],
 );

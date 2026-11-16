@@ -215,11 +215,9 @@ describe(bookmarkFields, () => {
     expect(importedFieldsSchema.safeParse(fields).error?.issues).toBeUndefined();
     expect(fields).toMatchObject({
       description: "An excerpt.",
-      fetchError: null,
-      fetchState: "pending",
-      fetchedAt: null,
       kind: "link",
       pinnedAt: Date.UTC(2023, 6, 1, 9, 12, 30),
+      reading: { at: null, state: "pending" },
       savedAt: Date.UTC(2023, 6, 1, 9, 12, 30),
       tags: ["ideas"],
       title: "A post",

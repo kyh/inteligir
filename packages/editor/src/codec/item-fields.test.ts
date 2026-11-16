@@ -265,7 +265,7 @@ describe("where a file's page stands", () => {
       properties: { "fetch-error": "Gone", fetched: "2026-05-01" },
       reading: { state: "none" },
     });
-    expect(fieldsOf(yaml)).toMatchObject({ fetchError: null, fetchState: "none", fetchedAt: null });
+    expect(fieldsOf(yaml).reading).toStrictEqual({ state: "none" });
   });
 
   it("keeps a `fetched:` that is no instant a property", () => {

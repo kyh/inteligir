@@ -190,7 +190,7 @@ describe("what a screen writes of the fake cell beyond its ops", () => {
     const id = await note(["Mine."]);
 
     await expect(library.items.refresh({ id: item.id })).resolves.toMatchObject({
-      item: { fields: { fetchError: null, fetchState: "pending" }, id: item.id },
+      item: { fields: { reading: { at: null, state: "pending" } }, id: item.id },
     });
     await expect(codeOf(library.items.refresh({ id }))).resolves.toBe("NOT_FOUND");
   });

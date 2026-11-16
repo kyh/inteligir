@@ -147,9 +147,7 @@ CREATE TABLE `items` (
 	`cover_sha` text,
 	`original_sha` text,
 	`original_name` text,
-	`fetch_state` text NOT NULL,
-	`fetched_at` integer,
-	`fetch_error` text,
+	`reading` text NOT NULL,
 	`saved_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`pinned_at` integer,
@@ -161,7 +159,6 @@ CREATE TABLE `items` (
 	`body_bytes` integer NOT NULL,
 	`seq` integer NOT NULL,
 	CONSTRAINT "items_kind" CHECK("kind" IN ('note', 'link', 'video', 'audio', 'image', 'pdf', 'file')),
-	CONSTRAINT "items_fetch_state" CHECK("fetch_state" IN ('none', 'pending', 'filled', 'failed')),
 	CONSTRAINT "items_body_home" CHECK("body_home" IN ('seed', 'opening', 'note'))
 );
 

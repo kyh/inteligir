@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyFieldOps } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
+import { readingOps } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { revertChangeSets, revertItemChange } from "./revert-change";
@@ -85,7 +86,7 @@ describe(revertItemChange, () => {
   });
 
   it("moves an item it made to Deleted unless a person touched it since, in its fields or its note", () => {
-    const made = noteFixture({ fetchState: "pending", kind: "link" });
+    const made = noteFixture({ kind: "link", reading: { at: null, state: "pending" } });
     const change = changeOf(null, made);
     expect(fieldsOf(revert(change, nowOf(made))).deletedAt).toBe(AT);
     const retitled = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
@@ -95,9 +96,9 @@ describe(revertItemChange, () => {
   });
 
   describe("an item it made that a fill read since", () => {
-    const made = noteFixture({ fetchState: "pending", kind: "link" });
+    const made = noteFixture({ kind: "link", reading: { at: null, state: "pending" } });
     const read: readonly FieldOp[] = [
-      { base: "pending", field: "fetchState", op: "set", value: "filled" },
+      ...readingOps(made.reading, { at: AT, kind: "read" }),
       { base: null, field: "originalName", op: "set", value: "page.pdf" },
     ];
     const named: readonly FieldOp[] = [

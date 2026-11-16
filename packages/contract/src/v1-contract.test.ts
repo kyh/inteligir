@@ -293,9 +293,6 @@ describe("the library's wire", () => {
         coverSha: null,
         deletedAt: null,
         description: null,
-        fetchError: null,
-        fetchState: "none",
-        fetchedAt: null,
         folderId: null,
         kind: "note",
         lang: null,
@@ -304,6 +301,7 @@ describe("the library's wire", () => {
         pinnedAt: null,
         properties: {},
         published: null,
+        reading: { state: "none" },
         savedAt: 1,
         site: null,
         tags: [],
@@ -316,7 +314,7 @@ describe("the library's wire", () => {
     };
     const parsed = liveItemRowSchema.parse({
       ...row,
-      fields: { ...row.fields, rating: 5 },
+      fields: { ...row.fields, rating: 5, reading: { state: "none", tries: 2 } },
       later: true,
     });
     expect(parsed).toStrictEqual(row);
@@ -335,7 +333,14 @@ describe("the library's wire", () => {
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
     const taken = (op: FieldOp) => write?.validate({ itemId: UUID_V7, ops: [op] });
     expect(taken({ key: "status", op: "property", value: "draft" })).toBe(true);
-    expect(taken({ base: "none", field: "fetchState", op: "set", value: "pending" })).toBe(false);
+    expect(
+      taken({
+        base: { state: "none" },
+        field: "reading",
+        op: "set",
+        value: { at: null, state: "pending" },
+      }),
+    ).toBe(false);
     expect(taken({ base: 1, field: "deletedAt", op: "set", value: null })).toBe(false);
     expect(taken({ base: [], op: "tags", value: ["later"] })).toBe(false);
   });

@@ -250,8 +250,14 @@ describe("a write to the library cell", () => {
       landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
       landing([{ base: null, field: "pinnedAt", op: "set", value: 5 }]);
       landing([{ base: null, field: "folderId", op: "set", value: "folder" }]);
-      landing([{ base: "none", field: "fetchState", op: "set", value: "failed" }]);
-      landing([{ base: null, field: "fetchError", op: "set", value: "The page would not load." }]);
+      landing([
+        {
+          base: { state: "none" },
+          field: "reading",
+          op: "set",
+          value: { at: 6, error: "The page would not load.", state: "failed" },
+        },
+      ]);
       landing([{ base: null, field: "deletedAt", op: "set", value: 7 }]);
       expect(
         state.storage.sql.exec("SELECT deleted_at FROM items WHERE id = ?", itemId).one(),

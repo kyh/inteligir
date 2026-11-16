@@ -33,12 +33,13 @@ clock, random bytes and fresh ids are injected.
 - **One fake cell answers every client's suites, over the cell's own folder and
   organize rules.** A fake per client, or rules spelled twice, drift from what
   the cell refuses. `packages/contract/src/library/cell-rules.ts`.
-- **An item's reading is one value, which every writer moves and every surface
-  reads alike.** Three fields set by hand can badge a failure over a read.
-  `packages/contract/src/library/item-reading.ts`.
+- **An item's reading is one field, a union the row and the wire hold as it
+  is, and every writer moves it by one function.** Three fields paired by hand
+  can badge a failure over a read. `packages/contract/src/library/item-reading.ts`.
 - **A make's fields are spelled once, and an import's item is a make less its
-  place.** A landing that spells an item by hand pairs the reading's three
-  fields its own way. `packages/contract/src/library/item-makes.ts`.
+  place.** An item spelled by hand at each landing reads one way on the device
+  that drew it and another once the cell answers.
+  `packages/contract/src/library/item-makes.ts`.
 - **A library tool has one name, in a plain table the connector's rows, the
   agent's policies and each device's words are typed against.** A name spelled
   in each package lets a rename compile and draw as "Used the library".

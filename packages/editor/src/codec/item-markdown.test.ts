@@ -650,10 +650,10 @@ describe("one file as its item", () => {
       ].join("\n"),
     );
     expect(item.fields).toMatchObject({
-      fetchState: "pending",
       kind: "link",
       pinnedAt: Date.parse("2026-05-01T10:00:00Z"),
       properties: { done: false, people: ["Ada", "Lin"], rating: 4 },
+      reading: { at: null, state: "pending" },
       savedAt: Date.parse("2026-05-01T10:00:00Z"),
       site: "Example",
       tags: ["reading", "work/q3"],
@@ -684,7 +684,6 @@ describe("one file as its item", () => {
     );
     expect(item.fields).toMatchObject({
       aliases: [],
-      fetchedAt: null,
       pinnedAt: null,
       properties: {
         aliases: 3,
@@ -693,6 +692,7 @@ describe("one file as its item", () => {
         pinned: "yes",
         tags: ["reading list", 2026],
       },
+      reading: { state: "none" },
       tags: ["work"],
     });
   });

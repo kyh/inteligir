@@ -7,13 +7,14 @@
 // body takes a page's article there (`./article-landing`), so the write lands only the fields.
 
 import type { FolderTarget } from "@repo/contract/library/cell-rules";
+import { sameJson } from "@repo/contract/library/canonical-json";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { applyFieldOps } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
-import { readingOf, readingOps } from "@repo/contract/library/item-reading";
+import { readingOps } from "@repo/contract/library/item-reading";
 import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
@@ -63,7 +64,7 @@ const noteOf = (codec: CellCodec, words: string | undefined): readonly BodyBlock
   words === undefined || words.trim() === "" ? [] : noteBlocksOf(codec, words);
 
 // a field op that changes something; one whose value is its base is left out
-export const changes = (op: FieldOp): boolean => op.op !== "set" || op.base !== op.value;
+export const changes = (op: FieldOp): boolean => op.op !== "set" || !sameJson(op.base, op.value);
 
 const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
 
@@ -86,7 +87,7 @@ export const pageFieldOps = (
   if (page.coverSha !== null) {
     ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
   }
-  ops.push(...readingOps(fields, { at: now, kind: "read" }));
+  ops.push(...readingOps(fields.reading, { at: now, kind: "read" }));
   if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
     ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
   }
@@ -130,7 +131,7 @@ export const landRead = (
 
 // whether an item still has its page to be read: no article yet, its reading waiting or failed
 const awaitsRead = (item: StoredItem): boolean => {
-  const { state } = readingOf(item.fields);
+  const { state } = item.fields.reading;
   return (state === "pending" || state === "failed") && !item.body.digest.article;
 };
 

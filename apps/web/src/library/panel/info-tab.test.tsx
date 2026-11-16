@@ -11,9 +11,9 @@ const cellWithALink = () => {
   const cell = createFakeCell();
   const folderId = cell.seed.folder("Reading");
   const id = cell.seed.item({
-    fetchState: "filled",
     folderId,
     kind: "link",
+    reading: { at: 1_700_000_000_000, state: "read" },
     tags: ["reading"],
     title: "An article",
     url: "https://example.com/article",
@@ -49,7 +49,7 @@ describe("Info over an item", () => {
       ]);
     });
     await waitFor(() => {
-      expect(cell.item(id)?.fields.fetchState).toBe("pending");
+      expect(cell.item(id)?.fields.reading.state).toBe("pending");
     });
   });
 

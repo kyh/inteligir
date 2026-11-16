@@ -145,7 +145,7 @@ describe("the library's procedures", () => {
       const read = await library.items.read({ id: stub.item.id });
       expect(read.fields).toMatchObject({
         author: "A. Writer",
-        fetchState: "filled",
+        reading: { state: "read" },
         tags: [],
         title: "My name for it",
       });
@@ -173,7 +173,7 @@ describe("the library's procedures", () => {
       const landed = await library.items.save(pageSave(url));
       expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
       const read = await library.items.read({ id: stub.item.id });
-      expect(read.fields.fetchState).toBe("filled");
+      expect(read.fields.reading.state).toBe("read");
       expect(read.view.markdown).toContain("For Tuesday.");
       expect(read.view.markdown).toContain("The quick brown fox jumps");
     });
@@ -187,8 +187,7 @@ describe("the library's procedures", () => {
         createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
-            fetchError: "The site refused the read.",
-            fetchState: "failed",
+            reading: { at: null, error: "The site refused the read.", state: "failed" },
             kind: "link",
             title: "A refusing site",
             url,
@@ -199,13 +198,13 @@ describe("the library's procedures", () => {
       const landed = await library.items.save(pageSave(url));
       expect(landed).toMatchObject({ created: false, item: { id: failed.id } });
       const read = await library.items.read({ id: failed.id });
-      expect(read.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
+      expect(read.fields).toMatchObject({ reading: { state: "read" } });
       expect(read.view.markdown).toContain("quick brown fox");
 
       const waiting = await library.items.saveLink({ url: "https://example.com/waits" });
       await library.items.save({ ...pageSave("https://example.com/waits"), article: [] });
       const still = await library.items.read({ id: waiting.item.id });
-      expect(still.fields.fetchState).toBe("pending");
+      expect(still.fields.reading.state).toBe("pending");
     });
   });
 
@@ -215,7 +214,7 @@ describe("the library's procedures", () => {
       const saved = await library.items.saveLink({ url: "https://example.com/later/a-long-read" });
       expect(saved.created).toBe(true);
       const read = await library.items.read({ id: saved.item.id });
-      expect(read.fields).toMatchObject({ fetchState: "pending", kind: "link" });
+      expect(read.fields).toMatchObject({ reading: { state: "pending" }, kind: "link" });
       expect(read.fields.title).not.toBe("");
 
       const held = await library.items.saveLink({
@@ -234,8 +233,7 @@ describe("the library's procedures", () => {
         createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
-            fetchError: "The site refused the read.",
-            fetchState: "failed",
+            reading: { at: null, error: "The site refused the read.", state: "failed" },
             kind: "link",
             title: "A refusing site",
             url: "https://example.com/refuses",
@@ -244,11 +242,11 @@ describe("the library's procedures", () => {
         }),
       );
       const retried = await library.items.refresh({ id: failed.id });
-      expect(retried.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
+      expect(retried.item.fields.reading).toStrictEqual({ at: null, state: "pending" });
       const page = await library.items.save(pageSave("https://example.com/read-again"));
-      expect(page.item.fields.fetchState).toBe("filled");
+      expect(page.item.fields.reading.state).toBe("read");
       const reread = await library.items.refresh({ id: page.item.id });
-      expect(reread.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
+      expect(reread.item.fields).toMatchObject({ reading: { state: "pending" } });
       const note = await library.items.createNote({ markdown: "No page here." });
       await expect(refusalOf(library.items.refresh({ id: note.item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",

@@ -235,10 +235,10 @@ never filled (`@repo/contract/items/link-fill`).
 replaces only its `article` **section**.
 
 **reading** — whether a saved page has been read into its item: none (a note,
-a file), pending, read, or failed with why, one value every writer moves and
-every surface reads alike (`@repo/contract/library/item-reading`). Not the
-**fill**: the fill is one reader that moves it, the extension's read and an
-import others.
+a file), pending, read, or failed with why, the item's one `reading` field,
+which every writer moves by one function
+(`@repo/contract/library/item-reading`). Not the **fill**: the fill is one
+reader that moves it, the extension's read and an import others.
 
 **cover** — an item's picture: the hash of a file the library keeps in R2,
 which a fill sets from the page it read and an import reads from

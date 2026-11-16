@@ -15,7 +15,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
-import { readingOf, readingOps } from "@repo/contract/library/item-reading";
+import { readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
@@ -75,7 +75,7 @@ const waitsForFill = (
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
 } =>
-  readingOf(item.fields).state === "pending" &&
+  item.fields.reading.state === "pending" &&
   item.fields.url !== null &&
   item.fields.deletedAt === null;
 
@@ -181,7 +181,7 @@ const waiting = (item: StoredItem | null, url: string): item is StoredItem => {
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
-    readingOf(item.fields).state === "pending" &&
+    item.fields.reading.state === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)
   );
@@ -217,7 +217,11 @@ const landFill = (scope: ItemScope, landing: FillLanding, articleInNote: boolean
   const { fields } = item;
   switch (landing.kind) {
     case "failed": {
-      const ops = readingOps(fields, { at: scope.now, error: landing.sentence, kind: "failed" });
+      const ops = readingOps(fields.reading, {
+        at: scope.now,
+        error: landing.sentence,
+        kind: "failed",
+      });
       landWrite(scope, { itemId: item.id, ops });
       return { kind: "failed" };
     }
@@ -237,7 +241,7 @@ const landFill = (scope: ItemScope, landing: FillLanding, articleInNote: boolean
           op: "set",
           value: landing.originalName,
         },
-        ...readingOps(fields, { at: scope.now, kind: "read" }),
+        ...readingOps(fields.reading, { at: scope.now, kind: "read" }),
       ];
       landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };

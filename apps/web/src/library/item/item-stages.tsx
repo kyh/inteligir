@@ -2,7 +2,6 @@
 // download the file, from the library's files (the cloud's own route under the page's cookie); and
 // what a saved page shows before its text arrives.
 
-import { readingOf } from "@repo/contract/library/item-reading";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
@@ -149,10 +148,10 @@ export const readingNotice = (reading: Reading): string | null => {
 };
 
 export const ReadingNotice = ({ fields }: { fields: LibraryItemFields }) => {
-  const reading = readingOf(fields);
+  const { reading } = fields;
   const notice = readingNotice(reading);
   return notice === null ? null : (
-    <p className="m-0 px-8 pt-3 text-body text-muted-foreground" data-fetch-state={reading.state}>
+    <p className="m-0 px-8 pt-3 text-body text-muted-foreground" data-reading={reading.state}>
       {notice}
     </p>
   );

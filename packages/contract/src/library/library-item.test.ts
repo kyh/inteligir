@@ -8,7 +8,11 @@ describe("an item's fields", () => {
     expect(libraryItemFieldsSchema.validate(noteFixture())).toBe(true);
     expect(
       libraryItemFieldsSchema.validate(
-        noteFixture({ fetchState: "pending", kind: "link", url: "https://example.com/a" }),
+        noteFixture({
+          kind: "link",
+          reading: { at: null, state: "pending" },
+          url: "https://example.com/a",
+        }),
       ),
     ).toBe(true);
     expect(

@@ -5,7 +5,6 @@
 import { fileKindOf, fileKindOfMime } from "../items/item-kind";
 import { itemNameFromUrl } from "../items/item-name";
 import { cleanUrl, kindForUrl } from "../items/item-url";
-import { readingFields } from "./item-reading";
 import type { ImportedFields, LibraryItemFields } from "./library-item";
 
 // where a make files what it makes
@@ -22,7 +21,6 @@ export const blankItemFields = (savedAt: number): LibraryItemFields => ({
   coverSha: null,
   deletedAt: null,
   description: null,
-  ...readingFields({ state: "none" }),
   folderId: null,
   kind: "note",
   lang: null,
@@ -31,6 +29,7 @@ export const blankItemFields = (savedAt: number): LibraryItemFields => ({
   pinnedAt: null,
   properties: {},
   published: null,
+  reading: { state: "none" },
   savedAt,
   site: null,
   tags: [],
@@ -54,15 +53,15 @@ export const stubFields = (
   input: Filing & { readonly url: string; readonly title?: string | undefined },
 ): LibraryItemFields => ({
   ...filedFields(input),
-  ...readingFields({ at: null, state: "pending" }),
   kind: kindForUrl(input.url),
+  reading: { at: null, state: "pending" },
   title: input.title ?? itemNameFromUrl(input.url),
   url: cleanUrl(input.url),
 });
 
 type PageFacts = Pick<LibraryItemFields, "author" | "description" | "lang" | "published" | "site">;
 
-// a page a device read itself, read as of `fetchedAt`
+// a page a device read itself, read as of `readAt`
 export const pageFields = (
   input: Filing & {
     readonly url: string;
@@ -70,13 +69,13 @@ export const pageFields = (
     readonly coverSha: string | null;
     readonly facts: PageFacts;
   },
-  fetchedAt: number,
+  readAt: number,
 ): LibraryItemFields => ({
   ...filedFields(input),
   ...input.facts,
   coverSha: input.coverSha,
-  ...readingFields({ at: fetchedAt, state: "read" }),
   kind: kindForUrl(input.url),
+  reading: { at: readAt, state: "read" },
   title: input.title === "" ? itemNameFromUrl(input.url) : input.title,
   url: cleanUrl(input.url),
 });

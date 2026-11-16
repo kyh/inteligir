@@ -206,5 +206,5 @@ export const refreshItem = (scope: ItemScope, itemId: string): LiveItemRow => {
   if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }
-  return landWrite(scope, { itemId, ops: readingOps(item.fields, { kind: "asked" }) });
+  return landWrite(scope, { itemId, ops: readingOps(item.fields.reading, { kind: "asked" }) });
 };
