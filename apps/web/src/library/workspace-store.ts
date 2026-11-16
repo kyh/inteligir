@@ -3,12 +3,13 @@
 // once a tab (`./library-tab.ts`) and carried on the page's library, so a command, the editor's
 // host and the screen that draws each move one holder, in React or out of it.
 
+import type { SidebarActions } from "@repo/ui/components/sidebar-core";
+import type { RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
 import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import type { ComposerEvent, ComposerState } from "./agent/agent-composer";
-import { windowLayout } from "./prefs";
 
 export const PANEL_TABS = ["info", "agent"] as const;
 type PanelTab = (typeof PANEL_TABS)[number];
@@ -21,6 +22,9 @@ interface WorkspaceState {
 
 export interface WorkspaceStore {
   readonly store: StoreApi<WorkspaceState>;
+  // the panel's own open and toggle, which the layout's sidebar answers: open is the window's pref
+  // above the breakpoint and a sheet's own below it, and only the sidebar tells them apart
+  readonly panel: RefObject<SidebarActions | null>;
   readonly compose: (event: ComposerEvent) => void;
   readonly showPanelTab: (tab: PanelTab) => void;
   // the panel open, on this tab
@@ -35,6 +39,7 @@ export const createWorkspaceStore = (): WorkspaceStore => {
     paletteOpen: false,
     panelTab: "info",
   }));
+  const panel: WorkspaceStore["panel"] = { current: null };
   const showPanelTab = (panelTab: PanelTab): void => {
     store.setState({ panelTab });
   };
@@ -42,9 +47,10 @@ export const createWorkspaceStore = (): WorkspaceStore => {
     compose: (event) => {
       store.setState(({ composer }) => ({ composer: composerAfter(composer, event) }));
     },
+    panel,
     revealPanel: (tab) => {
       showPanelTab(tab);
-      windowLayout.setState({ panelOpen: true });
+      panel.current?.open();
     },
     setPaletteOpen: (paletteOpen) => {
       store.setState({ paletteOpen });
@@ -52,7 +58,7 @@ export const createWorkspaceStore = (): WorkspaceStore => {
     showPanelTab,
     store,
     togglePanel: () => {
-      windowLayout.setState(({ panelOpen }) => ({ panelOpen: !panelOpen }));
+      panel.current?.toggle();
     },
   };
 };

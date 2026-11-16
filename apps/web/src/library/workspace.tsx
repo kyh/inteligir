@@ -154,6 +154,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
               className="h-full min-h-0 flex-1"
               open={panelOpen}
               onOpenChange={setPanelOpen}
+              actionsRef={workspace.panel}
               shortcut={bindingFor("toggle-panel", modifier)}
               defaultWidth={`${String(panelWidth)}px`}
               onWidthCommitted={setPanelWidth}

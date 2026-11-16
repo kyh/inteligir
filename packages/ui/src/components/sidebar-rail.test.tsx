@@ -141,4 +141,35 @@ describe("the provider", () => {
     expect(sheet.getAttribute("aria-labelledby")).toBe(title.id);
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it("hands its owner an open, which opens the sheet below the breakpoint and stays open asked twice", async () => {
+    vi.spyOn(window, "matchMedia").mockImplementation((query) => mediaQueryList(query, true));
+    const actions = createRef<SidebarActions>();
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    render(
+      <SidebarProvider open={false} onOpenChange={onOpenChange} actionsRef={actions}>
+        <Sidebar label="Panel">rows</Sidebar>
+      </SidebarProvider>,
+    );
+    act(() => {
+      actions.current?.open();
+      actions.current?.open();
+    });
+    await expect(screen.findByRole("dialog", { name: "Panel" })).resolves.toBeDefined();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("asks its owner to open above the breakpoint, where the owner holds the open", () => {
+    const actions = createRef<SidebarActions>();
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    render(
+      <SidebarProvider open={false} onOpenChange={onOpenChange} actionsRef={actions}>
+        <Sidebar label="Panel">rows</Sidebar>
+      </SidebarProvider>,
+    );
+    act(() => {
+      actions.current?.open();
+    });
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
 });

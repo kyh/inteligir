@@ -80,6 +80,9 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 - **What the shell holds beside its address is one store the tab makes.** The panel's tab, ⌘P and
   the agent's composer ride the page's library, since state in the workspace's hooks reaches a
   screen only as a prop handed down. `apps/web/src/library/workspace-store.ts`.
+- **The panel opens through its sidebar's own handle.** A reveal and a toggle ask the provider,
+  which holds the window's pref above 768px and a sheet's open below it, since a write of the pref
+  alone opens nothing in a narrow window. `apps/web/src/library/workspace-store.ts`.
 - **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
   the kind and the open item are the route's search, so Back and Forward walk them, a link opens
   them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside

@@ -457,4 +457,30 @@ describe("the window's layout", () => {
     expect(railState()).toBe("expanded");
     expect(windowLayout.getState().railOpen).toBe(true);
   });
+
+  it("opens the panel below the breakpoint, where it is a sheet the window's layout does not hold", async () => {
+    const wide = window.matchMedia;
+    vi.spyOn(window, "matchMedia").mockImplementation((query) =>
+      Object.assign(wide(query), { matches: true }),
+    );
+    const PANEL = { name: "Panel" };
+    windowLayout.setState({ panelOpen: false });
+    pageAt("/library", createFakeCell());
+    await screen.findByRole("button", { name: "Add to the library" });
+
+    fireEvent.keyDown(
+      window,
+      platformShortcutModifier() === "meta"
+        ? { key: "k", metaKey: true }
+        : { ctrlKey: true, key: "k" },
+    );
+
+    const sheet = await screen.findByRole("dialog", PANEL);
+    expect(within(sheet).getByRole("textbox", { name: "Message the agent" })).toBeDefined();
+    expect(windowLayout.getState().panelOpen).toBe(false);
+    fireEvent.keyDown(window, { key: "]" });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", PANEL)).toBeNull();
+    });
+  });
 });
