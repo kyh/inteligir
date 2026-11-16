@@ -1,12 +1,12 @@
 // An existing item's fields landed inside a write's transaction, by the rules every write meets
 // (`./cell-landing`), and only when something changed. The cell's own verbs compute the fields over
 // the item they read in the same transaction and land them: an organize, Deleted and back, a
-// reading. A device's ops are guarded by the values it showed (`@repo/contract/library/field-ops`).
-// An undo (`./cell-undo`) lands the fields its way back leaves, and a purge (`./library-engine`) a
-// tombstone.
+// reading. Only a device's property ops name a base, the value it showed
+// (`@repo/contract/library/field-ops`). An undo (`./cell-undo`) lands the fields its way back
+// leaves, and a purge (`./library-engine`) a tombstone.
 
-import { applyFieldOps } from "@repo/contract/library/field-ops";
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import { applyPropertyOps } from "@repo/contract/library/field-ops";
+import type { PropertyOp } from "@repo/contract/library/field-ops";
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readLiveItem } from "./library-queries";
@@ -16,9 +16,9 @@ import { landItem } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 
-export interface ItemWrite {
+export interface PropertyWrite {
   readonly itemId: string;
-  readonly ops: readonly FieldOp[];
+  readonly ops: readonly PropertyOp[];
 }
 
 const rowOf = ({ card, fields, id, seq, updatedAt }: LiveStoredItem): LiveItemRow => ({
@@ -46,14 +46,13 @@ export const landFields = (
     ? rowOf(item)
     : landItem(scope, { before: item, fields, itemId: item.id, seed: null });
 
-export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow => {
+export const landPropertyOps = (scope: LandingScope, input: PropertyWrite): LiveItemRow => {
   const before = readLiveItem(scope.db, input.itemId);
   if (before === null) {
     return refuse({ kind: "not-found" });
   }
-  const outcome = applyFieldOps(before.fields, input.ops);
-  if (outcome.kind !== "applied") {
-    return refuse({ kind: outcome.kind === "conflict" ? "conflict" : "too-large" });
-  }
-  return landFields(scope, before, outcome.fields);
+  const outcome = applyPropertyOps(before.fields, input.ops);
+  return outcome.kind === "conflict"
+    ? refuse({ kind: "conflict" })
+    : landFields(scope, before, outcome.fields);
 };

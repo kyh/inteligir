@@ -19,7 +19,6 @@ import {
   inCell,
   newAccountId,
   openTurn,
-  PERSON,
 } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
@@ -109,13 +108,7 @@ describe("a page's reading, landed", () => {
         url: "https://pages.example/b",
       });
       const { id } = saved.item;
-      const edited = engine.write(PERSON, {
-        itemId: id,
-        ops: [
-          { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
-        ],
-      });
-      expect(edited.ok).toBe(true);
+      await library.items.organize({ ids: [id], title: "My name for it" });
       engine.landReading(
         read({ itemId: id, url: "https://pages.example/b" }, [paragraph("p1", "The article.")]),
         null,
@@ -463,11 +456,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const url = "https://pages.example/renamed";
       const item = await savedByTurn(cell, url);
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
-      const renamed = engine.write(PERSON, {
-        itemId: item.id,
-        ops: [{ base: "The page's own title", field: "title", op: "set", value: "Mine" }],
-      });
-      expect(renamed.ok).toBe(true);
+      await library.items.organize({ ids: [item.id], title: "Mine" });
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [item.id],
         reverted: [],
@@ -483,11 +472,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/waited";
       const item = await savedByTurn(cell, url);
-      const renamed = engine.write(PERSON, {
-        itemId: item.id,
-        ops: [{ base: item.fields.title, field: "title", op: "set", value: "Mine" }],
-      });
-      expect(renamed.ok).toBe(true);
+      await library.items.organize({ ids: [item.id], title: "Mine" });
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [item.id],

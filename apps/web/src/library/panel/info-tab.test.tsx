@@ -94,7 +94,7 @@ describe("Info over an item", () => {
     await expect(screen.findByText("This item isn’t here.")).resolves.toBeDefined();
   });
 
-  it("adds a property at once, as one field op over the item, and reads none of its body", async () => {
+  it("adds a property at once, as one property op over the item, and reads none of its body", async () => {
     const { cell, id } = cellWithALink();
     const landed = deferred();
     const { calls, library } = fakePageLibrary({

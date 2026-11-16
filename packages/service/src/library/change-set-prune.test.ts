@@ -1,4 +1,4 @@
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { describe, expect, it } from "vitest";
 
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
@@ -12,6 +12,7 @@ import {
   landedValue,
   PERSON,
   placed,
+  setFields,
   storedItemOf,
   undoFields,
 } from "../test-support/library-cell";
@@ -29,8 +30,13 @@ const failOn = (job: { readonly kind: string }, cause: unknown): never => {
 const count = (state: DurableObjectState, sql: string, ...params: string[]): number =>
   Number(state.storage.sql.exec(sql, ...params).one().n);
 
-const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: FieldOp): void => {
-  landedValue(library.write(actor, { itemId, ops: [op] }));
+const set = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+  fields: Partial<LibraryItemFields>,
+): void => {
+  landedValue(setFields(library, actor, itemId, fields));
 };
 
 describe("the change-set prune", () => {
@@ -48,32 +54,20 @@ describe("the change-set prune", () => {
         }),
       );
       // the agent's renaming, three turns a minute apart
-      let title = "A note";
-      for (const next of ["typed", "typed more", "typed most"]) {
+      for (const title of ["typed", "typed more", "typed most"]) {
         clock.now += 60_000;
         const turn = openTurn(cell);
-        set(library, turn.actor, itemId, { base: title, field: "title", op: "set", value: next });
+        set(library, turn.actor, itemId, { title });
         turn.end();
-        title = next;
       }
       // three days on a turn describes it, and a day after that one renames it again
       clock.now = START + 3 * DAY;
       const describing = openTurn(cell);
-      set(library, describing.actor, itemId, {
-        base: null,
-        field: "description",
-        op: "set",
-        value: "the agent's",
-      });
+      set(library, describing.actor, itemId, { description: "the agent's" });
       describing.end();
       clock.now = START + 4 * DAY;
       const renaming = openTurn(cell);
-      set(library, renaming.actor, itemId, {
-        base: title,
-        field: "title",
-        op: "set",
-        value: "typed later",
-      });
+      set(library, renaming.actor, itemId, { title: "typed later" });
       renaming.end();
       const entries = (): number =>
         count(state, "SELECT count(*) AS n FROM change_set_items WHERE item_id = ?", itemId);

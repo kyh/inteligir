@@ -99,5 +99,4 @@ export const libraryItemFieldsSchema = z.strictObject({
     .nullable(),
 });
 export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
-export type LibraryItemField = keyof LibraryItemFields;
 export type PropertyValue = LibraryItemFields["properties"][string];

@@ -5,7 +5,7 @@
 // to a note's body is that note's turn log, under the set's id.
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
-import { fieldOpSchema, sameList } from "@repo/contract/library/field-ops";
+import { sameList } from "@repo/contract/library/field-ops";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { and, eq, isNull } from "drizzle-orm";
@@ -20,6 +20,7 @@ import type { JobRequest } from "./cell-jobs";
 import type { CellDb } from "./cell-db";
 import { refuse } from "./cell-refusal";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
+import { inverseOpSchema } from "./inverse-ops";
 import { nextEntry } from "./revert-change";
 import type { SetEntry } from "./revert-change";
 import { jsonTextSchema } from "./sql-value";
@@ -44,7 +45,7 @@ const entryRowSchema = z.union([
     .object({ inverse: z.null(), made: jsonTextSchema.pipe(libraryItemFieldsSchema) })
     .transform(({ made }): SetEntry => ({ fields: made, kind: "made" })),
   z
-    .object({ inverse: jsonTextSchema.pipe(z.array(fieldOpSchema)), made: z.null() })
+    .object({ inverse: jsonTextSchema.pipe(z.array(inverseOpSchema)), made: z.null() })
     .transform(({ inverse }): SetEntry => ({ inverse, kind: "changed" })),
 ]);
 

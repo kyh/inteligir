@@ -8,7 +8,6 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import type { FieldOp } from "./library/field-ops";
 import { liveItemRowSchema } from "./library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
@@ -333,10 +332,17 @@ describe("the library's wire", () => {
 
   it("takes a property's op alone on a write, so no device sets a field the cell's verbs move", () => {
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
-    const taken = (op: FieldOp) => write?.validate({ itemId: UUID_V7, ops: [op] });
-    expect(taken({ key: "status", op: "property", value: "draft" })).toBe(true);
-    expect(taken({ base: "none", field: "fetchState", op: "set", value: "pending" })).toBe(false);
-    expect(taken({ base: 1, field: "deletedAt", op: "set", value: null })).toBe(false);
-    expect(taken({ base: [], op: "tags", value: ["later"] })).toBe(false);
+    const ops = [
+      { key: "status", op: "property", value: "draft" },
+      { base: "none", field: "fetchState", op: "set", value: "pending" },
+      { base: 1, field: "deletedAt", op: "set", value: null },
+      { base: [], op: "tags", value: ["later"] },
+    ];
+    expect(ops.map((op) => write?.validate({ itemId: UUID_V7, ops: [op] }))).toStrictEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });

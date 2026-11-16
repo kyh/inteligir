@@ -147,14 +147,14 @@ export const undoChangeSets = (
       reverted.add(itemId);
     }
   }
-  for (const [itemId, undo] of verdict.items) {
+  for (const [itemId, { fields }] of verdict.items) {
     const before = readLiveItem(db, itemId);
     if (before === null) {
       kept.add(itemId);
       continue;
     }
     try {
-      const landed = landItem(scope, { before, fields: undo.now.fields, itemId, seed: null });
+      const landed = landItem(scope, { before, fields, itemId, seed: null });
       // no turn to hold it for: the built-in agent has no undo
       askFill(scope, landed);
       reverted.add(itemId);

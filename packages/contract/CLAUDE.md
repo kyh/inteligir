@@ -16,9 +16,10 @@ clock, random bytes and fresh ids are injected.
   transaction.** A frontmatter block would be a second spelling of its columns,
   and each field's cap keeps the largest row inside a Durable Object's 2 MB.
   `packages/contract/src/library/derive-item.ts`.
-- **A field is guarded by its value, and a body is no op.** A body is its note's
-  live document, so block ops beside it would be two writers of one body.
-  `packages/contract/src/library/field-ops.ts`.
+- **A base guards only what a device computed away from the cell, a property's
+  op, and a body is no op.** A verb of the cell's reads the fields it changes in
+  the transaction that lands them, where a base cannot fail, and a body is its
+  note's live document. `packages/contract/src/library/field-ops.ts`.
 - **`/v1`'s write takes a property's op alone.** Every other field moves by a
   verb of the cell's, which asks the reading or tells the note with it.
   `packages/contract/src/library/library-contract.ts`.

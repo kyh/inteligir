@@ -83,9 +83,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   of its own.** An import's page would tell a frame an item, and a flag on the
   wake's cell would hold a call's frame for the run's ten seconds.
   `packages/service/src/library/library-do.ts`.
-- **A library write changes fields alone, only on the bases it names, in one
-  transaction.** Last write wins loses an edit unseen, and a whole-item base
-  makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.
+- **A verb of the cell's is a function over an item's fields, landed in the
+  transaction that read them; a base guards only what was computed away from
+  it, a device's property op and a change set's way back.** A base over fields
+  read lines earlier cannot fail, and ops built to meet it are a second
+  spelling of the change. `packages/service/src/library/cell-writes.ts`.
 - **A change set is one built-in agent turn's, sealed by the push that ends
   the turn, and Undo reaches back seven days** (owner decision). Undo takes
   back only the agent's turns, so a set for any other writer is history nobody

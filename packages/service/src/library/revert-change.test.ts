@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { applyFieldOps } from "@repo/contract/library/field-ops";
-import type { FieldOp } from "@repo/contract/library/field-ops";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { nextEntry, revertChangeSets, revertItemChange } from "./revert-change";
@@ -10,14 +8,6 @@ import { noteFixture } from "@repo/contract/test-support/library-items";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
 
 const AT = 1_800_000_000_000;
-
-const landed = (fields: LibraryItemFields, ops: readonly FieldOp[]): LibraryItemFields => {
-  const outcome = applyFieldOps(fields, ops);
-  if (outcome.kind !== "applied") {
-    throw new Error(`the ops did not land: ${outcome.kind}`);
-  }
-  return outcome.fields;
-};
 
 // the entry of a set whose one landing took the item from `before` to `after`
 const changeOf = (before: LibraryItemFields | null, after: LibraryItemFields): SetEntry =>
@@ -35,45 +25,40 @@ const fieldsOf = (verdict: ItemRevert): LibraryItemFields => {
   return verdict.fields;
 };
 
-const retitle = (fields: LibraryItemFields, value: string) =>
-  landed(fields, [{ base: fields.title, field: "title", op: "set", value }]);
+const retitle = (fields: LibraryItemFields, title: string): LibraryItemFields => ({
+  ...fields,
+  title,
+});
 
 const EDITED: ItemRevert = { kind: "keep", reason: "edited-since" };
 
 describe(revertItemChange, () => {
   it("reverts fields one by one, tags as a set, and answers an overlap", () => {
     const x = noteFixture({ tags: ["keep"], title: "Old" });
-    const y = landed(x, [
-      { base: "Old", field: "title", op: "set", value: "New" },
-      { base: ["keep"], op: "tags", value: ["keep", "added"] },
-      { key: "rating", op: "property", value: 5 },
-    ]);
-    const now = landed(y, [
-      { base: ["keep", "added"], op: "tags", value: ["keep", "added", "later"] },
-    ]);
+    const y = { ...x, properties: { rating: 5 }, tags: ["keep", "added"], title: "New" };
+    const now = { ...y, tags: ["keep", "added", "later"] };
     const reverted = fieldsOf(revert(changeOf(x, y), nowOf(now)));
     expect(reverted.title).toBe("Old");
     expect(reverted.tags).toStrictEqual(["keep", "later"]);
     expect(reverted.properties).toStrictEqual({});
-    const retitled = landed(y, [{ base: "New", field: "title", op: "set", value: "Newer" }]);
-    expect(revert(changeOf(x, y), nowOf(retitled))).toStrictEqual(EDITED);
+    expect(revert(changeOf(x, y), nowOf(retitle(y, "Newer")))).toStrictEqual(EDITED);
   });
 
   it("keeps the item whole when what the set took out no longer fits", () => {
     const x = noteFixture({ tags: ["keep", "gone"] });
-    const y = landed(x, [{ base: ["keep", "gone"], op: "tags", value: ["keep"] }]);
+    const y = { ...x, tags: ["keep"] };
     const refilled = Array.from(
       { length: ITEM_FIELD_CAPS.listEntries - 1 },
       (_, index) => `later${String(index)}`,
     );
-    const now = landed(y, [{ base: ["keep"], op: "tags", value: ["keep", ...refilled] }]);
+    const now = { ...y, tags: ["keep", ...refilled] };
     expect(now.tags).toHaveLength(ITEM_FIELD_CAPS.listEntries);
     expect(revert(changeOf(x, y), nowOf(now))).toStrictEqual(EDITED);
   });
 
   it("takes a tag's new spelling back", () => {
     const x = noteFixture({ tags: ["Foo"] });
-    const y = landed(x, [{ base: ["Foo"], op: "tags", value: ["foo"] }]);
+    const y = { ...x, tags: ["foo"] };
     expect(fieldsOf(revert(changeOf(x, y), nowOf(y))).tags).toStrictEqual(["Foo"]);
   });
 
@@ -81,7 +66,7 @@ describe(revertItemChange, () => {
     const made = noteFixture({ fetchState: "pending", kind: "link" });
     const change = changeOf(null, made);
     expect(fieldsOf(revert(change, nowOf(made))).deletedAt).toBe(AT);
-    const retitled = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
+    const retitled = retitle(made, "Mine");
     expect(revert(change, nowOf(retitled))).toStrictEqual(EDITED);
     expect(revert(change, nowOf(made, true))).toStrictEqual(EDITED);
     expect(revert(change, null)).toStrictEqual({ kind: "unchanged" });
@@ -92,40 +77,36 @@ describe(revertItemChange, () => {
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {
     const x = noteFixture();
-    const y = landed(x, [{ base: null, field: "deletedAt", op: "set", value: 5 }]);
+    const y = { ...x, deletedAt: 5 };
     expect(fieldsOf(revert(changeOf(x, y), nowOf(y))).deletedAt).toBeNull();
     expect(revert(changeOf(x, y), null)).toStrictEqual({ kind: "keep", reason: "purged" });
   });
 });
 
-const randomOps = (rand: () => number, fields: LibraryItemFields): FieldOp[] => {
-  const ops: FieldOp[] = [];
-  if (rand() < 0.5) {
-    ops.push({ base: fields.title, field: "title", op: "set", value: `T${String(rand())}` });
-  }
-  if (rand() < 0.4) {
-    ops.push({
-      base: fields.tags,
-      op: "tags",
-      value: [...fields.tags, `${pick(rand, ["x", "y", "z"])}${String(fields.tags.length)}`],
-    });
-  }
-  if (rand() < 0.3) {
-    const key = `seen${String(Object.keys(fields.properties).length)}`;
-    ops.push({ key, op: "property", value: Math.floor(rand() * 9) });
-  }
-  if (rand() < 0.2) {
-    ops.push({ base: fields.pinnedAt, field: "pinnedAt", op: "set", value: AT });
-  }
-  return ops;
+// the fields as one landing of a writer's leaves them
+const randomLanding = (rand: () => number, fields: LibraryItemFields): LibraryItemFields => {
+  const count = Object.keys(fields.properties).length;
+  return {
+    ...fields,
+    pinnedAt: rand() < 0.2 ? AT : fields.pinnedAt,
+    properties:
+      rand() < 0.3
+        ? { ...fields.properties, [`seen${String(count)}`]: Math.floor(rand() * 9) }
+        : fields.properties,
+    tags:
+      rand() < 0.4
+        ? [...fields.tags, `${pick(rand, ["x", "y", "z"])}${String(fields.tags.length)}`]
+        : fields.tags,
+    title: rand() < 0.5 ? `T${String(rand())}` : fields.title,
+  };
 };
 
 describe("undoing a change set", () => {
   it("returns the item exactly as it was when nothing changed since (seeded)", () => {
     const rand = mulberry32(0x0d_0e_51);
     for (let trial = 0; trial < 400; trial += 1) {
-      const x = landed(noteFixture(), randomOps(rand, noteFixture()));
-      const y = landed(x, randomOps(rand, x));
+      const x = randomLanding(rand, noteFixture());
+      const y = randomLanding(rand, x);
       const verdict = revert(changeOf(x, y), nowOf(y));
       expect(verdict.kind === "unchanged" ? y : fieldsOf(verdict)).toStrictEqual(x);
     }
@@ -145,9 +126,7 @@ describe(revertChangeSets, () => {
     const now = new Map([["item", nowOf(newer)]]);
     const undone = revertChangeSets({ at: AT, now, sets });
     expect(undone.kept).toStrictEqual([]);
-    const item = undone.items.get("item");
-    expect(item?.now.fields).toStrictEqual(x);
-    expect(item === undefined ? null : landed(newer, item.ops)).toStrictEqual(x);
+    expect(undone.items.get("item")?.fields).toStrictEqual(x);
     const olderAlone = revertChangeSets({ at: AT, now, sets: sets.slice(1) });
     expect(olderAlone.kept).toStrictEqual([
       { itemId: "item", reason: "edited-since", setId: "older" },
@@ -207,7 +186,7 @@ describe(revertChangeSets, () => {
           { id: "older", items: new Map([["item", change]]) },
         ],
       });
-      expect(undone.items.get("item")?.now.fields).toStrictEqual(since);
+      expect(undone.items.get("item")?.fields).toStrictEqual(since);
       expect(undone.kept).toStrictEqual([
         { itemId: "item", reason: "edited-since", setId: "older" },
       ]);

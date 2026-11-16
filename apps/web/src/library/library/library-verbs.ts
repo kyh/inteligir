@@ -9,7 +9,7 @@ import { refusalText } from "@repo/contract/refusal-text";
 import { BULK_ITEMS_MAX, LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
 import type { V1Client } from "@repo/contract/v1";
 import { keptFileType } from "@repo/contract/items/item-kind";
-import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops";
+import { applyPropertyOps, mergeListField } from "@repo/contract/library/field-ops";
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import { ordBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
@@ -129,7 +129,7 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
 // would not land leaves them as they are, for the read after the refusal to settle
 const fieldsOverlay = (ops: readonly PropertyOp[]): Overlay => {
   const landed = (fields: LibraryItemFields): LibraryItemFields => {
-    const outcome = applyFieldOps(fields, ops);
+    const outcome = applyPropertyOps(fields, ops);
     return outcome.kind === "applied" ? outcome.fields : fields;
   };
   return {

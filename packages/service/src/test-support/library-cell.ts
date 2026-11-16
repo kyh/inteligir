@@ -8,7 +8,8 @@ import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import { createRouterClient } from "@orpc/server";
 import { heldBody } from "../library/cell-body";
-import { readItem } from "../library/library-queries";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { readItem, readLiveItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
@@ -22,7 +23,9 @@ import type { CellActor, TurnActor } from "../library/cell-actor";
 import { landNew } from "../library/cell-items";
 import type { NewItem } from "../library/cell-items";
 import { tellSockets } from "../library/cell-sockets";
+import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
+import { landFields } from "../library/cell-writes";
 import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { landedSchema, libraryHead } from "../library/library-engine";
@@ -108,6 +111,23 @@ export const createItem = (
   library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
     item: landNew(scope, input),
   }));
+
+// an item's fields with `fields` written over them, landed as the cell's own verbs land theirs
+export const setFields = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+  fields: Partial<LibraryItemFields>,
+) =>
+  library.land(actor, { answer: landedSchema, opId: undefined }, (scope) => {
+    const item = readLiveItem(scope.db, itemId);
+    return {
+      item:
+        item === null
+          ? refuse({ kind: "not-found" })
+          : landFields(scope, item, { ...item.fields, ...fields }),
+    };
+  });
 
 // an undo of sets that wrote no note's body, so no note has anything to answer first
 export const undoFields = (library: LibraryEngine, changeSetIds: readonly string[]) =>

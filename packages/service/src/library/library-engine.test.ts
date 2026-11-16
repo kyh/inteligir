@@ -1,6 +1,6 @@
-import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
 
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   blocksOf,
@@ -15,6 +15,7 @@ import {
   PERSON,
   placed,
   refusalOf,
+  setFields,
   storedItemOf,
   undoFields,
 } from "../test-support/library-cell";
@@ -40,16 +41,8 @@ const undoneAt = (state: DurableObjectState, id: string): number | null =>
 const setCount = (state: DurableObjectState): number =>
   state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
 
-const retitle = (
-  library: LibraryEngine,
-  actor: CellActor,
-  itemId: string,
-  from: string,
-  to: string,
-): void => {
-  landedValue(
-    library.write(actor, { itemId, ops: [{ base: from, field: "title", op: "set", value: to }] }),
-  );
+const retitle = (library: LibraryEngine, actor: CellActor, itemId: string, title: string) => {
+  landedValue(setFields(library, actor, itemId, { title }));
 };
 
 const titleOf = (library: LibraryEngine, itemId: string): string | null => {
@@ -57,44 +50,48 @@ const titleOf = (library: LibraryEngine, itemId: string): string | null => {
   return item?.kind === "live" ? item.fields.title : null;
 };
 
+const propertiesOf = (library: LibraryEngine, itemId: string) => {
+  const item = storedItemOf(library, itemId);
+  return item?.kind === "live" ? item.fields.properties : null;
+};
+
 // what R2 holds of an image upload
 const png = (bytes: number) => ({ bytes, mime: "image/png" });
 
 describe("a write to the library cell", () => {
-  it("lands each field only over the value it was read at, and answers a stale one with the field as it is", async () => {
+  it("lands each property only over the value it was read at, and lands nothing of a stale write", async () => {
     await inCell(cellOf(), (state) => {
       const cell = cellIn(state, { clock: clockAt() });
       const { library } = cell;
       const itemId = newItemId();
+      const fields = noteFixture({ properties: { status: "draft" } });
       const made = landedValue(
-        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        createItem(library, PERSON, { blocks: placed([A]), fields, id: itemId }),
       );
       expect(made.item.seq).toBe(1);
 
       const write = library.write(PERSON, {
         itemId,
-        ops: [{ base: TITLE, field: "title", op: "set", value: "Edited" }],
+        ops: [{ base: "draft", key: "status", op: "property", value: "done" }],
       });
       expect(landedValue(write).item.seq).toBe(2);
 
-      // a second writer read the title before that edit, and the description as it stands
+      // a second writer read the status before that edit, and the rating as it stands
       const stale = library.write(PERSON, {
         itemId,
         ops: [
-          { base: null, field: "description", op: "set", value: "landed only with the rest" },
-          { base: TITLE, field: "title", op: "set", value: "A lost edit" },
+          { key: "rating", op: "property", value: 5 },
+          { base: "draft", key: "status", op: "property", value: "a lost edit" },
         ],
       });
       expect(refusalOf(stale)).toStrictEqual({ kind: "conflict" });
-      // the whole write landed nothing: the head did not move, and the description is as it was
+      // the whole write landed nothing: the head did not move, and the rating is as it was
       expect(headOf(library)).toBe(2);
-      expect(storedItemOf(library, itemId)).toMatchObject({
-        fields: { description: null, title: "Edited" },
-      });
+      expect(propertiesOf(library, itemId)).toStrictEqual({ status: "done" });
     });
   });
 
-  it("merges two writers' edits to different fields with no conflict", async () => {
+  it("merges two writers' edits to different properties with no conflict", async () => {
     await inCell(cellOf(), (state) => {
       const cell = cellIn(state, { clock: clockAt() });
       const { library } = cell;
@@ -102,16 +99,31 @@ describe("a write to the library cell", () => {
       landedValue(
         createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      retitle(library, PERSON, itemId, TITLE, "From the laptop");
-      landedValue(
-        library.write(PERSON, {
-          itemId,
-          ops: [{ base: null, field: "description", op: "set", value: "From the phone" }],
-        }),
-      );
-      expect(storedItemOf(library, itemId)).toMatchObject({
-        fields: { description: "From the phone", title: "From the laptop" },
+      for (const [key, value] of Object.entries({
+        rating: "From the phone",
+        status: "From the laptop",
+      })) {
+        landedValue(library.write(PERSON, { itemId, ops: [{ key, op: "property", value }] }));
+      }
+      expect(propertiesOf(library, itemId)).toStrictEqual({
+        rating: "From the phone",
+        status: "From the laptop",
       });
+    });
+  });
+
+  it("refuses a property past the item's caps as too large, landing none of it", async () => {
+    await inCell(cellOf(), (state) => {
+      const cell = cellIn(state, { clock: clockAt() });
+      const { library } = cell;
+      const itemId = newItemId();
+      const fields = noteFixture({ properties: { notes: "x".repeat(200 * 1024) } });
+      landedValue(createItem(library, PERSON, { blocks: placed([A]), fields, id: itemId }));
+      const more = { key: "more", op: "property", value: "y".repeat(100 * 1024) } as const;
+      expect(refusalOf(library.write(PERSON, { itemId, ops: [more] }))).toStrictEqual({
+        kind: "too-large",
+      });
+      expect(headOf(library)).toBe(1);
     });
   });
 
@@ -204,12 +216,7 @@ describe("a write to the library cell", () => {
           ops: [{ key: "notes", op: "property", value: long }],
         }),
       );
-      landedValue(
-        library.write(FILL_ACTOR, {
-          itemId,
-          ops: [{ base: null, field: "description", op: "set", value: long }],
-        }),
-      );
+      landedValue(setFields(library, FILL_ACTOR, itemId, { description: long }));
       const refusedNew = createItem(library, FILL_ACTOR, {
         blocks: placed([]),
         fields: noteFixture({ properties: { notes: long } }),
@@ -242,14 +249,16 @@ describe("a write to the library cell", () => {
         }),
       );
       const { library } = cellIn(state, { bytesCap: 1, clock: clockAt() });
-      const landing = (ops: readonly FieldOp[]) =>
-        landedValue(library.write(FILL_ACTOR, { itemId, ops }));
-      landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
-      landing([{ base: null, field: "pinnedAt", op: "set", value: 5 }]);
-      landing([{ base: null, field: "folderId", op: "set", value: "folder" }]);
-      landing([{ base: "none", field: "fetchState", op: "set", value: "failed" }]);
-      landing([{ base: null, field: "fetchError", op: "set", value: "The page would not load." }]);
-      landing([{ base: null, field: "deletedAt", op: "set", value: 7 }]);
+      for (const fields of [
+        { title: "shorter" },
+        { pinnedAt: 5 },
+        { folderId: "folder" },
+        { fetchState: "failed" },
+        { fetchError: "The page would not load." },
+        { deletedAt: 7 },
+      ] satisfies Partial<LibraryItemFields>[]) {
+        landedValue(setFields(library, FILL_ACTOR, itemId, fields));
+      }
       expect(
         state.storage.sql.exec("SELECT deleted_at FROM items WHERE id = ?", itemId).one(),
       ).toStrictEqual({ deleted_at: 7 });
@@ -265,8 +274,8 @@ describe("a write to the library cell", () => {
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const sha = "a".repeat(64);
-      const cover = { base: null, field: "coverSha", op: "set", value: sha } satisfies FieldOp;
-      expect(refusalOf(library.write(FILL_ACTOR, { itemId, ops: [cover] }))).toStrictEqual({
+      const cover = () => setFields(library, FILL_ACTOR, itemId, { coverSha: sha });
+      expect(refusalOf(cover())).toStrictEqual({
         kind: "blob-missing",
         shas: [sha],
       });
@@ -275,7 +284,7 @@ describe("a write to the library cell", () => {
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
       expect(settled.ok && settled.value).toStrictEqual({ settled: true });
-      landedValue(library.write(FILL_ACTOR, { itemId, ops: [cover] }));
+      landedValue(cover());
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
       });
@@ -377,12 +386,12 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      retitle(library, PERSON, itemId, TITLE, "Typed by the person");
-      retitle(library, FILL_ACTOR, itemId, "Typed by the person", "A reading");
+      retitle(library, PERSON, itemId, "Typed by the person");
+      retitle(library, FILL_ACTOR, itemId, "A reading");
       expect(setCount(state)).toBe(0);
       const turn = openTurn(cell);
-      retitle(library, turn.actor, itemId, "A reading", "The agent's title");
-      retitle(library, turn.actor, itemId, "The agent's title", "The agent's second title");
+      retitle(library, turn.actor, itemId, "The agent's title");
+      retitle(library, turn.actor, itemId, "The agent's second title");
       const sets = () => state.storage.sql.exec("SELECT sealed_at FROM change_sets").toArray();
       expect(
         state.storage.sql
@@ -397,14 +406,9 @@ describe("change sets and undo", () => {
       expect(sets()).toStrictEqual([{ sealed_at: null }]);
       turn.end();
       expect(sets()[0]?.sealed_at).not.toBeNull();
-      expect(
-        refusalOf(
-          library.write(turn.actor, {
-            itemId,
-            ops: [{ base: "The agent's second title", field: "title", op: "set", value: "Late" }],
-          }),
-        ),
-      ).toStrictEqual({ kind: "turn-ended" });
+      expect(refusalOf(setFields(library, turn.actor, itemId, { title: "Late" }))).toStrictEqual({
+        kind: "turn-ended",
+      });
     });
   });
 
@@ -422,13 +426,13 @@ describe("change sets and undo", () => {
       }
       const turn = openTurn(cell);
       for (const itemId of [kept, undone]) {
-        retitle(library, turn.actor, itemId, TITLE, "The agent's title");
+        retitle(library, turn.actor, itemId, "The agent's title");
       }
       turn.end();
       const setId = turn.setId();
       // the person changes one of the two again since
       clock.now += 120_000;
-      retitle(library, PERSON, kept, "The agent's title", "The person's title");
+      retitle(library, PERSON, kept, "The person's title");
       const answer = landedValue(undoFields(library, [setId]));
       expect(answer.kept).toStrictEqual([kept]);
       expect(answer.reverted).toStrictEqual([undone]);
@@ -455,7 +459,7 @@ describe("change sets and undo", () => {
         createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const turn = openTurn(cell);
-      retitle(library, turn.actor, itemId, TITLE, "The agent's title");
+      retitle(library, turn.actor, itemId, "The agent's title");
       const setId = turn.setId();
       expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "conflict" });
       expect(titleOf(library, itemId)).toBe("The agent's title");
@@ -475,17 +479,17 @@ describe("change sets and undo", () => {
           createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
         );
         const turn = openTurn(cell);
-        retitle(library, turn.actor, itemId, TITLE, "The agent's title");
+        retitle(library, turn.actor, itemId, "The agent's title");
         turn.end();
         const setId = turn.setId();
         clock.now += 120_000;
-        retitle(library, PERSON, itemId, "The agent's title", "The person's title");
+        retitle(library, PERSON, itemId, "The person's title");
 
         const answer = landedValue(undoFields(library, [setId]));
         expect(answer).toStrictEqual({ kept: [itemId], lostText: [], refused: [], reverted: [] });
         expect(undoneAt(state, setId)).toBeNull();
 
-        retitle(library, PERSON, itemId, "The person's title", "The agent's title");
+        retitle(library, PERSON, itemId, "The agent's title");
         const again = landedValue(undoFields(library, [setId]));
         expect(again).toMatchObject({ kept: [], reverted: [itemId] });
         expect(undoneAt(state, setId)).toBe(clock.now);
@@ -504,12 +508,12 @@ describe("change sets and undo", () => {
           );
         }
         const first = openTurn(cell);
-        retitle(library, first.actor, held, TITLE, "An edit");
+        retitle(library, first.actor, held, "An edit");
         first.end();
         clock.now += 120_000;
-        retitle(library, PERSON, held, "An edit", "Edited again");
+        retitle(library, PERSON, held, "Edited again");
         const second = openTurn(cell);
-        retitle(library, second.actor, back, TITLE, "An edit");
+        retitle(library, second.actor, back, "An edit");
         second.end();
         const [heldSet, backSet] = [first.setId(), second.setId()];
         const answer = landedValue(undoFields(library, [heldSet, backSet]));
@@ -536,12 +540,7 @@ describe("change sets and undo", () => {
         }),
       );
       const turn = openTurn(cell);
-      landedValue(
-        library.write(turn.actor, {
-          itemId: gone,
-          ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
-        }),
-      );
+      landedValue(setFields(library, turn.actor, gone, { deletedAt: clock.now }));
       turn.end();
       const setId = turn.setId();
       landedValue(
@@ -553,12 +552,7 @@ describe("change sets and undo", () => {
       );
       expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "url-held" });
       expect(undoneAt(state, setId)).toBeNull();
-      landedValue(
-        library.write(PERSON, {
-          itemId: holder,
-          ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
-        }),
-      );
+      landedValue(setFields(library, PERSON, holder, { deletedAt: clock.now }));
       expect(landedValue(undoFields(library, [setId]))).toMatchObject({
         refused: [],
         reverted: [gone],
@@ -579,17 +573,12 @@ describe("change sets and undo", () => {
       }
       const turn = openTurn(cell);
       for (const id of [pinned, renamed]) {
-        retitle(library, turn.actor, id, TITLE, "Typed by the agent");
+        retitle(library, turn.actor, id, "Typed by the agent");
       }
-      landedValue(
-        library.write(PERSON, {
-          itemId: pinned,
-          ops: [{ base: null, field: "pinnedAt", op: "set", value: clock.now }],
-        }),
-      );
-      retitle(library, PERSON, renamed, "Typed by the agent", "Typed by the person");
-      retitle(library, turn.actor, pinned, "Typed by the agent", "The agent again");
-      retitle(library, turn.actor, renamed, "Typed by the person", "The agent again");
+      landedValue(setFields(library, PERSON, pinned, { pinnedAt: clock.now }));
+      retitle(library, PERSON, renamed, "Typed by the person");
+      retitle(library, turn.actor, pinned, "The agent again");
+      retitle(library, turn.actor, renamed, "The agent again");
       turn.end();
       const answer = landedValue(undoFields(library, [turn.setId()]));
       expect(answer).toMatchObject({ kept: [], reverted: [pinned, renamed].toSorted() });
@@ -629,12 +618,7 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, turn.actor, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
-      landedValue(
-        library.write(turn.actor, {
-          itemId,
-          ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
-        }),
-      );
+      landedValue(setFields(library, turn.actor, itemId, { deletedAt: clock.now }));
       turn.end();
       expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toStrictEqual([
         itemId,

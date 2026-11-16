@@ -1,22 +1,14 @@
-// What a write does to an item's fields, apart from its body: each op names the base it was computed
-// from and lands only where that base holds, a scalar set whole, a list merged as a set and a
-// property by its key. A batch lands whole or not at all, an op already true is satisfied, and a
-// batch whose fields break a cap lands none.
+// What a device writes to an item's fields, apart from its body: one property by its key, guarded
+// by the value the device showed, since it computed the op away from the cell. A batch lands whole
+// or not at all, and an op already true is satisfied. The cell's own verbs compute the fields they
+// land where they read them, so they name no base. A list kept as a set merges three ways.
 
 import { z } from "zod";
 
 import { sameJson } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
-import { libraryItemFieldsSchema, propertyKeySchema } from "./library-item";
-import type { LibraryItemField, LibraryItemFields, PropertyValue } from "./library-item";
-
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
-
-const isScalarField = (field: keyof LibraryItemFields): field is ScalarField =>
-  field !== "aliases" && field !== "properties" && field !== "tags";
-
-// read off the schema, so a field it gains is one an undo restores
-export const SCALAR_FIELDS = libraryItemFieldsSchema.keyof().options.filter(isScalarField);
+import { propertyKeySchema } from "./library-item";
+import type { LibraryItemFields, PropertyValue } from "./library-item";
 
 const listKey = (op: "aliases" | "tags") => (entry: string) =>
   op === "tags" ? entry.toLowerCase() : entry;
@@ -55,56 +47,11 @@ export const mergeListField = (
 export const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((entry, index) => entry === b[index]);
 
-const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
+export const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
 
-const FIELDS = libraryItemFieldsSchema.shape;
-
-const setOf = <F extends ScalarField>(field: F) =>
-  z.strictObject({
-    base: FIELDS[field],
-    field: z.literal(field),
-    op: z.literal("set"),
-    value: FIELDS[field],
-  });
-
-// one variant per field, so a patch's values are its field's own type
-const setOpSchema = z.discriminatedUnion("field", [
-  setOf("author"),
-  setOf("coverSha"),
-  setOf("deletedAt"),
-  setOf("description"),
-  setOf("fetchError"),
-  setOf("fetchState"),
-  setOf("fetchedAt"),
-  setOf("folderId"),
-  setOf("kind"),
-  setOf("lang"),
-  setOf("originalName"),
-  setOf("originalSha"),
-  setOf("pinnedAt"),
-  setOf("published"),
-  setOf("savedAt"),
-  setOf("site"),
-  setOf("title"),
-  setOf("url"),
-]);
-
-// a list field merges as a set: what the writer added goes in, what it took out goes, and what
-// anyone else did since stays, so two devices tagging one item at once both land
-const tagsOpSchema = z.strictObject({
-  base: FIELDS.tags,
-  op: z.literal("tags"),
-  value: FIELDS.tags,
-});
-const aliasesOpSchema = z.strictObject({
-  base: FIELDS.aliases,
-  op: z.literal("aliases"),
-  value: FIELDS.aliases,
-});
-
 // one property by its key; a missing base or value is the property absent. The value's size is
-// the item's to hold: the fields are checked whole once a batch lands
+// the item's to hold: the fields are checked whole as they land
 export const propertyOpSchema = z.strictObject({
   base: z.json().optional(),
   key: propertyKeySchema,
@@ -113,194 +60,60 @@ export const propertyOpSchema = z.strictObject({
 });
 export type PropertyOp = z.infer<typeof propertyOpSchema>;
 
-export const fieldOpSchema = z.discriminatedUnion("op", [
-  setOpSchema,
-  tagsOpSchema,
-  aliasesOpSchema,
-  propertyOpSchema,
-]);
-export type FieldOp = z.infer<typeof fieldOpSchema>;
-
 // `satisfied`: what the op would make is already there (a resend after a lost answer, or two
 // writers doing the same thing), so landing it changes nothing. `conflict`: the op met neither its
-// base nor its value, which a list field never does
-type FieldVerdict = "apply" | "satisfied" | "conflict";
+// base nor its value
+export type OpVerdict = "apply" | "satisfied" | "conflict";
 
-const propertyAt = (fields: LibraryItemFields, key: string): PropertyValue | undefined =>
+export const propertyAt = (fields: LibraryItemFields, key: string): PropertyValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
-const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
-  switch (op.op) {
-    case "set": {
-      const current = fields[op.field];
-      if (current === op.base) {
-        return "apply";
-      }
-      return current === op.value ? "satisfied" : "conflict";
-    }
-    case "tags":
-    case "aliases": {
-      const current = fields[op.op];
-      return sameList(mergeListField(op.op, current, op.base, op.value), current)
-        ? "satisfied"
-        : "apply";
-    }
-    case "property": {
-      const current = propertyAt(fields, op.key);
-      if (sameOptionalJson(current, op.base)) {
-        return "apply";
-      }
-      return sameOptionalJson(current, op.value) ? "satisfied" : "conflict";
-    }
-    // no default
+export const propertyVerdict = (fields: LibraryItemFields, op: PropertyOp): OpVerdict => {
+  const current = propertyAt(fields, op.key);
+  if (sameOptionalJson(current, op.base)) {
+    return "apply";
   }
+  return sameOptionalJson(current, op.value) ? "satisfied" : "conflict";
 };
 
-const withField = <F extends ScalarField>(
-  fields: LibraryItemFields,
-  field: F,
-  value: LibraryItemFields[F],
-): LibraryItemFields => ({ ...fields, [field]: value });
-
-const withProperty = (
-  fields: LibraryItemFields,
-  key: string,
-  value: PropertyValue | undefined,
-): LibraryItemFields => {
+export const landPropertyOp = (fields: LibraryItemFields, op: PropertyOp): LibraryItemFields => {
   const properties = Object.fromEntries(
-    Object.entries(fields.properties).filter(([name]) => name !== key),
+    Object.entries(fields.properties).filter(([name]) => name !== op.key),
   );
-  if (value !== undefined) {
-    properties[key] = value;
+  if (op.value !== undefined) {
+    properties[op.key] = op.value;
   }
   return { ...fields, properties };
 };
 
-// the fields with one op landed, whose guard already passed
-const landFieldOp = (fields: LibraryItemFields, op: FieldOp): LibraryItemFields => {
-  switch (op.op) {
-    case "set": {
-      return withField(fields, op.field, op.value);
-    }
-    case "tags":
-    case "aliases": {
-      return { ...fields, [op.op]: mergeListField(op.op, fields[op.op], op.base, op.value) };
-    }
-    case "property": {
-      return withProperty(fields, op.key, op.value);
-    }
-    // no default
-  }
-};
-
-const fieldNameSchema = libraryItemFieldsSchema.keyof();
-
-// the fields an item's caps refuse, by name; none when the fields hold
-const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
-  const parsed = libraryItemFieldsSchema.safeParse(fields);
-  if (parsed.success) {
-    return [];
-  }
-  const names = new Set<LibraryItemField>();
-  for (const issue of parsed.error.issues) {
-    const name = fieldNameSchema.safeParse(issue.path[0]);
-    if (name.success) {
-      names.add(name.data);
-    }
-  }
-  return [...names].toSorted();
-};
-
-// `invalid`: every op's guard held, but the fields they leave break the item's own caps (a list
-// merged past its length or bytes, the properties past theirs), since each op is checked alone;
-// it names those fields, and the cell answers it as too large
-export type FieldOutcome =
+export type GuardedOutcome =
   | { readonly kind: "applied"; readonly fields: LibraryItemFields; readonly changed: boolean }
-  | { readonly kind: "conflict" }
-  | { readonly kind: "invalid"; readonly fields: readonly LibraryItemField[] };
+  | { readonly kind: "conflict" };
 
 // every op in order, each against the fields as the ones before it left them; one conflict lands
 // none
-export const applyFieldOps = (fields: LibraryItemFields, ops: readonly FieldOp[]): FieldOutcome => {
+export const applyGuarded = <Op>(
+  fields: LibraryItemFields,
+  ops: readonly Op[],
+  verdictOf: (fields: LibraryItemFields, op: Op) => OpVerdict,
+  land: (fields: LibraryItemFields, op: Op) => LibraryItemFields,
+): GuardedOutcome => {
   let next = fields;
   let changed = false;
   for (const op of ops) {
-    const verdict = fieldVerdict(next, op);
+    const verdict = verdictOf(next, op);
     if (verdict === "conflict") {
       return { kind: "conflict" };
     }
     if (verdict === "apply") {
-      next = landFieldOp(next, op);
+      next = land(next, op);
       changed = true;
     }
   }
-  const refused = changed ? refusedFields(next) : [];
-  return refused.length > 0
-    ? { fields: refused, kind: "invalid" }
-    : { changed, fields: next, kind: "applied" };
+  return { changed, fields: next, kind: "applied" };
 };
 
-// what an op writes: a field by its name, a property by its key
-const slotOf = (op: FieldOp): string => {
-  switch (op.op) {
-    case "set": {
-      return op.field;
-    }
-    case "property": {
-      return `property:${op.key}`;
-    }
-    case "tags":
-    case "aliases": {
-      return op.op;
-    }
-    // no default
-  }
-};
-
-// the ops that take `from` to `to`, each guarded by `from`
-const opsBetween = (from: LibraryItemFields, to: LibraryItemFields): FieldOp[] => {
-  const ops: FieldOp[] = [];
-  for (const field of SCALAR_FIELDS) {
-    if (from[field] !== to[field]) {
-      // the parse ties the values to the field's own type, which TypeScript cannot follow through
-      // a loop over every field
-      ops.push(fieldOpSchema.parse({ base: from[field], field, op: "set", value: to[field] }));
-    }
-  }
-  for (const op of ["tags", "aliases"] as const) {
-    if (!sameList(from[op], to[op])) {
-      ops.push({ base: from[op], op, value: to[op] });
-    }
-  }
-  for (const key of new Set([...Object.keys(from.properties), ...Object.keys(to.properties)])) {
-    const [base, value] = [propertyAt(from, key), propertyAt(to, key)];
-    if (!sameOptionalJson(base, value)) {
-      ops.push({ base, key, op: "property", value });
-    }
-  }
-  return ops;
-};
-
-// The ops that take an item back from `after` to where `inverse` takes `before`: a writer's way
-// back, one more landing of its own taken in. Each slot the landing changed gets one op, guarded by
-// `after`, back to `before` with the earlier op landed, or to `before` as it stands where someone
-// else changed the slot since; every other slot keeps its op. So an edit made between two of the
-// writer's landings is never taken back, and one made since the writer last wrote a slot meets
-// that slot's guard.
-export const composeInverse = (
-  inverse: readonly FieldOp[],
-  before: LibraryItemFields,
-  after: LibraryItemFields,
-): FieldOp[] => {
-  const landed = new Set(opsBetween(before, after).map(slotOf));
-  let target = before;
-  for (const op of inverse) {
-    if (landed.has(slotOf(op)) && fieldVerdict(target, op) === "apply") {
-      target = landFieldOp(target, op);
-    }
-  }
-  return [
-    ...inverse.filter((op) => !landed.has(slotOf(op))),
-    ...opsBetween(after, target).filter((op) => landed.has(slotOf(op))),
-  ];
-};
+export const applyPropertyOps = (
+  fields: LibraryItemFields,
+  ops: readonly PropertyOp[],
+): GuardedOutcome => applyGuarded(fields, ops, propertyVerdict, landPropertyOp);

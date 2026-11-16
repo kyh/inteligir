@@ -135,7 +135,7 @@ export const newBodyBlockSchema = z.strictObject({
   section: librarySectionSchema,
 });
 
-// ---- writes beside the field ops ----
+// ---- writes beside a property's ops ----
 
 export const folderOpSchema = z.discriminatedUnion("op", [
   z.strictObject({

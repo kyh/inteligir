@@ -78,8 +78,8 @@ import {
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
 import { undoChangeSets } from "./cell-undo";
-import { landWrite } from "./cell-writes";
-import type { ItemWrite } from "./cell-writes";
+import { landPropertyOps } from "./cell-writes";
+import type { PropertyWrite } from "./cell-writes";
 import { joinTurnSet, PRUNE_JOB } from "./change-sets";
 import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 
@@ -99,7 +99,7 @@ export interface LibraryEngineDeps {
   ) => void;
 }
 
-export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
+export type WriteItemInput = PropertyWrite & { readonly opId?: string | undefined };
 
 // what a write asks of the engine around its work: its key in the op ledger, and the schema its
 // answer is read through, as it lands and as the ledger kept it
@@ -265,7 +265,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const write = (actor: CellActor, input: WriteItemInput) =>
     land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-      item: landWrite(scope, input),
+      item: landPropertyOps(scope, input),
     }));
 
   // emptying Deleted: the item keeps its id and sequence as a tombstone, its body and every change
