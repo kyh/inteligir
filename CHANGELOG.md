@@ -56,6 +56,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A note the agent or a connected assistant creates takes its title and tags only from what you ask for**: a `---` block at the top of its text stays in the note as a code block, as one at the top of a note saved with a link does.
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
 - **The agent draws diagrams** as Mermaid in the note.
+- **The agent's question says exactly which items it would move to Deleted, or the whole address it would save**, and a request it couldn't carry out is turned down without asking you.
 - **Your devices and the agent edit one note together**, live, and ⌘Z takes back only your own typing.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
@@ -82,6 +83,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A change your library can't take says why**, and puts it back.
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
+- **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.
 - **New note on the Mac starts with no title**, following your first line until you type one.
 - **Text you paste that opens with a `---` block comes in as a code block.**
 - **The Mac window has the standard title bar.**
@@ -124,6 +126,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Enter on a link pasted into ⌘P saves it**, ahead of any items its words match.
 - **Sign in stays busy until your library opens**, and Back no longer returns to the form you just sent.
 - **The agent's reply stays on screen as it lands**: its text no longer blinks at the end of each message, and the conversation follows the reply as it is written until you scroll up.
+- **Approve and Cancel stay held while your answer to the agent is on its way**, when it asks before deleting or saving a link, and come back if it couldn't be sent, instead of reading Answered.
+- **A finished step in the agent's work no longer draws an empty bar**, and only a failed step opens to say why.
 - **The agent's edit of one line leaves the rest of the note as it was**: an underline or a picture's size beside a list that holds a code block or a picture is no longer dropped.
 - **The agent reads a long item a part at a time**, so a long saved page with a picture in a list can be read.
 - **A note that opens with a callout is titled and found by its words**, not `[!NOTE]`.
@@ -136,3 +140,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An empty bullet keeps the list nested under it.**
 - **A table cell keeps its second line and its bars.**
 - **A link keeps its address through an import and an agent's edit**, punctuation at its end included.
+- **A note that can't take edits can't be changed through its blocks either**: offline, full or in Deleted, a chart, canvas, HTML block, tab, table or formula takes no edit, and their editing buttons stay hidden until it can.
+- **An item brought back from Deleted opens editable again**, by Undo, by Undo this turn after the agent deleted it, or by an import, instead of staying read-only under "This item is in Deleted".
+- **A page saved or read just as its note first opens is saved** instead of failing.
