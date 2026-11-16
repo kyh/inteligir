@@ -29,6 +29,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Ask the agent on your iPhone**, in the same conversations as your Mac and your browser.
 - **Photos on your iPhone are pictures of their own**: Add a photo in the library, at most 2048 pixels and with no location.
 - **Deleted brings everything back**, an item's files included; Delete forever… and Empty Deleted… remove them for good.
+- **Ask the agent to add to an item's note** and it writes after what's there, in a saved page, a picture or a PDF with no note yet too; what it adds stays when the page is read again.
+- **A link can open an item on its words**: add `find=` and the words to an item's address, and its find bar opens on them.
 - **Terms of Use**, at inteligir.com/terms.
 
 ### Changed
@@ -38,16 +40,26 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since; typing inside a paragraph the agent added goes with it, and Undo names each note it happened in.
 - **The sidebar chooses what the library shows**: All items, Unsorted, folders, tags and Deleted.
 - **The panel's tabs are Info and Agent.**
+- **Info's Add property asks for a name, a type and a value**: Text, Number, Checkbox, Date or List, kept exactly as you typed it, so `Meeting: Q3 review` stays text and `02139` keeps its zero.
+- **A date property is picked from a calendar**, and the Text/Date switch under a property's name is gone: to make a date text again, remove the property and add it as Text.
+- **A new property can't be named title, tags, folder or pinned**, or take a name the item already has; Add property says so and stays open.
 - **⌘P searches your library and runs a few commands**: New note, Save a link…, Ask the agent, Tidy my library and Settings.
+- **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
+- **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
+- **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier.
 - **Search looks at an item's address, site, author, description and tags**, not inside its properties.
 - **Deleting an item on your iPhone moves it to Deleted.**
 - **A link to a note is a link to that item**, so renaming or moving it keeps every link, and pointing at one shows its card's preview.
 - **`[[Title]]` in an imported note or the agent's writing links the one item with that title**, and stays text when none or several have it.
 - **Some formatting doesn't survive markdown**: what the agent reads, the blocks its edit touches and an imported note keep only what markdown can say.
+- **The agent and connected assistants leave a saved page's article as it was read**: ask for the change in the item's note.
+- **A note the agent or a connected assistant creates takes its title and tags only from what you ask for**: a `---` block at the top of its text stays in the note as a code block, as one at the top of a note saved with a link does.
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
 - **The agent draws diagrams** as Mermaid in the note.
 - **Your devices and the agent edit one note together**, live, and ⌘Z takes back only your own typing.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
+- **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
+- **A callout written `[!note]`, or with words on its marker's line, is saved as `[!NOTE]` on a line of its own**; what it says is unchanged.
 - **Embed from URL takes only an https:// or http:// link.**
 - **Choosing a new password looks like the rest of the website.**
 - **Dragging across the window selects only text you would copy.**
@@ -55,12 +67,17 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Diagrams draw as you type, in the app's own colours.**
 - **A very long page keeps its first part.**
 - **Signing in on inteligir.com takes you to your library**, or back to the page that sent you.
+- **Opening your library signed out goes straight to sign-in**, before any of it loads, and sign-in and sign-up show at once, taking you straight to your library when you're already signed in.
+- **Back and Forward ask before you lose what you typed with no connection**, as closing the item and the tab do: Stay keeps the item open, and a folder or tag you pressed in the sidebar is chosen only once you leave.
 - **Settings › Account lists every device signed in to your account**, and Sign out beside any ends it at once.
 - **A sign-in lasts 60 days from the last time you used it.**
 - **You can be signed in on up to 20 devices and browsers at once.**
 - **Resetting your password signs you out everywhere.**
 - **Signing out in a browser or the Mac app empties the site's cache**, files you opened included.
 - **Your iPhone asks for no device name.**
+- **Back on your iPhone leaves a note at once** unless you typed in it or added a file this visit, and the edge swipe goes back the same way.
+- **On your iPhone, Send, Approve, Cancel and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.
+- **A conversation on your iPhone loads only what is new** while the agent works, and Ask the agent lists every conversation at once.
 - **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room.
 - **A change your library can't take says why**, and puts it back.
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
@@ -105,6 +122,13 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **PDFs preview in Chrome, Arc, Brave and Edge**, where they showed an empty box and a Download button.
 - **A callout from the / menu takes what you type**, under its Note label, instead of the line above, and shows no raw `[!NOTE]`.
 - **Enter on a link pasted into ⌘P saves it**, ahead of any items its words match.
+- **Sign in stays busy until your library opens**, and Back no longer returns to the form you just sent.
+- **The agent's reply stays on screen as it lands**: its text no longer blinks at the end of each message, and the conversation follows the reply as it is written until you scroll up.
+- **The agent's edit of one line leaves the rest of the note as it was**: an underline or a picture's size beside a list that holds a code block or a picture is no longer dropped.
+- **The agent reads a long item a part at a time**, so a long saved page with a picture in a list can be read.
+- **A note that opens with a callout is titled and found by its words**, not `[!NOTE]`.
+- **An item no longer shows twice in your iPhone's library** when the library changed as you scrolled.
+- **Every page prints light, even in the dark theme**: the site, the extension's pages and the phone's editor page, and the library's window no longer turns light behind the print dialog.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
 - **Typing `md` in the `[[` picker matches titles alone.**
