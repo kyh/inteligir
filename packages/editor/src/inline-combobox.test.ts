@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
+import type { Descendant, SlateEditor, TElement } from "platejs";
+import { Node } from "slate";
+import * as Y from "yjs";
 
 import {
   absorbRacedComboboxText,
   cancelComboboxInput,
+  closeOwnPickers,
   commitComboboxInput,
+  ownsPicker,
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { seedDoc } from "@repo/editor/live/note-blocks";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+
+import { docNodes, liveEditor, relay, settle, syncedCopy } from "./test-support/live-notes";
 
 const makeEditor = (text: string) =>
   createSlateEditor({
@@ -188,6 +195,84 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
       }
     }).not.toThrow();
     expect(out(editor)).toBe("/tada\n");
+  });
+});
+
+const seededNote = (): Y.Doc => {
+  const doc = new Y.Doc();
+  seedDoc(doc, [
+    {
+      block: {
+        children: [{ text: "one" }],
+        id: "0190a000-0000-7000-8000-0000000000a1",
+        type: "p",
+      },
+      section: "note",
+    },
+  ]);
+  return doc;
+};
+
+// the picker the trigger opens at the start of the first line, as a person types it
+const openAtStart = (editor: SlateEditor): void => {
+  editor.tf.select({ offset: 0, path: [0, 0] });
+  editor.tf.insertText("/");
+};
+
+const pickersIn = (doc: Y.Doc): Descendant[] =>
+  docNodes(doc).flatMap((block) =>
+    ElementApi.isElement(block)
+      ? block.children.filter(
+          (child) => ElementApi.isElement(child) && child.type === KEYS.slashInput,
+        )
+      : [],
+  );
+
+describe("a picker open in a live note", () => {
+  it("is the editor's that opened it, and drawn inert on every other", () => {
+    const mine = seededNote();
+    const theirs = syncedCopy(mine);
+    const net = relay([mine, theirs]);
+    const opener = liveEditor(mine, { kit: EDITOR_KIT, userId: "here" });
+    const other = liveEditor(theirs, { kit: EDITOR_KIT, userId: "there" });
+
+    openAtStart(opener);
+    settle(net, [opener, other]);
+
+    const [picker] = pickersIn(theirs);
+    if (picker === undefined || !ElementApi.isElement(picker)) {
+      throw new Error("the picker never reached the other document");
+    }
+    expect(picker).toMatchObject({ userId: "here" });
+    expect(ownsPicker(opener, picker)).toBe(true);
+    expect(ownsPicker(other, picker)).toBe(false);
+  });
+
+  it("is always its own editor's where the editor has no name", () => {
+    const editor = makeEditor("");
+    const element = openCombobox(editor, "/", KEYS.slashInput);
+    expect(element).not.toHaveProperty("userId");
+    expect(ownsPicker(editor, element)).toBe(true);
+  });
+
+  it("leaves the note with its editor, and another's stays", () => {
+    const mine = seededNote();
+    const theirs = syncedCopy(mine);
+    const net = relay([mine, theirs]);
+    const leaving = liveEditor(mine, { kit: EDITOR_KIT, userId: "here" });
+    const staying = liveEditor(theirs, { kit: EDITOR_KIT, userId: "there" });
+    openAtStart(leaving);
+    settle(net, [leaving, staying]);
+    openAtStart(staying);
+    settle(net, [leaving, staying]);
+
+    closeOwnPickers(leaving);
+    settle(net, [leaving, staying]);
+
+    for (const doc of [mine, theirs]) {
+      expect(pickersIn(doc)).toMatchObject([{ userId: "there" }]);
+    }
+    expect(docNodes(mine).map((block) => Node.string(block))).toStrictEqual(["one"]);
   });
 });
 

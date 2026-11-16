@@ -90,7 +90,6 @@
     "./live/element-block": "./src/live/element-block.ts",
     "./live/note-blocks": "./src/live/note-blocks.ts",
     "./live/note-section": "./src/live/note-section.ts",
-    "./live/picker-owner": "./src/live/picker-owner.ts",
     "./live/yjs-binding": "./src/live/yjs-binding.ts",
     "./mark-shortcuts": "./src/mark-shortcuts.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",

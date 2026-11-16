@@ -10,14 +10,8 @@ import type { PlateElementProps } from "platejs/react";
 import { withTriggerCombobox } from "@platejs/combobox";
 import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
-import {
-  InlineCombobox,
-  InlineComboboxContent,
-  InlineComboboxEmpty,
-  InlineComboboxGroup,
-  InlineComboboxItem,
-  InlineComboboxInput,
-} from "@repo/editor/inline-combobox";
+import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
+import type { PickerRow } from "@repo/editor/inline-combobox";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { formulaInputBasePlugin } from "../kits/headless/picker-input-base";
@@ -29,16 +23,15 @@ import {
 import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
 import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 
-interface NamedVariable {
-  name: string;
-  source: string;
-  display: string;
-  meta: string;
+// a variable the note names, once each
+interface VariableRow extends PickerRow {
+  readonly name: string;
+  readonly display: string;
 }
 
-const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariable[] => {
+const variableRows = (editorChildren: readonly TElement[]): VariableRow[] => {
   const seen = new Set<string>();
-  const out: NamedVariable[] = [];
+  const out: VariableRow[] = [];
   const walk = (nodes: readonly Descendant[]): void => {
     for (const node of nodes) {
       if (!ElementApi.isElement(node)) {
@@ -54,7 +47,14 @@ const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariab
         const key = parsed.id ?? name;
         if (name !== undefined && name !== "" && key !== undefined && !seen.has(key)) {
           seen.add(key);
-          out.push({ display, meta, name, source });
+          out.push({
+            display,
+            name,
+            onSelect: (editor) => {
+              insertFormulaFromPicker(editor, formulaNodeFrom({ display, meta, source }));
+            },
+            value: key,
+          });
         }
       }
       walk(node.children);
@@ -64,17 +64,18 @@ const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariab
   return out;
 };
 
+const variableMatches = (variable: VariableRow, query: string): boolean =>
+  matchesWords([variable.name], query);
+
 const FormulaInputElement = (props: PlateElementProps) => {
   const { element } = props;
   const editor = useEditorRef();
 
-  const variables = useMemo(() => collectNamedVariables(editor.children), [editor.children]);
+  const variables = useMemo(() => variableRows(editor.children), [editor.children]);
 
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox
-        element={element}
-        trigger="{"
         closeOn={{
           pick: (body) => {
             completeFormulaFromPicker(editor, body);
@@ -82,39 +83,21 @@ const FormulaInputElement = (props: PlateElementProps) => {
           suffix: "}}",
           words: (body) => body,
         }}
+        element={element}
+        empty="Type an expression, then }}"
+        filter={variableMatches}
+        groups={[{ items: variables }]}
+        trigger="{"
       >
-        <InlineComboboxInput />
-        <InlineComboboxContent>
-          <InlineComboboxEmpty>Type an expression, then {"}}"}</InlineComboboxEmpty>
-          <InlineComboboxGroup>
-            {variables.map((variable) => (
-              <InlineComboboxItem
-                key={variable.name}
-                value={variable.name}
-                label={variable.name}
-                keywords={[variable.name]}
-                onClick={() => {
-                  insertFormulaFromPicker(
-                    editor,
-                    formulaNodeFrom({
-                      display: variable.display,
-                      meta: variable.meta,
-                      source: variable.source,
-                    }),
-                  );
-                }}
-              >
-                <SigmaIcon className="mr-2 text-muted-foreground" />
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="truncate">{variable.name}</span>
-                  <span className="truncate text-body text-muted-foreground">
-                    {variable.display}
-                  </span>
-                </span>
-              </InlineComboboxItem>
-            ))}
-          </InlineComboboxGroup>
-        </InlineComboboxContent>
+        {(variable) => (
+          <>
+            <SigmaIcon className="mr-2 text-muted-foreground" />
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="truncate">{variable.name}</span>
+              <span className="truncate text-body text-muted-foreground">{variable.display}</span>
+            </span>
+          </>
+        )}
       </InlineCombobox>
       {props.children}
     </PlateElement>

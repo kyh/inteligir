@@ -4,8 +4,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { KEYS } from "platejs";
-import type { SlateEditor } from "platejs";
+import { ElementApi, KEYS } from "platejs";
+import type { Descendant, SlateEditor } from "platejs";
 import { YjsEditor } from "@slate-yjs/core";
 import { Node } from "slate";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -509,27 +509,68 @@ describe("a file still being kept in an open note", () => {
   });
 });
 
-describe("a picker another device opened", () => {
+// the slash menu, opened as a person types it at the start of the first line
+const openSlash = (editor: SlateEditor): void => {
+  editor.tf.select({ offset: 0, path: [0, 0] });
+  editor.tf.insertText("/");
+};
+
+const pickersIn = (doc: Y.Doc): Descendant[] =>
+  docNodes(doc).flatMap((block) =>
+    ElementApi.isElement(block)
+      ? block.children.filter(
+          (child) => ElementApi.isElement(child) && child.type === KEYS.slashInput,
+        )
+      : [],
+  );
+
+describe("a picker in an open item", () => {
   beforeEach(() => {
     installFakeEditorHost();
   });
 
-  it("draws as its trigger alone, with no input to take the caret", async () => {
+  it("takes the keys on the device that opened it", async () => {
+    oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    act(() => {
+      openSlash(editorOf(A));
+    });
+    await expect(screen.findByRole("combobox")).resolves.toBeDefined();
+  });
+
+  it("draws another device's as its trigger alone, with no input to take the caret", async () => {
     const server = oneNote();
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const elsewhere = liveEditor(server.note(A).doc, { kit: EDITOR_KIT });
+    const elsewhere = liveEditor(server.note(A).doc, { kit: EDITOR_KIT, userId: "elsewhere" });
     act(() => {
-      elsewhere.tf.insertNodes(
-        { children: [{ text: "" }], type: KEYS.slashInput },
-        { at: elsewhere.api.end([0]) },
-      );
+      openSlash(elsewhere);
       YjsEditor.flushLocalChanges(elsewhere);
     });
     await waitFor(() => {
       expect(editorOf(A).api.some({ at: [], match: { type: KEYS.slashInput } })).toBe(true);
     });
     expect(screen.queryByRole("combobox")).toBeNull();
-    expect(editable()?.textContent).toContain("A one/");
+    expect(screen.getByText("/", { selector: '[contenteditable="false"]' })).toBeDefined();
+  });
+
+  it("leaves the note with the device that opened it", async () => {
+    const server = oneNote();
+    const view = render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    act(() => {
+      openSlash(editorOf(A));
+    });
+    // named for this page, so every other device draws it inert
+    await waitFor(() => {
+      expect(pickersIn(server.note(A).doc)).toMatchObject([{ userId: expect.any(String) }]);
+    });
+    view.unmount();
+    await act(async () => {
+      await delay(0);
+    });
+    expect(pickersIn(server.note(A).doc)).toStrictEqual([]);
+    expect(textsOf(server.note(A).doc)).toStrictEqual(["A one"]);
   });
 });

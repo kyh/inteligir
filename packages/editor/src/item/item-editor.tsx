@@ -15,6 +15,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { nanoid } from "platejs";
 import type { SlateEditor } from "platejs";
 import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 import { YjsEditor } from "@slate-yjs/core";
@@ -26,6 +27,7 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { closeOwnPickers } from "@repo/editor/combobox-input";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import { watchFileKeeps } from "@repo/editor/file-keeps";
@@ -51,6 +53,10 @@ import { HeldItem } from "./held-item";
 import { noteConnection } from "./note-connection";
 import type { NoteConnection, NoteEdits, NoteHeld } from "./note-connection";
 import { Notice } from "./notice";
+
+// the name every editor on this page gives the pickers it opens, which outlives a document a
+// reopen replaces, so a picker opened here before the reopen still takes its keys here
+const PAGE_USER_ID = nanoid();
 
 // a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
@@ -185,6 +191,8 @@ const bindingOf = (editor: SlateEditor) => {
         listener();
       }
       return () => {
+        // before the disconnect, whose flush is the last write this editor makes to the note
+        closeOwnPickers(editor);
         YjsEditor.disconnect(editor);
       };
     },
@@ -221,6 +229,7 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
       yjsBindingPlugin({ localOrigin: Symbol(itemId), root: noteRoot(doc) }),
       YHistoryPlugin,
     ],
+    userId: PAGE_USER_ID,
   });
   const binding = useMemo(() => bindingOf(editor), [editor]);
   const connects = useSyncExternalStore(binding.subscribe, binding.connects);

@@ -107,7 +107,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
 - **A fold is the device's view state, and holds none of the library's words.** It sits in local
-  storage under a hash of the heading, dropped on leaving the account, since a fold in the cell
+  storage as the heading's block id, dropped on leaving the account, since a fold in the cell
   makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
 - **A table cell keeps a code span's and an equation's pipes, and its `<br/>` parts its blocks.**
   gfm splits a row at every bare pipe and the writer joins a cell's blocks with `<br/>`, so both
@@ -123,6 +123,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
   `tools/e2e/src/editor.spec.ts`.
+- **An open picker is its page's, and leaves the note with its editor.** Plate's trigger names it
+  by the editor's `userId`, one per page, so every other device draws it as its trigger, and the
+  item editor takes its own out before it lets the note go, since no device can close another's.
+  `packages/editor/src/combobox-input.ts`.
 - **A note's body is one live document, every editor of it bound innermost, and every kit fixes
   its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
   changes, since `@platejs/yjs` takes no custom provider without a type assertion.
@@ -161,5 +165,6 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
-  the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and
-  input of our own respell what Plate's mention does. `packages/editor/src/kits/mention-kit.tsx`.
+  the item's id, so no rename breaks it, and its rows are data handed to Base UI's Autocomplete,
+  since a trigger and input of our own respell what Plate's mention does.
+  `packages/editor/src/kits/mention-kit.tsx`.

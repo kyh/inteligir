@@ -16,7 +16,7 @@ const rowLabelled = (label: string) => {
   return row;
 };
 
-const searchSlashMenu = async (typed: string): Promise<string[]> => {
+const typeIntoSlashMenu = async (typed: string): Promise<void> => {
   const value: Value = [
     {
       children: [{ text: "" }, { children: [{ text: "" }], type: KEYS.slashInput }, { text: "" }],
@@ -25,6 +25,10 @@ const searchSlashMenu = async (typed: string): Promise<string[]> => {
   ];
   render(<EditorHarness value={value} />);
   fireEvent.change(await screen.findByRole("combobox"), { target: { value: typed } });
+};
+
+const searchSlashMenu = async (typed: string): Promise<string[]> => {
+  await typeIntoSlashMenu(typed);
   const options = await screen.findAllByRole("option");
   return options.map((option) => option.textContent);
 };
@@ -39,5 +43,18 @@ describe("the slash menu's search", () => {
     const shown = await searchSlashMenu("day");
     expect(shown).toHaveLength(1);
     expect(shown[0]).toContain(date.description);
+  });
+
+  it("finds a row by its group's name", async () => {
+    const shown = await searchSlashMenu("media");
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toContain(rowLabelled("Embed").description);
+  });
+
+  it("says so when no row answers, under no group's heading", async () => {
+    await typeIntoSlashMenu("zzzz");
+    await expect(screen.findByText("No results")).resolves.toBeDefined();
+    expect(screen.queryAllByRole("option")).toStrictEqual([]);
+    expect(screen.queryByText("Basic blocks")).toBeNull();
   });
 });

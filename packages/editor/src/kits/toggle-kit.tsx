@@ -1,11 +1,13 @@
-// Nested block children, not Plate's flat indent-sibling model: TogglePlugin is kept for its
-// openIds store and chevron hooks, and its flat-model hider is switched off below. Open state
-// lives in that store, never on the node, so collapsing cannot dirty the document.
+// Nested block children, not Plate's flat indent-sibling model: the headless BaseTogglePlugin is
+// mounted for its openIds store, which the chevron hooks read, and never TogglePlugin, whose hider,
+// index and Enter assume flat siblings. Open state lives in that store, never on the node, so
+// collapsing cannot dirty the document.
 
 import { ElementApi, KEYS, PathApi, createBlockStartInputRule } from "platejs";
 import type { Path } from "platejs";
+import { toPlatePlugin } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
-import { TogglePlugin } from "@platejs/toggle/react";
+import { BaseTogglePlugin } from "@platejs/toggle";
 
 import { stringProp } from "@repo/editor/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
@@ -25,7 +27,7 @@ export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   const toggle = editor.api.node(at);
   const id = toggle ? stringProp(toggle[0], "id") : undefined;
   if (id !== undefined && id !== "") {
-    editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
+    editor.getApi(BaseTogglePlugin).toggle.toggleIds([id], true);
   }
 };
 
@@ -48,24 +50,14 @@ const toggleInputRule = createBlockStartInputRule({
   trigger: " ",
 });
 
-// The flat model's hider and its index are off: a toggle's body is its own children, so no
-// top-level block is enclosed by indent, and the hider was a store atom per block that every
-// change recomputed beside a walk of the top level, most of a keystroke in a long note.
-export const wrapNoBlock = (): undefined => {
-  /* no block is hidden by a toggle above it */
-};
-export const indexNoToggles = (): void => {
-  /* the toggle index stays empty, so no block reads as inside a closed toggle */
-};
-
 export const ToggleKit = [
-  TogglePlugin.configure({ inputRules: [toggleInputRule] })
-    .extend({ render: { aboveNodes: wrapNoBlock }, useHooks: indexNoToggles })
+  toPlatePlugin(BaseTogglePlugin)
+    .configure({ inputRules: [toggleInputRule] })
     .withComponent(ToggleElement)
     .overrideEditor(({ editor, tf: { insertBreak } }) => ({
       transforms: {
-        // the plugin's flat-model insertBreak would indent-attach the new block at top level,
-        // a shape that does not survive serialization.
+        // A toggle is the lowest block only while it has no body, where Slate's split would make
+        // it two toggles.
         insertBreak() {
           const block = editor.api.block();
           if (block && block[0].type === KEYS.toggle) {

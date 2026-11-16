@@ -56,13 +56,19 @@ export const syncedCopy = (source: Y.Doc): Y.Doc => {
 export type LiveEditor = SlateEditor & YjsEditor;
 
 // An editor bound to `doc` and connected, with node ids on as the app runs them (Plate turns them
-// off under NODE_ENV=test); `history` adds the person's undo, which the note's own editor lacks.
+// off under NODE_ENV=test); `history` adds the person's undo, which the note's own editor lacks,
+// and `userId` names the page it stands for, as the item editor names its own.
 export const liveEditor = (
   doc: Y.Doc,
   {
     kit = BASE_KIT,
     history = true,
-  }: { readonly kit?: readonly AnyPluginConfig[]; readonly history?: boolean } = {},
+    userId,
+  }: {
+    readonly kit?: readonly AnyPluginConfig[];
+    readonly history?: boolean;
+    readonly userId?: string;
+  } = {},
 ): LiveEditor => {
   const editor = createSlateEditor({
     nodeId: true,
@@ -71,6 +77,7 @@ export const liveEditor = (
       yjsBindingPlugin({ localOrigin: Symbol("local"), root: noteRoot(doc) }),
       ...(history ? [YHistoryPlugin] : []),
     ],
+    userId,
   });
   if (!YjsEditor.isYjsEditor(editor)) {
     throw new Error("the binding did not bind");

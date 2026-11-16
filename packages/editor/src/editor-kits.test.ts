@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
-import { TogglePlugin } from "@platejs/toggle/react";
+import { BaseTogglePlugin } from "@platejs/toggle";
 
 import { insertColumnGroup } from "@repo/editor/kits/column-kit";
 import { insertDate } from "@repo/editor/kits/date-kit";
@@ -190,6 +190,20 @@ describe(insertToggle, () => {
     expect(out(editor)).toBe(":::toggle\nSummary\n\nbody\n:::\n");
   });
 
+  it("Enter in a toggle with no body adds a paragraph after it, never a second toggle", () => {
+    const editor = createSlateEditor({
+      plugins: EDITOR_KIT,
+      value: [{ children: [{ text: "" }], type: KEYS.toggle }],
+    });
+    editor.tf.select(editor.api.start([0]));
+    editor.tf.insertBreak();
+    editor.tf.insertText("after");
+    expect(editor.children).toMatchObject([
+      { children: [{ text: "" }], type: KEYS.toggle },
+      { children: [{ text: "after" }], type: KEYS.p },
+    ]);
+  });
+
   it("normalizes typed-into empty toggle children into a paragraph", () => {
     const editor = makeEditor(":::toggle\n:::\n");
     editor.tf.select(editor.api.start([0]));
@@ -208,11 +222,11 @@ describe(insertToggle, () => {
     // headless parse assigns no NodeIdPlugin ids, so an explicit id is driven
     const editor = makeEditor(":::toggle\nSummary\n\nbody\n:::\n");
     const before = out(editor);
-    const isOpen = (id: string) => editor.getOptions(TogglePlugin).openIds?.has(id) ?? false;
+    const isOpen = (id: string) => editor.getOptions(BaseTogglePlugin).openIds?.has(id) ?? false;
     expect(isOpen("t1")).toBe(false);
-    editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
+    editor.getApi(BaseTogglePlugin).toggle.toggleIds(["t1"]);
     expect(isOpen("t1")).toBe(true);
-    editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
+    editor.getApi(BaseTogglePlugin).toggle.toggleIds(["t1"]);
     expect(isOpen("t1")).toBe(false);
     expect(out(editor)).toBe(before);
     expect(before).toBe(":::toggle\nSummary\n\nbody\n:::\n");
