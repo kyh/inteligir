@@ -19,6 +19,11 @@ export const chunksOf = <T>(items: readonly T[], size = BULK_ITEMS_MAX): T[][] =
   return chunks;
 };
 
+interface ToastAction {
+  readonly label: string;
+  readonly onClick: () => void;
+}
+
 export interface BulkRun<T> {
   readonly items: readonly T[];
   // how many go in one call
@@ -27,69 +32,78 @@ export interface BulkRun<T> {
   readonly verb: string;
   // "moved": a run where none landed reads "None of these 12 items could be moved."
   readonly past: string;
+  // what one of `items` is, when not an item: "link" reads "That link couldn't be saved."
+  readonly noun?: string;
+  // "always" for a call that takes a while, as a file's upload does; by default progress shows
+  // only once a run takes more than one call
+  readonly show?: "many" | "always";
   // answers how many of the chunk landed
   readonly run: (chunk: readonly T[]) => Promise<number>;
   // the sentence once every chunk ran, given how many landed
   readonly done: (count: number) => string;
+  // the button on the closing toast of a run where any landed, stopped or not: Delete's Undo of
+  // what went, a lone saved link's Open
+  readonly action?: () => ToastAction | undefined;
 }
 
-const noneLanded = (total: number, past: string): string =>
+const noneLanded = <T>(total: number, { noun = "item", past }: BulkRun<T>): string =>
   total === 1
-    ? `That item couldn't be ${past}.`
-    : `None of these ${formatCount(total)} items could be ${past}.`;
+    ? `That ${noun} couldn't be ${past}.`
+    : `None of these ${formatCount(total)} ${noun}s could be ${past}.`;
 
-// a run of one chunk needs no progress to watch and nothing to stop
 export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
   const total = job.items.length;
   if (total === 0) {
     return;
   }
-  const size = Math.max(1, job.chunk);
-  const shown = total > size;
-  // one toast from the first progress to the outcome; a run of one chunk shows the outcome alone
+  const calls = chunksOf(job.items, Math.max(1, job.chunk));
+  const shown = job.show === "always" || calls.length > 1;
+  // one toast from the first progress to the outcome
   const id = `bulk-${String(Date.now())}-${String(Math.random())}`;
-  // an update by id keeps what the toast held, so an outcome takes the run's Stop off it
-  const outcome = (duration: number) => ({ action: undefined, duration, id });
   let stop = false;
-  let done = 0;
+  let asked = 0;
   let landed = 0;
-  const progress = (): void => {
-    if (!shown) {
-      return;
-    }
-    toast.loading(`${job.verb} ${formatCount(done)} of ${formatCount(total)}…`, {
-      action: {
-        label: "Stop",
-        onClick: () => {
-          stop = true;
-        },
-      },
-      duration: Number.POSITIVE_INFINITY,
+  const stopButton: ToastAction = {
+    label: "Stop",
+    onClick: () => {
+      stop = true;
+    },
+  };
+  // an update by id keeps what the toast held, so an outcome names its own button, or none, to
+  // take the run's Stop off it
+  const close = (kind: "success" | "info" | "error", sentence: string): void => {
+    toast[kind](sentence, {
+      action: landed > 0 ? job.action?.() : undefined,
+      duration: kind === "error" ? 6000 : 4000,
       id,
     });
   };
-  progress();
-  for (const chunk of chunksOf(job.items, size)) {
+  const stopped = (): string => `Stopped after ${formatCount(landed)} of ${formatCount(total)}.`;
+  for (const [at, chunk] of calls.entries()) {
     if (stop) {
-      toast.info(`Stopped after ${formatCount(landed)} of ${formatCount(total)}.`, outcome(4000));
+      close("info", stopped());
       return;
+    }
+    asked += chunk.length;
+    if (shown) {
+      toast.loading(`${job.verb} ${formatCount(asked)} of ${formatCount(total)}…`, {
+        // only while a call after this one is left to skip
+        action: at === calls.length - 1 ? undefined : stopButton,
+        duration: Number.POSITIVE_INFINITY,
+        id,
+      });
     }
     try {
       landed += Math.min(chunk.length, Math.max(0, await job.run(chunk)));
     } catch (error) {
-      const reached =
-        landed === 0
-          ? noneLanded(total, job.past)
-          : `Stopped after ${formatCount(landed)} of ${formatCount(total)}.`;
-      toast.error(`${reached} ${refusalText(error, "The library didn't answer.")}`, outcome(6000));
+      const reached = landed === 0 ? noneLanded(total, job) : stopped();
+      close("error", `${reached} ${refusalText(error, "The library didn't answer.")}`);
       return;
     }
-    done += chunk.length;
-    progress();
   }
   if (landed === 0) {
-    toast.error(noneLanded(total, job.past), outcome(6000));
+    close("error", noneLanded(total, job));
   } else {
-    toast.success(job.done(landed), outcome(4000));
+    close("success", job.done(landed));
   }
 };
