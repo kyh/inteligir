@@ -4,13 +4,15 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ## Unreleased
 
-**Moving from 0.6.0.** Inteligir is now a library of everything you save, in your Inteligir account, which your Mac, your iPhone and inteligir.com/library all show, so it needs a connection. Download this version from inteligir.com (the version you have can't update itself to it; it needs macOS 13.5 or later), sign in or create an account with an invite code, and update every iPhone you use. Nothing on your Mac comes in by itself: zip your notes folder and choose Import a zip of notes… in Settings › Import. Before you zip, open the iPhone app online so what you wrote there has reached your Mac, copy any comment or agent reply you want to keep into its note, and paste what your `AGENTS.md` tells the agent into Settings › Account › Filing rules. An earlier version's formulas, highlights, underlines and toggles, columns or dates written as tags come in as the text they were written as, and your window settings start over once.
+**Moving from 0.6.0.** Inteligir is now a library of everything you save, in your Inteligir account, which your Mac, your iPhone and inteligir.com/library all show, so it needs a connection. Download this version from inteligir.com (the version you have can't update itself to it; it needs macOS 13.5 or later), sign in or create an account with an invite code, and update every iPhone you use. Nothing on your Mac comes in by itself: zip your notes folder and choose Import a zip of notes… in Settings › Import, keeping the window open until it says what it added. Before you zip, open the iPhone app online so what you wrote there has reached your Mac, copy any comment or agent reply you want to keep into its note, and paste what your `AGENTS.md` tells the agent into Settings › Account › Filing rules. An earlier version's formulas, highlights, underlines and toggles, columns or dates written as tags come in as the text they were written as, and your theme, editor settings, window layout and folded headings start over once.
 
 ### New
 
 - **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent, every change reaching your other devices as you make it.
 - **The Mac app opens your library from inteligir.com**: close the window and click Inteligir in the Dock to bring it back; offline, choose View › Reload once you're back.
 - **Your library, one card per item**: All items, Unsorted, a folder or a tag in the sidebar, a kind above the grid, Finder's selection, Space for a quick look, quick with tens of thousands of items.
+- **Back and Forward walk your library**: a folder, a tag or Deleted is its own place in the window's address, so a reload keeps it and a link opens it; choosing a kind above the grid adds no step to Back.
+- **A new window, and the Mac app when it starts, open All items**: choose a folder or a tag in the sidebar to go back to it.
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
 - **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, and a save made offline or signed out lands later.
@@ -23,6 +25,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
 - **Bring your Raindrop bookmarks in** from a Raindrop backup's CSV file, in Settings › Import.
 - **Bring a zip of notes in**, a folder of notes or an Obsidian folder, in Settings › Import; what it can't read is counted under "couldn't be read".
+- **An import is read on your device**: keep the window open until it says what it added, and if it closes, choose the same file again and it carries on, adding nothing twice.
 - **Your library on your iPhone**: covers, kinds, search, every file, live editing, and what you last opened readable offline.
 - **Create your account on your iPhone** with the invite code you were sent.
 - **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back.
@@ -37,7 +40,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
 - **The privacy policy reads plainly, each practice stated once**: your library in your account, what each device sends, and how to ask for a copy, a correction or a deletion.
-- **Undo takes back what the agent changed, for seven days**, keeping every edit made since; typing inside a paragraph the agent added goes with it, and Undo names each note it happened in.
+- **Undo takes back what the agent changed, for seven days**, keeping every edit made since and any you made while it worked, a pin or a new name included; typing inside a paragraph the agent added goes with it, and Undo names each note it happened in.
+- **Only the agent's changes are kept for Undo**: what you, a connected assistant or an import change is not, and Undo this turn and Undo this conversation work as before.
 - **The sidebar chooses what the library shows**: All items, Unsorted, folders, tags and Deleted.
 - **The panel's tabs are Info and Agent.**
 - **Info's Add property asks for a name, a type and a value**: Text, Number, Checkbox, Date or List, kept exactly as you typed it, so `Meeting: Q3 review` stays text and `02139` keeps its zero.
@@ -47,6 +51,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
 - **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier.
+- **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
 - **Search looks at an item's address, site, author, description and tags**, not inside its properties.
 - **Deleting an item on your iPhone moves it to Deleted.**
 - **A link to a note is a link to that item**, so renaming or moving it keeps every link, and pointing at one shows its card's preview.
@@ -62,6 +67,11 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
 - **A callout written `[!note]`, or with words on its marker's line, is saved as `[!NOTE]` on a line of its own**; what it says is unchanged.
 - **Embed from URL takes only an https:// or http:// link.**
+- **Link on words that are already a link changes its address** instead of putting a second link inside it, and lands only on the words you selected: if the note changed while the link field was open, nothing is linked and you're asked to select the text again.
+- **Escape in the link field takes you back to your note**, and the toolbar is hidden while a note can't be edited.
+- **Blockquote is called Quote** in the `/` menu and on the iPhone's toolbar, as the toolbar's block type already was.
+- **A note with pictures or recordings opens sooner** on your Mac and in your browser: a picture loads as you scroll near it, and a recording plays and seeks before it has fully downloaded.
+- **A folded heading is folded in every window showing its note.**
 - **Choosing a new password looks like the rest of the website.**
 - **Dragging across the window selects only text you would copy.**
 - **Long notes open, scroll and type faster.**
@@ -81,6 +91,10 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A conversation on your iPhone loads only what is new** while the agent works, and Ask the agent lists every conversation at once.
 - **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room.
 - **A change your library can't take says why**, and puts it back.
+- **Pin, Unpin and Restore from the grid's menu say how many items they changed**, and a restore names every item that stayed in Deleted because another item has its address.
+- **Adding files shows its progress from the first one**, "Adding 3 of 12…", as saving several links does, with Stop only while any are left.
+- **A link or file that couldn't be saved says why**, and what was saved before it is counted: "Stopped after 2 of 5."
+- **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
 - **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.
@@ -88,6 +102,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Text you paste that opens with a `---` block comes in as a code block.**
 - **The Mac window has the standard title bar.**
 - **inteligir.com follows your computer's light or dark mode** until you choose, and its theme switch and Settings › Editor › Theme are one choice.
+- **A theme, an editor setting or spell check changed in one window reaches every other open window at once.**
+- **The sidebar opens the way you left it**: collapse it and it opens collapsed the next time, as the panel does.
 - **inteligir.com's headings' links are GitHub's.**
 
 ### Removed
@@ -143,3 +159,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A note that can't take edits can't be changed through its blocks either**: offline, full or in Deleted, a chart, canvas, HTML block, tab, table or formula takes no edit, and their editing buttons stay hidden until it can.
 - **An item brought back from Deleted opens editable again**, by Undo, by Undo this turn after the agent deleted it, or by an import, instead of staying read-only under "This item is in Deleted".
 - **A page saved or read just as its note first opens is saved** instead of failing.
+- **A folded heading stays folded when you rename it**, and a fold no longer jumps to another heading with the same words.
+- **Leaving a note with the `/`, `[[` or `{{` menu open no longer leaves its character behind** in the note on your other devices.
+- **A note waiting for a connection shows its outline beside its text** on your Mac and in your browser, as an open note does.
+- **Enter in an open item's title keeps the cursor in the field**, and a title changed on another device no longer replaces the one you're typing.
+- **A delete that stops partway still offers Undo**, which brings back the items that went to Deleted.
