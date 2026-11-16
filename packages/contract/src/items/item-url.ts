@@ -35,6 +35,9 @@ const holdsSpaceOrControl = (value: string): boolean => {
 
 const DIGITS = /^\d*$/u;
 
+// past it a browser's URL refuses the address, and window.open throws on it
+const MAX_PORT = 65_535;
+
 const splitHostPort = (hostPort: string): { host: string; port: string | null } | null => {
   if (hostPort.startsWith("[")) {
     const close = hostPort.indexOf("]");
@@ -77,7 +80,11 @@ const parseWebUrl = (value: string): WebUrl | null => {
   }
   const hostPort = authority.slice(authority.lastIndexOf("@") + 1);
   const split = splitHostPort(hostPort);
-  if (split === null || split.host.replace(/\.$/u, "") === "") {
+  if (
+    split === null ||
+    split.host.replace(/\.$/u, "") === "" ||
+    Number(split.port ?? 0) > MAX_PORT
+  ) {
     return null;
   }
   return {

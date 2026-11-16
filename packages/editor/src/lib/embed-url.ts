@@ -5,12 +5,14 @@
 import { KEYS } from "platejs";
 import { parseTwitterUrl, parseVideoUrl } from "@platejs/media";
 
-import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/url";
+import { isWebUrl } from "@repo/contract/items/item-url";
+
+import { isPdfUrl } from "@repo/editor/lib/url";
 
 type EmbedType = typeof KEYS.file | typeof KEYS.mediaEmbed | typeof KEYS.video;
 
 export const embedTypeForUrl = (url: string): EmbedType | null => {
-  if (!isHttpUrl(url)) {
+  if (!isWebUrl(url)) {
     return null;
   }
   if (parseVideoUrl(url) !== undefined) {

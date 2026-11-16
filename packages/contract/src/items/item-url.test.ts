@@ -25,6 +25,8 @@ describe(isWebUrl, () => {
     ["https://exa mple.com", false],
     ["https://example.com/a b", false],
     ["https://example.com:80a/", false],
+    ["https://example.com:65535/", true],
+    ["https://example.com:65536/", false],
     ["https://./", false],
     ["mailto:a@b.com", false],
     ["", false],
