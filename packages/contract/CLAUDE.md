@@ -3,8 +3,8 @@
 `/v1`'s one wire, and the library model both ends of it validate against. Every
 client and the Worker compile against it, so it is zod and oRPC's contract
 with no node or react import (`oxlint.config.ts`) and no workspace dependency
-in its manifest, and the model's modules take no `crypto` or `URL` global: the
-clock, random bytes and fresh ids are injected.
+in its manifest, and the model's modules take no `crypto` global: the clock,
+random bytes and fresh ids are injected.
 
 ## The library model
 
@@ -43,9 +43,9 @@ clock, random bytes and fresh ids are injected.
 
 ## Items and files
 
-- **A url has one key, computed without the platform's URL.** React Native's
-  `URL` is not WHATWG, so the phone and the Mac would disagree.
-  `packages/contract/src/items/item-url.ts`.
+- **A url is read by the platform's `URL`, and its key is the cell's.** Expo's
+  `URL` keeps an IDN host as written, so a device only tests an address and
+  compares its own spellings. `packages/contract/src/items/item-url.ts`.
 - **A device keeps a reading only for its article; the fill, the last reader, keeps a page that
   named itself.** An item saved read is never filled, so a device hands the fill what it could not
   read, and nothing reads after the fill. `packages/contract/src/items/link-fill.ts`.

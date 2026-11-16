@@ -31,7 +31,8 @@ src/
   knowledge/, items/, text/, lib/    an import's link targets, a file's facts, the one diff, helpers
   test-support/  the fake host, memory notes behind a fake socket, the corpus fixtures
   *.ts(x)        the editor surface and its in-document affordances, and the host seam
-styles.css       the one stylesheet a host imports, its selectors spelled in `style-hooks.ts`
+styles-entry.css what a host imports as `@repo/editor/styles.css`: the rules and the sources Tailwind scans
+styles.css       the rules, their selectors spelled in `style-hooks.ts`
 ```
 
 ## Seams

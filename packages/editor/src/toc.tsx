@@ -9,9 +9,8 @@ import { useEditorRef, useEditorSelector } from "platejs/react";
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
-import { holdInView } from "@repo/editor/run-anchoring";
+import { reveal } from "@repo/editor/scroll-reveal";
 import { shownText } from "@repo/editor/shown-text";
-import { isNearInScroller } from "@repo/editor/scroll-reveal";
 
 export interface HeadingItem {
   id: string;
@@ -26,33 +25,8 @@ const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h3, 3],
 ]);
 
+// where a heading the outline names lands, and the line the scroll spy reads it against
 const HEADER_OFFSET = 64;
-
-const SCROLL_DURATION_MS = 200;
-
-// `behavior: "smooth"` is ignored by scrollIntoView and scrollTo on this scroller. A far heading is
-// jumped to, since a tween across runs not yet drawn aims where the heading was before they drew.
-const tweenScrollTo = (scroller: Element, el: HTMLElement): void => {
-  const from = scroller.scrollTop;
-  const to =
-    el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + from - HEADER_OFFSET;
-  if (!isNearInScroller(el, scroller)) {
-    scroller.scrollTop = to;
-    holdInView(el);
-    return;
-  }
-  const start = performance.now();
-  const step = (now: number) => {
-    const t = Math.min(1, (now - start) / SCROLL_DURATION_MS);
-    // easeOutCubic
-    const eased = 1 - (1 - t) ** 3;
-    scroller.scrollTop = from + (to - from) * eased;
-    if (t < 1) {
-      requestAnimationFrame(step);
-    }
-  };
-  requestAnimationFrame(step);
-};
 
 interface BlockHeading {
   // below the top-level block, whose index moves when a block is added above it
@@ -245,9 +219,8 @@ export const TableOfContents = () => {
   const scrollTo = (index: number) => {
     const heading = headings[index];
     const el = heading === undefined ? null : headingElement(editor, heading);
-    const scroller = rootRef.current?.closest("[data-editor-scroller]");
-    if (el !== null && scroller) {
-      tweenScrollTo(scroller, el);
+    if (el !== null) {
+      reveal(el, { top: HEADER_OFFSET });
     }
     setActiveIndex(index);
   };

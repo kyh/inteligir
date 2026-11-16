@@ -11,17 +11,27 @@ const SCROLLER = "[data-editor-scroller]";
 // a screen and a half: the runs that close are already drawn, since a run renders on approach
 const NEAR_SCREENS = 1.5;
 
-export const isNearInScroller = (el: Element, scroller: Element): boolean => {
+const isNearInScroller = (el: Element, scroller: Element): boolean => {
   const offset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
   return Math.abs(offset) <= scroller.clientHeight * NEAR_SCREENS;
 };
 
-// the element centred in the note's scroller: glided to when near, jumped to when far, where it
-// holds while the runs around it draw (run-anchoring.ts)
-export const revealCentered = (el: Element): void => {
+// `at` is where the element lands in the note's scroller: centred, or its top this far below the
+// scroller's
+export const reveal = (el: Element, at: "center" | { readonly top: number }): void => {
+  // a block in a folded section draws no box, so a place measured from one is the scroller's own
+  if (el.getClientRects().length === 0) {
+    return;
+  }
   const scroller = el.closest(SCROLLER);
   const near = scroller === null || isNearInScroller(el, scroller);
-  el.scrollIntoView({ behavior: near ? "smooth" : "auto", block: "center" });
+  const behavior = near ? "smooth" : "auto";
+  if (at === "center" || scroller === null) {
+    el.scrollIntoView({ behavior, block: "center" });
+  } else {
+    const offset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ behavior, top: scroller.scrollTop + offset - at.top });
+  }
   if (!near) {
     holdInView(el);
   }

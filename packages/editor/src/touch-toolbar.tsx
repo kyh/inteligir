@@ -8,7 +8,6 @@
 
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { upsertLink } from "@platejs/link";
 import { KEYS } from "platejs";
 import type { RangeRef } from "platejs";
 import {
@@ -32,10 +31,10 @@ import {
 
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
-import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
+import { applyLink, holdSelection } from "@repo/editor/held-selection";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcuts";
@@ -216,32 +215,19 @@ const TouchToolbar = () => {
   const editor = useEditorRef();
   const readOnly = useEditorReadOnly();
   // where the link field's address lands, held while the field has the row; null is the row of
-  // buttons. A ref rather than the range: a sync can rebase or re-seed the note under the open
-  // field, and a plain range would then land on whatever text took its place.
+  // buttons
   const [prompt, setPrompt] = useState<RangeRef | null>(null);
   // what the field held when its text went away under it, offered again when it next opens
   const [draft, setDraft] = useState<string | null>(null);
 
-  const openPrompt = (): void => {
-    if (editor.selection !== null) {
-      setPrompt(editor.api.rangeRef(editor.selection, { affinity: "inward" }));
-    }
-  };
-
   // `value` null is a cancel, and an empty address links nothing
   const closePrompt = (at: RangeRef, value: string | null): void => {
-    const range = at.unref();
     setPrompt(null);
     setDraft(null);
     if (value === null || value === "") {
-      return;
-    }
-    if (range === null) {
+      at.unref();
+    } else if (applyLink(editor, at, value) === "moved") {
       setDraft(value);
-      toast.warning("The item changed — select the text again.");
-    } else {
-      editor.tf.select(range);
-      upsertLink(editor, { skipValidation: true, url: value });
     }
   };
 
@@ -286,7 +272,12 @@ const TouchToolbar = () => {
               }}
             />
             <Sep />
-            <ActionButton action="link" onPress={openPrompt} />
+            <ActionButton
+              action="link"
+              onPress={() => {
+                setPrompt(holdSelection(editor));
+              }}
+            />
             <Sep />
             <ActionButton
               action="undo"

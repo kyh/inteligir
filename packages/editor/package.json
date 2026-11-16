@@ -40,6 +40,7 @@
     "./formulas/formula-recompute": "./src/formulas/formula-recompute.ts",
     "./formulas/resolve-graph": "./src/formulas/resolve-graph.ts",
     "./heading-collapse": "./src/heading-collapse.tsx",
+    "./held-selection": "./src/held-selection.ts",
     "./host": "./src/host.ts",
     "./host-io": "./src/host-io.ts",
     "./inline-combobox": "./src/inline-combobox.tsx",
@@ -146,7 +147,7 @@
     "./text/line-diff": "./src/text/line-diff.ts",
     "./toc": "./src/toc.tsx",
     "./touch-toolbar": "./src/touch-toolbar.tsx",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles-entry.css"
   },
   "scripts": {
     "test": "vitest run",

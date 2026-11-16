@@ -271,7 +271,7 @@ export default defineConfig({
       rules: { "no-restricted-properties": ["error", D1_UNIQUE] },
     },
     {
-      // the model ships to runtimes without crypto, and React Native's URL is not WHATWG
+      // the model ships to runtimes without crypto
       excludeFiles: tests,
       files: [
         "packages/contract/src/iso-date.ts",
@@ -303,7 +303,6 @@ export default defineConfig({
             checkGlobalObject: true,
             globals: [
               { message: "take the random bytes or the id from the caller", name: "crypto" },
-              { message: "parse with @repo/contract/items/item-url", name: "URL" },
             ],
           },
         ],

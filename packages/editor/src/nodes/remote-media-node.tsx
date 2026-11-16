@@ -6,7 +6,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { isHttpUrl } from "@repo/editor/lib/url";
+import { isWebUrl } from "@repo/contract/items/item-url";
 
 import { stringProp } from "@repo/editor/node-props";
 import { useLibraryFile } from "@repo/editor/nodes/library-file";
@@ -52,7 +52,7 @@ export const remoteMediaElement = (kind: "video" | "page") =>
       if (sha !== null) {
         return <LibraryVideo selected={focused && selected} sha={sha} />;
       }
-      if (isHttpUrl(url)) {
+      if (isWebUrl(url)) {
         return <RemoteContentCard kind={kind} selected={focused && selected} url={url} />;
       }
       return url === "" ? (

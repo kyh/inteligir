@@ -3,8 +3,8 @@
 Accounts and sessions, `/v1`, each account's library cell, each item's live
 note, the fill, the connector and the built-in agent: the cloud's code, which
 `apps/web`'s Worker serves and deploys. It runs on workerd alone, with no DOM,
-node or react import, and the model's modules take no `crypto` or `URL` global,
-the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
+node or react import, and the model's modules take no `crypto` global, the
+clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 
 ## Accounts and sessions
 

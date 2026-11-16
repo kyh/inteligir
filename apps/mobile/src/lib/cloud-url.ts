@@ -1,7 +1,6 @@
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 
-const isWebOrigin = (url: URL): boolean =>
-  (url.protocol === "https:" || url.protocol === "http:") && url.origin !== "";
+const isWebOrigin = (url: URL): boolean => url.protocol === "https:" || url.protocol === "http:";
 
 const parseUrl = (value: string): URL | null => {
   try {
@@ -21,7 +20,6 @@ export const getCloudUrl = (): string => {
   if (configured === "") {
     return PRODUCTION_CLOUD_ORIGIN;
   }
-  // React Native's URL never throws on a malformed value; it answers an empty origin instead.
   const url = parseUrl(configured);
   if (url === null || !isWebOrigin(url)) {
     throw new Error(

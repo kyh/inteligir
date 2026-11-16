@@ -5,7 +5,8 @@ import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/url";
+import { isWebUrl } from "@repo/contract/items/item-url";
+import { isPdfUrl } from "@repo/editor/lib/url";
 import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -22,11 +23,11 @@ const WebFile = ({
   selected: boolean;
   url: string;
 }) =>
-  isPdfUrl(url) && isHttpUrl(url) ? (
+  isPdfUrl(url) && isWebUrl(url) ? (
     <RemoteContentCard kind="pdf" selected={selected} url={url} />
   ) : (
     <a
-      href={isHttpUrl(url) ? url : undefined}
+      href={isWebUrl(url) ? url : undefined}
       target="_blank"
       rel="noopener noreferrer"
       className={cn(

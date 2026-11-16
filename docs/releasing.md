@@ -263,6 +263,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
 - **Window**: the system title bar, close hides it, a link to another site
   opens in the browser, offline it says so, and View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
+- **Outline and find**: in a long note, a heading picked from the outline and a
+  ⌘F match a screen away glide there, and one far off lands at once and stays.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
   a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
   play in WebKit; Download lands in Downloads.

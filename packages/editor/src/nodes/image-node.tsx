@@ -9,7 +9,7 @@ import { ImageOff } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { isHttpUrl } from "@repo/editor/lib/url";
+import { isWebUrl } from "@repo/contract/items/item-url";
 import { stringProp } from "@repo/editor/node-props";
 import { useLibraryFile } from "@repo/editor/nodes/library-file";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
@@ -67,7 +67,7 @@ const ImageFigure = ({ element, selected }: { element: TElement; selected: boole
     if (sha !== null) {
       return <LibraryPicture alt={altText(element)} selected={selected} sha={sha} />;
     }
-    if (isHttpUrl(url)) {
+    if (isWebUrl(url)) {
       return <RemoteContentCard kind="image" selected={selected} url={url} />;
     }
     return <Missing label={`Missing image: ${url}`} selected={selected} />;

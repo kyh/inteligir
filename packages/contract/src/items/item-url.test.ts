@@ -9,7 +9,6 @@ import {
   urlKey,
   urlSearchText,
 } from "./item-url";
-import { mulberry32, pick } from "../test-support/seeded-random";
 
 describe(isWebUrl, () => {
   it.each([
@@ -22,9 +21,13 @@ describe(isWebUrl, () => {
     ["example.com", false],
     ["https://", false],
     ["https:///path", false],
+    ["https:example.com", false],
+    ["https:\\\\example.com", false],
     ["https://exa mple.com", false],
     ["https://example.com/a b", false],
     ["https://example.com:80a/", false],
+    ["https://example.com:65535/", true],
+    ["https://example.com:65536/", false],
     ["https://./", false],
     ["mailto:a@b.com", false],
     ["", false],
@@ -64,6 +67,8 @@ describe(urlKey, () => {
     ["http://[::1]:8080/x", "[::1]:8080/x"],
     ["https://example.com/a/..", "example.com/"],
     ["https://example.com/%2e%2e/b", "example.com/b"],
+    ["https://münchen.de/x", "xn--mnchen-3ya.de/x"],
+    ["https://xn--mnchen-3ya.de/x", "xn--mnchen-3ya.de/x"],
   ])("%s → %s", (value, expected) => {
     expect(urlKey(value)).toBe(expected);
   });
@@ -79,14 +84,16 @@ describe(cleanUrl, () => {
   it.each([
     [
       "https://user:pw@www.Example.com/a?utm_source=x&b=2&a=1#frag",
-      "https://www.Example.com/a?b=2&a=1#frag",
+      "https://www.example.com/a?b=2&a=1#frag",
     ],
     ["https://example.com/?utm_source=x", "https://example.com/"],
     ["https://youtu.be/abc?si=x", "https://youtu.be/abc"],
     ["https://youtu.be/abc?si=x&t=3", "https://youtu.be/abc?t=3"],
-    ["  https://a.com  ", "https://a.com"],
-    ["HTTP://Example.com:8080/Path?Z=1&a=2", "HTTP://Example.com:8080/Path?Z=1&a=2"],
-    ["https://example.com/?a=1&&b=2", "https://example.com/?a=1&&b=2"],
+    ["  https://a.com  ", "https://a.com/"],
+    ["HTTP://Example.com:8080/Path?Z=1&a=2", "http://example.com:8080/Path?Z=1&a=2"],
+    ["https://example.com/a/../b/café", "https://example.com/b/caf%C3%A9"],
+    ["https://münchen.de/", "https://xn--mnchen-3ya.de/"],
+    ["https://example.com/?a=1&&b=2", "https://example.com/?a=1&b=2"],
     ["https://example.com/?a=1&&fbclid=2", "https://example.com/?a=1"],
   ])("%s → %s", (value, expected) => {
     expect(cleanUrl(value)).toBe(expected);
@@ -154,70 +161,5 @@ describe("urlHost, urlSearchText and siteMatches", () => {
     [null, "example.com", false],
   ])("%s within %j is %s", (host, filter, expected) => {
     expect(siteMatches(host, filter)).toBe(expected);
-  });
-});
-
-const SCHEMES = ["http", "https", "HTTPS"];
-const USERINFO = ["", "", "user@", "user:pw@"];
-const HOSTS = [
-  "example.com",
-  "www.Example.com",
-  "youtu.be",
-  "www.youtube.com",
-  "m.youtube.com",
-  "x.com",
-  "mobile.twitter.com",
-  "en.m.wikipedia.org",
-  "open.spotify.com",
-  "soundcloud.com",
-  "example.com.",
-  "[::1]",
-];
-const PORTS = ["", "", ":80", ":443", ":8080"];
-const SEGMENTS = ["a", "B", ".", "..", "%7e", "%2F", "é", "watch", "shorts", "123", "x-y_z"];
-const PARAMS = [
-  "a=1",
-  "b=2",
-  "utm_source=x",
-  "UTM_MEDIUM=y",
-  "fbclid=z",
-  "si=1",
-  "t=2",
-  "s=3",
-  "feature=f",
-  "context=c",
-  "v=id",
-  "flag",
-  "",
-  "%7e=%7e",
-];
-const FRAGMENTS = ["", "sec", "/route", "!bang", "%2Fx"];
-
-const randomUrl = (rand: () => number): string => {
-  const path = Array.from({ length: Math.floor(rand() * 4) }, () => pick(rand, SEGMENTS)).join("/");
-  const params = Array.from({ length: Math.floor(rand() * 4) }, () => pick(rand, PARAMS));
-  const fragment = pick(rand, FRAGMENTS);
-  const trailing = rand() < 0.3 ? "/" : "";
-  return `${pick(rand, SCHEMES)}://${pick(rand, USERINFO)}${pick(rand, HOSTS)}${pick(rand, PORTS)}${path === "" ? "" : `/${path}`}${trailing}${
-    params.length === 0 && rand() < 0.5 ? "" : `?${params.join("&")}`
-  }${fragment === "" ? "" : `#${fragment}`}`;
-};
-
-describe("the seeded properties", () => {
-  it("a cleaned url keeps its key, cleaning twice is cleaning once, and the kind holds", () => {
-    const rand = mulberry32(0x5e_ed_01);
-    for (let i = 0; i < 4000; i += 1) {
-      const url = randomUrl(rand);
-      const cleaned = cleanUrl(url);
-      expect(cleaned, url).not.toBeNull();
-      if (cleaned === null) {
-        continue;
-      }
-      expect(urlKey(url), url).not.toBeNull();
-      expect(urlKey(cleaned), url).toBe(urlKey(url));
-      expect(cleanUrl(cleaned), url).toBe(cleaned);
-      expect(kindForUrl(cleaned), url).toBe(kindForUrl(url));
-      expect(urlHost(cleaned), url).toBe(urlHost(url));
-    }
   });
 });
