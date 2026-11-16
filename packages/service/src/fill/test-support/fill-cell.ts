@@ -11,7 +11,7 @@ import { vi } from "vitest";
 import worker from "../../test-support/test-worker";
 import { heldBody } from "../../library/cell-body";
 import { cellDbOf } from "../../library/cell-db";
-import { readLiveItem } from "../../library/library-queries";
+import { readItem } from "../../library/library-queries";
 import { cellIn, cellOf, inCell, newAccountId } from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
 import { FILL_QUEUE } from "../../../fill-queues";
@@ -45,7 +45,7 @@ export interface HeldItem {
 export const itemIn = async (accountId: string, itemId: string): Promise<HeldItem | null> =>
   await inCell(cellOf(accountId), (state) => {
     const db = cellDbOf(state.storage);
-    const item = readLiveItem(db, itemId);
+    const item = readItem(db, itemId);
     const body = heldBody(db, itemId);
     return item === null || body?.kind !== "seed"
       ? null

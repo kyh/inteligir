@@ -13,7 +13,7 @@ import { findTextOffsets } from "@repo/editor/knowledge/text-matches";
 
 import { readBodyOpening } from "../library/cell-body";
 import type { CellDb } from "../library/cell-db";
-import { readLiveItem } from "../library/library-queries";
+import { readItem } from "../library/library-queries";
 import { passageIn, termMatch } from "./search-excerpt";
 import { searchLibrary } from "./search-index";
 import type { SearchSide } from "./search-index";
@@ -36,7 +36,6 @@ export const literalMatches = (
       and(
         gt(bodyTexts.itemId, page.after ?? ""),
         isNull(items.deletedAt),
-        eq(items.purged, 0),
         holds(needle.toLowerCase()),
       ),
     )
@@ -81,7 +80,7 @@ const PASSAGE_SCAN_CHARS = 64 * 1024;
 // what the index reads of an item beside its title, headings and body: its address, site, author,
 // description and tags, from the item's own row
 const metaOf = (db: CellDb, itemId: string): string => {
-  const item = readLiveItem(db, itemId);
+  const item = readItem(db, itemId);
   return item === null ? "" : deriveItem(item.fields, item.body.digest).search.meta;
 };
 

@@ -7,7 +7,7 @@
 // item's fields; what an agent's set did to a note's body is that note's turn log, under the set's id.
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
@@ -121,7 +121,7 @@ const insertSet = (
 
 // the item's fields as they are; null once it was purged
 const readFieldsNow = (db: CellDb, itemId: string): LibraryItemFields | null =>
-  readLiveItem(db, itemId)?.fields ?? null;
+  readItem(db, itemId)?.fields ?? null;
 
 const entryIs = (setId: string, itemId: string): SQL | undefined =>
   and(eq(changeSetItems.changeSetId, setId), eq(changeSetItems.itemId, itemId));

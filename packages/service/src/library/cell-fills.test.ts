@@ -23,7 +23,7 @@ import { readBlobRow } from "./cell-blobs";
 import { sendFills } from "./cell-library";
 import { heldBody } from "./cell-body";
 import { cellDbOf } from "./cell-db";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 
 const read = (
   landing: Pick<FillLanding, "itemId" | "url">,
@@ -51,7 +51,7 @@ const read = (
 // a live item's fields and the body its cell keeps
 const stateOf = (state: DurableObjectState, itemId: string) => {
   const db = cellDbOf(state.storage);
-  const item = readLiveItem(db, itemId);
+  const item = readItem(db, itemId);
   const body = heldBody(db, itemId);
   return item === null
     ? null

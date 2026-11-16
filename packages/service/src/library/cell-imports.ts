@@ -20,7 +20,7 @@ import { landNew, setDeleted } from "./cell-items";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
-import { readItem } from "./library-queries";
+import { idTaken, readItem } from "./library-queries";
 
 type ImportSource = (typeof IMPORT_SOURCES)[number];
 type ImportedItem = z.infer<typeof importedItemSchema>;
@@ -55,17 +55,17 @@ export const settleNote = (
   newId: () => string,
 ): NoteStanding => {
   const item = readItem(db, note.id);
-  if (item?.kind === "live" && item.fields.deletedAt === null) {
+  if (item !== null && item.fields.deletedAt === null) {
     return { id: note.id, standing: "held" };
   }
   const holder = heldByUrl(db, note.url);
   if (holder !== null) {
     return { id: holder.id, standing: "held" };
   }
-  if (item?.kind === "live") {
+  if (item !== null) {
     return { id: note.id, standing: "deleted" };
   }
-  return { id: item === null ? note.id : newId(), standing: "new" };
+  return { id: idTaken(db, note.id) ? newId() : note.id, standing: "new" };
 };
 
 // which of the files a live item names, and which of them an item holds as its own original
@@ -75,7 +75,7 @@ export const namedFiles = (db: CellDb, shas: readonly string[]) => {
       .selectDistinct({ originalSha: items.originalSha, sha256: itemBlobs.sha256 })
       .from(itemBlobs)
       .innerJoin(items, eq(items.id, itemBlobs.itemId))
-      .where(and(isNull(items.deletedAt), eq(items.purged, 0), inArray(itemBlobs.sha256, chunk)))
+      .where(and(isNull(items.deletedAt), inArray(itemBlobs.sha256, chunk)))
       .all(),
   );
   return {
@@ -94,10 +94,7 @@ const landItem = (scope: LandingScope, ids: CellIds, item: ImportedItem): "added
     }
     return restored.landed.length > 0 ? "added" : "held";
   }
-  if (
-    readItem(scope.db, item.id)?.kind === "live" ||
-    heldByUrl(scope.db, item.fields.url) !== null
-  ) {
+  if (readItem(scope.db, item.id) !== null || heldByUrl(scope.db, item.fields.url) !== null) {
     return "held";
   }
   const folderId =

@@ -58,10 +58,8 @@ const retitle = (
   );
 };
 
-const titleOf = (library: LibraryEngine, itemId: string): string | null => {
-  const item = storedItemOf(library, itemId);
-  return item?.kind === "live" ? item.fields.title : null;
-};
+const titleOf = (library: LibraryEngine, itemId: string): string | null =>
+  storedItemOf(library, itemId)?.fields.title ?? null;
 
 // what R2 holds of an image upload
 const png = (bytes: number) => ({ bytes, mime: "image/png" });
@@ -627,14 +625,11 @@ describe("change sets and undo", () => {
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
       landedValue(undoFields(library, person(), [z.string().parse(set?.id)]));
-      expect(storedItemOf(library, itemId)).toMatchObject({
-        fields: { deletedAt: clock.now },
-        kind: "live",
-      });
+      expect(storedItemOf(library, itemId)).toMatchObject({ fields: { deletedAt: clock.now } });
     });
   });
 
-  it("empties Deleted: the item stays a tombstone, and what its change sets kept goes", async () => {
+  it("empties Deleted: the item and what its change sets kept go, and its id is never made again", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
       const { library } = cellIn(state, { clock });
@@ -651,7 +646,10 @@ describe("change sets and undo", () => {
       expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toStrictEqual([
         itemId,
       ]);
-      expect(storedItemOf(library, itemId)).toMatchObject({ kind: "purged" });
+      expect(storedItemOf(library, itemId)).toBeNull();
+      expect(
+        refusalOf(createItem(library, person(), { blocks: [], fields: noteFixture(), id: itemId })),
+      ).toStrictEqual({ kind: "conflict" });
       for (const table of ["snapshot_parts", "change_set_items", "seed_blocks"]) {
         expect(
           state.storage.sql

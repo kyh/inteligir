@@ -1,7 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { items as itemRows } from "@repo/db/cell/schema";
 import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
@@ -10,17 +10,18 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { literalMatches, searchHits } from "../search/search-hits";
 import { searchLibrary, searchRowOf, storeSearchRow } from "../search/search-index";
 import {
+  idTaken,
   linksTo,
   linksToUrl,
   nextHead,
+  purgeItem,
   readItem,
-  readLiveItem,
-  readMeta,
   readListingRows,
+  readListingSince,
+  readMeta,
   storeItemRow,
   storeLinks,
   storeTags,
-  storeTombstone,
   writeMeta,
 } from "./library-queries";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
@@ -67,13 +68,12 @@ const itemOf = (
   fields,
 });
 
-// a row, then its seed and derived rows under it, as the cell lays an item; null when the row held
-// is as new or newer
-const offer = (db: CellDb, id: string, state: Laid, seq: number) =>
+// a row, then its seed and derived rows under it, as the cell lays an item
+const put = (db: CellDb, id: string, state: Laid, seq = 1) =>
   db.$client.transactionSync(() => {
     const body = deriveBody(state.blocks);
     const derived = deriveItem(state.fields, body.digest);
-    const landed = storeItemRow(db, {
+    storeItemRow(db, {
       body: { bytes: 0, digest: body.digest, home: "seed", version: 0 },
       card: derived.card,
       fields: state.fields,
@@ -82,9 +82,6 @@ const offer = (db: CellDb, id: string, state: Laid, seq: number) =>
       updatedAt: 1_700_000_000_000 + seq,
       urlKey: derived.urlKey,
     });
-    if (!landed) {
-      return null;
-    }
     storeSeed(db, id, state.blocks);
     storeBodyText(db, id, body.text);
     storeLinks(db, id, body.links);
@@ -95,16 +92,8 @@ const offer = (db: CellDb, id: string, state: Laid, seq: number) =>
 
 // an item's fields and seed as the cell holds them
 const laidOf = (db: CellDb, id: string): Laid | null => {
-  const item = readLiveItem(db, id);
+  const item = readItem(db, id);
   return item === null ? null : { blocks: readSeedBlocks(db, id), fields: item.fields };
-};
-
-const put = (db: CellDb, id: string, state: Laid, seq = 1) => {
-  const derived = offer(db, id, state, seq);
-  if (derived === null) {
-    throw new Error(`the row of ${id} at ${String(seq)} did not land`);
-  }
-  return derived;
 };
 
 // a page link is a mention of its item; one that reached no item is the words it was written in
@@ -139,7 +128,6 @@ describe("items", () => {
         card: derived.card,
         fields: state.fields,
         id: "item-1",
-        kind: "live",
         seq: 1,
         updatedAt: 1_700_000_000_001,
         urlKey: null,
@@ -148,47 +136,17 @@ describe("items", () => {
     });
   });
 
-  it("keeps the newer item whole when an older one arrives: row, body, links, tags and index", async () => {
+  it("reads every item by id, and what writes past a sequence wrote and purged", async () => {
     await inLibrary(({ db }) => {
-      const newer = itemOf(
-        [linkTo("target", "Target"), paragraph("a", "newer words")],
-        noteFixture({ tags: ["fresh"], title: "Newer" }),
-      );
-      put(db, "item-1", newer, 5);
-      const older = itemOf(
-        [paragraph("a", "older words")],
-        noteFixture({ tags: ["stale"], title: "Older" }),
-      );
-      expect(offer(db, "item-1", older, 3)).toBeNull();
-      expect(offer(db, "item-1", older, 5)).toBeNull();
-      expect(
-        storeItemRow(db, {
-          body: { bytes: 0, digest: deriveBody(older.blocks).digest, home: "seed", version: 0 },
-          card: deriveItem(older.fields, deriveBody(older.blocks).digest).card,
-          fields: older.fields,
-          id: "item-1",
-          seq: 4,
-          updatedAt: 1,
-          urlKey: null,
-        }),
-      ).toBe(false);
-      expect(laidOf(db, "item-1")).toStrictEqual(newer);
-      expect(searchLibrary(db, "older", 10).ids).toStrictEqual([]);
-      expect(searchLibrary(db, "newer", 10).ids).toStrictEqual(["item-1"]);
-      expect(
-        db.all(sql`SELECT tag, origin FROM item_tags WHERE item_id = ${"item-1"}`),
-      ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
-      expect(linksTo(db, "target")).toStrictEqual(["item-1"]);
-    });
-  });
-
-  it("reads every item that is not purged, by id", async () => {
-    await inLibrary(({ db }) => {
-      put(db, "b", itemOf([], noteFixture({ title: "B" })));
-      put(db, "a", itemOf([], noteFixture({ title: "A" })));
-      put(db, "c", itemOf([], noteFixture({ title: "C" })));
-      storeTombstone(db, { deletedAt: 7, id: "c", seq: 9, updatedAt: 8 });
+      put(db, "b", itemOf([], noteFixture({ title: "B" })), 1);
+      put(db, "a", itemOf([], noteFixture({ title: "A" })), 2);
+      put(db, "c", itemOf([], noteFixture({ title: "C" })), 3);
+      purgeItem(db, "c", 4);
       expect(readListingRows(db).map((row) => row.id)).toStrictEqual(["a", "b"]);
+      const since = readListingSince(db, 1);
+      expect(since.items.map((row) => row.id)).toStrictEqual(["a"]);
+      expect(since.purged).toStrictEqual(["c"]);
+      expect(readListingSince(db, 4)).toStrictEqual({ items: [], purged: [] });
     });
   });
 
@@ -208,31 +166,17 @@ describe("items", () => {
     });
   });
 
-  it("purges an item to a tombstone that keeps its id and drops everything it held", async () => {
+  it("purges an item: everything it held goes, and its id stays taken", async () => {
     await inLibrary(({ db }) => {
       put(db, "gone", itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] })));
-      storeTombstone(db, { deletedAt: 7, id: "gone", seq: 2, updatedAt: 8 });
-      expect(readItem(db, "gone")).toStrictEqual({
-        deletedAt: 7,
-        id: "gone",
-        kind: "purged",
-        seq: 2,
-        updatedAt: 8,
-      });
+      expect(idTaken(db, "gone")).toBe(true);
+      purgeItem(db, "gone", 2);
+      expect(readItem(db, "gone")).toBeNull();
+      expect(idTaken(db, "gone")).toBe(true);
+      expect(idTaken(db, "never")).toBe(false);
       expect(readSeedBlocks(db, "gone")).toStrictEqual([]);
       expect(searchLibrary(db, "findable", 10).ids).toStrictEqual([]);
       expect(db.all(sql`SELECT count(*) AS n FROM item_tags`)).toStrictEqual([{ n: 0 }]);
-    });
-  });
-
-  it("lays no tombstone over a newer row, which keeps everything it holds", async () => {
-    await inLibrary(({ db }) => {
-      const state = itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] }));
-      put(db, "kept", state, 5);
-      expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(false);
-      expect(laidOf(db, "kept")).toStrictEqual(state);
-      expect(searchLibrary(db, "findable", 10).ids).toStrictEqual(["kept"]);
-      expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(true);
     });
   });
 
@@ -298,10 +242,12 @@ describe("items", () => {
     const id = "0190a3f2-7c4e-7d1a-9b2c-3e4f5a6b7c8d";
     await inLibrary(({ db }) => {
       put(db, id, itemOf(blocks, fields));
-      const row = db.select().from(itemRows).where(eq(itemRows.id, id)).get();
+      const row = z
+        .record(z.string(), z.union([z.string(), z.number(), z.null()]))
+        .parse(db.$client.sql.exec("SELECT * FROM items WHERE id = ?", id).one());
       // each value as its text and eight bytes more: past what SQLite stores, a number in eight
       // bytes at most and a string as its UTF-8 behind a short header
-      const rowBytes = Object.values(row ?? {}).reduce<number>(
+      const rowBytes = Object.values(row).reduce<number>(
         (sum, value) => sum + utf8ByteLength(String(value ?? "")) + 8,
         0,
       );

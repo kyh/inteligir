@@ -7,7 +7,7 @@
 // version, and joins no change set: typing is no change Undo takes back. The sockets hear of it
 // only when what a listing shows moved.
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { deriveItem, itemCardSchema } from "@repo/contract/library/derive-item";
@@ -21,13 +21,13 @@ import type { CellDb } from "./cell-db";
 import { waitingPayloads } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { storeSearchRow } from "../search/search-index";
-import { readItem, readLiveItem, storeLinks, storeTags } from "./library-queries";
+import { readItem, storeLinks, storeTags } from "./library-queries";
 
 // a session's socket on an item's note: writable, read-only while the item is in Deleted, or none
 // for an item the library does not hold; recorded, so the session's end closes it
 export const openNote = (db: CellDb, sessionId: string, itemId: string): NoteOpening => {
   const item = readItem(db, itemId);
-  if (item?.kind !== "live") {
+  if (item === null) {
     return "missing";
   }
   db.insert(noteSockets).values({ itemId, sessionId }).onConflictDoNothing().run();
@@ -51,11 +51,7 @@ export const forgetNoteSockets = (db: CellDb, itemId: string): void => {
 // runs again after an abort reads it again; a note asking once its body went to a note lost that
 // body, and never seeds over it.
 export const readSeed = (db: CellDb, itemId: string): SeedAnswer => {
-  const row = db
-    .select({ home: items.bodyHome })
-    .from(items)
-    .where(and(eq(items.id, itemId), eq(items.purged, 0)))
-    .get();
+  const row = db.select({ home: items.bodyHome }).from(items).where(eq(items.id, itemId)).get();
   if (row === undefined) {
     return { kind: "missing" };
   }
@@ -96,7 +92,7 @@ export const landProjection = (
   projection: NoteProjection,
 ): ProjectAnswer => {
   const { db } = scope;
-  const item = readLiveItem(db, itemId);
+  const item = readItem(db, itemId);
   if (item === null) {
     return "gone";
   }
@@ -116,10 +112,10 @@ export const landProjection = (
   db.update(items)
     .set({
       bodyBytes: projection.bytes,
-      bodyDigest: JSON.stringify(projection.digest),
+      bodyDigest: projection.digest,
       bodyHome: "note",
       bodyVersion: projection.version,
-      card: JSON.stringify(derived.card),
+      card: derived.card,
       seq,
       updatedAt: moved ? scope.now : item.updatedAt,
     })
@@ -152,7 +148,7 @@ export const notesHeld = (db: CellDb): string[] => [
     ...db
       .select({ id: items.id })
       .from(items)
-      .where(and(eq(items.purged, 0), writtenByNote))
+      .where(writtenByNote)
       .all()
       .map((row) => row.id),
     ...waitingPayloads(db, "note-purge").map((payload) => payload.itemId),

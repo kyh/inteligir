@@ -13,12 +13,10 @@ import { viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage, ViewPorts } from "@repo/editor/codec/item-view";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
-import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { linksTo, linksToUrl, readItem } from "./library-queries";
-import { jsonTextSchema } from "./sql-value";
 import {
   and,
   asc,
@@ -201,9 +199,9 @@ const linkedItems = (db: CellDb, ids: ReadonlySet<string>) => {
     for (const row of db
       .select({ card: items.card, id: items.id })
       .from(items)
-      .where(and(eq(items.purged, 0), isNull(items.deletedAt), inArray(items.id, chunk)))
+      .where(and(isNull(items.deletedAt), inArray(items.id, chunk)))
       .all()) {
-      found.push({ id: row.id, title: jsonTextSchema.pipe(itemCardSchema).parse(row.card).title });
+      found.push({ id: row.id, title: row.card.title });
     }
   }
   return found
@@ -241,7 +239,7 @@ export const readItemView = (
   blocks: readonly BodyBlock[],
 ): ItemRead => {
   const item = readItem(db, input.id);
-  if (item?.kind !== "live") {
+  if (item === null) {
     return refuse({ kind: "not-found" });
   }
   const page = pageWithin(blocks, codec.view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
@@ -301,7 +299,7 @@ export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
       .select({ items: countDistinct(itemTags.itemId), tag: itemTags.tag })
       .from(itemTags)
       .innerJoin(items, eq(items.id, itemTags.itemId))
-      .where(and(eq(items.purged, 0), isNull(items.deletedAt)))
+      .where(isNull(items.deletedAt))
       .groupBy(itemTags.tag)
       .orderBy(asc(itemTags.tag))
       .all(),
@@ -332,7 +330,7 @@ const setItemOf = (db: CellDb, entry: SetItemRow) => {
   const before =
     entry.beforeFields === null ? null : readFieldsPart(db, entry.itemId, entry.beforeFields);
   // a set still open has written no after: the item is as it left it
-  let after: LibraryItemFields | null = now?.kind === "live" ? now.fields : null;
+  let after: LibraryItemFields | null = now?.fields ?? null;
   if (entry.afterFields !== null) {
     after = readFieldsPart(db, entry.itemId, entry.afterFields);
   }
@@ -341,7 +339,7 @@ const setItemOf = (db: CellDb, entry: SetItemRow) => {
     deleted:
       after !== null && after.deletedAt !== null && (before === null || before.deletedAt === null),
     id: entry.itemId,
-    title: now?.kind === "live" ? now.card.title : (after?.title ?? before?.title ?? ""),
+    title: now?.card.title ?? after?.title ?? before?.title ?? "",
   };
 };
 

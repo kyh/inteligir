@@ -26,7 +26,7 @@ import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
 import { sealChangeSet } from "./change-sets";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 import { revertChangeSets } from "./revert-change";
 import type { FillChange, ItemChange, ItemNow } from "./revert-change";
 
@@ -127,7 +127,7 @@ export const planUndo = (db: CellDb, changeSetIds: readonly string[]): NoteToUnd
     .filter((set) => set.actor === "agent")
     .flatMap((set) =>
       setItems(db, set.id).flatMap(({ itemId }) => {
-        const item = readLiveItem(db, itemId);
+        const item = readItem(db, itemId);
         return item !== null && bodyWriter(item.body.home) === "note"
           ? [{ itemId, setId: set.id }]
           : [];
@@ -182,7 +182,7 @@ export const undoChangeSets = (
   for (const set of ordered) {
     for (const itemId of set.items.keys()) {
       if (!items.has(itemId)) {
-        const item = readLiveItem(db, itemId);
+        const item = readItem(db, itemId);
         items.set(
           itemId,
           item === null
@@ -205,7 +205,7 @@ export const undoChangeSets = (
     }
   }
   for (const [itemId, undo] of verdict.items) {
-    const before = readLiveItem(db, itemId);
+    const before = readItem(db, itemId);
     if (before === null) {
       kept.add(itemId);
       continue;

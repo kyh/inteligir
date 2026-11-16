@@ -14,8 +14,8 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
 import { readingOf, readingOps } from "@repo/contract/library/item-reading";
-import { readLiveItem } from "./library-queries";
-import type { LiveStoredItem } from "./library-queries";
+import { readItem } from "./library-queries";
+import type { StoredItem } from "./library-queries";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { urlKey } from "@repo/contract/items/item-url";
 
@@ -106,7 +106,7 @@ const newPage = (scope: LandingScope, input: SaveInput, note: readonly BodyBlock
 // is refused, and lands again once the note took it (`articleInNote`).
 export const landRead = (
   scope: LandingScope,
-  item: LiveStoredItem,
+  item: StoredItem,
   page: Pick<ReadPage, "article"> & { readonly articleInNote: boolean },
   fieldOps: readonly FieldOp[],
 ): LiveItemRow => {
@@ -129,7 +129,7 @@ export const landRead = (
 };
 
 // whether an item still has its page to be read: no article yet, its reading waiting or failed
-const awaitsRead = (item: LiveStoredItem): boolean => {
+const awaitsRead = (item: StoredItem): boolean => {
   const { state } = readingOf(item.fields);
   return (state === "pending" || state === "failed") && !item.body.digest.article;
 };
@@ -146,7 +146,7 @@ export const savePage = (
   if (held === null) {
     return { created: true, item: newPage(scope, input, noteOf(codec, input.note)) };
   }
-  const item = readLiveItem(scope.db, held.id);
+  const item = readItem(scope.db, held.id);
   return item !== null && input.article.length > 0 && awaitsRead(item)
     ? {
         created: false,

@@ -15,9 +15,13 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+import type { z } from "zod";
+
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
-import { FETCH_STATES } from "@repo/contract/library/library-item";
-import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
+import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
+import type { BodyDigest, ItemCard } from "@repo/contract/library/derive-item";
+import { FETCH_STATES, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { LIBRARY_SECTIONS, libraryBlockSchema } from "@repo/contract/library/library-nodes";
 import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
@@ -31,6 +35,17 @@ export const BODY_HOMES = ["seed", "opening", "note"] as const;
 const oneOf = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(", "));
 
+// JSON a column holds, read back through its schema, so a row is the type it was written as or no
+// row at all
+const json = <T>(schema: z.ZodType<T>) =>
+  customType<{ data: T; driverData: string }>({
+    dataType: () => "text",
+    fromDriver: (stored) => schema.parse(JSON.parse(stored)),
+    toDriver: (value) => JSON.stringify(value),
+  });
+
+const FIELDS = libraryItemFieldsSchema.shape;
+
 // a column with no declared type takes BLOB affinity and keeps what it is handed; `ANY` outside a
 // STRICT table takes NUMERIC affinity, which would hand the person's rules "42" back as 42
 const untyped = customType<{ data: string | number; driverData: string | number }>({
@@ -42,22 +57,20 @@ export const meta = sqliteTable("meta", {
   v: untyped(),
 });
 
-// a purged item keeps its id, sequence and deletion as a tombstone forever and nulls the rest, so
-// no id is ever made again, an import's or a late save's included; every other row holds its
-// whole record. `rid` is the search index's row id, so a write replaces its index row in place.
-// Of its body the row keeps where it lives, the digest its card and index derive from, and for a
-// live note the version of the projection landed and the bytes its object holds
+// an item, in Deleted or not, whole: its fields, and of its body where it lives, the digest its card
+// and index derive from, and for a note the version of the projection landed and the bytes its
+// object holds. `rid` is the search index's row id, so a write replaces its index row in place
 export const items = sqliteTable(
   "items",
   {
     rid: integer().primaryKey(),
     id: text().notNull(),
-    kind: text({ enum: ITEM_KINDS }),
-    title: text(),
+    kind: text({ enum: ITEM_KINDS }).notNull(),
+    title: text().notNull(),
     folderId: text("folder_id"),
-    aliases: text(),
-    tags: text(),
-    properties: text(),
+    aliases: json(FIELDS.aliases)().notNull(),
+    tags: json(FIELDS.tags)().notNull(),
+    properties: json(FIELDS.properties)().notNull(),
     url: text(),
     urlKey: text("url_key"),
     site: text(),
@@ -68,19 +81,18 @@ export const items = sqliteTable(
     coverSha: text("cover_sha"),
     originalSha: text("original_sha"),
     originalName: text("original_name"),
-    fetchState: text("fetch_state", { enum: FETCH_STATES }),
+    fetchState: text("fetch_state", { enum: FETCH_STATES }).notNull(),
     fetchedAt: integer("fetched_at"),
     fetchError: text("fetch_error"),
-    savedAt: integer("saved_at"),
+    savedAt: integer("saved_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     pinnedAt: integer("pinned_at"),
     deletedAt: integer("deleted_at"),
-    purged: integer().notNull().default(0),
-    card: text(),
-    bodyHome: text("body_home", { enum: BODY_HOMES }),
-    bodyDigest: text("body_digest"),
-    bodyVersion: integer("body_version"),
-    bodyBytes: integer("body_bytes"),
+    card: json<ItemCard>(itemCardSchema)().notNull(),
+    bodyHome: text("body_home", { enum: BODY_HOMES }).notNull(),
+    bodyDigest: json<BodyDigest>(bodyDigestSchema)("body_digest").notNull(),
+    bodyVersion: integer("body_version").notNull(),
+    bodyBytes: integer("body_bytes").notNull(),
     seq: integer().notNull(),
   },
   (t) => [
@@ -92,17 +104,20 @@ export const items = sqliteTable(
     index("items_seq").on(t.seq),
     check("items_kind", sql`${t.kind} IN (${oneOf(ITEM_KINDS)})`),
     check("items_fetch_state", sql`${t.fetchState} IN (${oneOf(FETCH_STATES)})`),
-    check("items_purged", sql`${t.purged} IN (0, 1)`),
     check("items_body_home", sql`${t.bodyHome} IN (${oneOf(BODY_HOMES)})`),
-    check(
-      "items_whole",
-      sql`${t.purged} = 1 OR (${t.kind} IS NOT NULL AND ${t.title} IS NOT NULL
-        AND ${t.aliases} IS NOT NULL AND ${t.tags} IS NOT NULL AND ${t.properties} IS NOT NULL
-        AND ${t.fetchState} IS NOT NULL AND ${t.savedAt} IS NOT NULL AND ${t.card} IS NOT NULL
-        AND ${t.bodyHome} IS NOT NULL AND ${t.bodyDigest} IS NOT NULL
-        AND ${t.bodyVersion} IS NOT NULL AND ${t.bodyBytes} IS NOT NULL)`,
-    ),
   ],
+);
+
+// an item emptied from Deleted: its id, kept forever so no id is ever made again, an import's or a
+// late save's included, and the sequence of the write that purged it, which a listing catches up
+// by. An id is an item's or a purged one's, never both
+export const purgedItems = sqliteTable(
+  "purged_items",
+  {
+    id: text().primaryKey(),
+    seq: integer().notNull(),
+  },
+  (t) => [index("purged_items_seq").on(t.seq)],
 );
 
 // a body the cell keeps until its note first opens, a top-level block a row in reading order; the
@@ -114,7 +129,7 @@ export const seedBlocks = sqliteTable(
     pos: integer().notNull(),
     blockId: text("block_id").notNull(),
     section: text({ enum: LIBRARY_SECTIONS }).notNull(),
-    json: text().notNull(),
+    json: json(libraryBlockSchema)().notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.itemId, t.pos] }),

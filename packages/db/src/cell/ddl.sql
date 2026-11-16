@@ -123,12 +123,12 @@ CREATE TABLE `item_tags` (
 CREATE TABLE `items` (
 	`rid` integer PRIMARY KEY,
 	`id` text NOT NULL,
-	`kind` text,
-	`title` text,
+	`kind` text NOT NULL,
+	`title` text NOT NULL,
 	`folder_id` text,
-	`aliases` text,
-	`tags` text,
-	`properties` text,
+	`aliases` text NOT NULL,
+	`tags` text NOT NULL,
+	`properties` text NOT NULL,
 	`url` text,
 	`url_key` text,
 	`site` text,
@@ -139,29 +139,22 @@ CREATE TABLE `items` (
 	`cover_sha` text,
 	`original_sha` text,
 	`original_name` text,
-	`fetch_state` text,
+	`fetch_state` text NOT NULL,
 	`fetched_at` integer,
 	`fetch_error` text,
-	`saved_at` integer,
+	`saved_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`pinned_at` integer,
 	`deleted_at` integer,
-	`purged` integer DEFAULT 0 NOT NULL,
-	`card` text,
-	`body_home` text,
-	`body_digest` text,
-	`body_version` integer,
-	`body_bytes` integer,
+	`card` text NOT NULL,
+	`body_home` text NOT NULL,
+	`body_digest` text NOT NULL,
+	`body_version` integer NOT NULL,
+	`body_bytes` integer NOT NULL,
 	`seq` integer NOT NULL,
 	CONSTRAINT "items_kind" CHECK("kind" IN ('note', 'link', 'video', 'audio', 'image', 'pdf', 'file')),
 	CONSTRAINT "items_fetch_state" CHECK("fetch_state" IN ('none', 'pending', 'filled', 'failed')),
-	CONSTRAINT "items_purged" CHECK("purged" IN (0, 1)),
-	CONSTRAINT "items_body_home" CHECK("body_home" IN ('seed', 'opening', 'note')),
-	CONSTRAINT "items_whole" CHECK("purged" = 1 OR ("kind" IS NOT NULL AND "title" IS NOT NULL
-        AND "aliases" IS NOT NULL AND "tags" IS NOT NULL AND "properties" IS NOT NULL
-        AND "fetch_state" IS NOT NULL AND "saved_at" IS NOT NULL AND "card" IS NOT NULL
-        AND "body_home" IS NOT NULL AND "body_digest" IS NOT NULL
-        AND "body_version" IS NOT NULL AND "body_bytes" IS NOT NULL))
+	CONSTRAINT "items_body_home" CHECK("body_home" IN ('seed', 'opening', 'note'))
 );
 
 CREATE TABLE `jobs` (
@@ -187,6 +180,11 @@ CREATE TABLE `note_sockets` (
 	`session_id` text NOT NULL,
 	`item_id` text NOT NULL,
 	CONSTRAINT `note_sockets_pk` PRIMARY KEY(`session_id`, `item_id`)
+);
+
+CREATE TABLE `purged_items` (
+	`id` text PRIMARY KEY,
+	`seq` integer NOT NULL
 );
 
 CREATE TABLE `seed_blocks` (
@@ -236,6 +234,7 @@ CREATE INDEX `jobs_next` ON `jobs` (`next_at`);
 CREATE INDEX `links_source` ON `links` (`source_id`);
 CREATE INDEX `links_target` ON `links` (`target_id`);
 CREATE INDEX `links_key` ON `links` (`target_key`);
+CREATE INDEX `purged_items_seq` ON `purged_items` (`seq`);
 CREATE INDEX `thread_events_thread` ON `thread_events` (`thread_id`,`idx`);
 
 CREATE VIRTUAL TABLE `search_fts` USING fts5(

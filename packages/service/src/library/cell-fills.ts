@@ -17,8 +17,8 @@ import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readLiveItem } from "./library-queries";
-import type { LiveStoredItem } from "./library-queries";
+import { readItem } from "./library-queries";
+import type { StoredItem } from "./library-queries";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
@@ -195,7 +195,7 @@ const readFieldOps = (
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
-const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredItem => {
+const waiting = (item: StoredItem | null, url: string): item is StoredItem => {
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
@@ -207,7 +207,7 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
 
 // whether an item still waits for a reading of `url`, so a consumer reads no page nobody waits for
 export const fillWaits = (db: CellDb, itemId: string, url: string): boolean =>
-  waiting(readLiveItem(db, itemId), url);
+  waiting(readItem(db, itemId), url);
 
 // the files a reading kept in the library on its way (`../fill/store-file`)
 export const readingFiles = (landing: FillLanding): string[] => {
@@ -230,7 +230,7 @@ export const landFill = (
   landing: FillLanding,
   articleInNote: boolean,
 ): FillLanded => {
-  const item = readLiveItem(scope.db, landing.itemId);
+  const item = readItem(scope.db, landing.itemId);
   if (!waiting(item, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
     hurryUnnamed(scope.db, readingFiles(landing), scope.now);

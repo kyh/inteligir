@@ -23,7 +23,7 @@ import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 import { storeSearchRow } from "../search/search-index";
 import { storeItemRow, storeLinks, storeTags } from "./library-queries";
-import type { ItemBody, LiveStoredItem } from "./library-queries";
+import type { ItemBody, StoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 
 // an item's text, all its blocks' together; a block's own is the vocabulary's
@@ -49,7 +49,7 @@ export type Landing =
     }
   | {
       readonly itemId: string;
-      readonly before: LiveStoredItem;
+      readonly before: StoredItem;
       readonly fields: LibraryItemFields;
       readonly seed: readonly BodyBlock[] | null;
     };
@@ -113,7 +113,6 @@ export const urlHolder = (
       and(
         eq(items.urlKey, urlKey),
         isNull(items.deletedAt),
-        eq(items.purged, 0),
         itemId === null ? undefined : ne(items.id, itemId),
       ),
     )
@@ -205,7 +204,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const seq = scope.seq();
   const set = scope.set();
   touchItem(db, { before: before?.fields ?? null, itemId, setId: set.id });
-  const stored = storeItemRow(db, {
+  storeItemRow(db, {
     body: landed.body,
     card: derived.card,
     fields,
@@ -214,9 +213,6 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     updatedAt: scope.now,
     urlKey: derived.urlKey,
   });
-  if (!stored) {
-    throw new LibraryRowError(`the item ${itemId} holds a row newer than the library's head`);
-  }
   if (landed.seed !== null) {
     storeSeed(db, itemId, landed.seed.blocks);
     storeBodyText(db, itemId, landed.seed.text);

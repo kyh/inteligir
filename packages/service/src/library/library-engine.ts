@@ -14,8 +14,8 @@ import {
   nextHead,
   readCount,
   readInstant,
+  purgeItem,
   readItem,
-  storeTombstone,
   writeMeta,
 } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
@@ -296,26 +296,21 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       item: landWrite(scope, input),
     }));
 
-  // emptying Deleted: the item keeps its id and sequence as a tombstone, its body and every change
-  // set's hold on it go, and the alarm lets go the files nothing else names; it joins no set, since
-  // nothing can take it back
+  // emptying Deleted: the item, its body and every change set's hold on it go, its id kept purged,
+  // and the alarm lets go the files nothing else names; it joins no set, since nothing can take it
+  // back
   const purgeItems = (input: PurgeItemsInput) =>
     transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
       const purged: string[] = [];
       const missing: string[] = [];
       for (const id of new Set(input.ids)) {
         const item = readItem(db, id);
-        if (item?.kind !== "live" || item.fields.deletedAt === null) {
+        if (item === null || item.fields.deletedAt === null) {
           missing.push(id);
           continue;
         }
         const seq = scope.seq();
-        storeTombstone(db, {
-          deletedAt: item.fields.deletedAt,
-          id,
-          seq,
-          updatedAt: scope.now,
-        });
+        purgeItem(db, id, seq);
         db.delete(snapshotParts).where(eq(snapshotParts.itemId, id)).run();
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
         dropItemBlobs(db, id, scope.now);

@@ -20,7 +20,7 @@ import type { CellRefusal, CellResult } from "./cell-refusal";
 import { refuse } from "./cell-refusal";
 import { touchItem } from "./change-sets";
 import type { LibraryEngine } from "./library-engine";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 
 export interface EditInput {
   readonly id: string;
@@ -109,7 +109,7 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   let moved: BodyBlock[] = [];
   for (let tries = 0; tries < 2 && projection === null; tries += 1) {
     // an item in Deleted takes no edit, which the cell alone knows: its note keeps no word of it
-    const editable = library.read((db) => readLiveItem(db, input.id)?.fields.deletedAt === null);
+    const editable = library.read((db) => readItem(db, input.id)?.fields.deletedAt === null);
     if (!editable.ok || !editable.value) {
       return editable.ok ? refused({ kind: "not-found" }) : editable;
     }
@@ -150,12 +150,12 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   }
   const landed = projection;
   return library.land(deps.actor(), { answer: editedSchema, opId: input.opId }, (scope) => {
-    const item = readLiveItem(scope.db, input.id);
+    const item = readItem(scope.db, input.id);
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
     touchItem(scope.db, { before: item.fields, itemId: item.id, setId: scope.set().id });
     landProjection(scope, item.id, landed);
-    return { seq: readLiveItem(scope.db, item.id)?.seq ?? item.seq };
+    return { seq: readItem(scope.db, item.id)?.seq ?? item.seq };
   });
 };
