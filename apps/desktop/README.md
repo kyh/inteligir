@@ -11,7 +11,7 @@ connection. Its decisions are this app's [`CLAUDE.md`](CLAUDE.md).
 
 ```
 src-tauri/      the shell, in Rust: the window and its origin pin, the menu, the updater
-scripts/        the package step and the release notes, TypeScript node runs as it stands
+scripts/        a pack's release assets and the release notes, TypeScript node runs as it stands
 ```
 
 ## Seams
@@ -38,15 +38,17 @@ app is the owner's Mac smoke (`docs/releasing.md` § 5).
 ## Packaging
 
 ```bash
-pnpm package:desktop      # → src-tauri/target/release/bundle/macos/Inteligir.app,
-                          #   and the release's assets in .output/bin
+pnpm package:desktop      # the release → src-tauri/target/release/bundle/macos/Inteligir.app,
+                          #   and its assets in .output/bin
+pnpm --filter @repo/desktop tauri build   # an unsigned .app for this Mac: no notices, no updates
 ```
 
-`scripts/package.ts` writes the Rust crates' notices with `cargo about`, then
-runs `tauri build` with a config of its own naming the notices, the signing and
-the update feed. It signs with the Developer ID the keychain holds, notarizes
-with `<repo>/.release/notary.env` (Tauri's own names: `APPLE_API_ISSUER`,
-`APPLE_API_KEY`, `APPLE_API_KEY_PATH`), and signs the update with the updater
-key in `.release/`; with no Developer ID, or `INTELIGIR_PACK_UNSIGNED=1`, the
-pack is signed ad-hoc and opens only on the Mac that built it. The release
-path is `docs/releasing.md`.
+A pack is `tauri build` on `src-tauri/tauri.package.conf.json`, which holds
+what only a release has: the Rust crates' notices, written by `cargo about` as
+its `beforeBuildCommand`, the dmg, the oldest macOS, and the update feed with
+the public key the owner commits (`docs/releasing.md` § Once per product: the
+update key). It signs with `<repo>/.release/release.env`, in Tauri's own names
+and taken as written (`dotenv --no-expand`, since a password may hold a `$`).
+`scripts/release-assets.ts` then refuses an app with no notarization ticket
+and names the dmg, the signed update and `latest.json` as a release carries
+them. The release path is `docs/releasing.md`.

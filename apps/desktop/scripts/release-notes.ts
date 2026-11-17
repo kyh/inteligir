@@ -1,15 +1,15 @@
 // A release's notes are CHANGELOG.md's top section, printed as the GitHub release's notes file,
 // so the GitHub release, the update it ships and the file say one thing. The top section must
-// already be titled for this package's version: publishing an Unreleased section, or the last
+// already be titled for the product's version: publishing an Unreleased section, or the last
 // release's, would describe some other build.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import manifest from "../package.json" with { type: "json" };
+import manifest from "../../../package.json" with { type: "json" };
 
-const packageRoot = path.resolve(import.meta.dirname, "..");
-const changelogPath = path.resolve(packageRoot, "../../CHANGELOG.md");
-const manifestPath = path.join(packageRoot, "package.json");
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
+const changelogPath = path.join(repoRoot, "CHANGELOG.md");
+const manifestPath = path.join(repoRoot, "package.json");
 
 const refuse: (sentence: string) => never = (sentence) => {
   process.stderr.write(`release-notes: ${sentence}\n`);

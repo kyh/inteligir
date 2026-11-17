@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": "mkdir -p .output/notices && cargo about generate --locked --fail --manifest-path src-tauri/Cargo.toml -o .output/notices/rust-crates.txt src-tauri/about.hbs"
+  },
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "minimumSystemVersion": "13.5"
+    },
+    "resources": {
+      "../.output/notices/": "notices/"
+    },
+    "targets": ["app", "dmg"]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/kyh/inteligir/releases/latest/download/latest.json"]
+    }
+  }
+}

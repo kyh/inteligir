@@ -116,6 +116,9 @@ export default defineConfig({
         // the library's chunk is about 3.2 MB on purpose (above), so the ceiling (kB) is there to
         // catch a dependency that doubles it
         chunkSizeWarningLimit: 6000,
+        // the file LICENSES_PATH links (src/lib/site-config.ts). Vite reads no worker's bundle, so a
+        // package the import's worker alone loads is not in it
+        license: { fileName: "licenses.md" },
         // the group leaves what it reaches through a barrel (lucide-react, Base UI) to rolldown's own
         // chunks, which import the group back; rolldown's advice for a group that takes no
         // dependencies is both of these, or a chunk reads an export the cycle has yet to run

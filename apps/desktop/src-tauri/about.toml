@@ -1,4 +1,4 @@
-# cargo-about's reading of the crates the shell links into its one binary (scripts/package.ts):
+# cargo-about's reading of the crates the shell links into its one binary (tauri.package.conf.json):
 # a crate under a licence this list does not name fails the pack, and of a choice the earliest
 # named is the one the notices carry
 accepted = [

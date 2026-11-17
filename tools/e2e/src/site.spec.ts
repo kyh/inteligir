@@ -93,7 +93,7 @@ test("the site's pages render their docs, and the home page links the latest Mac
   }
 
   const dmg = /^const DMG_NAME = "(?<name>[^"]+)";$/mu.exec(
-    await readFile(path.join(REPO, "apps/desktop/scripts/package.ts"), "utf-8"),
+    await readFile(path.join(REPO, "apps/desktop/scripts/release-assets.ts"), "utf-8"),
   )?.groups?.name;
   // releases/latest/download cannot know a version
   expect(dmg).not.toMatch(/\d+\.\d+/u);
@@ -115,6 +115,20 @@ test("the site's pages render their docs, and the home page links the latest Mac
   }));
   expect(widths.page).toBeLessThanOrEqual(390);
   expect(widths.header).toBeLessThanOrEqual(390);
+});
+
+test("the home page links the licences of the packages the site bundles, and what is vendored is served beside them", async ({
+  cloud,
+  page,
+  request,
+}) => {
+  await page.goto(cloud.origin);
+  const footer = page.getByRole("link", { exact: true, name: "Licenses" });
+  const href = await footer.getAttribute("href");
+  const packages = await request.get(`${cloud.origin}${href ?? ""}`);
+  expect(await packages.text()).toMatch(/^## react - \S+ \(MIT\)$/mu);
+  const vendored = await request.get(`${cloud.origin}/licenses/shadcn.txt`);
+  expect(await vendored.text()).toContain("Copyright (c) 2023 shadcn");
 });
 
 test("a print is light under the dark theme, which stays on the screen", async ({

@@ -12,11 +12,11 @@ outright.
 | The iPhone app | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
 | The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
-The three manifests carry one version (`apps/desktop`, `apps/extension`,
-`apps/mobile`, set in § 1), since one client build floor holds the phone and
-the extension alike, and a release's notes are
-`CHANGELOG.md`'s top section, which `apps/desktop/scripts/release-notes.ts`
-refuses to print until it is titled for that version.
+The three read one version, the root `package.json`'s (set in § 1), since one
+client build floor holds the phone and the extension alike, and a release's
+notes are `CHANGELOG.md`'s top section, which
+`apps/desktop/scripts/release-notes.ts` refuses to print until it is titled
+for that version.
 
 The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
@@ -37,25 +37,46 @@ passed; § 7's checks need the published release.
 
 ## Once per machine
 
-- **`.release/`** (gitignored) at the repo root: `notary.env` and the `.p8`
-  beside it, with the Developer ID Application certificate in the login
-  keychain (`security find-identity -v -p codesigning` lists it); and the
-  updater's key, which signs every update an installed app accepts:
-  `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
-  (the path is the desktop package's, where the filter runs the script)
-  writes `updater.key` and `updater.key.pub`, and the password it asked for
-  goes in `updater.key.password`. Lose the key and no installed app can verify
-  an update again, so it is backed up wherever the Developer ID's export is.
-  `apps/desktop/README.md` § Packaging says how the package step reads them.
-  `notary.env` holds Tauri's own names, `APPLE_API_ISSUER`, `APPLE_API_KEY`
-  (the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s file name), and a pack
-  refuses one missing any.
+- **`.release/`** (gitignored) at the repo root: `release.env`, the notary's
+  `.p8` and the updater's key (Once per product: the update key), with the
+  Developer ID Application certificate in the login keychain
+  (`security find-identity -v -p codesigning` lists it). `release.env` is all
+  a pack signs with, under the names Tauri reads, each value taken as written
+  and each path absolute, since Tauri reads it from `src-tauri`:
+
+  ```sh
+  APPLE_SIGNING_IDENTITY="Developer ID Application: <name> (<team id>)"
+  APPLE_API_ISSUER=<the App Store Connect key's issuer id>
+  APPLE_API_KEY=<the key's id>
+  APPLE_API_KEY_PATH=/<path to the repo>/.release/AuthKey_<the key's id>.p8
+  TAURI_SIGNING_PRIVATE_KEY=/<path to the repo>/.release/updater.key
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD=<the updater key's password, or nothing>
+  ```
+
+  A pack missing any of them is no release, and fails (§ 2).
+
 - **cargo-about**: `cargo install cargo-about --locked --features cli`, which
   `pnpm package:desktop` runs for the Rust crates' licence notices.
 - **GitHub**: `gh auth status` has push rights on the repo.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials
   `.env.example` names.
+
+## Once per product: the update key
+
+An installed app accepts only an update signed by one key, whose public half
+is compiled into every release. Once:
+
+1. `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
+   (the path is the desktop package's, where the filter runs the script)
+   writes `updater.key` and `updater.key.pub`; the password it asks for is
+   `release.env`'s `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+2. Commit the one line of `updater.key.pub` as `plugins.updater.pubkey` in
+   `apps/desktop/src-tauri/tauri.package.conf.json`. Tauri refuses every pack
+   until it is there.
+3. Back the key up wherever the Developer ID's export is: lose it and no
+   installed app can verify an update again. A new key is a new `pubkey`
+   commit, and no app installed before it takes its updates.
 
 ## Once per product: the extension's store item
 
@@ -120,10 +141,9 @@ the fallback is a custom build, `.eas/build/production.yml`, that installs with
 
 On main, clean, at the commit to ship:
 
-1. Set `version` in `apps/desktop/package.json`, `apps/extension/package.json`
-   and `apps/mobile/package.json` to the release's `<version>`. The Mac app's
-   About and its update feed read it, and the phone and the extension name it
-   in every call.
+1. Set `version` in the root `package.json` to the release's `<version>`.
+   The Mac app's About and its update feed read it, and the phone and the
+   extension name it in every call.
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
@@ -142,14 +162,14 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm package:desktop && pnpm package:extension
 ```
 
-`package:desktop` packages the app, signs it and notarizes it with `.release/`.
-Its output must say `package: notarizing with …` and
-`package: signing the update`: a pack that reports `.release/` absent opens
-only on the Mac that built it, and one with no updater key ships an app that
-never updates. Package only through `pnpm package:desktop`: turbo's strict env
-mode strips `APPLE_API_*` exported in a shell (so they live in `.release/`),
-and the Tauri CLI run directly packs no licence notices and writes no update
-feed (`apps/desktop/scripts/package.ts` sets both).
+`package:desktop` is `tauri build` on the release's config
+(`apps/desktop/src-tauri/tauri.package.conf.json`) with `.release/release.env`:
+it signs and notarizes the app, signs the update, and leaves the release's
+assets in `apps/desktop/.output/bin`. A pack is a release or it fails: Tauri
+stops one with no updater key, and `apps/desktop/scripts/release-assets.ts`
+one whose app carries no notarization ticket. Package only through
+`pnpm package:desktop`: turbo's strict env mode strips every `APPLE_*`
+exported in a shell, so a pack signs with `release.env` alone.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
 green: `gh run list --commit "$(git rev-parse HEAD)"`.
@@ -210,6 +230,25 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    `curl -s https://inteligir.com/.well-known/oauth-authorization-server`
    answers `"issuer":"https://inteligir.com"`.
 
+5. **The Worker's secrets.** `pnpm --filter @repo/web exec cf workers secrets
+   list --worker inteligir-web` names `BETTER_AUTH_SECRET`,
+   `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`. Deploy binds each as the Worker
+   already holds it and is refused while the Worker holds none, so a name the
+   list lacks is a plain variable there. Set one the Worker has never held as
+   `apps/web/README.md` § Build & deploy does, the gateway's address being its
+   Anthropic route:
+
+   ```sh
+   pnpm --filter @repo/web exec cf workers secrets update AGENT_GATEWAY_URL --worker inteligir-web \
+     --text 'https://gateway.ai.cloudflare.com/v1/<account id>/inteligir/anthropic'
+   ```
+
+   `secrets update` refuses a name the Worker binds as a plain variable (error
+   10053). In the dashboard, under the Worker's Settings › Variables and
+   Secrets, edit that variable, set its type to Secret with the value it
+   shows, and deploy. Until then every Deploy carries the variable over as it
+   is, so the agent keeps its gateway.
+
 ## 4. The phone's internal build
 
 1. **Pre-flight.** `docs/privacy.md` names every address the phone talks to,
@@ -238,8 +277,9 @@ again at step 1.
 
 In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
 
-- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET` and
-  `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV namespace is its own.
+- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET`,
+  `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV
+  namespace is its own.
 - **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
   as its dead-letter queue, and a link a connected assistant saves is read.
 - **Files**: a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
@@ -261,7 +301,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   invite sign-up, still signed in after Quit; a dev build keeps a store of its
   own; the Mac app shows in Settings › Account as This device.
 - **Window**: the system title bar, close hides it, a link to another site
-  opens in the browser, offline it says so, and View › Reload recovers.
+  and Settings › About's Licenses open in the browser, offline it says so, and
+  View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
 - **Outline and find**: in a long note, a heading picked from the outline and a
   ⌘F match a screen away glide there, and one far off lands at once and stays.
@@ -372,7 +413,8 @@ turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
 
 - **The gateway**: it holds its own key, with Authenticated Gateway on, no
   payload logs and a spend limit of $5 a day split by the `account` metadata
-  key; its Anthropic workspace is separate and capped; the Deploy run names it.
+  key; its Anthropic workspace is separate and capped; `AGENT_GATEWAY_URL` is
+  its Anthropic route.
 - **A real turn**, open in a tab and the Mac at once: events
   stream, the conversation follows the reply to its end and the reply does not
   blink as it lands, one change set, Undo keeps your typing, the allowance
@@ -394,7 +436,7 @@ Only once every check in § 5 has passed, and the three close together.
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
    the dmg under that fixed name (`DMG_NAME` in
-   `apps/desktop/scripts/package.ts`), and every installed app reads
+   `apps/desktop/scripts/release-assets.ts`), and every installed app reads
    `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
    the changelog's top section, which `apps/desktop/scripts/release-notes.ts`
    prints only once it is titled for this version, so a refusal stops the
@@ -488,6 +530,6 @@ Only once every check in § 5 has passed, and the three close together.
   build of the same version, `pnpm testflight:mobile` from a branch off the
   tag, then § 4 from step 3. `pnpm --filter @repo/mobile exec eas
   build:version:get --platform ios` prints the latest build number.
-- **The Mac app or the extension**: a patch version through this whole runbook. All
-  three manifests move with it, but the phone's build may stay behind; its
+- **The Mac app or the extension**: a patch version through this whole runbook. The
+  version is all three's, but the phone's build may stay behind; its
   JavaScript hotfixes then branch from the tag of the build TestFlight serves.

@@ -33,6 +33,7 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/privacy`                  | —               | Renders `docs/privacy.md` itself (SSR) — never a copy                                                                 |
 | `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                                                                   |
 | `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                                         |
+| `/licenses*`                | —               | Static files: each bundled package's licence, written by the build, and those of what is vendored                     |
 | `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                              |
 | `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                                         |
 | `/app/sign-in`              | —               | Sign-in; the Worker redirects someone already signed in to where they were going (`lib/session-guard.ts`)             |
@@ -95,10 +96,13 @@ pnpm -F @repo/web exec cf auth login
 pnpm --filter @repo/db push:remote
 
 # 3. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED signing key: a fresh
-#    random 32+ char value. AI_GATEWAY_TOKEN is the `inteligir` AI Gateway's token; the gateway
-#    stores the PRODUCTION Anthropic workspace's key itself and splits its spend limit by the
-#    `account` each request names (docs/releasing.md § 5). Without it the agent says it can't be reached.
+#    random 32+ char value. AGENT_GATEWAY_URL is the `inteligir` AI Gateway's Anthropic route,
+#    https://gateway.ai.cloudflare.com/v1/<account id>/inteligir/anthropic, and AI_GATEWAY_TOKEN its
+#    token; the gateway stores the PRODUCTION Anthropic workspace's key itself and splits its spend
+#    limit by the `account` each request names (docs/releasing.md § 5). A deploy is refused while
+#    one of the three is unset.
 pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker inteligir-web --text '...'
+pnpm -F @repo/web exec cf workers secrets update AGENT_GATEWAY_URL --worker inteligir-web --text '...'
 pnpm -F @repo/web exec cf workers secrets update AI_GATEWAY_TOKEN --worker inteligir-web --text '...'
 
 # 4. Password reset: onboard the sending domain once (dashboard: Email Sending, then the DKIM/SPF
@@ -109,12 +113,8 @@ pnpm -F @repo/web exec cf workers secrets update AI_GATEWAY_TOKEN --worker intel
 #    only consumed, so it is made by hand
 pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill-failed
 
-# 6. Deploy — the exact commands the `Deploy` workflow runs. The build bakes the agent's gateway in
-#    from CLOUDFLARE_ACCOUNT_ID, and the check refuses an output that names none
-export CLOUDFLARE_ACCOUNT_ID=...
+# 6. Deploy — the exact commands the `Deploy` workflow runs
 pnpm turbo run build --filter=@repo/web...
-jq -e '.env.AGENT_GATEWAY_URL.value | startswith("https://gateway.ai.cloudflare.com/v1/")' \
-  apps/web/.cloudflare/output/v0/workers/default/worker.config.json
 pnpm -F @repo/web exec cf deploy --prebuilt
 
 # (optional) tail logs: cf cannot tail yet
@@ -126,7 +126,6 @@ when anything the build reads changed since the `deployed/web` tag
 (`docs/privacy.md` and `docs/terms.md` included). It does NOT apply the D1
 schema: push it from a local machine BEFORE merging a change that needs it,
 since a new Worker against an old database 500s on every request touching a
-table that isn't there. Its secrets are `CLOUDFLARE_API_TOKEN` (Workers
+table that isn't there. Its one secret is `CLOUDFLARE_API_TOKEN` (Workers
 Scripts: Edit, Queues: Edit, Workers KV Storage: Edit, plus Workers Routes:
-Edit on the inteligir.com zone) and `CLOUDFLARE_ACCOUNT_ID`, which names the
-account of the built-in agent's gateway.
+Edit on the inteligir.com zone).

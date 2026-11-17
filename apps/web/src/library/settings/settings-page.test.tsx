@@ -34,4 +34,13 @@ describe("Settings' sections", () => {
     expect(router.history.location.hash).toBe("");
     expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
   });
+
+  it("links the licences from About, opened apart from the tab", async () => {
+    await openedAtSettings();
+
+    // the Mac app's window is the tab, with no way back out of a text file
+    const link = screen.getByRole("link", { name: "Open-source software Inteligir is built on" });
+    expect(link.getAttribute("href")).toBe("/licenses.md");
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
 });

@@ -7,13 +7,17 @@
     "generate": {
       "outputs": [".wxt/**"]
     },
-    // the unpacked dev build the e2e loads with --extension
+    // the unpacked dev build the e2e loads with --extension. Its manifest carries the product's
+    // version, the root package.json's, outside this workspace, so turbo hashes it only where it is
+    // named
     "build": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/package.json"],
       "outputs": [".output/chrome-mv3/**"]
     },
     // the Web Store zip and the unpacked store build beside it (wxt.config.ts)
     "zip": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/package.json"],
       "outputs": [
         ".output/chrome-mv3-store/**",
         ".output/chrome-mv3-store-unpacked/**",

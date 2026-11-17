@@ -10,8 +10,14 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   oxlint or a build is one more table to keep in step. `tools/repo-guards/README.md`.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
-  conflict is no reason; the licences live in `tools/licenses`, and the .app
-  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
+  conflict is no reason; the site serves the licences
+  (`apps/web/public/licenses`), and the .app ships its crates' notices
+  (`apps/desktop/src-tauri/about.toml`).
+- **A bundle's notices are its build's**: Vite's `build.license` writes the
+  licence of each package the site's pages bundle, served as `/licenses.md` and
+  linked from the home page and Settings, and of each the extension's zip
+  holds, a file per group of entrypoints. Why: a generator of ours is a list to
+  keep in step with the lockfile. `apps/web/vite.config.ts`.
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
   (owner decision), every DOM suite compiles its sources the same way, and a
   hand `useMemo` or `useCallback` stays only as an effect's dependency or where
@@ -28,6 +34,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.
   `pnpm-workspace.yaml`, `packages/service/compatibility.ts`,
   `apps/desktop/rust-toolchain.toml`.
+- **The product's version is the root `package.json`'s, and each shipped app
+  reads it there.** Why: one client build floor holds every app, so a copy per
+  manifest is three chances to ship apart. `package.json`.
 - **A dependency two workspaces name is spelled `catalog:`**. Why: it is one
   version the repo agrees on; one manifest's inline range stays. `pnpm-workspace.yaml`.
 - **An update sweep skips the Expo SDK's names, not its `expo:` catalog**: after
@@ -36,9 +45,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   by name, and `typescript` is web's too. `pnpm-workspace.yaml`.
 - **A turbo cache key names everything its output reads.** Why: a hit replays
   the output with no error, and the e2e and `package:*` ship it. `apps/web/turbo.json`.
-- **The Worker deploys when a task's inputs changed**, which
-  `futureFlags.affectedUsingTaskInputs` counts. Why: an edit to the legal texts
-  alone deploys. `.github/workflows/deploy.yml`.
+- **A changed file counts for every task whose inputs name it**, under
+  `futureFlags.affectedUsingTaskInputs`. Why: an edit to the legal texts alone
+  deploys, and `verify:affected` lints and knips a change in any workspace,
+  which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
   fails without it.** Why: a bump fails the install until the patch is re-cut
   or dropped. `patches/` (micromark: `packages/editor/src/markdown/parse-cost.test.ts`;

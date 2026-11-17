@@ -21,6 +21,10 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
   config, and the entry's holds the service to what deploys.** A hand-written
   `Env` drifts from what deploys, so a binding the service reads is declared in
   both configs. `apps/web/cloudflare.config.ts`.
+- **The agent's gateway is two secrets on the Worker, its address and its
+  token, and no build holds either.** cf refuses a deploy while a declared
+  secret is unset, so a Worker whose agent has no gateway never ships, with no
+  check of ours. `apps/web/cloudflare.config.ts`.
 - **A module `cloudflare.config.ts` loads is never the Worker's code.** The dev
   server stops on a module both load, so the Worker reads those values from
   the bindings the config declares. `oxlint.config.ts`.
@@ -42,6 +46,10 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **An account form's submit is one value, and done is never idle again.** A
   sign-in that went through is still loading the next document, and a form
   live meanwhile posts twice. `apps/web/src/components/auth-shell.tsx`.
+- **The home page's orb is plain three.js an effect mounts, and no React
+  renderer draws it.** A renderer for one mesh is a second reconciler, whose
+  peer ranges reach the catalog's React and name react-native and expo.
+  `apps/web/src/components/geometric-orb.tsx`.
 - **A PR gets no deploy, and the config refuses a Preview.** Its bindings are
   production's, and a preview copy of the cloud is upkeep nobody uses yet.
   `apps/web/cloudflare.config.ts`.

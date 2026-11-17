@@ -6,6 +6,11 @@ mod navigation;
 mod updater;
 mod window;
 
+// `generate_context!` writes the config's `plugins` as `serde_json` values, and only the pack's
+// config holds any (tauri.package.conf.json): as a dev-dependency the crate compiles every build
+// but a release, so this line fails the others too
+use serde_json as _;
+
 fn fail(error: &dyn std::fmt::Display) -> ! {
     eprintln!("[desktop] Inteligir failed to start: {error}");
     std::process::exit(1);
@@ -13,8 +18,8 @@ fn fail(error: &dyn std::fmt::Display) -> ! {
 
 pub fn run() {
     let context = tauri::generate_context!();
-    // `plugins.updater`, which the pack writes, turns updates on; under `tauri dev` there is no
-    // bundle to replace
+    // `plugins.updater`, which only the pack's config holds (tauri.package.conf.json), turns
+    // updates on; under `tauri dev` there is no bundle to replace
     let updates = context.config().plugins.0.contains_key("updater") && !tauri::is_dev();
 
     let mut builder = tauri::Builder::default();

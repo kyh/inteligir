@@ -13,12 +13,12 @@ import tailwindcss from "@tailwindcss/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "wxt";
 
-import extensionPackage from "./package.json" with { type: "json" };
+import product from "../../package.json" with { type: "json" };
 import { DEV_CLOUD_ORIGIN, extensionManifest, flavorOfMode } from "./src/manifest";
 import { WORKER_CONDITIONS } from "./worker-conditions";
 
-// the extension's version is its package's
-const { version } = extensionPackage;
+// the extension's version is the product's
+const { version } = product;
 
 // the files every build ships by name: the manifest names the worker, the popup and the welcome
 // page, the worker the capture script
@@ -65,6 +65,12 @@ export default defineConfig({
       if (flavorOfMode(wxt.config.mode) === "store" && process.env.NODE_ENV !== "production") {
         fail("a store build ships React's production build: run it with NODE_ENV=production");
       }
+    },
+    // the licence of each package a build bundles, which the zip carries. WXT builds each group of
+    // entrypoints alone into the one folder, so one name would keep the last group's file
+    "vite:build:extendConfig": (entrypoints, viteConfig) => {
+      const group = entrypoints.map((entrypoint) => entrypoint.name).join("-");
+      viteConfig.build = { ...viteConfig.build, license: { fileName: `licenses/${group}.md` } };
     },
     // what a build ships is the function its tests call: WXT adds the worker and the popup from
     // the entrypoints, so a manifest that says anything else fails the build (a field WXT leaves

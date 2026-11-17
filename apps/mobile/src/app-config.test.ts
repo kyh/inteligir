@@ -60,7 +60,7 @@ const communityModulesSchema = z.looseObject({
   ),
 });
 
-const packageVersionSchema = z.looseObject({ version: z.string() });
+const productVersionSchema = z.looseObject({ version: z.string() });
 
 const purposeSchema = z.string();
 
@@ -152,26 +152,26 @@ const reasonKey = (api: string, reason: string): string => `${api} ${reason}`;
 
 describe("the phone's store config", () => {
   let config: AppConfig;
-  let packageVersion: string;
+  let productVersion: string;
   let moduleReasons: DeclaredReason[];
 
   beforeAll(async () => {
     const [introspected, pods, manifest] = await Promise.all([
       readCli("cli", ["config", "--type", "introspect", "--json"], appConfigSchema),
       linkedPods(),
-      readFile(path.join(APP_ROOT, "package.json"), "utf-8"),
+      readFile(path.join(APP_ROOT, "../../package.json"), "utf-8"),
     ]);
     config = introspected;
-    packageVersion = packageVersionSchema.parse(JSON.parse(manifest)).version;
+    productVersion = productVersionSchema.parse(JSON.parse(manifest)).version;
     moduleReasons = await declaredReasons(pods);
   }, SPAWN_BUDGET_MS);
 
-  it("ships the package's version as the marketing version", () => {
+  it("ships the product's version as the marketing version", () => {
     expect(
       config.ios.infoPlist.CFBundleShortVersionString,
-      "rule: CFBundleShortVersionString is apps/mobile/package.json's version, the product version the Mac app and the extension carry too\n" +
-        "fix: app.config.js passes the package's version through; change it in package.json, never there",
-    ).toBe(packageVersion);
+      "rule: CFBundleShortVersionString is the root package.json's version, the product version the Mac app and the extension carry too\n" +
+        "fix: app.config.js passes the root's version through; change it in the root package.json, never there",
+    ).toBe(productVersion);
   });
 
   it("declares its encryption exempt, so no build waits on export compliance", () => {

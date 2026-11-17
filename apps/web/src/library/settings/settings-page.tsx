@@ -11,6 +11,7 @@ import type { Theme } from "@repo/ui/lib/theme";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 
+import { LICENSES_PATH } from "#lib/site-config";
 import {
   EDITOR_FONTS,
   EDITOR_LEADINGS,
@@ -153,6 +154,16 @@ export const SettingsPage = () => {
           <SectionHeading>About</SectionHeading>
           <dl className="space-y-1.5">
             <UpdatesRow />
+            <Row label="Licenses">
+              <a
+                href={LICENSES_PATH}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Open-source software Inteligir is built on
+              </a>
+            </Row>
           </dl>
         </section>
       </main>
