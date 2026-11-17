@@ -150,7 +150,7 @@ describe("Empty Deleted", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete forever" }));
 
     await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe("Deleting 2 items.");
+      expect(said.mock.lastCall?.[0]).toBe("Deleted 2 items forever.");
     });
     expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
       { except: [], scope: { kind: "deleted" }, verb: { kind: "purge" } },
@@ -177,7 +177,7 @@ describe("⌘A", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe("Deleting 201 items.");
+      expect(said.mock.lastCall?.[0]).toBe("Moved 201 items to Deleted.");
     });
     expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
       { except: [], scope: { kind: "all" }, verb: { kind: "delete" } },

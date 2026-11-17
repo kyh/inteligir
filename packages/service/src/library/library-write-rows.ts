@@ -20,6 +20,7 @@ import {
 import { libraryHead } from "./library-rows";
 import { savedSchema, saveLink, savePage } from "./library-saves";
 import { writeLibrary } from "./library-store";
+import { sweepItems, sweptAnswerSchema } from "./library-sweeps";
 import { undoneSchema, undoTurns } from "./library-undo";
 import { landedSchema, landPropertyOps } from "./library-writes";
 
@@ -136,6 +137,15 @@ export const libraryWriteRows = {
           context.library,
           { answer: savedSchema, opId: input.opId },
           async (scope) => await saveLink(scope, input),
+        ),
+      ),
+    ),
+    sweep: writing.items.sweep.handler(async ({ context, input: { opId, verb, ...swept } }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: sweptAnswerSchema, opId },
+          async (scope) => await sweepItems(scope, swept, verb),
         ),
       ),
     ),

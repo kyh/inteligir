@@ -1,7 +1,7 @@
 // What a command does to the cell (`./library-commands.tsx`), over the writes
 // `../cloud/library-writes.ts` holds. A verb over several items or several saves is one run that
 // says how it went (`./bulk-actions.ts`), and one over a scope the grid read only in part is one
-// ask the cell lands by itself; a new note answers its caller, and a folder's write says its own
+// ask the cell lands in the call; a new note answers its caller, and a folder's write says its own
 // refusal.
 
 import type { InferClientInputs } from "@orpc/client";
@@ -46,28 +46,30 @@ export const useLibraryVerbs = () => {
   const folders = () =>
     queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.folders ?? [];
 
-  // A verb over its target. Items by id go in the chunks their route takes, as one run; a scope is
-  // one ask (`sweep`), which the cell lands after it answers, so its toast says what the cell took
-  // and the grid follows the cell as each lot lands
+  // A verb over its target, answering how many items a rule left as they were. Items by id go in
+  // the chunks their route takes, as one run; a scope is one ask (`sweep`), which lands in the call
+  // and names the items it left
   const bulk = async (
     target: Target,
     job: Omit<BulkRun<string>, "chunk" | "items"> & { readonly sweep: SweepVerb },
-  ): Promise<void> => {
+  ): Promise<number> => {
     if (target.kind === "ids") {
       await runBulk({ ...job, chunk: BULK_ITEMS_MAX, items: target.ids });
-      return;
+      return 0;
     }
     try {
-      const { items } = await sweep.mutateAsync({ ...target.swept, verb: job.sweep });
-      toast.success(`${job.verb} ${plural(items, "item")}.`);
+      const { items, refused } = await sweep.mutateAsync({ ...target.swept, verb: job.sweep });
+      toast.success(job.done(items - refused.length));
+      return refused.length;
     } catch (error) {
       toast.error(refusalText(error, `Those items couldn't be ${job.past}.`));
+      return 0;
     }
   };
 
   const restoreItems = async (target: Target): Promise<void> => {
     let held = 0;
-    await bulk(target, {
+    const sweptHeld = await bulk(target, {
       done: (count) => `Restored ${plural(count, "item")}.`,
       past: "restored",
       run: async (chunk) => {
@@ -78,6 +80,7 @@ export const useLibraryVerbs = () => {
       sweep: { kind: "restore" },
       verb: "Restoring",
     });
+    held += sweptHeld;
     if (held > 0) {
       toast.info(`${plural(held, "item")} stayed in Deleted: another item holds the same address.`);
     }

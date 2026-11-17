@@ -553,27 +553,26 @@ export const createFakeCell = (): FakeCell => {
             };
           }),
         ),
-        // the scope's items, each by its verb's rule, landed as it is asked: the alarm's lots are
-        // the Worker's suites' to hold
+        // the scope's items, each by its verb's rule, landed as it is asked: a tag change's lots
+        // are the service's suites' to hold
         sweep: os.library.items.sweep.handler(({ input: { verb, ...swept } }) => {
           const ids = sweptIds(listing(), swept);
           switch (verb.kind) {
             case "organize": {
               organize({ ...verb, ids });
-              break;
+              return { items: ids.length, refused: [] };
             }
             case "delete":
             case "restore": {
-              setDeleted(ids, verb.kind === "delete");
-              break;
+              const { addressHeld } = setDeleted(ids, verb.kind === "delete");
+              return { items: ids.length, refused: addressHeld };
             }
             case "purge": {
               purge(ids);
-              break;
+              return { items: ids.length, refused: [] };
             }
             // no default
           }
-          return { items: ids.length };
         }),
       },
       listing: {

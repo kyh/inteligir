@@ -22,7 +22,7 @@ import type {
   ListingQuery,
   ListingRow,
 } from "@repo/contract/library/library-index";
-import type { listingPageInputSchema } from "@repo/contract/library/library-wire";
+import type { listingPageInputSchema, sweptSchema } from "@repo/contract/library/library-wire";
 import { compareText } from "@repo/contract/library/order-key";
 import { db as pool } from "@repo/db/drizzle-client";
 import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
@@ -39,6 +39,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  not,
   notExists,
   or,
   sql,
@@ -50,6 +51,7 @@ import { likeLiteral, searchHits } from "../search/search-sql";
 import type { SearchHits } from "../search/search-sql";
 import { STORED_ITEM_COLUMNS, tagsOf } from "./library-rows";
 import type { StoredItem } from "./library-rows";
+import { anyOf } from "./set-sql";
 
 // Reads that must agree, a page beside its counts or the rail's counts beside each other, in one
 // snapshot no write lands inside
@@ -129,7 +131,12 @@ const pinnedFilter = (pinned: boolean | undefined): SQL | undefined => {
 };
 
 // what a query lists, its kinds aside: one side of Deleted, its folder, tag, pin and saved dates
-const filterOf = async (db: DbExecutor, accountId: string, query: ListingQuery) =>
+type ListingFilter = Pick<
+  ListingQuery,
+  "beforeMs" | "deleted" | "folderId" | "pinned" | "sinceMs" | "tag"
+>;
+
+const filterOf = async (db: DbExecutor, accountId: string, query: ListingFilter) =>
   and(
     eq(item.accountId, accountId),
     query.deleted ? isNotNull(item.deletedAt) : isNull(item.deletedAt),
@@ -268,6 +275,26 @@ export const listingPage = async (
     kindCounts: page.kindCounts,
     total: page.total,
   };
+};
+
+// the items a sweep takes, as `library.items.sweep` names them: its scope's, of its kinds, but those
+// left out, each with whether it is in Deleted
+export const sweptItems = async (
+  db: DbExecutor,
+  accountId: string,
+  swept: z.output<typeof sweptSchema>,
+): Promise<{ readonly id: string; readonly deleted: boolean }[]> => {
+  const rows = await db
+    .select({ deletedAt: item.deletedAt, id: item.id })
+    .from(item)
+    .where(
+      and(
+        await filterOf(db, accountId, scopeFilter(swept.scope)),
+        swept.kinds === undefined ? undefined : inArray(item.kind, [...swept.kinds]),
+        swept.except.length === 0 ? undefined : not(anyOf(item.id, swept.except)),
+      ),
+    );
+  return rows.map(({ deletedAt, id }) => ({ deleted: deletedAt !== null, id }));
 };
 
 // the rail's counts, as `library.listing.scopes` answers them: the folders in rail order, each with

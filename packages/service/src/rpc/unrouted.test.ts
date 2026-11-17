@@ -44,7 +44,6 @@ it("names every row not routed yet", () => {
       "library.items.createNote",
       "library.items.edit",
       "library.items.saveBody",
-      "library.items.sweep",
       "library.items.refresh",
     ]
   `);

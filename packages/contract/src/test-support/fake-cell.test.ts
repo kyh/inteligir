@@ -12,9 +12,9 @@ cellConformance(async (run) => {
   await run(createFakeCell().device("laptop").client.library);
 });
 
-// The cell lands a sweep on its alarm, a lot a transaction, which no client runs
-// (`packages/service/src/library/library-router.test.ts` holds that), and the fake lands one as it
-// is asked, so a read made right after the ask is the one answer the two give apart.
+// The service lands a sweep in the call, but a change of tags over 5,000 items, which it lands as
+// lots after the answer (`packages/service/src/library/library-sweeps.test.ts` holds that); the
+// fake lands every sweep as it is asked.
 describe("a sweep of the fake cell", () => {
   it("lands every item its scope lists but those left out, each by its verb's rule", async () => {
     const cell = createFakeCell();
@@ -28,7 +28,7 @@ describe("a sweep of the fake cell", () => {
         scope: { kind: "all" },
         verb: { addTags: ["done"], kind: "organize", removeTags: ["field"] },
       }),
-    ).resolves.toStrictEqual({ items: 1 });
+    ).resolves.toStrictEqual({ items: 1, refused: [] });
     expect(cell.held(swept).fields.tags).toStrictEqual(["done"]);
 
     await library.items.sweep({ except: [kept], scope: { kind: "all" }, verb: { kind: "delete" } });

@@ -129,7 +129,7 @@ const organizeInputSchema = z.strictObject({
 
 // what a sweep does to each item it takes: an organize's change but a title, or to Deleted, back
 // from it, or out of it for good
-const sweepVerbSchema = z.discriminatedUnion("kind", [
+export const sweepVerbSchema = z.discriminatedUnion("kind", [
   organizeInputSchema
     .omit({ ids: true, opId: true, title: true })
     .extend({ kind: z.literal("organize") }),
@@ -366,12 +366,14 @@ const itemsContract = {
     .output(z.object({ missing: changedIds, purged: changedIds })),
 
   // A verb over every item a scope lists, for the apps, whose grid selects a scope it read only
-  // some pages of; an agent names its items by id, so no tool carries this. The cell takes the
-  // items the scope lists as it is asked, answers how many, and lands them a lot at a time after
-  // the answer, each by its verb's own rule, one a rule refuses left as it is
+  // some pages of; an agent names its items by id, so no tool carries this. It takes the items the
+  // scope lists as it is asked and lands them in the call, each by its verb's own rule: `items`
+  // counts what it took, and `refused` names those a rule left as they were, a link whose address
+  // another live item holds or an item past its tags' cap. A change of tags over more than 5,000
+  // items lands a lot at a time after the answer, which then names none
   sweep: signedBase
     .input(sweptSchema.extend({ opId, verb: sweepVerbSchema }))
-    .output(z.object({ items: count })),
+    .output(z.object({ items: count, refused: changedIds })),
 
   // the cloud reads the page again, replacing only the article
   refresh: signedBase
