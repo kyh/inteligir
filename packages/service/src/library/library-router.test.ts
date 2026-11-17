@@ -266,29 +266,34 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("refuses text no block can store, and keeps what stood there", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const { item } = await library.items.createNote({ markdown: "One." });
-      const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
-      const edit = async () =>
-        await library.items.edit({
-          edits: [{ newText: fence, oldText: "One." }],
-          id: item.id,
+  // a block at the size limit on purpose, parsed three times: seconds on a loaded machine
+  it(
+    "refuses text no block can store, and keeps what stood there",
+    { timeout: 30_000 },
+    async () => {
+      await inCell(cellOf(), async (state) => {
+        const library = clientIn(state, clockAt());
+        const { item } = await library.items.createNote({ markdown: "One." });
+        const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
+        const edit = async () =>
+          await library.items.edit({
+            edits: [{ newText: fence, oldText: "One." }],
+            id: item.id,
+          });
+        await expect(refusalOf(edit())).resolves.toMatchObject({
+          code: "UNPROCESSABLE_CONTENT",
+          data: { edit: 0, kind: "unstorable" },
         });
-      await expect(refusalOf(edit())).resolves.toMatchObject({
-        code: "UNPROCESSABLE_CONTENT",
-        data: { edit: 0, kind: "unstorable" },
+        await expect(edit()).rejects.toThrow("That edit holds a block the library can't keep.");
+        await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+          view: { markdown: "One.\n" },
+        });
+        await expect(
+          refusalOf(library.items.createNote({ markdown: `Kept.\n\n${fence}` })),
+        ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
       });
-      await expect(edit()).rejects.toThrow("That edit holds a block the library can't keep.");
-      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
-        view: { markdown: "One.\n" },
-      });
-      await expect(
-        refusalOf(library.items.createNote({ markdown: `Kept.\n\n${fence}` })),
-      ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
-    });
-  });
+    },
+  );
 
   it("reads a `---` block opening a new note as a code block, which names no field", async () => {
     await inCell(cellOf(), async (state) => {
