@@ -1,8 +1,8 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // drizzle-kit loads the configs under node, and node runs the scripts
+    // drizzle-kit loads the configs under node; the scripts node runs are a program of their own
     "types": ["node"]
   },
-  "include": ["src", "scripts", "*.ts"]
+  "include": ["src", "*.ts"]
 }

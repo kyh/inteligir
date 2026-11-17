@@ -18,3 +18,11 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
   migrations). A migration history serves no user; the cell's search index is
   the one hand-written statement, and no table is STRICT, WITHOUT ROWID or
   triggered, which the export cannot spell. `packages/db/scripts/object-ddl.ts`.
+
+## The local database
+
+- **`pnpm bootstrap` brings a running local Worker to a dev account, which
+  signs up through the invite gate.** miniflare makes D1's file on the Worker's
+  first query, so the account's sign-in goes before the push, and a row seeded
+  past Better Auth skips the gate every account passes.
+  `packages/db/scripts/bootstrap.ts`.

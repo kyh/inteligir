@@ -16,13 +16,14 @@
     "./thread/schema": "./src/thread/schema.ts"
   },
   "scripts": {
+    "bootstrap": "node scripts/bootstrap.ts",
     "ddl": "node scripts/object-ddl.ts",
     "push": "drizzle-kit push --config drizzle.config.local.ts --force",
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "drizzle-kit studio --config drizzle.config.local.ts",
     "studio:remote": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
     "test": "node scripts/object-ddl.ts --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
   },
   "dependencies": {
     "@repo/contract": "workspace:*",

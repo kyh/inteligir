@@ -58,7 +58,7 @@ apps/mobile            * the iPhone app: native lists, the share sheet, the edit
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
 packages/service       * the cloud's code: auth, /v1, connector, fills, each cell, note and conversation
-packages/db            * drizzle's schemas for D1 and each object's SQLite, with each object's DDL
+packages/db            * drizzle's schemas for D1 and each object's SQLite, with each one's DDL
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over linkedom on every host
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads
@@ -87,18 +87,28 @@ not reintroduce `apps/web/.dev.vars`, which wrangler reads alone. Its
 `ANTHROPIC_FAKE_URL` runs the agent on a scripted Claude (`tools/messages-fake`);
 a real agent needs `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` naming your own gateway.
 
-### There is no seeded login, and sign-up is invite-only
+### Seeded login
 
 ```sh
-pnpm dev:web
-# the local D1 file appears on the first request that touches it, so hit one, THEN push
-curl -s -o /dev/null localhost:5174/api/auth/get-session
-pnpm --filter @repo/db push
-pnpm --filter @repo/db studio   # mint an invite: a row in `invite_code`, a fresh `code` each time
+pnpm dev:web     # leave it running
+pnpm bootstrap   # beside it: the D1 schema and the dev account, safe to run again
 ```
 
-`/app/sign-up` and the phone take the code. Auth allows 10 requests/60s per IP;
-a script making several users sets `RATE_LIMIT_DISABLED=true` in `.env`.
+```
+dev@inteligir.local / password
+```
+
+Headless, a session is one curl, and `docs/development.md` § Running has `/v1`'s headers:
+
+```sh
+curl -s -c jar localhost:5174/api/auth/sign-in/email \
+  -H 'content-type: application/json' -d '{"email":"dev@inteligir.local","password":"password"}'
+```
+
+Sign-up stays invite-only: another account takes a row in `invite_code`
+(`pnpm --filter @repo/db studio`), its `code` typed at `/app/sign-up` or on the
+phone. Auth allows 10 requests/60s per IP; a script making several users sets
+`RATE_LIMIT_DISABLED=true` in `.env`.
 **Never run `@repo/db`'s `push:remote` or `studio:remote`**: both hit the
 PRODUCTION D1. Drive the site with agent-browser (`.agents/skills/agent-browser`).
 
