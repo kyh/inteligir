@@ -24,7 +24,6 @@
     "@fontsource-variable/inter": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@react-three/fiber": "^9.8.2",
     "@repo/client": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",

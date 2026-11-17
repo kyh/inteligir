@@ -46,6 +46,10 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **An account form's submit is one value, and done is never idle again.** A
   sign-in that went through is still loading the next document, and a form
   live meanwhile posts twice. `apps/web/src/components/auth-shell.tsx`.
+- **The home page's orb is plain three.js an effect mounts, and no React
+  renderer draws it.** A renderer for one mesh is a second reconciler, whose
+  peer ranges reach the catalog's React and name react-native and expo.
+  `apps/web/src/components/geometric-orb.tsx`.
 - **The connect page tells the extension where the site is, and hands it
   nothing.** The extension rides the browser's own sign-in, so no credential
   crosses the page. `apps/web/src/routes/_site/connect/extension.tsx`.

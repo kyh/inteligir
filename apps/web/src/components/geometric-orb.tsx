@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 import * as THREE from "three";
 
@@ -16,16 +15,21 @@ const CAMERA_Z = 5;
 const SPIN_RADIANS_PER_FRAME = 0.035;
 const COLOR_LERP_SPEED = 3;
 
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
 class HelixCurve extends THREE.Curve<THREE.Vector3> {
-  // eslint-disable-next-line no-useless-constructor -- exposes protected base constructor
-  constructor() {
+  readonly #length: number;
+  readonly #amplitude: number;
+
+  constructor(length: number, amplitude: number) {
     super();
+    this.#length = length;
+    this.#amplitude = amplitude;
   }
 
-  // oxlint-disable-next-line eslint/class-methods-use-this -- THREE.Curve declares getPoint as an instance method; a static one would not override it
   override getPoint(percent: number): THREE.Vector3 {
-    const x = HELIX_LENGTH * Math.sin(PI2 * percent);
-    const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
+    const x = this.#length * Math.sin(PI2 * percent);
+    const y = this.#amplitude * Math.cos(PI2 * 3 * percent);
 
     const quarter = percent % 0.25;
     const tNorm = quarter / 0.25;
@@ -34,68 +38,102 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
     if (segment === 0 || segment === 2) {
       t *= -1;
     }
-    const z = HELIX_AMPLITUDE * Math.sin(PI2 * 2 * (percent - t));
+    const z = this.#amplitude * Math.sin(PI2 * 2 * (percent - t));
 
     return new THREE.Vector3(x, y, z);
   }
 }
 
-const HELIX = new HelixCurve();
+const HELIX = new HelixCurve(HELIX_LENGTH, HELIX_AMPLITUDE);
 
-const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+const mountOrb = (host: HTMLElement, color: string) => {
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  // the hero's two greys are chosen under this curve, which draws each darker than its hex
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.domElement.className = "block";
+  host.append(renderer.domElement);
+  const camera = new THREE.PerspectiveCamera(65);
+  camera.position.z = CAMERA_Z;
+  const material = new THREE.MeshBasicMaterial({ color });
+  const mesh = new THREE.Mesh(
+    new THREE.TubeGeometry(HELIX, TUBE_SEGMENTS, HELIX_TUBE_RADIUS, TUBE_RADIAL_SEGMENTS, true),
+    material,
+  );
+  const scene = new THREE.Scene().add(mesh);
+  const wanted = new THREE.Color(color);
+  const timer = new THREE.Timer();
+  const reducedMotion = window.matchMedia(REDUCED_MOTION);
 
-const subscribeReducedMotion = (onChange: () => void) => {
-  const query = window.matchMedia(REDUCED_MOTION);
-  query.addEventListener("change", onChange);
-  return () => {
-    query.removeEventListener("change", onChange);
+  const spin = (time: number) => {
+    timer.update(time);
+    material.color.lerp(wanted, 1 - Math.exp(-COLOR_LERP_SPEED * timer.getDelta()));
+    mesh.rotation.x += SPIN_RADIANS_PER_FRAME * timer.getDelta() * 60;
+    renderer.render(scene, camera);
+  };
+  // a still orb draws only when asked, so it takes a theme switch at once rather than a tween
+  const rest = () => {
+    material.color.copy(wanted);
+    renderer.render(scene, camera);
+  };
+  const run = () => {
+    if (reducedMotion.matches) {
+      renderer.setAnimationLoop(null);
+      rest();
+    } else {
+      // the time spent still is no frame's delta
+      timer.reset();
+      renderer.setAnimationLoop(spin);
+    }
+  };
+  const fit = () => {
+    renderer.setPixelRatio(THREE.MathUtils.clamp(window.devicePixelRatio, 1, 2));
+    renderer.setSize(host.clientWidth, host.clientHeight);
+    camera.aspect = host.clientWidth / host.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+  };
+
+  const sizes = new ResizeObserver(fit);
+  sizes.observe(host);
+  reducedMotion.addEventListener("change", run);
+  run();
+
+  return {
+    dispose: () => {
+      sizes.disconnect();
+      reducedMotion.removeEventListener("change", run);
+      mesh.geometry.dispose();
+      material.dispose();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      renderer.domElement.remove();
+    },
+    paint: (next: string) => {
+      wanted.set(next);
+      if (reducedMotion.matches) {
+        rest();
+      }
+    },
   };
 };
 
-const prefersReducedMotion = () => window.matchMedia(REDUCED_MOTION).matches;
-
-const HelixTube = ({ baseColor, still }: { baseColor: string; still: boolean }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const painted = useRef(false);
-  const targetColor = useMemo(() => new THREE.Color(baseColor), [baseColor]);
-  const invalidate = useThree((state) => state.invalidate);
-
-  // a still canvas draws only when asked, one frame per ask, so it takes a theme switch at once rather than a tween
-  useEffect(() => {
-    if (still) {
-      materialRef.current?.color.copy(targetColor);
-      invalidate();
-    }
-  }, [invalidate, still, targetColor]);
-
-  useFrame((_state, delta) => {
-    // the first frame takes the color outright: a lerp would open on the material's default white
-    const step = painted.current ? 1 - Math.exp(-COLOR_LERP_SPEED * delta) : 1;
-    materialRef.current?.color.lerp(targetColor, step);
-    painted.current = true;
-    if (!still && meshRef.current) {
-      meshRef.current.rotation.x += SPIN_RADIANS_PER_FRAME * delta * 60;
-    }
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <tubeGeometry args={[HELIX, TUBE_SEGMENTS, HELIX_TUBE_RADIUS, TUBE_RADIAL_SEGMENTS, true]} />
-      <meshBasicMaterial ref={materialRef} />
-    </mesh>
-  );
-};
-
 export const GeometricOrb = ({ baseColor = "#eeeeee" }: { baseColor?: string }) => {
-  const still = useSyncExternalStore(subscribeReducedMotion, prefersReducedMotion);
-  return (
-    <Canvas
-      camera={{ fov: 65, position: [0, 0, CAMERA_Z] }}
-      frameloop={still ? "demand" : "always"}
-      gl={{ alpha: true, antialias: true }}
-    >
-      <HelixTube baseColor={baseColor} still={still} />
-    </Canvas>
-  );
+  const host = useRef<HTMLDivElement>(null);
+  const orb = useRef<ReturnType<typeof mountOrb>>(null);
+  const mount = useEffectEvent((element: HTMLElement) => mountOrb(element, baseColor));
+
+  useEffect(() => {
+    if (!host.current) {
+      return;
+    }
+    const mounted = mount(host.current);
+    orb.current = mounted;
+    return mounted.dispose;
+  }, []);
+
+  useEffect(() => {
+    orb.current?.paint(baseColor);
+  }, [baseColor]);
+
+  return <div ref={host} className="size-full" />;
 };
