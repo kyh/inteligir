@@ -29,7 +29,8 @@ src/
   items/         what an item is on every device: its kinds, a url's one key, a read page's facts
   knowledge/     what a markdown file is, a tag's name, the folder tree's paths
   extension/     the extension's key, id and origin, and the connect page's messages
-  test-support/  the fake cell every client's suites drive, the seeded generator, library items
+  test-support/  the fake cell every client's suites drive, the cases it and the real cell both
+                 answer, the seeded generator, library items
   *.ts           the library's scopes, the client build, the origins, a few shared primitives
 ```
 
@@ -51,6 +52,8 @@ pnpm --filter @repo/contract typecheck
 
 `/v1`'s rows and refusals run over a real `RPCHandler` and `RPCLink`
 (`v1-contract.test.ts`), and the model's properties draw from the one seeded
-generator (`test-support/seeded-random.ts`). A change to a row reaches every
+generator (`test-support/seeded-random.ts`). The fake cell runs the cases in
+`test-support/cell-conformance.ts`, which the service runs over the real cell,
+so a case added there holds both. A change to a row reaches every
 client and the Worker at once: run the service's suites and the e2e flows that
 drive it too.

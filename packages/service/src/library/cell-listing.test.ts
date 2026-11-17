@@ -1,7 +1,7 @@
 // What the apps read of the library, through the cell's own router as oRPC's router client calls
-// it: an item whole, a listing's pages, the rail's counts and every title.
+// it: a listing's pages, a search's ranked hits, the rail's counts and every title. An item whole
+// is among the cases the fake cell answers too (`./cell-conformance.test.ts`).
 
-import { isOrpcError } from "@repo/contract/v1/errors";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { describe, expect, it } from "vitest";
 
@@ -17,63 +17,9 @@ const laptopIn = (state: DurableObjectState) => {
   return { cell, clock, library: cell.client };
 };
 
-const codeOf = async (call: Promise<unknown>): Promise<string> => {
-  try {
-    await call;
-  } catch (error) {
-    if (isOrpcError(error)) {
-      return error.code;
-    }
-    throw error;
-  }
-  throw new Error("the call landed what the test expected it to refuse");
-};
-
 const LIVE = { deleted: false, sort: "title" } as const;
 
 describe("what the apps read of the library", () => {
-  it("answers an item whole, one in Deleted too, and none once it is purged", async () => {
-    await inCell(cellOf(), async (state) => {
-      const { library } = laptopIn(state);
-      const { item } = await library.items.createNote({
-        markdown: "First line.\n\nSecond line.",
-        title: "Two lines",
-      });
-      const whole = await library.items.get({ id: item.id });
-      expect(whole).toMatchObject({ fields: { kind: "note", title: "Two lines" }, id: item.id });
-      expect(whole.blocks.map(({ block }) => block.type)).toStrictEqual(["p", "p"]);
-      expect(whole.seq).toBeGreaterThan(0);
-
-      await library.items.delete({ ids: [item.id] });
-      await expect(library.items.get({ id: item.id })).resolves.toMatchObject({
-        fields: { deletedAt: expect.any(Number) },
-      });
-      await library.items.purge({ ids: [item.id] });
-      await expect(codeOf(library.items.get({ id: item.id }))).resolves.toBe("NOT_FOUND");
-      await expect(codeOf(library.items.get({ id: newId() }))).resolves.toBe("NOT_FOUND");
-    });
-  });
-
-  it("answers an item's row without its body, and none once it is purged", async () => {
-    await inCell(cellOf(), async (state) => {
-      const { library } = laptopIn(state);
-      const { item } = await library.items.createNote({
-        markdown: "# Plans\n\nFirst line.",
-        title: "",
-      });
-      const { blocks, ...whole } = await library.items.get({ id: item.id });
-      const row = await library.items.row({ id: item.id });
-      expect(row).toStrictEqual(whole);
-      expect(row.card.title).toBe("Plans");
-      expect(blocks).toHaveLength(2);
-      expect("blocks" in row).toBe(false);
-
-      await library.items.delete({ ids: [item.id] });
-      await library.items.purge({ ids: [item.id] });
-      await expect(codeOf(library.items.row({ id: item.id }))).resolves.toBe("NOT_FOUND");
-    });
-  });
-
   it("pages a listing from where the last page ended, counting each kind", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = laptopIn(state);

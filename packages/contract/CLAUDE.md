@@ -30,9 +30,10 @@ clock, random bytes and fresh ids are injected.
 - **The listing is in memory over what it filters and orders by, and pinned
   leads it.** One assembly answers for the cell and the fake cell alike, and a
   host hands a batch's rows whole. `packages/contract/src/library/library-index.ts`.
-- **One fake cell answers every client's suites, over the cell's own folder and
-  organize rules.** A fake per client, or rules spelled twice, drift from what
-  the cell refuses. `packages/contract/src/library/cell-rules.ts`.
+- **One fake cell answers every client's suites, over the cell's own rules and
+  held to it by the cases both run.** A fake per client, a rule spelled twice or
+  a case copied by hand drifts from what the cell answers.
+  `packages/contract/src/test-support/cell-conformance.ts`.
 - **An item's reading is one field, a union the row and the wire hold as it
   is, and every writer moves it by one function.** Three fields paired by hand
   can badge a failure over a read. `packages/contract/src/library/item-reading.ts`.
