@@ -23,7 +23,7 @@ import { yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
 
 import { factsOf, itemFields, readFrontmatter } from "./item-fields";
-import { storedBlocks } from "./read-body";
+import { readBody, storedBlocks } from "./read-body";
 import type { BodyPorts } from "./read-body";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
 
@@ -176,4 +176,11 @@ export interface ArticleBlocks {
 export const articleBlocks = (tree: Root, newBlockId: () => string): ArticleBlocks | null => {
   const read = readMdast(headlessEditor(), tree);
   return read.ok ? storedBlocks(read.value, { links: PAGE_PORTS, newBlockId }) : null;
+};
+
+// markdown written outside the library, a bookmark's note in another app's export, as blocks: what
+// it names is on the web as a page's is; null where the editor refuses the text
+export const webNoteBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
+  const read = readBody(markdown, { links: PAGE_PORTS, newBlockId });
+  return read.ok ? { blocks: read.blocks, refused: read.refused } : null;
 };

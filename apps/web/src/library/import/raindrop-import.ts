@@ -4,7 +4,7 @@
 // holds already is counted, never saved twice, so reading the same export again lands nothing
 // twice.
 
-import { articleBlocks } from "@repo/editor/codec/item-markdown";
+import { webNoteBlocks } from "@repo/editor/codec/item-markdown";
 
 import { newId } from "../library/new-id";
 import { createBatcher, importFolder, ImportStoppedError } from "./import-landing";
@@ -44,7 +44,7 @@ export const readRaindropCsv = async (
   for (const item of plan.items) {
     // the person's note is their own markdown, its links addresses on the web
     const noted =
-      item.note === "" ? { blocks: [], refused: 0 } : articleBlocks(item.note, newBlockId);
+      item.note === "" ? { blocks: [], refused: 0 } : webNoteBlocks(item.note, newBlockId);
     if (noted === null || noted.refused > 0) {
       tally.unreadable += 1;
     } else {
