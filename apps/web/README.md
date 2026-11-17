@@ -11,6 +11,7 @@ decisions are this app's [`CLAUDE.md`](CLAUDE.md), and the library tab's
 src/
   app/           the App Router's layouts, pages and route handlers; (marketing)/ the site's pages
   proxy.ts       the session-cookie gate, the nonce policy and markdown negotiation
+  instrumentation-client.ts  what every page runs before it hydrates: zod with no eval
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, document policies, config and page markdown

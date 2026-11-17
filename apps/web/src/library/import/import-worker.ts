@@ -9,12 +9,16 @@ import { fileSha } from "@repo/contract/library/file-sha";
 import { isOrpcError, QuotaError } from "@repo/contract/rpc/v1-errors";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { configure } from "@zip.js/zip.js/lib/zip-core-native.js";
+import { z } from "zod";
 
 import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";
 import type { ImportCell } from "./import-landing";
 import { importAskSchema } from "./import-news";
 import type { ImportNews } from "./import-news";
 import { readImport } from "./import-reading";
+
+// the thread's policy refuses eval, as the page's does (`src/instrumentation-client.ts`)
+z.config({ jitless: true });
 
 // zip.js would start codec workers of its own from a script the build does not ship; this thread
 // is already off the page
