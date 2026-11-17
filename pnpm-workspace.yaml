@@ -6,10 +6,10 @@ packages:
 catalog:
   "@base-ui/react": ^1.9.0
   # exact: the v2 beta breaks between patches, so every oRPC package must resolve to one build
-  "@orpc/client": 2.0.0-beta.45
-  "@orpc/contract": 2.0.0-beta.45
-  "@orpc/server": 2.0.0-beta.45
-  "@orpc/tanstack-query": 2.0.0-beta.45
+  "@orpc/client": 2.0.0-beta.50
+  "@orpc/contract": 2.0.0-beta.50
+  "@orpc/server": 2.0.0-beta.50
+  "@orpc/tanstack-query": 2.0.0-beta.50
   # exact: the e2e drives the connector with the client the deployed connector was tested against
   "@modelcontextprotocol/client": 2.4.0
   # exact: the Messages API types the scripted Claude (tools/messages-fake) answers in, whose minor
