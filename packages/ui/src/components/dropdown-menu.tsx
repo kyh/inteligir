@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useRef, useState, useEffect, createContext, useContext } from "react";
+import { useState } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { CheckIcon } from "lucide-react";
@@ -11,30 +11,12 @@ import { spring } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
-import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
-import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
-import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
-import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
+import { RowPills } from "@repo/ui/components/row-pills";
+import { useLayoutReading } from "@repo/ui/hooks/use-layout-reading";
 import { radius } from "@repo/ui/lib/radius";
+import { rowBox } from "@repo/ui/lib/row-box";
+import type { RowBox } from "@repo/ui/lib/row-box";
 import { Elevated } from "@repo/ui/lib/elevated";
-
-interface DropdownItemsContextValue {
-  // a row hands the popup its element; the popup keeps the ordering, since only it can read the
-  // document order of rows that mount and unmount independently of each other
-  registerRow: (element: HTMLElement) => () => void;
-  highlight: HighlightStore<HTMLElement | null>;
-}
-
-const DropdownItemsContext = createContext<DropdownItemsContextValue | null>(null);
-
-const useDropdownItems = () => {
-  const ctx = useContext(DropdownItemsContext);
-  if (!ctx) {
-    throw new Error("DropdownMenuItem must render inside <DropdownMenuContent>");
-  }
-  return ctx;
-};
 
 interface DropdownMenuProps {
   children: ReactNode;
@@ -76,23 +58,13 @@ const DropdownMenu = ({
 
 const DropdownMenuTrigger = Menu.Trigger;
 
-// The popup remounts on every open (no keepMounted), so this measures once per open. Double rAF:
-// the first waits for React's commit, the second for layout.
-const MeasureOnOpen = ({ measure }: { measure: () => void }) => {
-  useEffect(() => {
-    let inner: number;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => {
-        measure();
-      });
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
-  }, [measure]);
-  return null;
-};
+// The lit row is the one Base UI holds highlighted, which is the row Enter acts on: the pointer
+// over a separator, a label or a disabled row lights none.
+const HIGHLIGHTED = "data-highlighted";
+const MARKS = [HIGHLIGHTED];
+
+const highlightedRow = (popup: HTMLElement, last: RowBox | null): RowBox | null =>
+  rowBox(popup.querySelector<HTMLElement>(`[${HIGHLIGHTED}]`), last);
 
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
 
@@ -116,28 +88,11 @@ const DropdownMenuContent = ({
   anchor,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const { activeIndex, setActiveIndex, itemRects, session, handlers, setItems, measureItems } =
-    useProximityHover(containerRef);
-  // a conditional row changes where its siblings sit without re-rendering them, so the popup
-  // reads the order, never a row
-  const { rows: orderedRows, registerRow } = useRowOrder(
-    containerRef,
-    "[data-dropdown-menu-item]",
-    setItems,
-  );
-  const {
-    onMouseEnter: handleMouseEnter,
-    onMouseLeave: handleMouseLeave,
-    onMouseMove: handleMouseMove,
-  } = handlers;
-
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-
-  const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
-  const highlight = useHighlightStore(activeRowEl);
-  const itemsCtx = { highlight, registerRow };
+  const [popup, setPopup] = useState<HTMLDivElement | null>(null);
+  const lit = useLayoutReading(popup, null, highlightedRow, MARKS);
+  // Base UI moves focus with its highlight, so the row is ringed when the keyboard moved it there
+  const [ringed, setRinged] = useState(false);
+  const [session, setSession] = useState(0);
 
   // the Popup itself is the animated surface, never a wrapper: Base UI keeps a closing menu
   // mounted only while the Popup element's own animations run
@@ -154,60 +109,39 @@ const DropdownMenuContent = ({
           anchor={anchor}
           className="z-50 outline-none"
         >
-          <DropdownItemsContext value={itemsCtx}>
-            <Menu.Popup
-              ref={composeRefs<HTMLDivElement>(containerRef, ref)}
-              render={(popupProps) => {
-                const { style: baseStyle, ...rest } = motionProps(popupProps);
-                return (
-                  <Elevated
-                    {...rest}
-                    offset={2}
-                    shadowLevel={3}
-                    style={motionStyle(baseStyle, {
-                      transformOrigin: side === "top" ? "bottom center" : "top center",
-                    })}
-                    initial={hidden}
-                    animate={{ opacity: 1, scaleY: 1, transition: spring.fast, y: 0 }}
-                    exit={{ ...hidden, transition: spring.fast.exit }}
-                  />
-                );
-              }}
-              onMouseEnter={() => {
-                handleMouseEnter();
-                setFocusedIndex(null);
-              }}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              onFocus={(e) => {
-                const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
-                const idx = row === null ? -1 : orderedRows.indexOf(row);
-                if (idx !== -1) {
-                  setActiveIndex(idx);
-                  setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
-                }
-              }}
-              onBlur={(e) => {
-                if (containerRef.current?.contains(e.relatedTarget) === true) {
-                  return;
-                }
-                setFocusedIndex(null);
-                setActiveIndex(null);
-              }}
-              className={cn(
-                `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
-                className,
-              )}
-            >
-              <MeasureOnOpen measure={measureItems} />
-              <ProximityOverlays
-                hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
-                focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
-                session={session}
-              />
-              {children}
-            </Menu.Popup>
-          </DropdownItemsContext>
+          <Menu.Popup
+            ref={composeRefs<HTMLDivElement>(setPopup, ref)}
+            render={(popupProps) => {
+              const { style: baseStyle, ...rest } = motionProps(popupProps);
+              return (
+                <Elevated
+                  {...rest}
+                  offset={2}
+                  shadowLevel={3}
+                  style={motionStyle(baseStyle, {
+                    transformOrigin: side === "top" ? "bottom center" : "top center",
+                  })}
+                  initial={hidden}
+                  animate={{ opacity: 1, scaleY: 1, transition: spring.fast, y: 0 }}
+                  exit={{ ...hidden, transition: spring.fast.exit }}
+                />
+              );
+            }}
+            onMouseEnter={() => {
+              setSession((entered) => entered + 1);
+              setRinged(false);
+            }}
+            onFocus={(e) => {
+              setRinged(e.target.matches(":focus-visible"));
+            }}
+            className={cn(
+              `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
+              className,
+            )}
+          >
+            <RowPills hover={lit} focus={ringed ? lit : null} session={session} />
+            {children}
+          </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </PopupPresence>
@@ -242,31 +176,19 @@ const DropdownMenuSeparator = ({
 
 type MenuRowVariant = "default" | "destructive";
 
-// every row registers with the popup, whichever Base UI part renders it: the popup alone orders
-// the rows the proximity pill lights
-const useMenuRow = (variant: MenuRowVariant, disabled: boolean) => {
-  // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
-  const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
-  const { registerRow, highlight } = useDropdownItems();
-
-  useIsoLayoutEffect(() => {
-    if (rowEl === null) {
-      return;
-    }
-    return registerRow(rowEl);
-  }, [registerRow, rowEl]);
-
-  const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
-  const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
-  const className = cn(
+// The pseudo-element closes the 2px gap to the next row: Base UI drops its highlight wherever the
+// pointer is over no row, so an unowned gap would blink the pill out on every crossing.
+const menuRowClass = (variant: MenuRowVariant) =>
+  cn(
     `relative z-10 flex h-7 shrink-0 items-center gap-1 ${radius.item} px-1.5 text-body cursor-pointer outline-none select-none`,
+    "before:absolute before:inset-x-0 before:-inset-y-px",
     "transition-colors duration-80",
-    variant === "destructive" ? "text-destructive" : activeTone,
+    variant === "destructive"
+      ? "text-destructive"
+      : "text-muted-foreground data-highlighted:text-foreground",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-    disabled && "opacity-50 pointer-events-none",
+    "data-disabled:pointer-events-none data-disabled:opacity-50",
   );
-  return { className, setRowEl };
-};
 
 interface DropdownMenuItemProps extends ComponentProps<"div"> {
   disabled?: boolean | undefined;
@@ -282,25 +204,15 @@ const DropdownMenuItem = ({
   children,
   ref,
   ...props
-}: DropdownMenuItemProps) => {
-  const row = useMenuRow(variant, disabled);
-  return (
-    <Menu.Item
-      disabled={disabled}
-      closeOnClick={closeOnClick ?? true}
-      render={
-        <div
-          ref={composeRefs(row.setRowEl, ref)}
-          data-dropdown-menu-item=""
-          className={cn(row.className, className)}
-          {...props}
-        />
-      }
-    >
-      {children}
-    </Menu.Item>
-  );
-};
+}: DropdownMenuItemProps) => (
+  <Menu.Item
+    disabled={disabled}
+    closeOnClick={closeOnClick ?? true}
+    render={<div ref={ref} className={cn(menuRowClass(variant), className)} {...props} />}
+  >
+    {children}
+  </Menu.Item>
+);
 
 interface DropdownMenuRadioItemProps extends ComponentProps<"div"> {
   value: string;
@@ -317,36 +229,25 @@ const DropdownMenuRadioItem = ({
   children,
   ref,
   ...props
-}: DropdownMenuRadioItemProps) => {
-  const row = useMenuRow("default", disabled);
-  return (
-    <Menu.RadioItem
-      value={value}
-      disabled={disabled}
-      closeOnClick={closeOnClick ?? true}
-      render={
-        <div
-          ref={composeRefs(row.setRowEl, ref)}
-          data-dropdown-menu-item=""
-          className={cn(row.className, className)}
-          {...props}
-        />
-      }
-    >
-      {children}
-      <Menu.RadioItemIndicator className="ml-auto flex">
-        <CheckIcon />
-      </Menu.RadioItemIndicator>
-    </Menu.RadioItem>
-  );
-};
+}: DropdownMenuRadioItemProps) => (
+  <Menu.RadioItem
+    value={value}
+    disabled={disabled}
+    closeOnClick={closeOnClick ?? true}
+    render={<div ref={ref} className={cn(menuRowClass("default"), className)} {...props} />}
+  >
+    {children}
+    <Menu.RadioItemIndicator className="ml-auto flex">
+      <CheckIcon />
+    </Menu.RadioItemIndicator>
+  </Menu.RadioItem>
+);
 
 interface DropdownMenuGroupProps extends Omit<ComponentProps<typeof Menu.Group>, "className"> {
   className?: string | undefined;
 }
 
-// display: contents keeps grouped rows direct flex children of the popup, so the gap layout and
-// the proximity measurement still see them.
+// display: contents keeps grouped rows direct flex children of the popup, so its gap spaces them
 const DropdownMenuGroup = ({ className, ...props }: DropdownMenuGroupProps) => (
   <Menu.Group className={cn("contents", className)} {...props} />
 );

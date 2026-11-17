@@ -8,7 +8,6 @@
     "./components/*": "./src/components/*.tsx",
     "./globals.css": "./src/styles/globals.css",
     "./hooks/*": "./src/hooks/*.ts",
-    "./hooks/proximity-overlays": "./src/hooks/proximity-overlays.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./lib/collapse": "./src/lib/collapse.tsx",
     "./lib/elevated": "./src/lib/elevated.tsx",

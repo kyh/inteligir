@@ -108,6 +108,7 @@ const FolderRows = ({ scope, itemOpen }: RailProps) => {
               </SidebarMenuButton>
               <SidebarMenuAction
                 showOnHover
+                data-popup-open={menu?.id === row.id ? "" : undefined}
                 aria-label={`More for ${row.name}`}
                 onClick={(event) => {
                   setMenu({ anchor: event.currentTarget, id: row.id, name: row.name });
