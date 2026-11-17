@@ -3,15 +3,21 @@
   "permissions": {
     "allow": [
       "Bash(pnpm install:*)",
-      "Bash(pnpm verify:*)",
-      "Bash(pnpm typecheck:*)",
-      "Bash(pnpm lint:*)",
-      "Bash(pnpm format:*)",
+      "Bash(pnpm verify)",
+      "Bash(pnpm verify:affected)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm format)",
+      "Bash(pnpm format:fix)",
       "Bash(pnpm test:*)",
       "Bash(pnpm build:*)",
-      "Bash(pnpm knip:*)",
+      "Bash(pnpm knip)",
       "Bash(pnpm e2e:*)",
-      "Bash(pnpm dev:*)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm dev:web)",
+      "Bash(pnpm dev:extension)",
+      "Bash(pnpm dev:mobile)",
       "Bash(pnpm bootstrap:*)",
       "Bash(pnpm turbo run:*)",
       "Bash(pnpm exec oxlint:*)",
@@ -20,20 +26,16 @@
       "Bash(pnpm exec playwright:*)",
       "Bash(pnpm --filter @repo/db push)",
       "Bash(pnpm --filter @repo/db ddl:*)",
-      "Bash(pnpm --filter @repo/db bootstrap:*)",
       "Bash(cargo test:*)",
       "Bash(cargo clippy:*)",
       "Bash(agent-browser:*)"
     ],
     "deny": [
-      "Bash(pnpm --filter @repo/db push:remote:*)",
-      "Bash(pnpm -F @repo/db push:remote:*)",
-      "Bash(pnpm --filter @repo/db studio:remote:*)",
-      "Bash(pnpm -F @repo/db studio:remote:*)",
-      "Bash(pnpm push:remote:*)",
-      "Bash(pnpm run push:remote:*)",
-      "Bash(pnpm studio:remote:*)",
-      "Bash(pnpm run studio:remote:*)"
+      "Bash(pnpm * push:remote*)",
+      "Bash(pnpm * studio:remote*)",
+      "Bash(pnpm push:remote*)",
+      "Bash(pnpm studio:remote*)",
+      "Read(.env.production*)"
     ]
   },
   "hooks": {
@@ -55,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && pnpm exec ultracite fix --hook"
+            "command": "payload=$(cat); file=$(printf '%s' \"$payload\" | jq -r '.tool_input.file_path // empty'); [ -n \"$file\" ] || exit 0; root=$(git -C \"$(dirname \"$file\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; bin=\"$root/node_modules/.bin/ultracite\"; [ -x \"$bin\" ] || exit 0; cd \"$root\" && printf '%s' \"$payload\" | \"$bin\" fix --hook"
           }
         ]
       }
