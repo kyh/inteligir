@@ -15,7 +15,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   (`apps/desktop/src-tauri/about.toml`).
 - **A bundle's notices are its build's**: Vite's `build.license` writes the
   licence of each package the site's pages bundle, served as `/licenses.md` and
-  linked from the home page and Settings. Why: a generator of ours is a list to
+  linked from the home page and Settings, and of each the extension's zip
+  holds, a file per group of entrypoints. Why: a generator of ours is a list to
   keep in step with the lockfile. `apps/web/vite.config.ts`.
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
   (owner decision), every DOM suite compiles its sources the same way, and a

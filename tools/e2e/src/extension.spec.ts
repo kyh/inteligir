@@ -1,3 +1,4 @@
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
@@ -168,4 +169,14 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect.poll(queued, sent).toEqual([]);
   expect(await landed("/signed-out-here")).toBeDefined();
   expect(await signedInAs()).toBe(account.email);
+});
+
+test("the build carries the licence of a package only one of WXT's builds bundles", async () => {
+  const folder = path.join(BUILD, "licenses");
+  const files = await readdir(folder);
+  const notices = await Promise.all(
+    files.map(async (name) => await readFile(path.join(folder, name), "utf-8")),
+  );
+  // the pages bundle React and the capture script, built after them, does not
+  expect(notices.join("\n")).toMatch(/^## react - \S+ \(MIT\)$/mu);
 });

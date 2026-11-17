@@ -66,6 +66,12 @@ export default defineConfig({
         fail("a store build ships React's production build: run it with NODE_ENV=production");
       }
     },
+    // the licence of each package a build bundles, which the zip carries. WXT builds each group of
+    // entrypoints alone into the one folder, so one name would keep the last group's file
+    "vite:build:extendConfig": (entrypoints, viteConfig) => {
+      const group = entrypoints.map((entrypoint) => entrypoint.name).join("-");
+      viteConfig.build = { ...viteConfig.build, license: { fileName: `licenses/${group}.md` } };
+    },
     // what a build ships is the function its tests call: WXT adds the worker and the popup from
     // the entrypoints, so a manifest that says anything else fails the build (a field WXT leaves
     // undefined is one manifest.json never writes). `wxt` (serve) is let through, since it adds its

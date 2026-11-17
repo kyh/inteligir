@@ -9,7 +9,7 @@ this app's [`CLAUDE.md`](CLAUDE.md).
 ## Layout
 
 ```
-wxt.config.ts        the build: the manifest, the store zip's checks
+wxt.config.ts        the build: the manifest, the bundled packages' licences, the store zip's checks
 src/manifest.ts      the MV3 manifest, one function of the build's flavor
 src/entrypoints/     the service worker, the injected capture script, the popup and the welcome page
 src/background/      the worker's half: whose sign-in it rides, the /v1 calls, the save queue, the menus
