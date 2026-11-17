@@ -16,8 +16,8 @@ const MiB = 1024 * 1024;
 const HEAP_CAP_MB = 96;
 
 describe("a page at every limit", () => {
-  // the reading is seconds of work at the budget, which the default timeout does not cover
-  it("reads within a Worker isolate's heap", { timeout: 120_000 }, () => {
+  // a second of work at the budget, which a loaded machine stretches past the default timeout
+  it("reads within a Worker isolate's heap", { timeout: 30_000 }, () => {
     const article = FILL_LIMITS.articleBytes * 2;
     const page = longPage(article, FILL_LIMITS.htmlBytes - article);
     expect(page.html.length).toBeGreaterThanOrEqual(FILL_LIMITS.htmlBytes);
@@ -28,7 +28,7 @@ describe("a page at every limit", () => {
     );
     expect(read.article.blocks.length).toBeGreaterThan(500);
     expect(read.rung).toBe("rich");
-    // what stays live once read: the page, its blocks, every module the runner holds (85 MB, measured)
+    // what stays live once read: the page, its blocks, every module the runner holds (78 MB, measured)
     expect(process.memoryUsage().heapUsed).toBeLessThan(HEAP_CAP_MB * MiB);
   });
 });

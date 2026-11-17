@@ -197,8 +197,9 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   seconds to fill, and a page that kills its invocation spends a delivery of
   every message beside it. `apps/web/cloudflare.config.ts`.
 - **The cloud's fetch is the platform's, each hop judged by how its address is
-  spelled.** A Worker resolves no name, so `fetchPage` refuses a private
-  spelling at once rather than after three vague retries.
+  spelled.** A Worker resolves no name and the platform opens none written as
+  numbers, so `fetchPage` refuses a private name or a numbered address at once
+  rather than after three vague retries.
   `packages/service/src/fill/page-fetch.ts`.
 - **A reading lands only the article and the facts a fill owns, on an item still
   waiting for it.** Bases the consumer read would conflict with every save

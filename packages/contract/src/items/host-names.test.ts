@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isLoopbackName, isPrivateUseName, namesPrivateSpace } from "./host-names";
+import {
+  isAddressLiteral,
+  isLoopbackName,
+  isPrivateUseName,
+  namesPrivateSpace,
+} from "./host-names";
 
 describe(isLoopbackName, () => {
   it("names localhost and every name under it, in any case and with a trailing dot", () => {
@@ -20,6 +25,29 @@ describe(isPrivateUseName, () => {
     }
     for (const name of ["example.com", "local.example.com", "lan.example"]) {
       expect(isPrivateUseName(name), name).toBe(false);
+    }
+  });
+});
+
+describe(isAddressLiteral, () => {
+  it("reads every spelling of an address from the host URL writes", () => {
+    for (const url of [
+      "http://93.184.216.34/",
+      "http://192.168.1/",
+      "http://2130706433/",
+      "http://0x7f.0.0.1/",
+      "http://127.0.0.1./",
+      "http://[::1]/",
+      "http://[::ffff:10.0.0.1]/",
+      "http://[2606:4700:4700::1111]/",
+    ]) {
+      expect(isAddressLiteral(new URL(url).hostname), url).toBe(true);
+    }
+  });
+
+  it("leaves a name that holds numbers a name", () => {
+    for (const url of ["https://172.16.example/", "https://1e3/", "https://127.0.0.1.example/"]) {
+      expect(isAddressLiteral(new URL(url).hostname), url).toBe(false);
     }
   });
 });

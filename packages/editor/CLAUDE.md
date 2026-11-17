@@ -18,10 +18,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   `serializeNote`** (owner decision). Plate's stock markdown plus one rule table, meaning the tested
   contract and never bytes, since a byte-exact codec of our own would be most of the editor's code.
   `packages/editor/src/markdown/md-matrix.test.ts`.
-- **`readMarkdown` refuses with a typed reason, never a throw.** Nesting past `LIST_MAX_INDENT` or
-  `READ_MAX_DEPTH`, or a stack that runs out, is `too-deep` and a throwing rule `failed`, and every
-  caller refuses either, so no platform reads what another refuses.
-  `packages/editor/src/markdown/md-read.ts`.
+- **A read refuses with a typed reason, never a throw.** Markdown (`readMarkdown`) or a tree a
+  reader already holds (`readMdast`) nested past `LIST_MAX_INDENT` or `READ_MAX_DEPTH`, or a stack
+  that runs out, is `too-deep` and a throwing rule `failed`, and every caller refuses either, so no
+  platform reads what another refuses. `packages/editor/src/markdown/md-read.ts`.
 - **The markdown runs headless, and the codec sits beside the library.** `@repo/editor/codec/*`
   and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does,
   and a body read back from what it wrote is that body, ids aside.
@@ -149,8 +149,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 
 - **Every reader parses through one plugin list, and no input throws out of it.** The codec, an
   import, a paste and the editor read through `MD_REMARK_PLUGINS`, and an unused definition or a
-  footnote stays the words written, since two grammars drift.
-  `packages/editor/src/markdown/md-corpus.test.ts`.
+  footnote stays the words written, since two grammars drift; a saved page's tree is parsed by
+  none, and read by the same rules. `packages/editor/src/markdown/md-corpus.test.ts`.
 - **An md url has one reading, and only an import resolves one by path.** Past the import an item is
   reached by id and a file by sha, and only an http(s) url reaches the browser, since no item has a
   path to resolve against. `packages/editor/src/codec/import-plan.ts`.

@@ -1,0 +1,7 @@
+Weekday timetable
+Trains run every half hour between the two stations, with an extra service at peak times.
+Station · Morning
+First · Peak
+North Quay · 05:40 · 07:10
+Old Town · 05:52 · 07:22 (fast)
+Weekend trains run every hour.

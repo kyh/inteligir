@@ -11,7 +11,7 @@ const PIXEL = Buffer.from(
 const PDF = new TextEncoder().encode(
   "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
 );
-// TEST-NET-1, which the fill refuses before any fetch
+// an address written as numbers, which the fill refuses before any fetch
 const PASTED = "http://192.0.2.10/pasted";
 
 const cardOf = (page: Page, title: string) =>

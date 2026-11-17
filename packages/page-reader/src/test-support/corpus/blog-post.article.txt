@@ -1,0 +1,18 @@
+Every few years a new notes app promises to be the last one you will ever need. A few years later it is gone, and the notes go with it unless they were files all along.
+A file is a contract with the future. Any editor can open it, any backup can copy it, and any search tool can read it. A database is a contract with one vendor.
+What a file buys you
+It opens in tools that do not exist yet.
+It syncs with whatever you already use.
+It survives the app that wrote it.
+None of this is new. The Unix philosophy said it decades ago, and an earlier post here said it again.
+Write programs to handle text streams, because that is a universal interface.
+A small example
+Here is how a note looks on disk:
+# Groceries
+
+- eggs
+- bread
+That is the whole format. There is nothing to migrate.
+A shelf of paper notebooks
+Paper notebooks age well too.
+Thanks for reading.

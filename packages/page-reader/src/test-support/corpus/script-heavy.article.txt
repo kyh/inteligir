@@ -1,0 +1,5 @@
+Version 4 brings offline mode, faster search and a new export format.
+Offline mode keeps the last thirty days of documents on the device, so you can read and edit them without a connection.
+Fixed
+The editor no longer loses the cursor after an undo.
+Exports keep their images.

@@ -1,22 +1,22 @@
 // How the cloud reads a page it fills: the Workers runtime's own fetch, every hop of it judged before
-// it is asked. Only http and https on their own ports, as a page is served; never a host whose
-// spelling names a place off the public internet: this machine or a name no public resolver
-// answers (`@repo/contract/items/host-names`), or an address written out in private or reserved space
-// (`./address-space`), since the platform reaches a host by its name alone
-// (https://developers.cloudflare.com/workers/platform/known-issues/) and from the public internet
-// (`global_fetch_strictly_public`, so even this Worker's own zone is asked through its front door);
-// a public address written out is asked like any name. The redirects are followed here, at most
-// five, and the final answer read, its bytes counted against a cap as they arrive, after the
-// platform has decoded them, so a compressed bomb stops at the cap. No cookie or credential is
-// sent, and the whole read has a deadline (20 s), whose abort reaches the read as a rejection. A
-// refusal is said in the fill's own words (`./fill-sentences`).
+// it is asked. Only http and https on their own ports, as a page is served, and only at a public
+// name (`@repo/contract/items/host-names`): never an address written out, since the platform reaches
+// a host by its name alone (https://developers.cloudflare.com/workers/platform/known-issues/), and
+// never this machine or a name no public resolver answers, since it asks from the public internet
+// (`global_fetch_strictly_public`, so even this Worker's own zone is asked through its front door).
+// The redirects are followed here, at most five, and the final answer read, its bytes counted
+// against a cap as they arrive, after the platform has decoded them, so a compressed bomb stops at
+// the cap. No cookie or credential is sent, and the whole read has a deadline (20 s), whose abort
+// reaches the read as a rejection. A refusal is said in the fill's own words (`./fill-sentences`).
 
-import { isLoopbackName, isPrivateUseName } from "@repo/contract/items/host-names";
+import {
+  isAddressLiteral,
+  isLoopbackName,
+  isPrivateUseName,
+} from "@repo/contract/items/host-names";
 
-import { addressSpace } from "./address-space";
-import type { AddressSpace } from "./address-space";
 import { statusFailure } from "./fill-sentences";
-import type { FetchFailure } from "./fill-sentences";
+import type { FetchFailure, FetchRefusal } from "./fill-sentences";
 
 export interface PageRequest {
   readonly url: string;
@@ -60,48 +60,33 @@ const HEADERS = {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 inteligir",
 };
 
-const REFUSED_ADDRESS: FetchFailure = { kind: "refused", refusal: "reserved" };
-
-// where a host the WHATWG parser wrote sits: an address by its space, a name by its spelling (this
-// machine, or a name only a home's or an office's resolver answers)
-const hostSpace = (hostname: string): AddressSpace =>
-  addressSpace(hostname) ??
-  (isLoopbackName(hostname) || isPrivateUseName(hostname) ? "private" : "public");
-
 type PageHop = { readonly url: string } | { readonly refused: FetchFailure };
 
+const refused = (refusal: FetchRefusal): PageHop => ({ refused: { kind: "refused", refusal } });
+
 // the hop as it is asked, its credential dropped, or why it is not asked: off the web, off a web
-// port, at an address no host holds, or in private space (said as the saved address's own place,
-// or as a public page's pointing there)
+// port, at an address written out, or at a name for private space (said as the saved address's own
+// place, or as a public page's pointing there)
 const hopOf = (raw: string, from: string | null): PageHop => {
   let url: URL;
   try {
     url = from === null ? new URL(raw) : new URL(raw, from);
   } catch {
-    return { refused: REFUSED_ADDRESS };
+    return refused("off-web");
   }
   if ((url.protocol !== "http:" && url.protocol !== "https:") || !WEB_PORTS.has(url.port)) {
-    return { refused: REFUSED_ADDRESS };
+    return refused("off-web");
+  }
+  // an address before a name: a bracketed one holds no dot, which is how a private-use name reads
+  if (isAddressLiteral(url.hostname)) {
+    return refused("address-literal");
+  }
+  if (isLoopbackName(url.hostname) || isPrivateUseName(url.hostname)) {
+    return refused(from === null ? "private-network" : "private-from-public");
   }
   url.username = "";
   url.password = "";
-  switch (hostSpace(url.hostname)) {
-    case "public": {
-      return { url: url.href };
-    }
-    case "reserved": {
-      return { refused: REFUSED_ADDRESS };
-    }
-    case "private": {
-      return {
-        refused: {
-          kind: "refused",
-          refusal: from === null ? "private-network" : "private-from-public",
-        },
-      };
-    }
-    // no default
-  }
+  return { url: url.href };
 };
 
 const contentType = (header: string | null) => {

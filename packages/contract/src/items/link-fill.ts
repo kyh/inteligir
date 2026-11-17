@@ -12,9 +12,8 @@ const MiB = 1024 * 1024;
 
 // what every device that fills a link reads of it: a page's answer up to 10 MiB (a file at the link
 // past it keeps only its link), its first 5 MiB read as the page, and of that page's readable part
-// the leading 192 KiB of markup, cut between whole blocks, as its article (the reading costs time
-// and heap by that markup's length: five seconds within a Worker isolate's heap at the budget, and
-// two and a half minutes and 1.5 GB for 5 MiB, measured by
+// the leading 192 KiB of markup, cut between whole blocks, as its article (the article's tree costs
+// heap by that markup's length, 36 MB a MiB, where a Worker isolate holds 128 MB in all, measured by
 // packages/page-reader/src/extract-page.heap.test.ts); a cover candidate up to 10 MiB, and one under
 // 200 px is a pixel or an icon, never a cover. A cover is kept as the site served it, within
 // coverBytes, and each device draws its own thumbnail from it, rather than the cloud shrinking it

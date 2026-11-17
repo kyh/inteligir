@@ -10,6 +10,10 @@ describe("the fill's sentences", () => {
     expect(failureOf({ kind: "refused", refusal: "private-from-public" }).sentence).toBe(
       "The page pointed at an address on your own network, so it isn't read.",
     );
+    expect(failureOf({ kind: "refused", refusal: "address-literal" })).toStrictEqual({
+      sentence: "The cloud opens pages by name, so an address written as numbers isn't read.",
+      transient: false,
+    });
     expect(
       failureOf({ kind: "status", reason: "not found", status: 404, transient: false }),
     ).toStrictEqual({

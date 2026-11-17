@@ -3,6 +3,7 @@
 // holds whole sit where a vault puts them: a saved link's cover the body's first embed under
 // `assets/covers/`, a file item's original its first embed of its kind.
 
+import type { Root } from "mdast";
 import type { TElement } from "platejs";
 
 import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
@@ -16,13 +17,13 @@ import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
 import { frontmatterEnd, frontmatterYaml } from "@repo/editor/markdown/frontmatter";
 import { headlessEditor, parseMarkdownSections } from "@repo/editor/markdown/markdown-doc";
-import { lfOnly } from "@repo/editor/markdown/md-read";
+import { lfOnly, readMdast } from "@repo/editor/markdown/md-read";
 import type { MarkdownRead } from "@repo/editor/markdown/md-read";
 import { yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
 
 import { factsOf, itemFields, readFrontmatter } from "./item-fields";
-import { readBody, storedBlocks } from "./read-body";
+import { storedBlocks } from "./read-body";
 import type { BodyPorts } from "./read-body";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
 
@@ -170,8 +171,9 @@ export interface ArticleBlocks {
   readonly refused: number;
 }
 
-// a page a fill read (the reader's canonical markdown) as its item's article section, in order
-export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
-  const read = readBody(markdown, { links: PAGE_PORTS, newBlockId });
-  return read.ok ? { blocks: read.blocks, refused: read.refused } : null;
+// a page a reader read into a tree, as its item's article section, in order; null where the
+// editor refuses the tree
+export const articleBlocks = (tree: Root, newBlockId: () => string): ArticleBlocks | null => {
+  const read = readMdast(headlessEditor(), tree);
+  return read.ok ? storedBlocks(read.value, { links: PAGE_PORTS, newBlockId }) : null;
 };

@@ -345,22 +345,31 @@ describe("a reading that did not land a page", () => {
     });
   });
 
-  it("asks nothing of an address on a private network", async () => {
-    const { accountId, itemId, job } = await savedLink("http://192.168.1.20/admin");
+  it.each([
+    [
+      "http://nas.local/admin",
+      "This address is on a private network, which the cloud can't reach, so its page isn't read.",
+    ],
+    [
+      "http://192.168.1.20/admin",
+      "The cloud opens pages by name, so an address written as numbers isn't read.",
+    ],
+  ])("asks nothing of %s, and says why at once", async (url, fetchError) => {
+    const { accountId, itemId, job } = await savedLink(url);
     const web = serveWeb({});
-    await expect(deliver(job)).resolves.toMatchObject({ acked: true });
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
     expect(web.asked).toStrictEqual([]);
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError:
-        "This address is on a private network, which the cloud can't reach, so its page isn't read.",
+      fetchError,
+      fetchState: "failed",
     });
   });
 
-  it("follows no redirect to a private address", async () => {
+  it("follows no redirect to a name on a private network", async () => {
     const url = "https://short.example/x";
     const { accountId, itemId, job } = await savedLink(url);
     const web = serveWeb({
-      [url]: () => new Response(null, { headers: { location: "http://10.0.0.5/" }, status: 302 }),
+      [url]: () => new Response(null, { headers: { location: "http://router.lan/" }, status: 302 }),
     });
     await deliver(job);
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
