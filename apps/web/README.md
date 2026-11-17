@@ -16,6 +16,7 @@ src/
   lib/           the site's auth client, document policies, config and page markdown
 scripts/         write-licenses.ts, which writes public/licenses.md at prebuild
 next.config.ts   Cache Components, the React Compiler, the static policy and headers, `?raw`
+vercel.json      the functions' region
 ```
 
 ## Routes
