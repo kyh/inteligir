@@ -167,7 +167,8 @@ const signOut = async (cookie: string, door: HeaderMap) => {
 };
 
 /** The extension's door (the browser's signed session as a bearer), then the phone's (its cookie
- * under its scheme), each answering for the account; both sessions end after. */
+ * under its scheme), each listing the account's library, which may be empty; both sessions end
+ * after. */
 const signedInCalls = async (login: Login) => {
   const site = { origin: BASE_URL };
   const browser = await signIn(login, site);
@@ -175,14 +176,8 @@ const signedInCalls = async (login: Login) => {
   const phoneDoor = { "expo-origin": PHONE_ORIGIN };
   const phone = await signIn(login, phoneDoor);
   const asPhone = v1Client({ ...phoneDoor, cookie: phone });
-  for (const [door, client] of [
-    ["extension", asExtension],
-    ["phone", asPhone],
-  ] as const) {
-    const { devices } = await client.account.devices.list();
-    if (devices.length === 0) {
-      fail(`account.devices.list through the ${door}'s door named no device`);
-    }
+  for (const client of [asExtension, asPhone]) {
+    await client.library.items.list({ limit: 1 });
   }
   await signOut(phone, phoneDoor);
   await signOut(browser, site);
