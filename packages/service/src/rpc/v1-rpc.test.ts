@@ -22,7 +22,7 @@ dbSuite("the wire past admission", () => {
     const huge = await v1Post(
       "account/delete",
       phone,
-      JSON.stringify({ json: { password: "x".repeat(70_000) } }),
+      JSON.stringify({ json: { password: "x".repeat(4_600_000) } }),
     );
     expect(huge.status).toBe(413);
   });

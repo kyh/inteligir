@@ -18,8 +18,9 @@ import { rpcFault, rpcRefusal } from "./rpc-refusal";
 // every contract row this serves; ./unrouted.test.ts names the rest
 export const v1Router = { account: accountRouter, library: libraryRouter };
 
-// the largest call routed: an account's, a password or an id
-const V1_RPC_MAX_BODY_BYTES = 64 * 1024;
+// the most a Vercel function takes in a request (vercel.com/docs/functions/limitations), which
+// holds the largest call routed, a body of BODY_MAX_BYTES and the call around it
+const V1_RPC_MAX_BODY_BYTES = 4_500_000;
 
 const handler = new RPCHandler(v1Router, {
   errorStatusMap: V1_ERROR_STATUS_MAP,
