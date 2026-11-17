@@ -2,9 +2,10 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "Postgres: the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase and the suites' databases.",
+  "description": "Postgres: Better Auth's tables and the invite codes, the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase and the suites' databases.",
   "type": "module",
   "exports": {
+    "./auth-schema": "./src/auth-schema.ts",
     "./drizzle-client": "./src/drizzle-client.ts",
     "./test-database": "./src/test-database.ts",
     "./test-database-file": "./src/test-database-file.ts"
