@@ -1,29 +1,38 @@
 # @repo/e2e — the end-to-end flows
 
 Playwright Test over the built app and the browser extension's dev build.
-Outside `pnpm verify`; turbo builds both first. Every flow waits in
-`playwright.config.ts`'s `PENDING` until its area runs on Next, and the
-fixtures below still boot the Worker the tag `cloudflare-last` holds, so the
-first flow to leave `PENDING` brings them onto the app.
+Outside `pnpm verify`; turbo builds both first. A flow whose area does not run
+on Next yet waits in `playwright.config.ts`'s `PENDING_FILES`, or by its title
+in `PENDING_TESTS`, and leaves as its area lands.
 
 ```sh
+pnpm bootstrap                    # once: local Postgres and its schema
 pnpm e2e                          # every flow
-pnpm e2e -- extension             # one file
-pnpm e2e -- -g "Raindrop"         # tests whose title matches
+pnpm e2e -- site                  # one file
+pnpm e2e -- -g "sign-in"          # tests whose title matches
 ```
 
-`src/fixtures.ts` gives each Playwright worker one Worker on a free port,
-beside the scripted Claude (`tools/messages-fake`), and each test:
+The run needs the Postgres server `POSTGRES_URL` names, read from the root
+`.env.local`, then `.env`, unless the shell sets it. `src/databases.ts`, the
+run's globalSetup, pushes the schema once into a template database
+`e2e_<run>` on that server, and drops it and every clone when the run ends.
 
-- `cloud`: the origin and `mint()` for an invite.
-- `web`: a page host of the test's own, whose `pages` map answers the Worker's
-  fetch of each `pageUrl(path)`; any other fetch fails the test.
+`src/fixtures.ts` gives each Playwright worker one `next start` on a free port
+over its own clone, `e2e_<run>_<worker>`, started on a fixed set of variables
+and nothing of the root `.env`, its output in
+`test-results/next-start-<worker>.log`; and each test:
+
+- `cloud`: the origin, `mint()` for an invite, and `build`, the floor the app
+  starts with, which every client here names.
+- `web`: a page host of the test's own, whose `pages` map answers the app's
+  fetch of each `pageUrl(path)` through `src/page-relay.ts`; any other fetch
+  fails the test.
 - `account`, signed up by invite and signed in on the test's browser, with
   `library`, a `/v1` client on its own session, and `secondContext`, another
   browser on the same account.
 - a watch that fails the test on any page or console error, but those the
-  file's `allowedErrors` names; `cloudOptions` overrides a binding per file.
+  file's `allowedErrors` names.
 
-Teardown fails when the Worker's Claude dropped a thinking block. Nothing
-reads `.env` or `.dev.vars`. CI installs the browser with
-`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`.
+CI installs the browser with
+`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`,
+a Mac with `pnpm --filter @repo/e2e exec playwright install --no-shell chromium`.

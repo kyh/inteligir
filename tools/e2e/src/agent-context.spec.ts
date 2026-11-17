@@ -4,11 +4,6 @@ import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { z } from "zod";
 import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./fixtures";
 
-// a day of more turns than a test sends
-test.use({
-  cloudOptions: { json: { AGENT_ALLOWANCE: { concurrentTurns: 2, dayTurns: 10 } } },
-});
-
 const UserMessageSchema = z.looseObject({
   text: z.string(),
   type: z.literal("user.message"),

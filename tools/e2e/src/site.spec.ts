@@ -1,19 +1,12 @@
-import { once } from "node:events";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
-import {
-  SOCKET_KEEPALIVE_PING,
-  SOCKET_KEEPALIVE_PONG,
-  socketUrl,
-  V1_SOCKET_PATH,
-} from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
-import { z } from "zod";
 import { test } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
 
@@ -53,13 +46,17 @@ const docLandmarks = async (doc: string) => {
   };
 };
 
-const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc=)[^>]*>/gu;
+const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc=)(?<attributes>[^>]*)>(?<text>[\s\S]*?)<\/script>/gu;
 const DATA_BLOCK = /type="application\/(?:ld\+)?json"/u;
-// the library's chunk group and its route's stylesheet, by the name vite.config.ts gives them
-const LIBRARY_ASSET = /\/assets\/library-[\w-]{8}\.(?:js|css)/gu;
+// how a policy names an inline script it allows by its text
+const hashSource = (text: string): string =>
+  `'sha256-${createHash("sha256").update(text).digest("base64")}'`;
+const NEXT_CHUNK = /\/_next\/static\/chunks\/[\w.-]+\.(?:js|css)/gu;
+const chunksOf = (html: string): Set<string> =>
+  new Set([...html.matchAll(NEXT_CHUNK)].map((match) => match[0]));
 
-// a document under the site's policy: its scripts run by a nonce of its own, and nothing inline
-// runs without it
+// a document rendered per request, under its own policy: its scripts run by a nonce of its own, the
+// theme script written by hand by its hash, and nothing else inline runs
 const documentAt = async (request: APIRequestContext, url: string, cookie = "") => {
   const response = await request.get(url, { headers: { accept: "text/html", cookie } });
   expect(response.ok(), `GET ${url}`).toBe(true);
@@ -72,9 +69,11 @@ const documentAt = async (request: APIRequestContext, url: string, cookie = "") 
   expect(policy).toContain(" ipc:");
   const html = await response.text();
   const unsigned = [...html.matchAll(INLINE_SCRIPT)]
-    .map((match) => match[0])
-    .filter((tag) => !DATA_BLOCK.test(tag) && !tag.includes(`nonce="${nonce}"`));
-  expect(unsigned, `${url}'s inline scripts without its nonce`).toEqual([]);
+    .map(({ groups }) => ({ attributes: groups?.attributes ?? "", text: groups?.text ?? "" }))
+    .filter(({ attributes }) => !DATA_BLOCK.test(attributes))
+    .filter(({ attributes }) => !attributes.includes(`nonce="${nonce}"`))
+    .filter(({ text }) => !scripts.includes(hashSource(text)));
+  expect(unsigned, `${url}'s inline scripts neither its nonce nor a hash allows`).toEqual([]);
   return { headers: response.headers(), html, nonce };
 };
 
@@ -158,19 +157,15 @@ test("a chosen theme is drawn before any of the page's code runs", async ({ clou
   await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
 });
 
-test("the Worker answers for the session before a page loads: with no cookie a signed-in page goes to sign in and back, and sign-in is skipped for someone signed in", async ({
-  account,
+test("a signed-in page asked for with no session cookie goes to sign in and back, and a cookie whose session ended is no sign-in", async ({
   cloud,
   request,
 }) => {
-  const signedIn = cookieOf(account);
   const settings = `${LIBRARY_PAGE_PATH}/settings?from=mail`;
   for (const [asked, cookie, status, location] of [
     [LIBRARY_PAGE_PATH, "", 307, `/app/sign-in${wayBack(LIBRARY_PAGE_PATH)}`],
     [settings, "", 307, `/app/sign-in${wayBack(settings)}`],
-    ["/app/sign-in", signedIn, 307, LIBRARY_PAGE_PATH],
-    [`/app/sign-up${wayBack(settings)}`, signedIn, 307, settings],
-    // a cookie whose session ended is no sign-in, so the form is served and nothing loops
+    // the form is served and nothing loops
     ["/app/sign-in", "better-auth.session_token=ended", 200, undefined],
   ] as const) {
     const answer = await request.get(`${cloud.origin}${asked}`, {
@@ -181,7 +176,47 @@ test("the Worker answers for the session before a page loads: with no cookie a s
   }
 });
 
-test("every document carries its own nonce policy, and the home page loads none of the library", async ({
+// the skip streams in behind the form's boundary, so it lands by the page's own redirect, not a 307
+test("sign-in and sign-up are skipped for someone signed in, to where they were going", async ({
+  // signs the test's browser in
+  account: _account,
+  cloud,
+  page,
+}) => {
+  const settings = `${LIBRARY_PAGE_PATH}/settings?from=mail`;
+  await page.goto(`${cloud.origin}/app/sign-in`);
+  await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
+  await page.goto(`${cloud.origin}/app/sign-up${wayBack(settings)}`);
+  await expect(page).toHaveURL(`${cloud.origin}${settings}`);
+});
+
+test("each account page carries its own nonce policy, a marketing page the site's static one, and a path nothing serves is a 404", async ({
+  cloud,
+  request,
+}) => {
+  const signIn = await documentAt(request, `${cloud.origin}/app/sign-in`);
+  const signUp = await documentAt(request, `${cloud.origin}/app/sign-up`);
+  expect(signIn.nonce).not.toBe(signUp.nonce);
+  for (const { headers } of [signIn, signUp]) {
+    expect(headers["cache-control"]).toContain("no-cache");
+    expect(headers).toMatchObject({
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex, nofollow",
+    });
+  }
+
+  const home = await request.get(cloud.origin, { headers: { accept: "text/html" } });
+  const policy = home.headers()["content-security-policy"] ?? "";
+  expect(policy).toContain("script-src 'self' 'unsafe-inline'");
+  expect(policy).not.toContain("'nonce-");
+  expect(policy).toContain(" ipc:");
+
+  expect(await statusOf(request.get(`${cloud.origin}/libraryish`))).toBe(404);
+  expect(await statusOf(request.get(`${cloud.origin}/no-route-answers-this`))).toBe(404);
+});
+
+test("each library document carries its own nonce policy, and the home page loads none of the library's code", async ({
   account,
   cloud,
   request,
@@ -195,30 +230,45 @@ test("every document carries its own nonce policy, and the home page loads none 
   );
   expect(library.nonce).not.toBe(settings.nonce);
   for (const { headers } of [library, settings]) {
+    expect(headers["cache-control"]).toContain("no-cache");
     expect(headers).toMatchObject({
-      "cache-control": "no-cache",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "x-robots-tag": "noindex, nofollow",
     });
   }
-  const stylesheets = [...library.html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*>/gu)].map(
-    (match) => /\bhref="(?<href>[^"]+)"/u.exec(match[0])?.groups?.href ?? "",
-  );
-  const libraryOnly = new Set([
-    ...[...library.html.matchAll(LIBRARY_ASSET)].map((match) => match[0]),
-    ...stylesheets,
-  ]);
-  expect(libraryOnly.size).toBeGreaterThan(0);
-  const home = await documentAt(request, cloud.origin);
-  expect([...libraryOnly].filter((asset) => home.html.includes(asset))).toEqual([]);
-
-  expect(await statusOf(request.get(`${cloud.origin}/libraryish`))).toBe(404);
-  expect(await statusOf(request.get(`${cloud.origin}/no-route-answers-this`))).toBe(404);
+  // what the library loads beyond what every document rendered per request does
+  const signIn = await documentAt(request, `${cloud.origin}/app/sign-in`);
+  const shared = chunksOf(signIn.html);
+  const libraryOnly = [...chunksOf(library.html)].filter((chunk) => !shared.has(chunk));
+  expect(libraryOnly.length).toBeGreaterThan(0);
+  const home = await request.get(cloud.origin);
+  const homeHtml = await home.text();
+  expect(libraryOnly.filter((chunk) => homeHtml.includes(chunk))).toEqual([]);
 });
 
+// a path under each mount takes its own methods, and Next answers any other with a 405, never the
+// site's HTML page
+const expectProtocolAnswers = async (
+  request: APIRequestContext,
+  origin: string,
+  rows: readonly {
+    readonly headers?: Record<string, string>;
+    readonly method: string;
+    readonly route: string;
+    readonly status: number;
+  }[],
+) => {
+  for (const { headers = {}, method, route, status } of rows) {
+    const response = await request.fetch(`${origin}${route}`, { headers, method });
+    expect(response.status(), `${method} ${route}`).toBe(status);
+    expect(response.headers()["content-type"] ?? "", `${method} ${route}`).not.toMatch(
+      /^text\/html/u,
+    );
+  }
+};
+
 test("each mount hands its request to the service, which answers in its door's protocol", async ({
-  account,
   cloud,
   request,
 }) => {
@@ -229,42 +279,21 @@ test("each mount hands its request to the service, which answers in its door's p
   expect(await devices({}), "an account call naming no build").toBe(426);
   expect(await devices(build), "an account call with no session").toBe(401);
 
-  // a path under each mount: one that declared its methods would hand a wrong one to the site's
-  // page, a 200 of HTML
-  for (const { headers = {}, method, route, status } of [
-    { method: "PUT", route: "/api/auth/get-session", status: 404 },
-    { headers: build, method: "GET", route: DEVICES, status: 401 },
+  await expectProtocolAnswers(request, cloud.origin, [
+    { method: "PUT", route: "/api/auth/get-session", status: 405 },
+    { headers: build, method: "GET", route: DEVICES, status: 405 },
+    { method: "GET", route: "/api/nope", status: 404 },
+    { method: "POST", route: "/api/nope", status: 404 },
+  ]);
+});
+
+test("the connector's routes answer in their own protocol", async ({ cloud, request }) => {
+  await expectProtocolAnswers(request, cloud.origin, [
     { method: "GET", route: "/oauth/token", status: 405 },
     { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
     { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
     { method: "PUT", route: "/connect/authorize", status: 405 },
-  ]) {
-    const response = await request.fetch(`${cloud.origin}${route}`, { headers, method });
-    expect(response.status(), `${method} ${route}`).toBe(status);
-    expect(response.headers()["content-type"] ?? "", `${method} ${route}`).not.toMatch(
-      /^text\/html/u,
-    );
-  }
-  for (const [method, route] of [
-    ["GET", "/v1/nope"],
-    ["POST", "/api/nope"],
-    ["GET", "/oauth/nope"],
-    ["GET", "/.well-known/nope"],
-  ] as const) {
-    const response = await request.fetch(`${cloud.origin}${route}`, { method });
-    expect([response.status(), await response.text()], `${method} ${route}`).toEqual([
-      404,
-      "not found",
-    ]);
-  }
-
-  // the account's socket, opened on its ticket through Start to the cell, answers its keepalive
-  const { ticket } = await account.client.socketTicket();
-  const socket = new WebSocket(socketUrl(cloud.origin, V1_SOCKET_PATH, ticket));
-  await once(socket, "open");
-  const answered = once(socket, "message");
-  socket.send(SOCKET_KEEPALIVE_PING);
-  const [frame] = await answered;
-  socket.close();
-  expect(z.object({ data: z.string() }).parse(frame).data).toBe(SOCKET_KEEPALIVE_PONG);
+    { method: "GET", route: "/oauth/nope", status: 404 },
+    { method: "GET", route: "/.well-known/nope", status: 404 },
+  ]);
 });

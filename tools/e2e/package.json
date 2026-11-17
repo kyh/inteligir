@@ -2,10 +2,10 @@
   "name": "@repo/e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "Playwright flows over the built Worker and the extension, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
+  "description": "Playwright flows over the built app, one next start per worker on its own database, and the extension, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
   "type": "module",
   "scripts": {
-    "e2e": "playwright test --pass-with-no-tests",
+    "e2e": "dotenv -e ../../.env.local -e ../../.env -- playwright test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -14,10 +14,11 @@
     "@orpc/client": "catalog:",
     "@playwright/test": "catalog:",
     "@repo/contract": "workspace:*",
-    "@repo/messages-fake": "workspace:*",
+    "@repo/db": "workspace:*",
     "@types/node": "catalog:",
     "@zip.js/zip.js": "^2.25.0",
-    "miniflare": "catalog:",
+    "dotenv-cli": "catalog:",
+    "postgres": "catalog:",
     "typescript": "catalog:",
     "zod": "catalog:"
   }

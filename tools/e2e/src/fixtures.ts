@@ -1,13 +1,15 @@
-// One Worker per Playwright worker: apps/web's build output under an in-process Miniflare, the
-// scripted Claude beside it, and every outbound fetch answered from a test's `web.pages` or failing
-// it. One account per test, signed in on the test's context and reachable through `/v1`.
+// One app per Playwright worker: `next start` on apps/web's build, over a database of its own cloned
+// from the run's template (databases.ts), and every page it fetches answered from a test's
+// `web.pages` or failing it (page-relay.ts). One account per test, signed in on the test's context
+// and reachable through `/v1`.
 
-/* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- miniflare types its D1 binding with @cloudflare/workers-types, which this node program does not load, so the type-aware pass reads the database as an unresolved type */
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { mkdir, open } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { expect, test as base } from "@playwright/test";
@@ -21,47 +23,18 @@ import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
-import { serveMessagesFake } from "@repo/messages-fake/serve";
-import { Miniflare, MiniflareWorkerConfigBaseSchema, Response, fetch } from "miniflare";
-import type { MiniflareOptions, Request } from "miniflare";
+import postgres from "postgres";
 import { z } from "zod";
+import { workerDatabase } from "./databases";
+import { servePageRelay } from "./page-relay";
+import type { Web } from "./page-relay";
 
-const REPO = path.resolve(import.meta.dirname, "../../..");
-const OUTPUT = path.join(REPO, "apps/web/.cloudflare/output/v0/workers/default");
+const WEB = path.resolve(import.meta.dirname, "../../../apps/web");
+const NEXT_BIN = path.join(WEB, "node_modules/next/dist/bin/next");
+const BOOT_BUDGET_MS = 60_000;
 const PASSWORD = "e2e-password-1234";
 // the system networking stack's user agent, which the account's devices list names an iPhone by
 const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
-
-type Json = z.infer<ReturnType<typeof z.json>>;
-type Binding = { type: "text"; value: string } | { type: "json"; value: Json };
-type Worker = NonNullable<MiniflareOptions["workers"]>[number];
-
-const text = (value: string): Binding => ({ type: "text", value });
-const json = (value: Json): Binding => ({ type: "json", value });
-
-interface CloudOptions {
-  // over cloudflare.config.ts's text bindings
-  readonly vars?: Readonly<Record<string, string>>;
-  // over its JSON bindings, each replaced whole
-  readonly json?: Readonly<Record<string, Json>>;
-}
-
-// a page by its body (text/html unless `type` says otherwise), or a status with no page
-type PageAnswer =
-  | { readonly body: string | Uint8Array<ArrayBuffer>; readonly type?: string }
-  | { readonly status: number };
-
-// A page host of a test's own: the Worker's fetches under it are answered from the test's pages
-// and logged with it, so a fill that outlives its test is never the next one's.
-interface Web {
-  // how the Worker's fetch of a path under the host is answered
-  readonly pages: Map<string, PageAnswer>;
-  readonly pageUrl: (pathname: string) => string;
-  // every path under the host the Worker asked for, in order
-  readonly fetched: string[];
-  // those no page answered, which fail the test
-  readonly strays: string[];
-}
 
 export interface Cloud {
   readonly origin: string;
@@ -69,9 +42,9 @@ export interface Cloud {
   readonly mint: () => Promise<string>;
   // a page host no other test has
   readonly pageHost: () => Web;
-  // every address under no page host the Worker asked for, which fails the test that was running
+  // every address under no page host the app asked for, which fails the test that was running
   readonly strays: readonly string[];
-  // the oldest build the Worker takes, which every client here names
+  // the oldest build the app takes, which every client here names
   readonly build: string;
 }
 
@@ -97,30 +70,17 @@ interface TestFixtures {
   secondContext: BrowserContext;
   // the console errors a test causes on purpose, which the watch lets by
   allowedErrors: RegExp | null;
-  // the web as the Worker's fills reach it, which fails the test on a fetch no page answered
+  // the web as the app's fills reach it, which fails the test on a fetch no page answered
   web: Web;
 }
 
 interface WorkerFixtures {
-  cloudOptions: CloudOptions;
+  // the floor each app starts with, which every client here names: an install at it
+  build: string;
   cloud: Cloud;
 }
 
-const ManifestSchema = z.object({
-  mainModule: z.string(),
-  modules: z.record(
-    z.string(),
-    z.object({ type: z.enum(["cjs", "data", "esm", "json", "sourcemap", "text", "wasm"]) }),
-  ),
-});
-
-const OutputSchema = z.looseObject({
-  assets: z.looseObject({}).optional(),
-  env: z.looseObject({ MIN_CLIENT_BUILD: z.looseObject({ value: z.string() }) }),
-  manifest: ManifestSchema,
-});
-
-// asked of the OS before the boot, since the Worker's own origin is one of its bindings
+// asked of the OS before the boot, since the app's own origin is one of its variables
 const freePort = async (): Promise<number> => {
   const server = createServer().listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -130,44 +90,46 @@ const freePort = async (): Promise<number> => {
   return port;
 };
 
-// D1's DDL as @repo/db commits it, the file the service's suites apply too, a statement each as a
-// batch takes them: split on `;`, which holds while no literal in the schema has one
-const schemaStatements = async (): Promise<string[]> => {
-  const ddl = await readFile(path.join(REPO, "packages/db/src/d1/ddl.sql"), "utf-8");
-  return ddl
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
+const answersHealthy = async (origin: string): Promise<boolean> => {
+  try {
+    const response = await fetch(`${origin}/api/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
 };
 
-const builtWorker = async (outbound: (request: Request) => Promise<Response>) => {
-  const raw: unknown = JSON.parse(await readFile(path.join(OUTPUT, "worker.config.json"), "utf-8"));
-  const { assets, manifest, ...rest } = OutputSchema.parse(raw);
-  const config = MiniflareWorkerConfigBaseSchema.parse({
-    ...rest,
-    assets: { ...assets, directory: path.join(OUTPUT, "assets"), hasUserWorker: true },
+// `next start` on the build `pnpm build` left in apps/web/.next, on `env` alone, so nothing of the
+// root .env reaches it; ready once its health check answers, which waits on its database. Its
+// output goes to `log`. Answers how to stop it.
+const startApp = async (
+  origin: string,
+  env: NodeJS.ProcessEnv,
+  log: string,
+): Promise<() => Promise<void>> => {
+  const output = await open(log, "w");
+  const app = spawn(process.execPath, [NEXT_BIN, "start", "--port", new URL(origin).port], {
+    cwd: WEB,
+    env,
+    stdio: ["ignore", output.fd, output.fd],
   });
-  const modules = Object.fromEntries(
-    await Promise.all(
-      Object.entries(manifest.modules).map(async ([name, { type }]) => [
-        name,
-        { contents: await readFile(path.join(OUTPUT, "bundle", name), "utf-8"), type },
-      ]),
-    ),
-  );
-  return {
-    build: rest.env.MIN_CLIENT_BUILD.value,
-    worker: (env: Readonly<Record<string, Binding>>): Worker => ({
-      config: {
-        ...config,
-        env: { ...config.env, ...env },
-        manifest: { mainModule: manifest.mainModule, modules },
-        // the production routes leave the local origin unrouted; the fill queues' consumers stay
-        triggers: (config.triggers ?? []).filter((trigger) => trigger.type === "queue"),
-      },
-      dev: { outboundService: { handler: outbound, type: "fetcher" } },
-    }),
+  const exited = once(app, "exit");
+  const stop = async () => {
+    if (app.exitCode === null && app.signalCode === null) {
+      app.kill();
+      await exited;
+    }
+    await output.close();
   };
+  const deadline = Date.now() + BOOT_BUDGET_MS;
+  while (app.exitCode === null && Date.now() < deadline) {
+    if (await answersHealthy(origin)) {
+      return stop;
+    }
+    await sleep(250);
+  }
+  await stop();
+  throw new Error(`next start never answered ${origin}/api/health; its output is in ${log}`);
 };
 
 const buildHeaders = (cloud: Cloud): Record<string, string> => {
@@ -184,7 +146,7 @@ const v1Client = (cloud: Cloud, headers: Readonly<Record<string, string>>): V1Cl
     }),
   );
 
-const cookiesOf = (response: globalThis.Response): Cookie[] =>
+const cookiesOf = (response: Response): Cookie[] =>
   response.headers.getSetCookie().map((setCookie) => {
     const pair = setCookie.split(";")[0] ?? "";
     const at = pair.indexOf("=");
@@ -219,85 +181,49 @@ export const watchErrors = (context: BrowserContext, allowed: RegExp | null): st
 };
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
-  cloudOptions: [{}, { option: true, scope: "worker" }],
+  build: ["0.7.0", { scope: "worker" }],
   cloud: [
-    async ({ cloudOptions }, use) => {
-      const statements = await schemaStatements();
-      const fake = await serveMessagesFake(0);
-      // never emptied: a test that ended keeps its host for the fetches it left running
-      const hosts = new Map<string, Web>();
-      const strays: string[] = [];
-      const outbound = async (request: Request): Promise<Response> => {
-        const url = new URL(request.url);
-        if (url.origin === fake.origin) {
-          return await fetch(request);
-        }
-        const host = hosts.get(url.origin);
-        host?.fetched.push(url.pathname);
-        const page = host?.pages.get(url.pathname);
-        if (page === undefined) {
-          (host?.strays ?? strays).push(url.href);
-          return new Response("no page answers here", { status: 502 });
-        }
-        return "status" in page
-          ? new Response("not found", { status: page.status })
-          : new Response(page.body, {
-              headers: { "content-type": page.type ?? "text/html; charset=utf-8" },
-            });
-      };
-      const { build, worker } = await builtWorker(outbound);
-      const port = await freePort();
-      // a loopback name, as the extension's dev build names its cloud
-      const origin = `http://localhost:${String(port)}`;
-      const miniflare = new Miniflare({
-        host: "127.0.0.1",
-        port,
-        workers: [
-          worker({
-            ANTHROPIC_FAKE_URL: text(fake.origin),
-            BETTER_AUTH_SECRET: text("e2e-better-auth-secret-000000000000"),
-            RATE_LIMIT_DISABLED: text("true"),
-            // the connector's issuer and resource, which the build names as production's
-            SITE_ORIGIN: text(origin),
-            ...Object.fromEntries(
-              Object.entries(cloudOptions.vars ?? {}).map(([name, value]) => [name, text(value)]),
-            ),
-            ...Object.fromEntries(
-              Object.entries(cloudOptions.json ?? {}).map(([name, value]) => [name, json(value)]),
-            ),
-          }),
-        ],
-      });
-      await miniflare.ready;
-      const db = await miniflare.getD1Database("DB");
-      // one batch is one transaction
-      await db.batch(statements.map((statement) => db.prepare(statement)));
-      await use({
-        build,
-        mint: async () => {
-          const code = `E2E-${crypto.randomUUID()}`;
-          await db.prepare("INSERT INTO invite_code (code) VALUES (?)").bind(code).run();
-          return code;
-        },
-        origin,
-        pageHost: () => {
-          // a `.test` name no resolver answers (RFC 6761), any site's to the fill's guard
-          const host = `http://${crypto.randomUUID()}.pages.inteligir.test`;
-          const web: Web = {
-            fetched: [],
-            pageUrl: (pathname) => `${host}${pathname}`,
-            pages: new Map(),
-            strays: [],
-          };
-          hosts.set(host, web);
-          return web;
-        },
-        strays,
-      });
-      await miniflare.dispose();
-      await fake.close();
-      // a drop is a thinking block the thread replayed wrong, which the API refuses
-      expect(fake.stats().drops, "the replayed thinking blocks Claude dropped").toBe(0);
+    async ({ build }, use, { project, workerIndex }) => {
+      const relay = await servePageRelay();
+      try {
+        const database = await workerDatabase(workerIndex);
+        // a loopback name, as the extension's dev build names its cloud
+        const origin = `http://localhost:${String(await freePort())}`;
+        await mkdir(project.outputDir, { recursive: true });
+        const stop = await startApp(
+          origin,
+          {
+            AGENT_MOCK_MODEL: "true",
+            APP_URL: origin,
+            BETTER_AUTH_SECRET: "e2e-better-auth-secret-000000000000",
+            EMAIL_MODE: "log",
+            HOME: process.env.HOME,
+            MIN_CLIENT_BUILD: build,
+            NEXT_TELEMETRY_DISABLED: "1",
+            PAGE_FETCH_RELAY_URL: relay.url,
+            PATH: process.env.PATH,
+            POSTGRES_URL: database,
+            RATE_LIMIT_DISABLED: "true",
+          },
+          path.join(project.outputDir, `next-start-${String(workerIndex)}.log`),
+        );
+        const sql = postgres(database, { max: 1 });
+        await use({
+          build,
+          mint: async () => {
+            const code = `E2E-${crypto.randomUUID()}`;
+            await sql`insert into invite_code ${sql({ code })}`;
+            return code;
+          },
+          origin,
+          pageHost: relay.pageHost,
+          strays: relay.strays,
+        });
+        await sql.end();
+        await stop();
+      } finally {
+        await relay.close();
+      }
     },
     { scope: "worker", timeout: 120_000 },
   ],
@@ -308,7 +234,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await use(web);
       expect(
         [...web.strays, ...cloud.strays.slice(before)],
-        "the Worker's fetches no page answered",
+        "the app's fetches no page answered",
       ).toEqual([]);
     },
     { auto: true },
@@ -321,9 +247,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
   account: async ({ cloud, context }, use) => {
     const email = `${crypto.randomUUID()}@inteligir.local`;
-    // the site's own page, which ships with the Worker and names no build
+    // the site's own page, which ships with the app and names no build
     const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
-      const response = await globalThis.fetch(`${cloud.origin}${route}`, {
+      const response = await fetch(`${cloud.origin}${route}`, {
         body: JSON.stringify(body),
         headers: {
           "content-type": "application/json",
@@ -369,7 +295,7 @@ export const phoneSession = async (cloud: Cloud, account: Account): Promise<V1Cl
     "expo-origin": PHONE_ORIGIN,
     "user-agent": PHONE_USER_AGENT,
   };
-  const response = await globalThis.fetch(`${cloud.origin}/api/auth/sign-in/email`, {
+  const response = await fetch(`${cloud.origin}/api/auth/sign-in/email`, {
     body: JSON.stringify({ email: account.email, password: account.password }),
     headers,
     method: "POST",
@@ -412,7 +338,7 @@ export const upload = async (
   type: string,
 ): Promise<string> => {
   const sha = createHash("sha256").update(bytes).digest("hex");
-  const response = await globalThis.fetch(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
+  const response = await fetch(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
     body: bytes,
     headers: {
       ...buildHeaders(cloud),
@@ -439,7 +365,7 @@ export const typeAfter = async (page: Page, line: string, typed: string): Promis
   await page.keyboard.type(typed);
 };
 
-// the cell's markdown of an item, as a poll reads it
+// an item's markdown, as a poll reads it
 export const markdownOf = async (library: V1Client["library"], id: string): Promise<string> => {
   const { view } = await library.items.read({ id });
   return view.markdown;
@@ -447,7 +373,7 @@ export const markdownOf = async (library: V1Client["library"], id: string): Prom
 
 // a kept file's bytes, as every app reads them
 export const download = async (cloud: Cloud, account: Account, sha: string): Promise<Buffer> => {
-  const response = await globalThis.fetch(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
+  const response = await fetch(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
     headers: { ...buildHeaders(cloud), authorization: `Bearer ${account.bearer}` },
   });
   expect(response.status, "the download").toBe(200);

@@ -12,9 +12,6 @@ catalog:
   "@orpc/tanstack-query": 2.0.0-beta.50
   # exact: the e2e drives the connector with the client the deployed connector was tested against
   "@modelcontextprotocol/client": 2.4.0
-  # exact: the Messages API types the scripted Claude (tools/messages-fake) answers in, whose minor
-  # releases may break them (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#semantic-versioning)
-  "@anthropic-ai/sdk": 1.3.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
   # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
   # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's
@@ -147,8 +144,6 @@ catalog:
   # exact, the one @platejs/slate pins: the live binding narrows Plate's editor to slate's own type
   # with its guard, so the two must be one slate, and it moves only with a Plate bump
   slate: 0.146.0
-  # the node server in front of the scripted Messages API
-  srvx: ^1.0.8
   # exact: `pnpm db:start` runs local Postgres on its experimental native stack, whose flags and
   # output move between releases; a bump re-runs `pnpm db:start`
   supabase: 2.122.1
@@ -160,8 +155,6 @@ catalog:
   unified: ^11.0.5
   vite: ^8.3.5
   vitest: ^4.1.12
-  # tools/e2e's Worker fixture, held until its flows run on next start
-  miniflare: 5.20261023.0-beta
   # exact: a note's sync frames are this protocol at both ends
   y-protocols: 1.0.7
   yaml: ^2.9.1
@@ -209,7 +202,6 @@ allowBuilds:
   esbuild: true
   # eas-cli's centrifuge: a postinstall that only prints a version notice
   protobufjs: false
-  workerd: true
 
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
