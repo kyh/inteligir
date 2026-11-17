@@ -15,7 +15,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A new window, and the Mac app when it starts, open All items**: choose a folder or a tag in the sidebar to go back to it.
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
-- **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, and a save made offline or signed out lands later.
+- **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, a save made offline lands once you're back online, and one made signed out lands the moment you sign in again, in the account it was saved for.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.
 - **An item opens full size**: a file in its viewer, a saved page as its article under Open original, and what you type into a saved page stays your note when it's read again.
@@ -23,6 +23,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.
 - **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it asks before deleting or saving a link, New conversation leaves a conversation for the list, and a day allows a couple of answers.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
+- **Your own Claude or ChatGPT writes notes the way the built-in agent does**: a connected assistant can read the library's writing guide, so the tabs, callouts, charts and links between items it writes show as blocks, not as literal text; one connected earlier lists the guide once it refreshes the connector's tools.
 - **Bring your Raindrop bookmarks in** from a Raindrop backup's CSV file, in Settings › Import.
 - **Bring a zip of notes in**, a folder of notes or an Obsidian folder, in Settings › Import; what it can't read is counted under "couldn't be read".
 - **An import is read on your device**: keep the window open until it says what it added, and if it closes, choose the same file again and it carries on, adding nothing twice.
@@ -39,9 +40,11 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 ### Changed
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
+- **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed.
 - **The privacy policy reads plainly, each practice stated once**: your library in your account, what each device sends, and how to ask for a copy, a correction or a deletion.
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since and any you made while it worked, a pin or a new name included; typing inside a paragraph the agent added goes with it, and Undo names each note it happened in.
 - **Only the agent's changes are kept for Undo**: what you, a connected assistant or an import change is not, and Undo this turn and Undo this conversation work as before.
+- **Undo offers only what is left to take back**: an undo on one device takes the Undo buttons off your others as it lands, a press on a turn already taken back says "There's nothing left to undo.", and an item Undo kept because you changed it since can be undone later, its turn keeping its Undo until nothing of it is left.
 - **The sidebar chooses what the library shows**: All items, Unsorted, folders, tags and Deleted.
 - **The panel's tabs are Info and Agent.**
 - **Info's Add property asks for a name, a type and a value**: Text, Number, Checkbox, Date or List, kept exactly as you typed it, so `Meeting: Q3 review` stays text and `02139` keeps its zero.
@@ -49,9 +52,13 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A new property can't be named title, tags, folder or pinned**, or take a name the item already has; Add property says so and stays open.
 - **⌘P searches your library and runs a few commands**: New note, Save a link…, Ask the agent, Tidy my library and Settings.
 - **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
+- **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too.
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
-- **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier.
+- **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier, and a long page is read in about two thirds of the time.
 - **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
+- **A link saved as a numeric address is turned down at once, with why**: `http://192.168.1.20/`, `http://93.184.216.34/` or `http://[::1]/` reads "The cloud opens pages by name, so an address written as numbers isn't read." Save the page by its name, or from the browser extension, which reads the page itself.
+- **A saved page keeps more of its page**: a picture that is itself a link stays a picture, a table's cells keep their links, bold and code, a definition list reads as a list, and a quotation reads in quotes.
+- **A web address a saved page shows as plain text stays text**, where it used to turn into a link, and highlighted or underlined words in a saved page read in italics; Read the page again re-reads a page saved before.
 - **Search looks at an item's address, site, author, description and tags**, not inside its properties.
 - **Deleting an item on your iPhone moves it to Deleted.**
 - **A link to a note is a link to that item**, so renaming or moving it keeps every link, and pointing at one shows its card's preview.
@@ -60,6 +67,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent and connected assistants leave a saved page's article as it was read**: ask for the change in the item's note.
 - **A note the agent or a connected assistant creates takes its title and tags only from what you ask for**: a `---` block at the top of its text stays in the note as a code block, as one at the top of a note saved with a link does.
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
+- **An imported note's `site`, `author` and `published` keep up to 1,000 characters**, an alias longer than that is cut rather than leaving the note unread, an `aliases` list that mixes names with other values keeps its names, and `fetched` or `fetch-error` with no `url` stay properties.
 - **The agent draws diagrams** as Mermaid in the note.
 - **The agent's question says exactly which items it would move to Deleted, or the whole address it would save**, and a request it couldn't carry out is turned down without asking you.
 - **Your devices and the agent edit one note together**, live, and ⌘Z takes back only your own typing.
@@ -98,6 +106,11 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
 - **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.
+- **A formula reads the other formulas in its note by name**: type `{{price=5}}` and `{{qty=3}}`, then `{{price*qty}}`, or name the result with `{{total=price*qty}}`; one that only names another shows what it shows, so `{{time=9am}}` repeats as `{{time}}`.
+- **A formula's number is never out of date**: it follows what it reads as you edit, in one undo step, and cards, search and the agent read the number the note shows; the dotted "stale" underline is gone.
+- **Picking a name from `{{` inserts a formula that reads it**, in place of a linked copy, and renaming a formula in its editor renames it in every formula that reads it.
+- **`{{source|display}}` typed with bars stays the text you typed**, as does a lone word no formula is named: what a formula shows always comes from its source.
+- **The agent and connected assistants write a formula as `:formula[display]{name="…" source="…"}`**: what they put in the brackets is replaced by what the source gives, and one written the earlier way, with `meta=` or `@(…)`, stays text until it is written again.
 - **New note on the Mac starts with no title**, following your first line until you type one.
 - **Text you paste that opens with a `---` block comes in as a code block.**
 - **The Mac window has the standard title bar.**
@@ -124,12 +137,15 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Problems** in ⌘P.
 - **Search and replace across the library**: ask the agent, or ⌥⌘F within one note.
 - **Embedding another note**: `![[Note]]` comes in as a link.
+- **A formula that reads a value in another note**: it now shows its own text, so put the value in the note that uses it.
 - **Renaming a tag everywhere**: ask the agent.
 - **Daily notes and templates**: ask the agent to start a note from one, or choose Date from the `/` menu.
 - **Go to heading**: click a heading in the note's outline.
 - **⌘T no longer moves to the title.**
 - **The Keyboard shortcuts page and What's new**: each release's notes are on GitHub.
 - **Run on an HTML block**: an HTML block shows its preview with its scripts off.
+- **Check for Updates… in the Inteligir menu**: choose Check for updates in Settings › About, which also says when you're up to date.
+- **The extension's Connect page**: the extension finds inteligir.com by itself, so sign in there and it saves to that account.
 - **The `inteligir` command and `npx inteligir serve`**: use the connector.
 
 ### Fixed
@@ -144,10 +160,14 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent's reply stays on screen as it lands**: its text no longer blinks at the end of each message, and the conversation follows the reply as it is written until you scroll up.
 - **Approve and Cancel stay held while your answer to the agent is on its way**, when it asks before deleting or saving a link, and come back if it couldn't be sent, instead of reading Answered.
 - **A finished step in the agent's work no longer draws an empty bar**, and only a failed step opens to say why.
+- **A message typed to the agent stays when you switch the panel to Info and back**, and Send stays held while a message is on its way, after switching the tab and back too.
+- **A question the agent asks is declined for you after ten minutes, every time**: a restart while it waited could leave one waiting with no end.
+- **A conversation that hits something it can't read ends with an error** instead of showing the agent working for good; start a new conversation to carry on.
 - **The agent's edit of one line leaves the rest of the note as it was**: an underline or a picture's size beside a list that holds a code block or a picture is no longer dropped.
 - **The agent reads a long item a part at a time**, so a long saved page with a picture in a list can be read.
 - **A note that opens with a callout is titled and found by its words**, not `[!NOTE]`.
 - **An item no longer shows twice in your iPhone's library** when the library changed as you scrolled.
+- **On your iPhone, a date, link, equation or formula inside columns or tabs no longer opens an editor that couldn't save.**
 - **Every page prints light, even in the dark theme**: the site, the extension's pages and the phone's editor page, and the library's window no longer turns light behind the print dialog.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
@@ -159,8 +179,12 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A note that can't take edits can't be changed through its blocks either**: offline, full or in Deleted, a chart, canvas, HTML block, tab, table or formula takes no edit, and their editing buttons stay hidden until it can.
 - **An item brought back from Deleted opens editable again**, by Undo, by Undo this turn after the agent deleted it, or by an import, instead of staying read-only under "This item is in Deleted".
 - **A page saved or read just as its note first opens is saved** instead of failing.
+- **A file added while the library clears out another lands the first time**: an upload, a saved page's cover or an imported note's picture is no longer sent again or dropped because a different file was being removed just then.
+- **Importing a zip of notes no longer stops on a note whose frontmatter names a YAML anchor that isn't there**: that note comes in with the block as text, as any block that isn't YAML does, and a long `title` or `site` line is cut between characters, never through an emoji.
 - **A folded heading stays folded when you rename it**, and a fold no longer jumps to another heading with the same words.
 - **Leaving a note with the `/`, `[[` or `{{` menu open no longer leaves its character behind** in the note on your other devices.
 - **A note waiting for a connection shows its outline beside its text** on your Mac and in your browser, as an open note does.
 - **Enter in an open item's title keeps the cursor in the field**, and a title changed on another device no longer replaces the one you're typing.
 - **A delete that stops partway still offers Undo**, which brings back the items that went to Deleted.
+- **A dialog opened over another opens empty**: New folder, Rename folder, Save a link, Tag and Move to no longer carry what was typed in the first, and only one shows at a time.
+- **The panel opens in a window narrower than 768px**: ⌘K, `]` and the open item's Info button open it as a sheet.
