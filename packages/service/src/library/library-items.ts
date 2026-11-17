@@ -8,7 +8,8 @@ import { fileFields } from "@repo/contract/library/item-makes";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
 import type { itemSummarySchema } from "@repo/contract/library/library-wire";
 import { item, purgedItem } from "@repo/db/library-schema";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
@@ -128,6 +129,69 @@ export const setDeleted = async (
     }
   }
   return { addressHeld, changed, missing };
+};
+
+// Back from Deleted in a statement, each of `ids` in Deleted but a link whose address a live item
+// holds; of several in Deleted at one address only the one deleted last comes back, as the address
+// takes one live item. A link still waiting for its page asks for it again. Answers those it brought
+// back
+export const restoreDeleted = async (
+  scope: WriteScope,
+  ids: readonly string[],
+): Promise<Set<string>> => {
+  if (ids.length === 0) {
+    return new Set();
+  }
+  const { accountId, now, tx } = scope;
+  const ranked = tx
+    .select({
+      id: item.id,
+      rank: sql<number>`row_number() over (partition by ${item.urlKey} order by ${item.deletedAt} desc, ${item.id} collate "C")`.as(
+        "rank",
+      ),
+      urlKey: item.urlKey,
+    })
+    .from(item)
+    .where(and(eq(item.accountId, accountId), isNotNull(item.deletedAt), anyOf(item.id, ids)))
+    .as("ranked");
+  const live = alias(item, "live");
+  const free = await tx
+    .select({ id: ranked.id })
+    .from(ranked)
+    .where(
+      or(
+        isNull(ranked.urlKey),
+        and(
+          eq(ranked.rank, 1),
+          notExists(
+            tx
+              .select({ held: sql`1` })
+              .from(live)
+              .where(
+                and(
+                  eq(live.accountId, accountId),
+                  eq(live.urlKey, ranked.urlKey),
+                  isNull(live.deletedAt),
+                ),
+              ),
+          ),
+        ),
+      ),
+    );
+  const restored = new Set(free.map((row) => row.id));
+  if (restored.size > 0) {
+    const seq = await scope.seq();
+    const back = await tx
+      .update(item)
+      .set({ deletedAt: null, seq, updatedAt: now })
+      .where(and(eq(item.accountId, accountId), anyOf(item.id, [...restored])))
+      .returning({ id: item.id, reading: item.reading, url: item.url });
+    await askFills(
+      scope,
+      back.map(({ id, reading, url }) => ({ fields: { deletedAt: null, reading, url }, id })),
+    );
+  }
+  return restored;
 };
 
 // Deleted emptied of `ids`, in a statement a table: each item goes with every row it holds, its

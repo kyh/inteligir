@@ -164,6 +164,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **An import of notes written in Chinese, Japanese, Korean or emoji no longer stops partway**: a note too long to be one item is counted under "couldn't be read" and the rest come in.
 - **inteligir.com's pages hold still as they load**: the text no longer jumps when the font arrives, the library's title bar stands before its items do, and a sign-in error no longer moves the form.
 - **Password changed says what happened**: every device and browser that was signed in is signed out.
 - **Enter at the start of a saved page's paragraph keeps your new line yours**: Read the page again no longer deletes it or repeats the paragraph.

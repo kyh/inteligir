@@ -8,6 +8,7 @@ import { db } from "@repo/db/drizzle-client";
 
 import { reading } from "./library-access";
 import { libraryChanges } from "./library-changes";
+import { namedFiles, settleNotes } from "./library-imports";
 import { listingPage, listingScopes, listingTitles, readLibrary } from "./library-listing";
 import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
 import { readItem, readItemWhole } from "./library-rows";
@@ -32,6 +33,14 @@ export const libraryReadRows = {
   changes: reading.changes.handler(
     async ({ context, input }) => await libraryChanges(db, context.library.accountId, input.after),
   ),
+  imports: {
+    named: reading.imports.named.handler(
+      async ({ context, input }) => await namedFiles(db, context.library.accountId, input.shas),
+    ),
+    settle: reading.imports.settle.handler(async ({ context, input }) => ({
+      notes: await settleNotes(db, context.library.accountId, input.notes),
+    })),
+  },
   items: {
     get: reading.items.get.handler(async ({ context, input }) => {
       const whole = await readItemWhole(db, context.library.accountId, input.id);

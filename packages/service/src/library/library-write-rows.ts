@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { answer, writing } from "./library-access";
 import { writeFolders } from "./library-folders";
+import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
 import {
   createFile,
   landedSummaries,
@@ -53,6 +54,18 @@ export const libraryWriteRows = {
             const folders = await writeFolders(scope, input.ops);
             return { folders, seq: await libraryHead(scope.tx, scope.accountId) };
           },
+        ),
+      ),
+    ),
+  },
+  imports: {
+    // an import is its own actor, whoever runs it, so no turn's change set keeps what it lands
+    land: writing.imports.land.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          { accountId: context.library.accountId, actor: IMPORT_ACTOR },
+          { answer: importLandedSchema, opId: input.opId },
+          async (scope) => await landImported(scope, input.items),
         ),
       ),
     ),

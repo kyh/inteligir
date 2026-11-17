@@ -15,16 +15,14 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { sweptSchema } from "@repo/contract/library/library-wire";
 import type { sweepVerbSchema } from "@repo/contract/rpc/library-contract";
 import { item, itemBody, itemSearch, itemTag, job } from "@repo/db/library-schema";
-import { and, eq, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
 import { searchVectorOf } from "../search/search-vector";
-import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
-import { purgeItems } from "./library-items";
+import { purgeItems, restoreDeleted } from "./library-items";
 import { sweptItems } from "./library-listing";
 import { STORED_ITEM_COLUMNS, tagRowsOf } from "./library-rows";
 import type { WriteScope } from "./library-store";
@@ -61,65 +59,6 @@ const toDeleted = async (scope: WriteScope, ids: readonly string[]): Promise<voi
     .update(item)
     .set({ deletedAt: now, seq, updatedAt: now })
     .where(and(eq(item.accountId, accountId), anyOf(item.id, ids)));
-};
-
-// Back from Deleted, each but a link whose address a live item holds; of several in Deleted at one
-// address only the one deleted last comes back, as the address takes one live item. A link still
-// waiting for its page asks for it again. Answers those left in Deleted
-const restore = async (scope: WriteScope, ids: readonly string[]): Promise<string[]> => {
-  if (ids.length === 0) {
-    return [];
-  }
-  const { accountId, now, tx } = scope;
-  const ranked = tx
-    .select({
-      id: item.id,
-      rank: sql<number>`row_number() over (partition by ${item.urlKey} order by ${item.deletedAt} desc, ${item.id} collate "C")`.as(
-        "rank",
-      ),
-      urlKey: item.urlKey,
-    })
-    .from(item)
-    .where(and(eq(item.accountId, accountId), isNotNull(item.deletedAt), anyOf(item.id, ids)))
-    .as("ranked");
-  const live = alias(item, "live");
-  const free = await tx
-    .select({ id: ranked.id })
-    .from(ranked)
-    .where(
-      or(
-        isNull(ranked.urlKey),
-        and(
-          eq(ranked.rank, 1),
-          notExists(
-            tx
-              .select({ held: sql`1` })
-              .from(live)
-              .where(
-                and(
-                  eq(live.accountId, accountId),
-                  eq(live.urlKey, ranked.urlKey),
-                  isNull(live.deletedAt),
-                ),
-              ),
-          ),
-        ),
-      ),
-    );
-  const restored = new Set(free.map((row) => row.id));
-  if (restored.size > 0) {
-    const seq = await scope.seq();
-    const back = await tx
-      .update(item)
-      .set({ deletedAt: null, seq, updatedAt: now })
-      .where(and(eq(item.accountId, accountId), anyOf(item.id, [...restored])))
-      .returning({ id: item.id, reading: item.reading, url: item.url });
-    await askFills(
-      scope,
-      back.map(({ id, reading, url }) => ({ fields: { deletedAt: null, reading, url }, id })),
-    );
-  }
-  return ids.filter((id) => !restored.has(id)).toSorted();
 };
 
 // the pin an item takes: kept as it was when it is already pinned, or when undefined
@@ -315,7 +254,8 @@ export const sweepItems = async (
       return answer([]);
     }
     case "restore": {
-      return answer(await restore(scope, inDeleted));
+      const restored = await restoreDeleted(scope, inDeleted);
+      return answer(inDeleted.filter((id) => !restored.has(id)).toSorted());
     }
     case "purge": {
       await purgeItems(scope, inDeleted);

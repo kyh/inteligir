@@ -8,5 +8,6 @@ export const libraryRouter = {
   ...libraryReadRows,
   ...libraryWriteRows,
   agent: { ...libraryReadRows.agent, ...libraryWriteRows.agent },
+  imports: { ...libraryReadRows.imports, ...libraryWriteRows.imports },
   items: { ...libraryReadRows.items, ...libraryWriteRows.items },
 };

@@ -1,11 +1,14 @@
 // What reading a file asks of the library (`library.imports.*` and the files' route), and the items
 // it reads landed a batch at a time. Each item is parsed against the row before it goes, since the
-// cell refuses a whole batch over one malformed item, and a batch carries at most the row's hundred
-// items and BATCH_MAX_BYTES of them, so one call never carries a whole library.
+// library refuses a whole batch over one malformed item, and one whose body is past what a body
+// holds is counted unreadable here, since it could not land. A batch carries at most the row's
+// hundred items and BATCH_MAX_BYTES of them, so one call stays under the request a function takes.
 
 import { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
+import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import {
+  BODY_MAX_BYTES,
   BULK_ITEMS_MAX,
   FOLDER_NAME_MAX,
   folderPathNames,
@@ -60,7 +63,8 @@ export const freshTally = (): ImportTally => ({
   unreadable: 0,
 });
 
-// past this, a batch goes before the next item joins it; an item larger on its own goes alone
+// past this many UTF-8 bytes, a batch goes before the next item joins it: under Vercel's 4.5 MB
+// request with the call around it, and above any one item, whose body is at most BODY_MAX_BYTES
 const BATCH_MAX_BYTES = 4 * 1024 * 1024;
 
 // a folder's path as the library names folders: each name cut to what one holds
@@ -108,7 +112,14 @@ export const createBatcher = (cell: ImportCell, tally: ImportTally, heard: () =>
       tally.unreadable += 1;
       return;
     }
-    const size = JSON.stringify(parsed.data).length;
+    if (
+      parsed.data.kind === "new" &&
+      utf8ByteLength(JSON.stringify(parsed.data.blocks)) > BODY_MAX_BYTES
+    ) {
+      tally.unreadable += 1;
+      return;
+    }
+    const size = utf8ByteLength(JSON.stringify(parsed.data));
     if (batch.length >= BULK_ITEMS_MAX || (batch.length > 0 && bytes + size > BATCH_MAX_BYTES)) {
       await flush();
     }
