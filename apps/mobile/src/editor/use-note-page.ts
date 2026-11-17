@@ -1,6 +1,6 @@
 // One note page per item screen: the actions it reaches the library through, made once per mount;
 // whether there is a connection, which the network and the app being in front decide together; the
-// items the account's socket says moved; and the page's life (note-page-life.ts), which the page's
+// items an answer of what moved names; and the page's life (note-page-life.ts), which the page's
 // report of its note, the screen's depth and a leave move, and which says whether a leave asks
 // first and whether the page is shown at all.
 

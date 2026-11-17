@@ -8,7 +8,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
-- **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent, every change reaching your other devices as you make it.
+- **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent, a note's typing reaching your other devices as you make it.
 - **The Mac app opens your library from inteligir.com**: close the window and click Inteligir in the Dock to bring it back; offline, choose View › Reload once you're back.
 - **Your library, one card per item**: All items, Unsorted, a folder or a tag in the sidebar, a kind above the grid, Finder's selection, Space for a quick look, quick with tens of thousands of items.
 - **⌘A selects everything the header counts**, not only the cards scrolled into view: Move, Tag, Pin, Delete and Restore act on all of it, and ⌘-click a card leaves it out.
@@ -115,6 +115,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Adding files shows its progress from the first one**, "Adding 3 of 12…", as saving several links does, with Stop only while any are left.
 - **A link or file that couldn't be saved says why**, and what was saved before it is counted: "Stopped after 2 of 5."
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
+- **What another device changed shows within 15 seconds**: a save, move, tag or delete made elsewhere appears in the window or app you have in front within 15 seconds, and at once when you come back to it or your connection returns.
 - **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.

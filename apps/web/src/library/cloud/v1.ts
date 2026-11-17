@@ -27,9 +27,9 @@ export const createCloudWire = (
 };
 
 // The defaults every query starts from. A cell call is `online`, so with no connection it pauses
-// rather than failing, and the screen says it needs one (`needs-connection.tsx`). The account's
-// socket says what moved (`@repo/client/library-cache`), so a window coming back into focus refetches
-// nothing.
+// rather than failing, and the screen says it needs one (`needs-connection.tsx`). What moved is
+// asked on its own (`@repo/client/library-changes`), so a window coming back into focus asks that
+// and refetches nothing else.
 export const createPageQueryClient = (): QueryClient =>
   new QueryClient({
     defaultOptions: {

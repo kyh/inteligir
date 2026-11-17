@@ -1,57 +1,22 @@
-// What a device shows of the account's library, kept by the account's socket: every read is a
-// TanStack query under oRPC's key, so a moved frame marks stale the queries over what it names, and
-// the socket coming up marks every one, since a drop or a deploy may have hidden a write meanwhile.
-// An item's read goes again only when the copy held is older than the sequence the frame names, so
-// a note's typing reads its row again only when it changed what a row holds. A screen hears which
-// items moved, and the reply the agent is writing, until the read a write to its thread asks for
-// lands or the socket goes down.
+// What a device shows of the account's library: every read is a TanStack query under oRPC's key, so
+// an answer of what moved (`./library-changes`) marks stale the queries over what it names. An
+// item's read goes again only when the copy held is older than the sequence the answer names, so a
+// note's typing reads its row again only when it changed what a row holds.
 
 import type { RouterUtils } from "@orpc/tanstack-query";
 import type { QueryClient } from "@tanstack/query-core";
+import type { z } from "zod";
 
+import type { libraryMovedSchema } from "@repo/contract/library/library-wire";
 import { sharedFailure } from "@repo/contract/rpc/call-outcome";
-import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
-
-import { createAccountSocket } from "./account-socket";
-import type { AccountSocket } from "./account-socket";
-import type { Reach, WebSocketClass } from "./live-socket";
 
 export type V1Queries = RouterUtils<V1Client>;
 
 // the items a write moved, or null when any may have
 export type ItemsMoved = ReadonlySet<string> | null;
 
-// the text so far of the reply the agent is writing in a thread; or none any more (null) in a
-// thread whose stored events were read again, since its reply landed or its turn moved on, or in
-// every thread (`threadId` null) when the write moved more than a frame names or the socket went
-// down
-type ThreadPreview =
-  | { readonly threadId: string; readonly text: string }
-  | { readonly threadId: string | null; readonly text: null };
-
-// the reply being written, never stored and never read back, for a screen that reads it as an
-// external store
-export interface ThreadPreviews {
-  // the text so far of the reply the agent is writing in `threadId`, null while it writes none
-  readonly get: (threadId: string) => string | null;
-  readonly subscribe: (listener: () => void) => () => void;
-  readonly hear: (preview: ThreadPreview) => void;
-}
-
-export interface LibrarySocket extends AccountSocket {
-  readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
-  readonly previews: ThreadPreviews;
-}
-
-interface LibrarySocketArgs {
-  readonly client: V1Client;
-  readonly queries: V1Queries;
-  readonly queryClient: QueryClient;
-  readonly origin: string;
-  readonly reach: Reach;
-  readonly WebSocket?: WebSocketClass;
-}
+type LibraryMoved = z.infer<typeof libraryMovedSchema>;
 
 const QUERY_TRIES = 3;
 
@@ -62,58 +27,21 @@ export const retryUnlessRefused = (failures: number, cause: Error): boolean => {
   return failures < QUERY_TRIES && (kind === "unreachable" || kind === "busy");
 };
 
-export const createThreadPreviews = (): ThreadPreviews => {
-  const texts = new Map<string, string>();
-  const listeners = new Set<() => void>();
-  const changed = (preview: ThreadPreview): boolean => {
-    if (preview.text !== null) {
-      if (texts.get(preview.threadId) === preview.text) {
-        return false;
-      }
-      texts.set(preview.threadId, preview.text);
-      return true;
-    }
-    if (preview.threadId === null) {
-      const held = texts.size > 0;
-      texts.clear();
-      return held;
-    }
-    return texts.delete(preview.threadId);
-  };
-  return {
-    get: (threadId) => texts.get(threadId) ?? null,
-    hear: (preview) => {
-      if (!changed(preview)) {
-        return;
-      }
-      for (const listener of listeners) {
-        listener();
-      }
-    },
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-};
-
-// every read a moved frame asks for but a named thread's events, which `threadMoved` asks for
-const invalidateMoved = (
+// every read what moved names, and the items it moved
+export const invalidateMoved = (
   { library }: V1Queries,
   queryClient: QueryClient,
-  frame: MovedFrame,
+  moved: LibraryMoved,
 ): ItemsMoved => {
-  let moved: ItemsMoved = new Set();
-  if (frame.items === "all") {
-    moved = null;
+  let items: ItemsMoved = new Set();
+  if (moved.items === "all") {
+    items = null;
     void queryClient.invalidateQueries({ queryKey: library.items.row.key() });
     void queryClient.invalidateQueries({ queryKey: library.items.get.key() });
     void queryClient.invalidateQueries({ queryKey: library.listing.key() });
-  } else if (frame.items.length > 0) {
-    moved = new Set(frame.items.map(({ id }) => id));
-    for (const { id, seq } of frame.items) {
+  } else if (moved.items.length > 0) {
+    items = new Set(moved.items.map(({ id }) => id));
+    for (const { id, seq } of moved.items) {
       const row = library.items.row.queryKey({ input: { id } });
       if ((queryClient.getQueryData(row)?.seq ?? -1) < seq) {
         void queryClient.invalidateQueries({ exact: true, queryKey: row });
@@ -125,90 +53,21 @@ const invalidateMoved = (
     }
     void queryClient.invalidateQueries({ queryKey: library.listing.key() });
   }
-  if (frame.folders) {
+  if (moved.folders) {
     void queryClient.invalidateQueries({ queryKey: library.listing.scopes.key() });
   }
-  if (frame.threads === "all" || frame.threads.length > 0) {
+  if (moved.threads === "all" || moved.threads.length > 0) {
     void queryClient.invalidateQueries({ queryKey: library.agent.list.key() });
     void queryClient.invalidateQueries({ queryKey: library.agent.undoable.key() });
   }
-  if (frame.threads === "all") {
+  if (moved.threads === "all") {
     void queryClient.invalidateQueries({ queryKey: library.agent.events.key() });
+  } else {
+    for (const threadId of moved.threads) {
+      void queryClient.invalidateQueries({
+        queryKey: library.agent.events.key({ input: { threadId } }),
+      });
+    }
   }
-  return moved;
-};
-
-export const createLibrarySocket = ({
-  client,
-  queries,
-  queryClient,
-  origin,
-  reach,
-  WebSocket,
-}: LibrarySocketArgs): LibrarySocket => {
-  const itemListeners = new Set<(moved: ItemsMoved) => void>();
-  const itemsMoved = (moved: ItemsMoved): void => {
-    for (const listener of itemListeners) {
-      listener(moved);
-    }
-  };
-  const previews = createThreadPreviews();
-  // a thread a write moved reads its stored events again, and the reply being written stays until
-  // that read lands with its stored message: it goes then, unless the agent wrote more meanwhile,
-  // which is the next message's
-  const threadMoved = async (threadId: string): Promise<void> => {
-    const held = previews.get(threadId);
-    await queryClient.invalidateQueries({
-      queryKey: queries.library.agent.events.key({ input: { threadId } }),
-    });
-    if (held !== null && previews.get(threadId) === held) {
-      previews.hear({ text: null, threadId });
-    }
-  };
-  const socket = createAccountSocket({
-    onFrame: (frame) => {
-      if (frame.type === "preview") {
-        previews.hear({ text: frame.text, threadId: frame.threadId });
-        return;
-      }
-      const moved = invalidateMoved(queries, queryClient, frame);
-      if (moved === null || moved.size > 0) {
-        itemsMoved(moved);
-      }
-      if (frame.threads === "all") {
-        previews.hear({ text: null, threadId: null });
-        return;
-      }
-      for (const threadId of frame.threads) {
-        void threadMoved(threadId);
-      }
-    },
-    // down: no frame can let a preview go any more, and a reply still being written sends its
-    // next one within a moment of the next up, by when any write may have landed unsaid
-    onStatus: (status) => {
-      if (status === "down") {
-        previews.hear({ text: null, threadId: null });
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: queries.key() });
-      itemsMoved(null);
-    },
-    origin,
-    reach,
-    ticket: async () => {
-      const { ticket } = await client.account.socketTicket();
-      return ticket;
-    },
-    WebSocket,
-  });
-  return {
-    ...socket,
-    onItems: (listener) => {
-      itemListeners.add(listener);
-      return () => {
-        itemListeners.delete(listener);
-      };
-    },
-    previews,
-  };
+  return items;
 };

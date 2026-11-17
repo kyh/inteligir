@@ -1,13 +1,13 @@
 // The library's tab, in a browser or the Mac app's window alike, opened once a document whatever
-// library page it opens on: it reads the session the site's sign-in left and makes the wire, the
-// account's socket, the shell's store and the QueryClient the workspace and Settings share, and with
+// library page it opens on: it reads the session the site's sign-in left and makes the wire, what
+// asks what moved, the shell's store and the QueryClient the workspace and Settings share, and with
 // no session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
 // run: there is nothing to choose before it. Where the tab's session stands after that is one
 // value, moved by one step (`tabAfter`) whichever way the page meets its end.
 
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
-import { createLibrarySocket } from "@repo/client/library-cache";
+import { createLibraryChanges } from "@repo/client/library-changes";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -154,30 +154,23 @@ const open = async (): Promise<TabOpening> => {
   };
   const wire = createCloudWire(cloud, sessionEnded);
   const queryClient = createPageQueryClient();
-  const socket = createLibrarySocket({
-    client: wire.client,
-    origin,
-    queries: wire.orpc,
-    queryClient,
-    reach: {
-      get: () => onlineManager.isOnline(),
-      subscribe: (listener) => onlineManager.subscribe(listener),
-    },
-  });
+  const changes = createLibraryChanges({ client: wire.client, queries: wire.orpc, queryClient });
   const library: PageLibrary = {
     account: { email: user.email, name: user.name },
+    changes,
     cloud,
     left: (why) => {
       tab.end({ kind: "left", why });
     },
     session: tab.store,
-    socket,
     wire,
     workspace: createWorkspaceStore(),
   };
-  // the rail's scopes before the grid draws, waiting for one answer and not the retries the rail's
-  // own query makes: a refusal is the rail's to draw, and with no connection nothing waits
+  // the head first, so every write after it is one a later answer names, then the rail's scopes
+  // before the grid draws, waiting for one answer and not the retries the rail's own query makes: a
+  // refusal is the rail's to draw, and with no connection nothing waits
   if (onlineManager.isOnline()) {
+    await changes.poll();
     await Promise.allSettled([
       queryClient.query({ ...libraryQueries(wire).scopes(), retry: 0, staleTime: "static" }),
     ]);
@@ -187,7 +180,7 @@ const open = async (): Promise<TabOpening> => {
 
 let opening: Promise<TabOpening> | undefined;
 
-// once a document, so Settings and back keeps one wire, one socket and one QueryClient: one promise,
+// once a document, so Settings and back keeps one wire, one head and one QueryClient: one promise,
 // which the page's `use` reads again on every render
 export const pageTab = {
   get opening(): Promise<TabOpening> {

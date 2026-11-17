@@ -8,9 +8,9 @@ the open item, the panel, the palette, Settings and the tab's own preferences.
 The tab is the site's `/library` page, `/library/settings` the same page with Settings over it,
 its code this folder. `src/app/(library)/library/layout.tsx` renders each document per request, for
 its nonce, and mounts `library-root.tsx`, the tab drawn only in the browser; the pages draw nothing.
-`library-tab.ts` opens the tab once a document (the session, the wire, the account's socket, the
+`library-tab.ts` opens the tab once a document (the session, the wire, what asks what moved, the
 shell's store and the QueryClient), and `library-layout.tsx` draws it. `cloud/` is the `/v1`
-client, the queries, the writes and the socket; `workspace.tsx` lays out the rail, the grid or the
+client, the queries and the writes; `workspace.tsx` lays out the rail, the grid or the
 open item, the panel and the palette, `workspace-store.ts` holds what they share,
 `library-address.ts` spells where the tab is and `library-history.ts` moves it; `library/` the
 grid, its verbs and the commands every screen presses; `item/` the open item; `panel/` Info;
@@ -25,8 +25,8 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   second copy to keep right for a tab that cannot edit offline.
   `apps/web/src/library/library-tab.ts`.
 - **The query client is the tab's, and its keys are oRPC's.** One `QueryClient` opens with the
-  tab, so every screen shares one cache, and a socket frame reaches a family by oRPC's key, never
-  one of ours.
+  tab, so every screen shares one cache, and an answer of what moved reaches a family by oRPC's
+  key, never one of ours.
   `apps/web/src/library/cloud/library-queries.ts`.
 - **A write is mutation options beside the reads, and says how it went once.** A screen mounts only
   the write it asks, and its refusal is said by the write's options or by the flow that awaits it,
@@ -38,16 +38,17 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   `apps/web/src/library/cloud/needs-connection.tsx`.
 - **The library is its own chunks and sheet, and catches up as its connection returns.** A site page
   loads none of it, since the tab is the root's `next/dynamic` import and the site's stylesheet is
-  its groups' own; the socket dials the moment the browser is online and reads every query again.
+  its groups' own; what moved is asked the moment the browser is back online or in front.
   `apps/web/src/library/library-root.tsx`.
 - **An import is read in the tab, on a module worker, and the cell only lands it.** The worker
   unzips and plans, then asks how each note stands and lands a batch at a time, each id taken from
   the file, so closing the tab stops it and choosing the file again carries on; read in the cell, a
   zip waits in R2 as a second copy and each alarm's 30 s holds a page of it.
   `apps/web/src/library/import/import-run.ts`.
-- **The account's socket says what moved, and the tab reads that again.** A frame names what moved
-  and never carries it, since a dropped frame must not be a lost write.
-  `packages/client/src/library-cache.ts`.
+- **The tab learns what moved by asking `library.changes` on a beat, and reads that again.** An
+  answer names what moved and never carries it, and the tab learns the head before its first read,
+  so every write after that read is one a later answer names.
+  `apps/web/src/library/library-tab.ts`.
 - **The tab asks before it loses the open item's edit.** Every move off the item asks the leave
   gate before it pushes, Back or Forward puts the item's entry back until the person answers, and
   the tab's close asks the browser's own prompt, since the item rides the URL; only typing no

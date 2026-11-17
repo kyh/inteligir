@@ -1,6 +1,6 @@
-// The library's reads as the cell answers them, each a TanStack query under oRPC's own key, so the
-// account's socket invalidates a family by its key (`@repo/client/library-cache`) and a mutation
-// patches what a screen shows by the same keys.
+// The library's reads as the cell answers them, each a TanStack query under oRPC's own key, so an
+// answer of what moved invalidates a family by its key (`@repo/client/library-cache`) and a
+// mutation patches what a screen shows by the same keys.
 
 import { threadQueries } from "@repo/client/thread-queries";
 import { keepPreviousData, skipToken } from "@tanstack/react-query";
@@ -43,8 +43,7 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
   titles: () => orpc.library.listing.titles.queryOptions(),
 
   // the conversation's turns that still hold something to take back, which each finished turn's
-  // Undo and the whole conversation's show by; the socket asks again as a turn or an undo moves
-  // the thread
+  // Undo and the whole conversation's show by; asked again as a turn or an undo moves the thread
   undoable: (threadId: string) => orpc.library.agent.undoable.queryOptions({ input: { threadId } }),
 });
 

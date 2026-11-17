@@ -2,16 +2,15 @@
   "name": "@repo/client",
   "version": "0.1.0",
   "private": true,
-  "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, how each device keeps what it shows of the library, and the saves the phone and the extension keep until the cloud takes them.",
+  "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, how each device keeps what it shows of the library and learns what moved in it, and the saves the phone and the extension keep until the cloud takes them.",
   "type": "module",
   "exports": {
     "./agent-send": "./src/agent-send.ts",
     "./library-cache": "./src/library-cache.ts",
+    "./library-changes": "./src/library-changes.ts",
     "./library-labels": "./src/library-labels.ts",
     "./listing-view": "./src/listing-view.ts",
-    "./live-socket": "./src/live-socket.ts",
     "./serial-lock": "./src/serial-lock.ts",
-    "./test-support/fake-sockets": "./src/test-support/fake-sockets.ts",
     "./test-support/memory-kv": "./src/test-support/memory-kv.ts",
     "./thread-entries": "./src/thread-entries.ts",
     "./thread-queries": "./src/thread-queries.ts",
@@ -25,7 +24,6 @@
     "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",
     "@tanstack/query-core": "^5.105.0",
-    "partysocket": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

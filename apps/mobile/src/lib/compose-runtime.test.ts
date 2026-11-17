@@ -1,17 +1,15 @@
 // The phone's runtime as the app composes it, over a key-value store and a folder in memory, an
 // auth the suite holds, and the contract's fake cell for the account: every move between signed in
-// and signed out, what each one keeps and clears, and what the socket's frames ask again.
+// and signed out, what each one keeps and clears, and what an answer of what moved asks again.
 
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { dehydrate } from "@tanstack/react-query";
+import { dehydrate, focusManager } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
-import { fakeSockets } from "@repo/client/test-support/fake-sockets";
-import type { FakeSockets } from "@repo/client/test-support/fake-sockets";
 import { paragraph } from "@repo/contract/test-support/library-items";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { deferred } from "@repo/contract/deferred";
 import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
@@ -61,7 +59,6 @@ interface PhoneOptions {
   readonly keys: FakePhoneAuth;
   readonly storage?: MemoryKv;
   readonly folder?: MemoryFolder;
-  readonly sockets?: FakeSockets;
   readonly fetch?: (request: Request) => Promise<Response>;
 }
 
@@ -80,7 +77,6 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
     sha256Hex: async (bytes) =>
       await Promise.resolve(createHash("sha256").update(bytes).digest("hex")),
     storage,
-    WebSocket: options.sockets?.WebSocket ?? null,
   });
   return { network, runtime, storage };
 };
@@ -302,7 +298,7 @@ describe("the phone's runtime", () => {
 
     // and a refusal it hears later still ends the sign-in
     cell.signOut();
-    await expect(after.client.account.socketTicket()).rejects.toThrow(/sign/u);
+    await expect(after.client.library.changes({})).rejects.toThrow(/sign/u);
     await expect
       .poll(() => runtime.session.get())
       .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
@@ -344,28 +340,14 @@ describe("the phone's runtime", () => {
 
   it("does nothing on a return to the front while signed out", async () => {
     const keys = fakePhoneAuth();
-    const sockets = fakeSockets();
-    const { runtime } = runtimeOver(createFakeCell(), { keys, sockets });
+    const cell = createFakeCell();
+    const { runtime } = runtimeOver(cell, { keys });
     await runtime.start();
     runtime.setReach({ front: false });
     runtime.setReach({ front: true });
-    expect(keys.calls).toStrictEqual([]);
-    expect(sockets.sockets).toStrictEqual([]);
-  });
-
-  it("dials no socket while the app is away, and one once it is back", async () => {
-    const sockets = fakeSockets();
-    const { runtime } = runtimeOver(createFakeCell(), {
-      keys: fakePhoneAuth(KEPT_SESSION),
-      sockets,
-    });
-    runtime.setReach({ front: false });
-    await runtime.start();
     await delay(20);
-    expect(sockets.sockets).toStrictEqual([]);
-
-    runtime.setReach({ front: true });
-    await expect.poll(() => sockets.sockets.length).toBe(1);
+    expect(keys.calls).toStrictEqual([]);
+    expect(cell.calls).toStrictEqual([]);
   });
 
   it("is signed out of a sign-in the cloud ended though its copy would not go, and clears it at the next launch", async () => {
@@ -373,14 +355,13 @@ describe("the phone's runtime", () => {
     const keys = fakePhoneAuth(KEPT_SESSION);
     const memory = memoryFolder();
     const folder = refusingOnce(memory);
-    const sockets = fakeSockets();
-    const first = runtimeOver(cell, { folder: folder.port, keys, sockets });
+    const first = runtimeOver(cell, { folder: folder.port, keys });
     await first.runtime.start();
     await memory.write("cached", new Uint8Array([1, 2, 3]));
 
     cell.signOut();
     folder.refuseNext();
-    await expect(signedIn(first.runtime).client.account.socketTicket()).rejects.toThrow(/sign/u);
+    await expect(signedIn(first.runtime).client.library.changes({})).rejects.toThrow(/sign/u);
     await expect
       .poll(() => first.runtime.session.get())
       .toStrictEqual({
@@ -390,8 +371,8 @@ describe("the phone's runtime", () => {
     expect(keys.held()).toBe(KEPT_SESSION);
     expect(memory.held()).toStrictEqual(["cached"]);
 
-    // the socket's ticket is the next launch's first call, which hears the refusal
-    const again = runtimeOver(cell, { folder: memory, keys, sockets });
+    // what moved is the next launch's first call, which hears the refusal
+    const again = runtimeOver(cell, { folder: memory, keys });
     await again.runtime.start();
     await expect
       .poll(() => again.runtime.session.get())
@@ -417,48 +398,53 @@ describe("the phone's runtime", () => {
   });
 });
 
-// a phone whose socket is open, each query it may ask again held, and which of them it now asks
-const socketPhone = async () => {
-  const sockets = fakeSockets();
-  const { runtime } = runtimeOver(createFakeCell(), { keys: fakePhoneAuth(KEPT_SESSION), sockets });
+afterEach(() => {
+  focusManager.setFocused(undefined);
+});
+
+// a phone open on the account's library, a note's read held, the items each answer named, and how
+// often it asked what moved
+const askingPhone = async () => {
+  const cell = createFakeCell();
+  await noteOnTheMac(cell);
+  const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION) });
+  // the root's provider mounts the client, which is what lets a return to the front ask
+  runtime.queryClient.mount();
   await runtime.start();
-  // the next socket the phone dials, opened
-  const opened = async () => {
-    const dialled = sockets.sockets.length;
-    await expect.poll(() => sockets.sockets.length).toBe(dialled + 1);
-    const live = sockets.sockets.at(-1);
-    live?.open();
-    return live;
-  };
-  const socket = await opened();
-  const { queries } = signedIn(runtime);
+  const asks = (): number => cell.calls.filter((call) => call === "phone library/changes").length;
+  await expect.poll(asks).toBe(1);
+  const library = signedIn(runtime);
+  const moved: (ReadonlySet<string> | null)[] = [];
+  library.onItems((items) => {
+    moved.push(items);
+  });
   // a note's read, filed as the cache files it whatever the query reads
-  const read: QueryKey = queries.library.items.get.queryKey({ input: { id: NOTE } });
+  const read: QueryKey = library.queries.library.items.get.queryKey({ input: { id: NOTE } });
   runtime.queryClient.setQueryData(read, "held");
   const asked = (): boolean => runtime.queryClient.getQueryState(read)?.isInvalidated === true;
-  return { asked, opened, runtime, socket };
+  return { asked, asks, cell, moved, runtime };
 };
 
-describe("the account's socket on the phone", () => {
-  it("asks everything again once the app is back in front, since a write may have landed unsaid", async () => {
-    const { asked, opened, runtime } = await socketPhone();
-    runtime.setReach({ front: false });
+describe("what moved, as the phone asks it", () => {
+  it("asks once its library opens, and again as the app comes back in front, reading again what another device changed", async () => {
+    const { asked, asks, cell, moved } = await askingPhone();
+    focusManager.setFocused(false);
+    await cell.device("mac").client.library.items.organize({ ids: [NOTE], title: "Later" });
     expect(asked()).toBe(false);
-    runtime.setReach({ front: true });
-    await opened();
-    expect(asked()).toBe(true);
+
+    focusManager.setFocused(true);
+    await expect.poll(asks).toBe(2);
+    await expect.poll(asked).toBe(true);
+    expect(moved).toStrictEqual([new Set([NOTE])]);
   });
 
-  it("lets the reply being written go when the app goes behind", async () => {
-    const { runtime, socket } = await socketPhone();
-    const { previews } = signedIn(runtime);
-    const thread = "0190a000-0000-7000-8000-0000000000c1";
-
-    socket?.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
-    expect(previews.get(thread)).toBe("Filing");
-    runtime.setReach({ front: false });
-    expect(socket?.closed).toBe(true);
-    expect(previews.get(thread)).toBeNull();
+  it("stops asking once signed out", async () => {
+    const { asks, runtime } = await askingPhone();
+    await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await delay(20);
+    expect(asks()).toBe(1);
   });
 });
 

@@ -1,5 +1,5 @@
-// The agent's conversations as every device reads them, under oRPC's own keys, so the account's
-// socket reads them again by the keys it invalidates (`./library-cache`).
+// The agent's conversations as every device reads them, under oRPC's own keys, so an answer of what
+// moved reads them again by the keys it invalidates (`./library-cache`).
 
 import { PAGE_MAX } from "@repo/contract/library/library-wire";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";

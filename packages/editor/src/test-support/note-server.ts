@@ -9,7 +9,7 @@ import { vi } from "vitest";
 import * as sync from "y-protocols/sync";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/note-socket";
 
 // y-partyserver's message types
 const MESSAGE_SYNC = 0;

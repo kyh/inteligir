@@ -2,13 +2,11 @@
 // in-memory link, recording each call, so a screen runs on what it runs on in the tab. A call
 // reaches the fake cell (`@repo/contract/test-support/fake-cell`) unless the suite answers it
 // itself; the account's threads and their events are answered from what the suite hands it, and
-// the account's socket is one the suite speaks for. A screen drawn on it presses spies for
-// commands, so its suite says which press it made and runs none.
+// nothing asks what moved. A screen drawn on it presses spies for commands, so its suite says which
+// press it made and runs none.
 
 import { createORPCClient, DynamicLink } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { createThreadPreviews } from "@repo/client/library-cache";
-import type { ItemsMoved, ThreadPreviews } from "@repo/client/library-cache";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
@@ -42,8 +40,8 @@ const unread = (): never => {
   throw new Error("this screen's suite holds no such part of the page library");
 };
 
-const nothingToClose = (): void => {
-  // the suite's socket dials nothing
+const nothingToStop = (): void => {
+  // the suite's library asks nothing on a beat
 };
 
 // one value, since the layout reads it through useSyncExternalStore
@@ -51,29 +49,9 @@ const LIVE = { kind: "live" } as const;
 
 const eventsInput = z.object({ after: z.number().optional(), threadId: z.string() });
 
-const listeners = <T,>() => {
-  const held = new Set<(value: T) => void>();
-  return {
-    add: (listener: (value: T) => void) => {
-      held.add(listener);
-      return () => {
-        held.delete(listener);
-      };
-    },
-    tell: (value: T) => {
-      for (const listener of held) {
-        listener(value);
-      }
-    },
-  };
-};
-
 export interface FakeLibrary {
   readonly library: PageLibrary;
   readonly calls: CellCall[];
-  // what the account's socket says moved, and of the reply being written
-  readonly moved: (moved: ItemsMoved) => void;
-  readonly preview: ThreadPreviews["hear"];
 }
 
 export const fakePageLibrary = ({
@@ -114,26 +92,17 @@ export const fakePageLibrary = ({
       return held === undefined ? cellLink : { call: async () => await Promise.resolve(held) };
     }),
   );
-  const items = listeners<ItemsMoved>();
-  const previews = createThreadPreviews();
   return {
     calls,
     library: {
       account: { email: "person@example.com", name: "" },
+      changes: { start: () => nothingToStop },
       cloud: { fetch: unread, onSessionEnd: unread, origin: "https://library.test" },
       left: unread,
       session: { get: () => LIVE, subscribe: () => () => {} },
-      socket: {
-        close: nothingToClose,
-        connect: nothingToClose,
-        onItems: items.add,
-        previews,
-      },
       wire: { client, orpc: createTanstackQueryUtils(client) },
       workspace: createWorkspaceStore(),
     },
-    moved: items.tell,
-    preview: previews.hear,
   };
 };
 

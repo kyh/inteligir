@@ -1,7 +1,7 @@
 // An item's note over its own socket: one document kept in step with the note's object by
 // y-protocols' sync, as y-partyserver's server speaks it, and the words the two say beside it. The
-// socket is a live socket (`@repo/client/live-socket`) at the note's path on the cloud's origin, on
-// the account socket's ticket, kept alive by the ping the object answers without waking. Each socket
+// socket is a live socket (`./live-socket`) at the note's path on the cloud's origin, on a ticket
+// the host asks for, kept alive by the ping the object answers without waking. Each socket
 // syncs afresh: this device's state goes as it opens and the note's answer brings what it lacks, an
 // edit made here goes on the open socket, and one made while none is goes with the next sync.
 
@@ -10,14 +10,16 @@ import * as encoding from "lib0/encoding";
 import * as sync from "y-protocols/sync";
 import type * as Y from "yjs";
 
-import { createLiveSocket } from "@repo/client/live-socket";
-import type { Frame, LiveSocket, Reach, WebSocketClass } from "@repo/client/live-socket";
 import {
   NOTE_SOCKET,
   notePath,
   noteWordFrame,
   socketUrl,
-} from "@repo/contract/library/library-socket";
+} from "@repo/contract/library/note-socket";
+import type { Reach } from "@repo/editor/host-io";
+
+import { createLiveSocket } from "./live-socket";
+import type { Frame, LiveSocket, WebSocketClass } from "./live-socket";
 
 export const PING_EVERY_MS = 20_000;
 export const PONG_WITHIN_MS = 5000;

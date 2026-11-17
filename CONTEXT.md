@@ -19,7 +19,7 @@ that reach it.
 `LibraryDO` (`packages/service/src/library/library-do.ts`), named only from a
 verified **principal** or by what the cell itself gave out. It holds the
 items' fields, a **seed** for each body no note holds yet, folders, tags,
-links, threads, change sets and the account's sockets, and every `/v1` library
+links, threads and change sets, and every `/v1` library
 call and every **connector** call reaches it; a note's body is its **note
 object**'s. R2 holds the bytes it names by hash, and D1 only the accounts. Not
 what a device shows: a device keeps at most a cache of what it last read.
@@ -71,7 +71,7 @@ holds it only while the note's socket is open, and no presence crosses it.
 
 **note object** — `NoteDO`, one Durable Object per item holding its **live
 document** (`packages/service/src/note/note-do.ts`), reached by a device on
-the account socket's **ticket** and by the agent through the cell, by block id.
+a **ticket** and by the agent through the cell, by block id.
 Its first load takes the cell's **seed**, and each save pushes a
 **projection**. Its standing is open, full or gone
 (`packages/service/src/note/note-standing.ts`): a full note opens read-only, as
@@ -95,26 +95,23 @@ it, from which Undo this turn takes the turn back as a forward edit, keeping
 every later edit (`packages/service/src/note/turn-log.ts`). Not a version
 history: it holds only agent turns.
 
-**account socket** — the one socket a device holds to its account's cell:
-opened on a **ticket**, kept alive by the cell's ping, redialled on a growing
-wait when it drops, and read again whole each time it comes up
-(`@repo/client/account-socket`), a live socket as each note's is
-(`@repo/client/live-socket`). It carries **moved frames** and `preview`
-frames, the reply the agent is writing, which no read answers. Its frames are
-the contract's (`@repo/contract/library/library-socket`).
+**head** — the sequence an account's library last took: every write takes the
+next and stamps each row it touches with it, so the rows past a head are what
+moved since (`packages/db/src/library-schema.ts`).
+
+**what moved** — `library.changes`' answer to a device holding a **head**: the
+library's head now, and which items moved past the one sent and at which
+sequence, whether a folder moved, and which threads, a long list saying "all"
+(`packages/service/src/library/library-changes.ts`). A device asks every 15 s
+while in front and at once on focus and reconnect, its first ask learning the
+head alone (`@repo/client/library-changes`), and asks again for what it shows
+of those (`@repo/client/library-cache`). A hint, never the state: an answer
+carries no row, so one missed loses nothing.
 
 **ticket** — the minute-long pass an authenticated `/v1` call mints for its
-**principal**, which opens the **account socket** and a note's socket, since a
-browser's socket carries no header
-(`packages/service/src/library/socket-ticket.ts`). Not a credential a device
-keeps.
-
-**moved frame** — the **account socket**'s word that a write committed: which
-items it moved and at which sequence, whether a folder moved, and which
-threads, a long list saying "all" (`packages/service/src/library/cell-moved.ts`).
-A device asks again for what it shows of those
-(`@repo/client/library-cache`). A hint, never the state: a frame carries no
-row, so one missed loses nothing.
+**principal**, which opens a note's socket, since a browser's socket carries no
+header (`packages/service/src/library/socket-ticket.ts`). Not a credential a
+device keeps.
 
 **waiting save** — a save a device keeps before its first call and sends until
 the cloud answers it, through a relaunch too. One queue

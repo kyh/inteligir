@@ -99,8 +99,8 @@ catalog:
   mdast-util-to-markdown: ^2.2.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
-  # exact: every socket to the cloud redials on it (`@repo/client/live-socket`), so the tab and the
-  # phone share one copy
+  # exact: a note's socket redials on it (`packages/editor/src/item/live-socket.ts`), so the tab and
+  # the phone share one copy
   partysocket: 1.3.0
   next: ^16.4.6
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between

@@ -1,10 +1,9 @@
 // The composition root's native half: composeRuntime bound to Better Auth's Expo client over the
-// Keychain, expo-sqlite's key-value store, the file folder, the global fetch, React Native's socket
-// and the OS's app state, built once for the app's life. A screen reaches the library through the hooks in
+// Keychain, expo-sqlite's key-value store, the file folder, the global fetch and the OS's app state,
+// built once for the app's life. A screen reaches the library through the hooks in
 // library-hooks.ts, over TanStack Query, whose online state is the network's and whose focus is
-// the app's.
+// the app's, which is what moved asks by.
 
-import "./socket-globals";
 import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/client";
@@ -105,7 +104,6 @@ const build = (): AppRuntime => {
     newId: () => uuidV7(Date.now(), Crypto.getRandomBytes(16)),
     sha256Hex,
     storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
-    WebSocket,
   });
   // never removed: the runtime lives as long as the app. `inactive` is a passing state on iOS (a
   // pulled-down notification centre), not a departure.

@@ -1,12 +1,11 @@
 // The screens' reads of the account's library, each a TanStack Query over the cell's own rows, kept
-// on the phone between launches so what was last read shows offline, and asked again whenever the
-// socket says it moved: an item whole, the conversations and a thread's events; the reply the agent
-// is writing from the socket, and a file's address from the file cache; and Move to Deleted, the
-// one write two screens make. The signed-in library comes down through one context the root
+// on the phone between launches so what was last read shows offline, and asked again whenever an
+// answer of what moved names it: an item whole, the conversations and a thread's events; a file's
+// address from the file cache; and Move to Deleted, the one write two screens make. The signed-in library comes down through one context the root
 // provides, so no screen holds a runtime of its own.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, use, useSyncExternalStore } from "react";
+import { createContext, use } from "react";
 import { Alert } from "react-native";
 import { threadQueries } from "@repo/client/thread-queries";
 import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
@@ -92,12 +91,6 @@ export const useTitles = (): ReadonlyMap<string, string> => {
   const { queries } = useLibrary();
   const { data } = useQuery(queries.library.listing.titles.queryOptions());
   return new Map(data?.targets.map(({ id, title }) => [id, title]));
-};
-
-// the reply the agent is writing in `threadId`, as the socket carries it
-export const usePreview = (threadId: string): string | null => {
-  const { previews } = useLibrary();
-  return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
 };
 
 // where a file draws from on this phone, whole or as a card's cover: undefined while it is asked

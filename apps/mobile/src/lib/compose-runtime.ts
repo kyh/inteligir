@@ -1,10 +1,10 @@
 // The platform-free half of the composition root: app-runtime.ts binds it to Better Auth's Expo
-// client, the phone's key-value store, its file folder, the global fetch, React Native's socket and
-// the OS, so every move between signed in and signed out runs under test.
+// client, the phone's key-value store, its file folder, the global fetch and the OS, so every move
+// between signed in and signed out runs under test.
 //
 // Signed in, the phone reads the account's library from the cloud through TanStack Query, whose
-// cache the app keeps between launches, so what was last read shows offline; the account's socket
-// says what each write moved, and the queries showing it ask again. A save goes at once, and a share
+// cache the app keeps between launches, so what was last read shows offline; it asks what moved
+// while it is in front (`@repo/client/library-changes`), and the queries showing that ask again. A save goes at once, and a share
 // waits in its outbox until the cloud takes it. A sign-in starts the cache, the files and the shares
 // over, since they may be another account's; a relaunch keeps them. A sign-out, a session ended
 // elsewhere and a deleted account clear them; a build the cloud no longer takes keeps everything
@@ -15,9 +15,9 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientProviderProps } from "@tanstack/react-query-persist-client";
-import type { WebSocketClass } from "@repo/client/live-socket";
-import { createLibrarySocket, retryUnlessRefused } from "@repo/client/library-cache";
-import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/library-cache";
+import { retryUnlessRefused } from "@repo/client/library-cache";
+import type { ItemsMoved } from "@repo/client/library-cache";
+import { createLibraryChanges } from "@repo/client/library-changes";
 import type { KvStorage } from "@repo/client/waiting-saves";
 import { clientBuildValue } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
@@ -42,7 +42,8 @@ import { downloadBlob, phoneTransport } from "./phone-transport";
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 const FRESH_MS = 30_000;
 const CACHE_KEY = "library-cache";
-// a cache that changes in a burst (a page of covers, a socket's frames) is written once for it
+// a cache that changes in a burst (a page of covers, what one answer of what moved reads again) is
+// written once for it
 const CACHE_WRITE_MS = 1000;
 
 export interface ComposeRuntimeArgs {
@@ -54,8 +55,6 @@ export interface ComposeRuntimeArgs {
   readonly folder: FileFolder;
   // the global fetch, which every `/v1` call rides
   readonly fetch: (request: Request) => Promise<Response>;
-  // the platform's WebSocket; null keeps the phone on its focus and reconnect refetches alone
-  readonly WebSocket: WebSocketClass | null;
   // a fresh UUIDv7, which an item's id and an op id both are
   readonly newId: () => string;
   readonly newBlockId: () => string;
@@ -70,10 +69,8 @@ export interface PhoneLibrary {
   readonly files: FileCache;
   readonly saves: PhoneSaves;
   readonly shares: ShareOutbox;
-  // the reply the agent is writing, as the socket carries it
-  readonly previews: ThreadPreviews;
-  // the items a write moved, as the socket says, or null when any may have: an open note's page
-  // reads again what it shows of them
+  // the items a write moved, as an answer of what moved names them, or null when any may have: an
+  // open note's page reads again what it shows of them
   readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
   // a fresh op id for a write a screen makes
   readonly newId: () => string;
@@ -97,11 +94,11 @@ export type LogoutOutcome =
   | { readonly kind: "failed"; readonly message: string };
 
 // where this runtime's sign-in stands, which the screens read as a session: signed in is its
-// library open, with its socket, or a leave under way, whose outcome a sign-out asked meanwhile
-// waits for and whose library the screens keep until its copy is gone
+// library open, asking what moved until `stopAsking`, or a leave under way, whose outcome a
+// sign-out asked meanwhile waits for and whose library the screens keep until its copy is gone
 type State =
   | Exclude<PhoneSession, { readonly kind: "signed-in" }>
-  | { readonly kind: "open"; readonly library: PhoneLibrary; readonly socket: LibrarySocket }
+  | { readonly kind: "open"; readonly library: PhoneLibrary; readonly stopAsking: () => void }
   | {
       readonly kind: "leaving";
       readonly library: PhoneLibrary;
@@ -123,8 +120,8 @@ export interface AppRuntime {
   readonly start: () => Promise<void>;
   // refuses while shares wait, unless told to discard them
   readonly logout: (options?: { readonly discardWaiting?: boolean }) => Promise<LogoutOutcome>;
-  // whether the app is in front and online: while it is not the socket is let go, and each return
-  // dials it, sends the shares waiting and asks the session
+  // whether the app is in front and online: each return sends the shares waiting and asks the
+  // session
   readonly reach: ReadableStore<boolean>;
   // either half, as the OS says it
   readonly setReach: (fact: { readonly front?: boolean; readonly online?: boolean }) => void;
@@ -149,11 +146,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     throttleTime: CACHE_WRITE_MS,
   });
 
-  // the state's one writer: a library that stops being open lets its socket go, and the screens
-  // hear of every move but one that keeps the library they hold
+  // the state's one writer: a library that stops being open stops asking what moved, and the
+  // screens hear of every move but one that keeps the library they hold
   const move = (next: State): void => {
     if (state.kind === "open") {
-      state.socket.close();
+      state.stopAsking();
     }
     state = next;
     const before = session.get();
@@ -298,29 +295,18 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       storage: args.storage,
     });
     await shares.load();
-    const socket = createLibrarySocket({
-      client,
-      origin: args.cloudUrl,
-      queries,
-      queryClient,
-      reach,
-      WebSocket: args.WebSocket ?? undefined,
-    });
+    const changes = createLibraryChanges({ client, queries, queryClient });
     const made: PhoneLibrary = {
       client,
       files,
       newId: args.newId,
-      onItems: socket.onItems,
-      previews: socket.previews,
+      onItems: changes.onItems,
       queries,
       saves,
       shares,
     };
     library = made;
-    move({ kind: "open", library: made, socket });
-    if (args.WebSocket !== null) {
-      socket.connect();
-    }
+    move({ kind: "open", library: made, stopAsking: changes.start() });
     void shares.flush();
   };
 

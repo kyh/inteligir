@@ -52,7 +52,6 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
     sha256Hex: async (bytes) =>
       await Promise.resolve(changedBytes ? sha256(Uint8Array.of(0)) : sha256(bytes)),
     storage: memoryKv(),
-    WebSocket: null,
   });
   await runtime.start();
   await runtime.login.login({ email: "ada@example.com", password: "a long password" });

@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { Page, WebSocketRoute } from "@playwright/test";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
-import { V1_NOTES_PATH } from "@repo/contract/library/library-socket";
+import { V1_NOTES_PATH } from "@repo/contract/library/note-socket";
 import { EDITOR, newId, openLibrary, test, typeAfter, upload } from "./fixtures";
 
 const PIXEL = Buffer.from(
@@ -208,6 +208,23 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await page.getByRole("button", { name: "Delete forever" }).click();
   await expect(page.getByText("Nothing deleted")).toBeVisible();
   await expect.poll(async () => await library.listing.scopes()).toMatchObject({ deleted: 0 });
+});
+
+// the tab learns of it by asking what moved, on its beat
+test("a write from another device appears", async ({ cloud, library, page }) => {
+  await openLibrary(page, cloud);
+  await expect(page.getByRole("grid", { name: "Library" }).getByRole("gridcell")).toHaveCount(0);
+
+  await library.items.create({
+    blocks: [],
+    folderId: null,
+    id: newId(),
+    opId: newId(),
+    savedAt: Date.now(),
+    tags: [],
+    title: "Written elsewhere",
+  });
+  await expect(cardOf(page, "Written elsewhere")).toBeVisible({ timeout: 20_000 });
 });
 
 // the note's socket is cut while the browser still says it is online, so what is typed before the

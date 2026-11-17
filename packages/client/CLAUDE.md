@@ -6,14 +6,14 @@ say one thing of one library.
 
 ## The library on a device
 
-- **Every socket to the cloud is one live socket, partysocket's, and only its keepalive and its
-  gate on the host's `Reach` are ours.** The account's and each note's differ by address, beat and
-  backoff alone; its ticket is the URL provider and its redial partysocket's, since a second redial
-  machine is ours forever, and it subscribes to the reach itself, since a host that pushes each edge
-  holds a second copy. `packages/client/src/live-socket.ts`.
-- **One module says what a frame reads again, for the tab and the phone alike.** An item's read goes
-  again only when the copy held is older than the frame's sequence, and a thread's by its key, since
-  a copy per device drifts. `packages/client/src/library-cache.ts`.
+- **A device learns what moved by asking `library.changes` for what moved after the head it
+  holds: one query observer, every 15 s while in front, at once on focus and reconnect.** Its beat,
+  focus and reconnect are TanStack's own, so the host drives one focus and one online manager; the
+  cloud holds no socket, and refetching every screen instead reads the whole library each time and
+  never tells an open note its item moved. `packages/client/src/library-changes.ts`.
+- **One module says what an answer of what moved reads again, for the tab and the phone alike.** An
+  item's read goes again only when the copy held is older than the answer's sequence, and a
+  thread's by its key, since a copy per device drifts. `packages/client/src/library-cache.ts`.
 
 ## A save that waits
 
@@ -38,9 +38,7 @@ say one thing of one library.
 - **A conversation is read once, in order, and each approval and call has one state.**
   `conversationOf` is every device's one way in, since a set of answered calls over the whole thread
   hides an ask its answer arrives before. `packages/client/src/thread-entries.ts`.
-- **A thread's read is spelled once, beside the socket that reads it again.** Its events are one
-  query that asks only for what came after the last one held, since a paged copy downloads the
-  whole conversation on every frame of a turn. `packages/client/src/thread-queries.ts`.
-- **The reply being written goes when the read that brings its stored message lands.** A preview
-  let go on the frame leaves neither text on screen for a round trip, and one the agent wrote
-  more of meanwhile is the next message's. `packages/client/src/library-cache.ts`.
+- **A thread's read is spelled once, under the key an answer of what moved reads it again by.**
+  Its events are one query that asks only for what came after the last one held, since a paged
+  copy downloads the whole conversation each time its thread moves.
+  `packages/client/src/thread-queries.ts`.

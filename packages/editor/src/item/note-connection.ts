@@ -1,5 +1,5 @@
 // A note's live document, opened by its item's id: its socket (`./note-socket`) dials the note's
-// object at the cloud origin the host names, on the account socket's ticket, and a document is shown
+// object at the cloud origin the host names, on a ticket the host asks for, and a document is shown
 // only once it has synced, so a device never seeds a note. While the host cannot reach the cloud
 // nothing dials and no ticket is asked, and a page shown again pings at once. One step moves the
 // connection from state to state, and the socket, the grace and the listeners follow the state it
@@ -7,7 +7,7 @@
 
 import * as Y from "yjs";
 
-import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET } from "@repo/contract/library/note-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";

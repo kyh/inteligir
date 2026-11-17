@@ -103,10 +103,10 @@ arrive as `unknown` and become domain values there alone.
   device seeds a note and a socket down past 3 s turns the editor read-only, since block ops after
   a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
   table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
-- **A note's socket is the account's live socket at the note's path, and its document syncs by
-  y-protocols over it.** y-partyserver's provider brings a second redial machine of its own, so
-  only the server is y-partyserver's, and both ends frame with one y-protocols.
-  `packages/editor/src/item/note-socket.ts`.
+- **A note's socket is partysocket's, gated on the host's reach and kept alive by our ping, and
+  its document syncs by y-protocols over it.** y-partyserver's provider brings a second redial
+  machine of its own, so only the server is y-partyserver's, and both ends frame with one
+  y-protocols. `packages/editor/src/item/note-socket.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
   `readItemBlocks` and `notes` take ids, and `fileSrc` and `readFile` a sha, since paths a host
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
@@ -146,7 +146,7 @@ arrive as `unknown` and become domain values there alone.
   both sides apart.** A block one side changed takes that side's, an edit beats a drop, and the
   order is theirs unless only this side moved blocks, since a whole-body overwrite loses someone's
   words. `packages/editor/src/headless/body/merge-blocks.ts`.
-- **The editor, `@repo/ui` and the live socket reach no oRPC module.** Expo's DOM bundle compiles
+- **The editor and `@repo/ui` reach no oRPC module.** Expo's DOM bundle compiles
   classes to functions and oRPC's builder dies under that at boot while typecheck stays green, so
   lint refuses `@orpc/*` and `@repo/contract/rpc/`, the contract's one folder that reaches it.
   `oxlint.config.ts`.

@@ -1,6 +1,6 @@
 // The account's procedures, on `/v1/rpc/account`: the account's devices, each a signed-in session,
-// its deletion, the ticket its socket opens with and the assistants it has let in. Signing in and
-// out is Better Auth's own, on `/api/auth`.
+// its deletion, the ticket a note's socket opens with and the assistants it has let in. Signing in
+// and out is Better Auth's own, on `/api/auth`.
 
 import { z } from "zod";
 
@@ -37,8 +37,8 @@ export const accountContract = {
     .input(deleteAccountRequestSchema)
     .output(deleteAccountResponseSchema),
 
-  // a short-lived ticket the account's socket opens with, since a browser's socket carries no
-  // header the session could ride
+  // a short-lived ticket a note's socket opens with (`../library/note-socket`), since a browser's
+  // socket carries no header the session could ride
   socketTicket: signedBase.output(
     z.object({ expiresAt: z.number().int().nonnegative(), ticket: z.string().min(1) }),
   ),

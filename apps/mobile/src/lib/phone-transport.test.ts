@@ -63,7 +63,7 @@ const sentWith = async (cookie: string | null): Promise<Request> => {
     },
     origin: "https://cloud.test",
   });
-  await transport.fetch(new Request("https://cloud.test/v1/rpc/account/socketTicket"));
+  await transport.fetch(new Request("https://cloud.test/v1/rpc/library/changes"));
   const [request] = sent;
   if (request === undefined) {
     throw new Error("the transport sent nothing");

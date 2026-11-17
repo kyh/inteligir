@@ -11,10 +11,8 @@ const PENDING_FILES = [
   "editor.spec.ts",
   "extension.spec.ts",
   "import.spec.ts",
-  "library.spec.ts",
   "note-links.spec.ts",
   "saving.spec.ts",
-  "search.spec.ts",
 ];
 const PENDING_TESTS = [
   // each lands in the library tab
@@ -22,6 +20,11 @@ const PENDING_TESTS = [
   "Settings waits offline, ends another device, turns the agent off, signs out and deletes",
   // the connector's routes
   "the connector's routes answer in their own protocol",
+  // each opens a file or a note
+  "the grid opens, narrows, previews, tags, deletes, files and follows the cell",
+  "Back and the tab's close ask before they lose typing no connection carried",
+  "a PDF item draws in the browser's own viewer",
+  "the palette finds exactly the items holding the words, a word typed a moment ago included",
 ];
 
 // a title, its every character literal, as Playwright's grep finds it in a test's full title

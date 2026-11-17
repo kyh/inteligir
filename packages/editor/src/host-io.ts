@@ -1,4 +1,3 @@
-import type { Reach } from "@repo/client/live-socket";
 import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
@@ -82,8 +81,15 @@ export interface EditorHostIo {
   readonly notes: NoteHost;
 }
 
+// whether the host can reach the cloud, and a listener told each time that changes: the network
+// alone in a tab, the app in front too on a phone
+export interface Reach {
+  readonly get: () => boolean;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
 // How a note's live document is reached (`item/note-connection.ts`): its socket dials the cloud's
-// origin, on the account socket's ticket.
+// origin, on a ticket the host asks the cloud for.
 export interface NoteHost {
   // the cloud's origin (`https://…`), named by the host, since a page loaded from a file or a dev
   // server has a location of its own

@@ -253,7 +253,7 @@ describe("an open link nobody named", () => {
 });
 
 describe("an open item's body", () => {
-  it("is its note's live document, dialled on the account socket's ticket, read-only offline", async () => {
+  it("is its note's live document, dialled on the ticket the cell mints, read-only offline", async () => {
     const { server } = await pageOverALiveNote();
 
     expect(server.sockets.map((socket) => socket.ticket)).toStrictEqual(["a-ticket"]);

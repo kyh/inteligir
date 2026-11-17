@@ -1,8 +1,7 @@
 // CLAUDE.md § The agent panel is the account's threads. The built-in agent's conversations, the
-// same on every device: the threads and their stored events come from the cell, read again as the
-// account's socket says they moved, the reply being written arrives on the socket as previews,
-// and a send, an answer to an approval, a stop and an undo go to the cell, so each waits for a
-// connection. A message carries the screen it was sent from (the open item, or the grid's scope and
+// same on every device: the threads and their stored events come from the cell, read again as an
+// answer of what moved names them, and a send, an answer to an approval, a stop and an undo go to
+// the cell, so each waits for a connection. A message carries the screen it was sent from (the open item, or the grid's scope and
 // selection).
 
 import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
@@ -34,7 +33,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
@@ -170,11 +169,6 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
   );
 };
 
-const useLivePreview = (threadId: string): string | null => {
-  const { previews } = usePageLibrary().socket;
-  return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
-};
-
 const onRefused = (cause: unknown): void => {
   toast.error(callRefusalWords(cause));
 };
@@ -231,7 +225,6 @@ const Conversation = ({
   const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
   const titles = useQuery(queries.titles()).data?.targets ?? [];
   const { blocks, waiting } = conversationOf(rows);
-  const preview = useLivePreview(threadId);
   const undoable = useQuery(queries.undoable(threadId)).data?.turns ?? [];
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   // a press names its conversation, so one that waits offline keeps to it whichever is open when
@@ -244,8 +237,8 @@ const Conversation = ({
       },
       onMutate: flushOpen,
       // awaited, so the queue holds every Undo down until the turns left to undo are read again:
-      // the socket's frame may land after the answer, and a press between the two would ask for
-      // what just went back
+      // what moved may be asked after the answer, and a press between the two would ask for what
+      // just went back
       onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.agent.undoable.key() });
       },
@@ -282,7 +275,6 @@ const Conversation = ({
             <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
           ),
         )}
-        {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
         {waiting.map((approval) => (
           <Approval
             key={approval.eventId}

@@ -28,7 +28,7 @@ interface NoteReports {
   readonly settled: (answer: Settled) => void;
 }
 
-// a signal native moves each time the account's socket says items moved: the ids, or null when any
+// a signal native moves each time an answer of what moved names items: the ids, or null when any
 // may have
 export interface MovedItems {
   readonly seq: number;

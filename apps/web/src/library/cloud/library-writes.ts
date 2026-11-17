@@ -359,8 +359,8 @@ export const libraryWrites = ({
         },
         onSettled: readAgain,
       }),
-    // a verb over every item a scope lists, which the cell lands after it answers: the socket
-    // says what moved as each lot lands
+    // a verb over every item a scope lists, which the cell lands after it answers: what moved
+    // names each lot as it lands
     sweep: () => orpc.library.items.sweep.mutationOptions({ scope: LIBRARY_WRITES }),
   };
 };

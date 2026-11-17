@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/note-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";

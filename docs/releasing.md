@@ -375,7 +375,7 @@ The unpacked store build, against production, with no dev build loaded.
 ### The library in a browser tab
 
 - **The production deploy**: `/library` with no policy error, a `?item=` deep
-  link, its assets and a 404; the account socket's 101 and ping/pong; a new cell
+  link, its assets and a 404; a write on another device showing within 20 s; a new cell
   schema starts the cell over; and the output says which deleted class may leave the
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave

@@ -1,8 +1,7 @@
 // One conversation with the built-in agent, drawn natively over the same logic the library's page
-// draws its panel with (`@repo/client`): the thread's stored events as the phone last read
-// them, so it reads offline, the reply being written from the socket, the approval waiting with Approve and
-// Cancel, each turn's ending in the person's words, and the composer, whose message carries the
-// item it was asked from. A send, an answer and a stop go to the cell, so each needs a connection
+// draws its panel with (`@repo/client`): the thread's stored events as the phone last read them,
+// so it reads offline, the approval waiting with Approve and Cancel, each turn's ending in the
+// person's words, and the composer, whose message carries the item it was asked from. A send, an answer and a stop go to the cell, so each needs a connection
 // and says so rather than wait for one; the day's allowance and an agent switched off are said as
 // the page says them.
 
@@ -29,13 +28,7 @@ import {
   workWords,
 } from "@repo/client/thread-entries";
 import type { ThreadBlock, WaitingApproval } from "@repo/client/thread-entries";
-import {
-  useLibrary,
-  usePreview,
-  useThreadEvents,
-  useThreads,
-  useTitles,
-} from "@/lib/library-hooks";
+import { useLibrary, useThreadEvents, useThreads, useTitles } from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { online } from "@/ui/needs-connection";
@@ -155,7 +148,6 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const rows = useThreadEvents(threadId) ?? [];
   const thread = useThreads()?.find((row) => row.id === threadId);
   const { blocks, waiting } = conversationOf(rows);
-  const preview = usePreview(threadId);
   const respond = useMutation(queries.library.agent.respond.mutationOptions());
   const cancel = useMutation(queries.library.agent.cancel.mutationOptions());
   const working = thread !== undefined && isWorking(thread.status);
@@ -167,9 +159,6 @@ const Conversation = ({ threadId }: { threadId: string }) => {
       {blocks.map((block, index) => (
         <Block key={block.key} block={block} live={working && index === blocks.length - 1} />
       ))}
-      {preview === null ? null : (
-        <Text className="text-16 text-foreground leading-[22px]">{preview}</Text>
-      )}
       {waiting.map((approval) => (
         <Approval
           key={approval.eventId}

@@ -1,202 +1,98 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryClient, QueryObserver } from "@tanstack/query-core";
+import { QueryClient } from "@tanstack/query-core";
 import type { QueryKey } from "@tanstack/query-core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { deferred } from "@repo/contract/deferred";
-import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 
-import { createLibrarySocket, createThreadPreviews, retryUnlessRefused } from "./library-cache";
-import type { ItemsMoved } from "./library-cache";
-import { fakeSockets } from "./test-support/fake-sockets";
+import { invalidateMoved, retryUnlessRefused } from "./library-cache";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
 const OTHER_THREAD = "0199a4c2-0000-7000-8000-0000000000e2";
 
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-// a device's socket over a cell holding two notes, open, with every query a screen reads held once
-const openSocket = async () => {
+// a device holding two notes and every query a screen reads, once each
+const heldReads = () => {
   const cell = createFakeCell();
   const note = cell.held(cell.seed.item({ title: "Note" }));
   const other = cell.held(cell.seed.item({ title: "Other" }));
-  const { client } = cell.device("tab");
-  const queries = createTanstackQueryUtils(client);
+  const queries = createTanstackQueryUtils(cell.device("tab").client);
   const { agent, items, listing } = queries.library;
   const queryClient = new QueryClient();
   const keys = {
     events: agent.events.queryKey({ input: { threadId: THREAD } }),
     note: items.row.queryKey({ input: { id: note.id } }),
     other: items.get.queryKey({ input: { id: other.id } }),
+    otherEvents: agent.events.queryKey({ input: { threadId: OTHER_THREAD } }),
     page: listing.page.queryKey({ input: { limit: 20, scope: { kind: "all" } } }),
     scopes: listing.scopes.queryKey(),
     threads: agent.list.queryKey({ input: {} }),
     titles: listing.titles.queryKey(),
     undoable: agent.undoable.queryKey({ input: { threadId: THREAD } }),
   } satisfies Record<string, QueryKey>;
-  const { sockets, WebSocket } = fakeSockets();
-  const socket = createLibrarySocket({
-    client,
-    origin: "https://library.test",
-    queries,
-    queryClient,
-    reach: { get: () => true, subscribe: () => vi.fn<() => void>() },
-    WebSocket,
-  });
-  const moved: ItemsMoved[] = [];
-  socket.onItems((ids) => {
-    moved.push(ids);
-  });
-  // the next socket dialled, opened, and every query a screen reads held after it came up
-  const opened = async () => {
-    await vi.advanceTimersByTimeAsync(1000);
-    const live = sockets.at(-1);
-    live?.open();
-    queryClient.setQueryData(keys.note, note);
-    queryClient.setQueryData(keys.other, other);
-    // each key as the cache files it, whatever the query reads
-    const held: readonly QueryKey[] = [
-      keys.events,
-      keys.page,
-      keys.scopes,
-      keys.threads,
-      keys.titles,
-      keys.undoable,
-    ];
-    for (const key of held) {
-      queryClient.setQueryData(key, "held");
-    }
-    return live;
-  };
-  socket.connect();
-  const first = await opened();
-  moved.length = 0;
-  const stale = (queryKey: QueryKey): boolean =>
-    queryClient.getQueryState(queryKey)?.isInvalidated ?? false;
+  queryClient.setQueryData(keys.note, note);
+  queryClient.setQueryData(keys.other, other);
+  // each key as the cache files it, whatever the query reads
+  const held: readonly QueryKey[] = [
+    keys.events,
+    keys.otherEvents,
+    keys.page,
+    keys.scopes,
+    keys.threads,
+    keys.titles,
+    keys.undoable,
+  ];
+  for (const key of held) {
+    queryClient.setQueryData(key, "held");
+  }
   return {
-    hear: (frame: LibrarySocketFrame) => {
-      sockets.at(-1)?.message(JSON.stringify(frame));
-    },
-    moved,
+    moved: (moved: Parameters<typeof invalidateMoved>[2]) =>
+      invalidateMoved(queries, queryClient, moved),
     note,
     other,
-    previews: socket.previews,
-    // a screen reading THREAD's events, whose next read lands when the suite says
-    screenReads: () => {
-      const read = deferred<string>();
-      const events: QueryKey = keys.events;
-      new QueryObserver(queryClient, {
-        queryFn: async () => await read.promise,
-        queryKey: events,
-        staleTime: Number.POSITIVE_INFINITY,
-      }).subscribe(() => {});
-      return read;
-    },
-    // the dropped socket's wait, and the next one up
-    redial: async () => {
-      await vi.advanceTimersByTimeAsync(1000);
-      sockets.at(-1)?.open();
-    },
-    socket: first,
     staleOf: () =>
       Object.entries(keys)
-        .filter(([, key]) => stale(key))
+        .filter(([, key]) => queryClient.getQueryState(key)?.isInvalidated === true)
         .map(([name]) => name)
         .toSorted(),
   };
 };
 
-describe("what the account's socket reads again", () => {
-  it("reads everything again each time it comes up, since a drop may have hidden a write", async () => {
-    const device = await openSocket();
-    device.socket?.drop();
-    expect(device.staleOf()).toStrictEqual([]);
-    await device.redial();
-    expect(device.staleOf()).toStrictEqual([
-      "events",
-      "note",
-      "other",
-      "page",
-      "scopes",
-      "threads",
-      "titles",
-      "undoable",
-    ]);
-    expect(device.moved).toStrictEqual([null]);
-  });
-
-  it("reads again an item it holds an older copy of, and what the library lists, and no more", async () => {
-    const { hear, moved, note, other, staleOf } = await openSocket();
-    hear({
+describe("what an answer of what moved reads again", () => {
+  it("reads again an item it holds an older copy of, and what the library lists, and no more", () => {
+    const { moved, note, other, staleOf } = heldReads();
+    const items = moved({
       folders: false,
       items: [
         { id: note.id, seq: note.seq + 1 },
         { id: other.id, seq: other.seq },
       ],
       threads: [],
-      type: "moved",
     });
     expect(staleOf()).toStrictEqual(["note", "page", "scopes", "titles"]);
-    expect(moved).toStrictEqual([new Set([note.id, other.id])]);
+    expect(items).toStrictEqual(new Set([note.id, other.id]));
   });
 
-  it("reads again the rail's scopes for a folder that moved, and a thread for its turn or its undo", async () => {
-    const { hear, moved, staleOf } = await openSocket();
-    hear({ folders: true, items: [], threads: [THREAD], type: "moved" });
+  it("reads again the rail's scopes for a folder that moved, and a thread for its turn or its undo", () => {
+    const { moved, staleOf } = heldReads();
+    expect(moved({ folders: true, items: [], threads: [THREAD] })).toStrictEqual(new Set());
     expect(staleOf()).toStrictEqual(["events", "scopes", "threads", "undoable"]);
-    expect(moved).toStrictEqual([]);
   });
 
-  it("reads every item again when a write moved more than a frame names", async () => {
-    const { hear, moved, staleOf } = await openSocket();
-    hear({ folders: false, items: "all", threads: [], type: "moved" });
-    expect(staleOf()).toStrictEqual(["note", "other", "page", "scopes", "titles"]);
-    expect(moved).toStrictEqual([null]);
-  });
-
-  it("holds the reply being written until the read its thread's write asks for lands", async () => {
-    const { hear, previews, screenReads, staleOf } = await openSocket();
-    const read = screenReads();
-    hear({ text: "Filing", threadId: THREAD, type: "preview" });
-    hear({ text: "Look", threadId: OTHER_THREAD, type: "preview" });
-    expect(staleOf()).toStrictEqual([]);
-    hear({ folders: false, items: [], threads: [THREAD, OTHER_THREAD], type: "moved" });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(previews.get(THREAD)).toBe("Filing");
-    // no screen reads the other thread, so no read is on its way to replace its reply
-    expect(previews.get(OTHER_THREAD)).toBeNull();
-    read.resolve("read again");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(previews.get(THREAD)).toBeNull();
-  });
-
-  it("keeps what the agent wrote while its thread was read again, until every thread moves", async () => {
-    const { hear, previews, screenReads } = await openSocket();
-    const read = screenReads();
-    hear({ text: "Filing", threadId: THREAD, type: "preview" });
-    hear({ folders: false, items: [], threads: [THREAD], type: "moved" });
-    hear({ text: "Filing the rest", threadId: THREAD, type: "preview" });
-    read.resolve("read again");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(previews.get(THREAD)).toBe("Filing the rest");
-    hear({ folders: false, items: [], threads: "all", type: "moved" });
-    expect(previews.get(THREAD)).toBeNull();
-  });
-
-  it("lets every reply being written go the moment it goes down", async () => {
-    const device = await openSocket();
-    device.hear({ text: "Filing", threadId: THREAD, type: "preview" });
-    device.socket?.drop();
-    expect(device.previews.get(THREAD)).toBeNull();
-    expect(device.staleOf()).toStrictEqual([]);
+  it("reads every item and every thread again when more moved than an answer names", () => {
+    const { moved, staleOf } = heldReads();
+    expect(moved({ folders: false, items: "all", threads: "all" })).toBeNull();
+    expect(staleOf()).toStrictEqual([
+      "events",
+      "note",
+      "other",
+      "otherEvents",
+      "page",
+      "scopes",
+      "threads",
+      "titles",
+      "undoable",
+    ]);
   });
 });
 
@@ -210,25 +106,5 @@ describe("a read that did not land", () => {
     expect(retryUnlessRefused(3, new TypeError("Failed to fetch"))).toBe(false);
     expect(retryUnlessRefused(0, defined("NOT_FOUND"))).toBe(false);
     expect(retryUnlessRefused(0, defined("UNAUTHORIZED"))).toBe(false);
-  });
-});
-
-describe("the reply being written", () => {
-  it("tells a screen only when a thread's text moved", () => {
-    const previews = createThreadPreviews();
-    let told = 0;
-    const unsubscribe = previews.subscribe(() => {
-      told += 1;
-    });
-    previews.hear({ text: null, threadId: null });
-    previews.hear({ text: "Filing", threadId: THREAD });
-    previews.hear({ text: "Filing", threadId: THREAD });
-    previews.hear({ text: null, threadId: OTHER_THREAD });
-    expect(told).toBe(1);
-    previews.hear({ text: null, threadId: null });
-    expect(told).toBe(2);
-    unsubscribe();
-    previews.hear({ text: "Filed", threadId: THREAD });
-    expect(told).toBe(2);
   });
 });

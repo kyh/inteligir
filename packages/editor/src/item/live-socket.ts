@@ -1,4 +1,4 @@
-// A socket this device keeps open to the cloud while it is wanted and the host reaches the cloud.
+// A note's socket (`./note-socket`) kept open while it is wanted and the host reaches the cloud.
 // partysocket dials, on an address carrying a short-lived ticket an authenticated call mints for
 // each try, as a browser's socket carries no header, and dials again on a growing wait; this holds
 // it closed while it is unwanted or the host cannot reach the cloud, and pings it on a beat, taking
@@ -7,15 +7,10 @@
 import ReconnectingWebSocket from "partysocket/ws";
 import { z } from "zod";
 
+import type { Reach } from "@repo/editor/host-io";
+
 // the platform's WebSocket, or a suite's
 export type WebSocketClass = new (url: string) => EventTarget;
-
-// whether the host can reach the cloud, and a listener told each time that changes: the network
-// alone in a tab, the app in front too on a phone
-export interface Reach {
-  readonly get: () => boolean;
-  readonly subscribe: (listener: () => void) => () => void;
-}
 
 // the ping the cloud answers without waking, its answer, how often it goes and how long the answer
 // may take
@@ -50,7 +45,7 @@ interface Backoff {
   readonly mostMs: number;
 }
 
-export interface LiveSocketArgs {
+interface LiveSocketArgs {
   // the socket's address with a fresh ticket in it, asked on every dial; a rejection is no address
   // this try, which waits and goes again
   readonly address: () => Promise<string>;

@@ -1,8 +1,8 @@
-// The page's library, handed to every screen through one context: the wire to the account's cell,
-// the account's socket that says what moved, wanted while the page shows the library, what the
-// host decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes),
-// and what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the workspace and
-// Settings, so Settings and back keeps the one socket.
+// The page's library, handed to every screen through one context: the wire to the account's
+// library, what asks what moved in it, asking while the page shows the library, what the host
+// decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes), and
+// what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the workspace and
+// Settings, so Settings and back keeps asking on one beat.
 
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { createContext, useContext, useEffect } from "react";
@@ -13,7 +13,7 @@ import type { LibraryQueries } from "./library-queries";
 import { libraryWrites } from "./library-writes";
 import type { LibraryWrites } from "./library-writes";
 import type { SignedIn } from "#lib/auth-client";
-import type { LibrarySocket } from "@repo/client/library-cache";
+import type { LibraryChanges } from "@repo/client/library-changes";
 import type { WorkspaceStore } from "../workspace-store";
 import type { CloudWire } from "./v1";
 
@@ -39,7 +39,7 @@ export interface PageLibrary {
   readonly wire: CloudWire;
   // `/v1` for the bytes the wire does not carry: a file a note names, an import's file
   readonly cloud: FileCloud;
-  readonly socket: LibrarySocket;
+  readonly changes: Pick<LibraryChanges, "start">;
   readonly session: TabSessionStore;
   readonly workspace: WorkspaceStore;
   // this device has left its account: the host's next screen
@@ -67,10 +67,7 @@ export const PageLibraryProvider = ({
   library: PageLibrary;
   children: React.ReactNode;
 }) => {
-  const { socket } = library;
-  useEffect(() => {
-    socket.connect();
-    return socket.close;
-  }, [socket]);
+  const { changes } = library;
+  useEffect(() => changes.start(), [changes]);
   return <PageLibraryContext value={library}>{children}</PageLibraryContext>;
 };
