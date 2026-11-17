@@ -5,7 +5,8 @@
 
 import postgres from "postgres";
 import { afterAll, inject } from "vitest";
-import { cloneName, withDatabase } from "./test-database";
+import { withDatabase } from "./run-databases";
+import { cloneName } from "./test-database";
 
 const databases = inject("testDatabases");
 

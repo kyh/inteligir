@@ -4,11 +4,11 @@
 // file a clone of it. Every database a run makes is named `<name>__<run>…`, so two runs at once
 // (turbo runs each workspace's suites side by side) never touch each other's.
 
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { describe } from "vitest";
 import type { TestProject } from "vitest/node";
+import { dropDatabases, pushSchema, withDatabase } from "./run-databases";
 
 interface TestDatabases {
   /** the server's own `postgres` database, where the run's are made and dropped */
@@ -33,12 +33,6 @@ const configured = testUrl !== undefined && testUrl !== "";
 
 export const dbSuite = describe.skipIf(!configured);
 
-export const withDatabase = (url: string, database: string): string => {
-  const parsed = new URL(url);
-  parsed.pathname = `/${encodeURIComponent(database)}`;
-  return parsed.toString();
-};
-
 export const cloneName = (databases: TestDatabases): string =>
   `${databases.prefix}${randomUUID().replaceAll("-", "").slice(0, 12)}`;
 
@@ -54,25 +48,6 @@ const testDatabasesOf = (url: string): TestDatabases => {
   return { adminUrl: withDatabase(url, "postgres"), prefix, template: `${prefix}template` };
 };
 
-const dbRoot = new URL("..", import.meta.url);
-
-const pushInto = (url: string): void => {
-  try {
-    execFileSync("pnpm", ["run", "--silent", "push"], {
-      cwd: dbRoot,
-      encoding: "utf-8",
-      // set both: drizzle.config.ts prefers the non-pooling URL, and push's env files never
-      // override a variable already set
-      env: { ...process.env, POSTGRES_URL: url, POSTGRES_URL_NON_POOLING: url },
-      stdio: "pipe",
-    });
-  } catch (error) {
-    throw new Error("The schema did not push into the suites' template database.", {
-      cause: error,
-    });
-  }
-};
-
 const setup = async (project: TestProject) => {
   if (!configured) {
     project.provide("testDatabases", null);
@@ -81,18 +56,13 @@ const setup = async (project: TestProject) => {
   const databases = testDatabasesOf(testUrl);
   const admin = postgres(databases.adminUrl, { max: 1 });
   const dropRun = async () => {
-    const left = await admin<{ datname: string }[]>`
-      select datname from pg_database where starts_with(datname, ${databases.prefix})
-    `;
-    for (const { datname } of left) {
-      await admin`drop database if exists ${admin(datname)} with (force)`;
-    }
+    await dropDatabases(admin, databases.prefix);
     await admin.end();
   };
 
   await admin`create database ${admin(databases.template)}`;
   try {
-    pushInto(withDatabase(databases.adminUrl, databases.template));
+    pushSchema(withDatabase(databases.adminUrl, databases.template));
   } catch (error) {
     await dropRun();
     throw error;
