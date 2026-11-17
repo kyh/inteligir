@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type {
   HTMLAttributes,
   KeyboardEvent as ReactKeyboardEvent,
@@ -19,7 +19,6 @@ import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { Button } from "@repo/ui/components/button";
-import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
   value: string;
@@ -108,9 +107,11 @@ const InputMessage = ({
     el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
   }, [minRows, maxRows]);
 
-  useIsoLayoutEffect(() => {
+  // after every commit, with no dependency list: the height follows what the field holds, which
+  // the effect reads off the element and never from a prop
+  useLayoutEffect(() => {
     resizeTextarea();
-  }, [value, resizeTextarea]);
+  });
 
   // a mount-time measure at near-zero width reads the wrapped placeholder as many lines and pins
   // maxRows until the next value change; width-gated so the observer cannot loop on its own
