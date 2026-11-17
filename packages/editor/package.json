@@ -36,6 +36,7 @@
     "./headless/codec/item-markdown": "./src/headless/codec/item-markdown.ts",
     "./headless/codec/item-view": "./src/headless/codec/item-view.ts",
     "./headless/codec/library-links": "./src/headless/codec/library-links.ts",
+    "./headless/codec/one-round-lookup": "./src/headless/codec/one-round-lookup.ts",
     "./headless/codec/read-blocks": "./src/headless/codec/read-blocks.ts",
     "./headless/codec/read-body": "./src/headless/codec/read-body.ts",
     "./headless/codec/slate-leaves": "./src/headless/codec/slate-leaves.ts",

@@ -179,6 +179,10 @@ arrive as `unknown` and become domain values there alone.
   same text as the same blocks, but for a pill's display, which only a whole body can settle; a
   saved page's tree is stored by the same rules, and only a file's import reads frontmatter,
   sections and held files. `packages/editor/src/headless/codec/read-body.ts`.
+- **A library that answers by query is read in one round: the codec runs once over what is known,
+  recording each ask, and once more over the round's answers.** A run asks nothing the first did
+  not but the title of an item a title named, which that title's answer carries, while a query per
+  ask is a round trip per link. `packages/editor/src/headless/codec/one-round-lookup.test.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
   and its landing both read through `readFrontmatter`, each key one row and the filename the title,
   since a second reader plans a title or an address the landing reads otherwise.
