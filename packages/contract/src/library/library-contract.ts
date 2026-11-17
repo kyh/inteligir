@@ -55,6 +55,7 @@ import {
   searchHitSchema,
   seqSchema,
   shaSchema,
+  sweptSchema,
   bodyBlockSchema,
   tagCountSchema,
   THREAD_STATUSES,
@@ -71,6 +72,7 @@ const cursor = cursorSchema.default(0);
 const nextCursor = cursorSchema.nullable();
 const responseFormat = responseFormatSchema.default("concise");
 const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
+const count = z.number().int().nonnegative();
 
 // a write that makes an item answers with its row as it landed
 const landed = z.object({ item: liveItemRowSchema });
@@ -110,6 +112,26 @@ export const saveLinkInputSchema = z.strictObject({
   url: FIELDS.url.unwrap(),
 });
 export const deleteInputSchema = z.strictObject({ ids, opId });
+
+// tags, folder, pin and title for the items a call names by id
+const organizeInputSchema = z.strictObject({
+  addTags: FIELDS.tags.optional(),
+  folder: folderTargetSchema.optional(),
+  ids,
+  opId,
+  pinned: z.boolean().optional(),
+  removeTags: FIELDS.tags.optional(),
+  title: FIELDS.title.min(1).optional(),
+});
+
+// what a sweep does to each item it takes: an organize's change but a title, or to Deleted, back
+// from it, or out of it for good
+export const sweepVerbSchema = z.discriminatedUnion("kind", [
+  organizeInputSchema
+    .omit({ ids: true, opId: true, title: true })
+    .extend({ kind: z.literal("organize") }),
+  z.strictObject({ kind: z.enum(["delete", "restore", "purge"]) }),
+]);
 
 // the inputs of the rows that read for an agent, by name: the cell's reads take each as its
 // schema parsed it, every default in place (packages/service/src/library/cell-reads.ts)
@@ -304,20 +326,10 @@ const itemsContract = {
       [PayloadTooLargeError.code]: PayloadTooLargeError,
     })
     .input(
-      z
-        .strictObject({
-          addTags: FIELDS.tags.optional(),
-          folder: folderTargetSchema.optional(),
-          ids,
-          opId,
-          pinned: z.boolean().optional(),
-          removeTags: FIELDS.tags.optional(),
-          title: FIELDS.title.min(1).optional(),
-        })
-        .refine((input) => input.title === undefined || input.ids.length === 1, {
-          error: "a title names one item",
-          path: ["title"],
-        }),
+      organizeInputSchema.refine((input) => input.title === undefined || input.ids.length === 1, {
+        error: "a title names one item",
+        path: ["title"],
+      }),
     )
     .output(z.object({ items: z.array(itemSummarySchema) })),
 
@@ -336,6 +348,14 @@ const itemsContract = {
     .input(z.strictObject({ ids, opId }))
     .output(z.object({ missing: changedIds, purged: changedIds })),
 
+  // A verb over every item a scope lists, for the apps, whose grid selects a scope it read only
+  // some pages of; an agent names its items by id, so no tool carries this. The cell takes the
+  // items the scope lists as it is asked, answers how many, and lands them a lot at a time after
+  // the answer, each by its verb's own rule, one a rule refuses left as it is
+  sweep: signedBase
+    .input(sweptSchema.extend({ opId, verb: sweepVerbSchema }))
+    .output(z.object({ items: count })),
+
   // the cloud reads the page again, replacing only the article
   refresh: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
@@ -350,8 +370,6 @@ const foldersContract = {
     // every folder the write left changed, those a deleted one took with it included
     .output(z.object({ folders: z.array(folderRowSchema), seq: seqSchema })),
 };
-
-const count = z.number().int().nonnegative();
 
 // what the apps' screens list, each answered from the cell's rows as they stand
 const listingContract = {

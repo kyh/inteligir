@@ -57,7 +57,7 @@ export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;
 // what an agent or a list reads at once
 export const PAGE_MAX = 50;
-// what one page of the apps' listing carries
+// what one page of the apps' listing carries, and the most a sweep leaves out
 export const LISTING_PAGE_MAX = 1000;
 
 // ---- the rows ----
@@ -195,6 +195,13 @@ export const listingPageInputSchema = z.strictObject({
   scope: libraryScopeSchema,
   sort: listingSortSchema.default("saved"),
   words: z.string().trim().min(1).max(500).optional(),
+});
+
+// what a sweep takes: every item a scope lists, narrowed to `kinds`, but those left out
+export const sweptSchema = z.strictObject({
+  except: z.array(idSchema).max(LISTING_PAGE_MAX),
+  kinds: kindsSchema.optional(),
+  scope: libraryScopeSchema,
 });
 
 // a live folder with the items in it and under it, and a tag with the items carrying it

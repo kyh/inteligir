@@ -160,7 +160,7 @@ CREATE TABLE `jobs` (
 	`payload` text NOT NULL,
 	`attempts` integer NOT NULL,
 	`next_at` integer NOT NULL,
-	CONSTRAINT "jobs_kind" CHECK("kind" IN ('prune', 'upload', 'unnamed', 'fill', 'stray', 'note-purge', 'agent-deliver', 'agent-watch'))
+	CONSTRAINT "jobs_kind" CHECK("kind" IN ('prune', 'upload', 'unnamed', 'fill', 'stray', 'note-purge', 'agent-deliver', 'agent-watch', 'sweep'))
 );
 
 CREATE TABLE `links` (

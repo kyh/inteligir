@@ -2,8 +2,8 @@
 // (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/): an item an agent or a
 // save makes is a UUID version 7, as a device's own are, so ids sort by when they were made
 // (RFC 9562 § 5.7), and so is a thread of the built-in agent's; a block an import or an edit reads
-// is any unique id the vocabulary takes; a change set's, a send waiting for the agent's turn, and
-// the op a note applies an edit sent with no op id of its own under, is a random UUID.
+// is any unique id the vocabulary takes; a change set's, a send waiting for the agent's turn, a
+// sweep's, and the op a note applies an edit sent with no op id of its own under, is a random UUID.
 
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 
@@ -14,6 +14,7 @@ export interface CellIds {
   readonly thread: () => string;
   readonly queuedSend: () => string;
   readonly op: () => string;
+  readonly sweep: () => string;
 }
 
 const randomBytes = (length: number): Uint8Array => crypto.getRandomValues(new Uint8Array(length));
@@ -24,5 +25,6 @@ export const cellIds = (now: () => number): CellIds => ({
   item: () => uuidV7(now(), randomBytes(16)),
   op: () => crypto.randomUUID(),
   queuedSend: () => crypto.randomUUID(),
+  sweep: () => crypto.randomUUID(),
   thread: () => uuidV7(now(), randomBytes(16)),
 });

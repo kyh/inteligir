@@ -373,7 +373,8 @@ export const agentUsage = sqliteTable("agent_usage", {
 });
 
 // what the cell's alarm runs, in the order a run takes the kinds: the storage's own first, so a
-// file one of them lets go is a stray the same run takes out of R2
+// file one of them lets go is a stray the same run takes out of R2, and a sweep's lots last, the
+// longest of a run, so no other job waits behind them
 export const JOB_KINDS = [
   "prune",
   "upload",
@@ -383,6 +384,7 @@ export const JOB_KINDS = [
   "note-purge",
   "agent-deliver",
   "agent-watch",
+  "sweep",
 ] as const;
 
 // a job waits until `next_at`; `attempts` counts the runs that took it since it was last asked for

@@ -88,6 +88,7 @@ const router = os.router({
     restore: os.items.restore.handler(unimplemented),
     save: os.items.save.handler(unimplemented),
     saveLink: os.items.saveLink.handler(unimplemented),
+    sweep: os.items.sweep.handler(unimplemented),
   },
   listing: {
     page: os.listing.page.handler(unimplemented),

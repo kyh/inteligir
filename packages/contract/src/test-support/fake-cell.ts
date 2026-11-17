@@ -54,6 +54,7 @@ import {
   LibraryIndex,
   listedItem,
   listingPageOf,
+  sweptIds,
 } from "../library/library-index";
 import type { ItemListing, SearchHits } from "../library/library-index";
 import { libraryItemFieldsSchema } from "../library/library-item";
@@ -320,6 +321,48 @@ export const createFakeCell = (): FakeCell => {
     );
   };
 
+  // to Deleted: the ids that named an item
+  const toDeleted = (ids: readonly string[]): string[] => {
+    const deleted = ids.filter((id) => items.has(id));
+    for (const id of deleted) {
+      const item = holding(id);
+      land(id, { ...item.fields, deletedAt: NOW }, item.blocks);
+    }
+    return deleted;
+  };
+
+  // back from Deleted, but an item whose address another live item holds now
+  const fromDeleted = (ids: readonly string[]) => {
+    const known = ids.filter((id) => items.has(id));
+    const addressHeld = known.filter((id) => {
+      const address = holding(id).fields.url;
+      const holder = address === null ? null : holderOf(address);
+      return holder !== null && holder !== id;
+    });
+    const restored = known.filter((id) => !addressHeld.includes(id));
+    for (const id of restored) {
+      const item = holding(id);
+      land(id, { ...item.fields, deletedAt: null }, item.blocks);
+    }
+    return { addressHeld, missing: ids.filter((id) => !known.includes(id)), restored };
+  };
+
+  // emptying Deleted: an item there goes for good, and any other id is missing
+  const purge = (ids: readonly string[]) => {
+    const purged: string[] = [];
+    const missing: string[] = [];
+    for (const id of new Set(ids)) {
+      const item = items.get(id);
+      if (item === undefined || item.fields.deletedAt === null) {
+        missing.push(id);
+      } else {
+        items.delete(id);
+        purged.push(id);
+      }
+    }
+    return { missing, purged };
+  };
+
   // every op against the tree the ones before it left, as the cell lands them, and none if any
   // refuses
   const folderWrite = (ops: readonly FolderOp[]) => {
@@ -392,11 +435,7 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
         delete: os.library.items.delete.handler(({ input }) => {
-          const deleted = input.ids.filter((id) => items.has(id));
-          for (const id of deleted) {
-            const item = holding(id);
-            land(id, { ...item.fields, deletedAt: NOW }, item.blocks);
-          }
+          const deleted = toDeleted(input.ids);
           return { deleted, missing: input.ids.filter((id) => !deleted.includes(id)) };
         }),
         get: os.library.items.get.handler(({ input }) => held(input.id)),
@@ -405,22 +444,8 @@ export const createFakeCell = (): FakeCell => {
             items: organize(input).map(({ id }) => itemSummary(listingRow(id, holding(id)))),
           })),
         ),
-        // emptying Deleted: an item there goes for good, and any other id is missing
         purge: os.library.items.purge.handler(({ input }) =>
-          once(input.opId, purgedSchema, () => {
-            const purged: string[] = [];
-            const missing: string[] = [];
-            for (const id of new Set(input.ids)) {
-              const item = items.get(id);
-              if (item === undefined || item.fields.deletedAt === null) {
-                missing.push(id);
-              } else {
-                items.delete(id);
-                purged.push(id);
-              }
-            }
-            return { missing, purged };
-          }),
+          once(input.opId, purgedSchema, () => purge(input.ids)),
         ),
         // a link's page read again: it waits once more; an item with no address has no page
         refresh: os.library.items.refresh.handler(({ input }) =>
@@ -433,24 +458,7 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
         restore: os.library.items.restore.handler(({ input }) =>
-          once(input.opId, restoredSchema, () => {
-            const known = input.ids.filter((id) => items.has(id));
-            const addressHeld = known.filter((id) => {
-              const address = holding(id).fields.url;
-              const holder = address === null ? null : holderOf(address);
-              return holder !== null && holder !== id;
-            });
-            const restored = known.filter((id) => !addressHeld.includes(id));
-            for (const id of restored) {
-              const item = holding(id);
-              land(id, { ...item.fields, deletedAt: null }, item.blocks);
-            }
-            return {
-              addressHeld,
-              missing: input.ids.filter((id) => !known.includes(id)),
-              restored,
-            };
-          }),
+          once(input.opId, restoredSchema, () => fromDeleted(input.ids)),
         ),
         row: os.library.items.row.handler(({ input }) => liveRow(input.id, holding(input.id))),
         save: os.library.items.save.handler(({ input }) =>
@@ -495,6 +503,17 @@ export const createFakeCell = (): FakeCell => {
             };
           }),
         ),
+        // the scope's items, each by its verb's rule, landed as it is asked: the alarm's lots are
+        // the Worker's suites' to hold
+        sweep: os.library.items.sweep.handler(({ input: { verb, ...swept } }) => {
+          const ids = sweptIds(listing(), swept);
+          if (verb.kind === "organize") {
+            organize({ ...verb, ids });
+          } else {
+            ({ delete: toDeleted, purge, restore: fromDeleted })[verb.kind](ids);
+          }
+          return { items: ids.length };
+        }),
       },
       listing: {
         page: os.library.listing.page.handler(({ input }) =>

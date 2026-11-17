@@ -22,6 +22,7 @@ import { finishJob, leaseJobs, scheduleJob } from "./cell-jobs";
 import type { JobKind, JobPayload, Lease } from "./cell-jobs";
 import { PRUNE_EVERY_MS, PRUNE_JOB } from "./change-sets";
 import { pruneChangeSets } from "./change-set-prune";
+import { landSweep } from "./cell-sweeps";
 import type { Cell } from "./open-cell";
 
 // a kind's run: the lot the alarm leased of it
@@ -139,6 +140,9 @@ const RUNS: Runs = {
     scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
   }),
   stray: removeStrays,
+  sweep: each(({ library }, job) => {
+    landSweep(library, job);
+  }),
   unnamed: stored((db, now, { sha }) => {
     releaseUnnamed(db, [sha], now);
   }),

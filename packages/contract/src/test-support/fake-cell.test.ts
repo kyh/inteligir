@@ -178,6 +178,28 @@ describe("what a screen writes of the fake cell beyond its ops", () => {
     await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0, total: 1 });
   });
 
+  it("sweeps every item a scope lists but those left out, each by its verb's rule", async () => {
+    const { library, note } = laptop();
+    const kept = await note(["Kept."]);
+    const swept = await note(["Swept."], { tags: ["field"] });
+
+    await expect(
+      library.items.sweep({
+        except: [kept],
+        scope: { kind: "all" },
+        verb: { addTags: ["done"], kind: "organize", removeTags: ["field"] },
+      }),
+    ).resolves.toStrictEqual({ items: 1 });
+    await expect(library.items.get({ id: swept })).resolves.toMatchObject({
+      fields: { tags: ["done"] },
+    });
+
+    await library.items.sweep({ except: [kept], scope: { kind: "all" }, verb: { kind: "delete" } });
+    await library.items.sweep({ except: [], scope: { kind: "deleted" }, verb: { kind: "purge" } });
+    await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0, total: 1 });
+    await expect(codeOf(library.items.get({ id: swept }))).resolves.toBe("NOT_FOUND");
+  });
+
   it("reads a link's page again, and has no page to read for a note", async () => {
     const { library, note } = laptop();
     const { item } = await library.items.saveLink({ url: "https://example.com/page" });

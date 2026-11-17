@@ -53,6 +53,10 @@ random bytes and fresh ids are injected.
   agent's policies and each device's words are typed against.** A name spelled
   in each package lets a rename compile and draw as "Used the library".
   `packages/contract/src/library/agent-tools.ts`.
+- **A sweep names its items by their scope, in a row no tool carries** (owner
+  decision). A device reads a scope a page at a time, so no list of ids it
+  holds is all of it, and an agent's approval counts a delete from the ids its
+  call names. `packages/contract/src/library/library-contract.ts`.
 
 ## Items and files
 
