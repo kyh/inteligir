@@ -14,24 +14,21 @@ its own map, and `docs/releasing.md` every step that is the owner's.
   `libxdo-dev`, `libssl-dev`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`; other
   distributions are in
   <https://v2.tauri.app/start/prerequisites/>); a Mac ships its own WebKit
-- `pnpm install` at the repo root (workspace-wide)
-- For `dev:web` only: `cp .env.example .env`, which runs unedited. Restart
-  `pnpm dev:web` after editing it: the dev server watches only `apps/web`'s own
-  env files. The connector answers only `SITE_ORIGIN`'s host, `localhost:5174`
-  here; `.env.example` says what to set to reach it through a tunnel.
+- `pnpm install` at the repo root (workspace-wide), then `pnpm bootstrap`
+  (§ Running). Restart `pnpm dev:web` after editing `.env`: the dev server
+  watches only `apps/web`'s own env files.
 
 ## Commands
 
 ```bash
-pnpm dev                # The Mac app's window on the local Worker's library tab (pnpm dev:web)
+pnpm dev                # The Mac app's window on pnpm dev:web's /library
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one); a physical phone
                         #   needs `expo start --tunnel`, since the note editor needs a secure
                         #   context plain http over the network is not (apps/mobile/README.md § Dev)
-pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the site and
-                        #   the library tab at /library off vite's dev server, and the scripted
-                        #   Messages API on :5177 its built-in agent talks to
-pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
+pnpm bootstrap          # .env, local Postgres, its schema and the seeded login; safe to run again, --dry-run prints it
+pnpm dev:web            # apps/web: next dev on :5174 (pinned), over the Postgres .env.local names
+pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects to pnpm dev:web's app
 pnpm package:desktop    # The Mac app's release: the .app and dmg, signed and notarized, and its update (owner; docs/releasing.md)
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
@@ -40,11 +37,12 @@ pnpm typecheck          # Type check all
 pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
 pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify             # The static gate (CI adds the e2e flows on top)
-pnpm e2e                # The Playwright flows, over the built Worker and the extension's dev build
+pnpm e2e                # The Playwright flows, over the app's build and the extension's dev build
+pnpm smoke              # The runtime legs a deployment passes, against the app on :5174 (SMOKE_URL for another)
 ```
 
 The databases' commands are `@repo/db`'s (`packages/db/README.md`). Postgres
-runs on its own, with no Worker:
+runs on its own, with no app server:
 
 ```bash
 pnpm db:start                                   # local Postgres 17 on 54622 (Supabase's native runtime), its URL into .env.local
@@ -66,35 +64,44 @@ PRODUCTION Postgres (`AGENTS.md` § Seeded login).
 
 ## Running
 
+`pnpm bootstrap` (`scripts/bootstrap.ts`) takes a fresh clone to a database the
+app runs on, with no server running: it writes `.env` from `.env.example` with a
+fresh `BETTER_AUTH_SECRET` when there is none, starts local Postgres
+(`pnpm db:start`) unless one already answers where `POSTGRES_URL` points, then
+runs `pnpm db:push` and `pnpm db:seed` (`AGENTS.md` § Seeded login). Worktrees
+share the one local Postgres on 54622, so a second worktree's bootstrap reuses
+the first's. Run again, it changes nothing already there; `--dry-run` prints
+the steps and does none of them.
+
+`pnpm dev:web` is `next dev` on 5174 over that database: the site, the account
+pages, `/api/auth/*`, `/api/sign-up`, `/v1/rpc` and `/api/health`. The library
+tab, the connector and the built-in agent are not served on Next yet, so
+`/library` signed in answers a 404. `pnpm build` then
+`pnpm --filter @repo/web start` serves the production build on the same port.
+
+`pnpm smoke` (`scripts/smoke.ts`) checks a running app as a deployment must
+pass: `/api/health`, the home page's static policy, `/privacy`, `/library`'s
+307 to sign in, a 426 below the build floor, and a signed-in call through the
+extension's door and the phone's. Locally it signs in as the seeded login; with
+`SMOKE_URL` it checks that deployment, signed in only with `SMOKE_EMAIL` and
+`SMOKE_PASSWORD`, and `VERCEL_AUTOMATION_BYPASS_SECRET` carries it past the
+deployment's protection. A leg whose route has not landed prints what it waits
+for.
+
 `pnpm dev` runs `tauri dev --config src-tauri/tauri.local.conf.json`: the Rust
 shell compiled and launched on its `devUrl`, `http://localhost:5174/library`,
-the library tab `pnpm dev:web` serves, as an app of its own
-(`com.inteligir.desktop.dev`). A Worker on another port is one more config for
-Tauri to merge:
+as an app of its own (`com.inteligir.desktop.dev`). An app on another port is
+one more config for Tauri to merge:
 `pnpm --filter @repo/desktop dev --config '{"build":{"devUrl":"http://localhost:<port>/library"}}'`.
 Its first run is the site's sign-in with an account of that database
-(`AGENTS.md` § Seeded login). An
-edit to the shell's Rust rebuilds and
-relaunches it; an edit to the library tab reaches the window as `pnpm dev:web`
-serves it.
-
-Iterating on the library tab needs no Rust: `pnpm dev:web` serves it at
-`localhost:5174/library` as it serves the site, through the same route and
-policy a deploy runs (`apps/web/src/routes/library.tsx`,
-`apps/web/src/start.ts`); sign in at `/app/sign-in`. Only the updater needs the
-shell; a tab's Settings says updates come with the Mac app.
+(`AGENTS.md` § Seeded login). An edit to the shell's Rust rebuilds and
+relaunches it. Only the updater needs the shell; a tab's Settings says updates
+come with the Mac app.
 
 `pnpm package:desktop` is the owner's release of the .app, the shell alone
 around the site's URL, and fails without the release's keys;
 `pnpm --filter @repo/desktop tauri build` builds one for this Mac
 (`apps/desktop/README.md` § Packaging).
-
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, every
-device's sign-in, `/v1`, every library cell and the account's socket, each
-conversation with the built-in agent, the fill queue, the connector and the
-library tab at `/library` — over a local D1 file, R2, a queue, KV and
-miniflare's Durable Objects. Sign-up is invite-only, and `pnpm db:seed` makes
-the dev account and its invite (`AGENTS.md` § Seeded login).
 
 From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
 with `-c jar`, then call `/v1` as the phone does, `-b jar -H 'expo-origin:
@@ -108,11 +115,6 @@ curl -s -b jar -X POST localhost:5174/v1/rpc/account/devices/list \
   -H 'content-type: application/json' -H 'expo-origin: inteligir://' \
   -H 'x-inteligir-build: 0.7.0+mobile' -d '{"json":{}}'
 ```
-
-The built-in agent's system prompt is the files of
-`packages/service/src/agent/prompt/`, which `agent-prompt.ts` beside them
-imports as text in one order; a new section is a file there and a row in that
-list (`packages/service/README.md` § The built-in agent).
 
 ## Browser extension
 
@@ -146,14 +148,13 @@ their storage holds.
 
 | What                                                                 | Where                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Site + cloud Worker (`pnpm dev:web`)                                 | 5174 (pinned — `strictPort`)                                                                                                                                                            |
-| Scripted Messages API (`pnpm dev:web`)                               | 5177 (pinned — `.env`'s `ANTHROPIC_FAKE_URL` names it)                                                                                                                                  |
+| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)            | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port                                                                                                    |
 | Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
 | The extension's account (email, its cookie's SHA-256), waiting saves | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Local Postgres (`pnpm db:start`)                                     | 54622, its transaction pooler 54629; its files in the Supabase CLI's own store, `~/.supabase/stacks`                                                                                    |
-| Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
+| Accounts, sessions (every device's sign-in), invites                 | Local Postgres's `postgres` database; the suites' and the e2e's throwaway databases beside it (`wt_<name>__…`, `e2e_<run>…`)                                                            |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
 | Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables made from `packages/db/src/cell/ddl.sql` as it wakes                                              |
 | Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables made from `packages/db/src/note/ddl.sql` as it wakes                                                    |
@@ -166,8 +167,8 @@ their storage holds.
 pnpm format:fix && pnpm verify
 ```
 
-`pnpm verify` is one turbo run of `typecheck`, `lint`, `knip`, `format`,
-`test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
+`pnpm verify` is `tsc` over the root's own `scripts/`, then one turbo run of
+`typecheck`, `lint`, `knip`, `format`, `test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
 `format` are the root package's own tasks in `turbo.json`, beside the shell's
 `cargo fmt` check. Its `build` bundles the phone too (`expo export --platform
 ios`), its note editor's DOM bundle beside it (`apps/mobile/dist/www.bundle`),
@@ -201,17 +202,18 @@ in `.github/workflows/ci.yml`.
 Every workspace answers `pnpm --filter <name> test`; each suite's own file
 header says what it pins, and `tools/repo-guards` holds the one rule that
 spans workspaces and no tool checks: product words. The cloud's suites are
-`@repo/service`'s, inside workerd on its own never-deployed Worker, with the
-model's pure suites under node (`packages/service/README.md` § Testing);
-`@repo/web`'s are the site's under node and the library tab's under jsdom. A
-suite that reads generated types (the Worker's, the service's and the
-extension's) needs its workspace's `generate` first, which `turbo run` does.
+`@repo/service`'s, under node, a database suite on its own clone of a pushed
+template once `TEST_POSTGRES_URL` names a server (`packages/service/README.md`
+§ Testing); `@repo/web`'s are the site's under node and the library tab's under
+jsdom. A suite that reads generated types (the extension's) needs its
+workspace's `generate` first, which `turbo run` does.
 
-End-to-end: `pnpm e2e` is Playwright Test over apps/web's build output in an
-in-process Miniflare and the extension's dev build, which turbo builds first
-(`tools/e2e/turbo.json`). Each Playwright worker boots one Worker beside the
-scripted Claude, and each test signs up an account by invite
-(`tools/e2e/src/fixtures.ts`); it reads no `.env`. It is deliberately outside
+End-to-end: `pnpm e2e` is Playwright Test over apps/web's build and the
+extension's dev build, which turbo builds first (`tools/e2e/turbo.json`). Its
+globalSetup pushes the schema once into a template database on the server
+`POSTGRES_URL` names; each Playwright worker runs one `next start` over its own
+clone, on a fixed set of variables and nothing of `.env`, and each test signs up
+an account by invite (`tools/e2e/src/fixtures.ts`). It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
 runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
 retries are 0, since a flaky flow is a bug.

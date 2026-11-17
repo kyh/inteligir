@@ -74,28 +74,28 @@ server or command line: drive the site in a browser, the app with curl.
 
 ```sh
 pnpm install
-cp .env.example .env   # runs unedited
+pnpm bootstrap         # .env, local Postgres, its schema and the seeded login: no server needed, safe to run again
 pnpm dev:web           # next dev at http://localhost:5174 (pinned)
 pnpm dev               # the Mac app's window on it
 ```
 
-Node 24 and pnpm 12 (`corepack enable`), no Vercel or Anthropic account.
-The root `.env` is the one env file you edit (restart `pnpm dev:web` after an
+Node 24 and pnpm 12 (`corepack enable`), no Vercel or Anthropic account, no
+Docker: local Postgres is Supabase's native runtime (macOS 14+ on Apple
+silicon, or Linux). The root `.env`, which bootstrap writes from
+`.env.example`, is the one env file you edit (restart `pnpm dev:web` after an
 edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which the
-app and `@repo/db`'s scripts read first, and `pnpm db:push` gives it the
-schema. `curl localhost:5174/api/health` answers 200 once the database does.
+app and every script read first. Worktrees share one local Postgres on 54622:
+bootstrap reuses it when it already answers. `curl localhost:5174/api/health`
+answers 200 once the database does; `pnpm bootstrap --dry-run` prints the steps.
 
 ### Seeded login
-
-```sh
-pnpm db:seed     # after db:start and db:push: the dev account and DEV-INVITE, no server needed, safe to run again
-```
 
 ```
 dev@inteligir.local / password
 ```
 
-Headless, a session is one curl:
+`pnpm bootstrap` makes it, or `pnpm db:seed` alone after a push. Headless, a
+session is one curl:
 
 ```sh
 curl -s -c jar localhost:5174/api/auth/sign-in/email \
@@ -115,7 +115,8 @@ pushes the PRODUCTION Postgres. Drive the site with agent-browser
 
 ```sh
 pnpm format:fix && pnpm verify          # typecheck, lint, knip, format, test, build; check-only
-pnpm e2e                                # Playwright; every flow waits in its config's PENDING until its area lands
+pnpm e2e                                # Playwright over the build, a next start per worker on its own database; a flow waits in PENDING until its area lands
+pnpm smoke                              # the legs a deployment passes, against the app on 5174 (SMOKE_URL for a deployment)
 TURBO_SCM_BASE=<base> pnpm verify:affected   # a work stream: only what it reaches
 ```
 
@@ -124,15 +125,15 @@ CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
 
 ### Platform matrix
 
-| Surface         | Dev command          | Agent-verifiable at runtime? (specs in `tools/e2e/src`)                     |
-| --------------- | -------------------- | --------------------------------------------------------------------------- |
-| Site and Worker | `pnpm dev:web`       | **Yes**: curl; `site`, `site-faults`, `account`; the service's suites       |
-| Library tab     | `pnpm dev:web`       | **Yes**: `library`, `search`, `editor`, `note-links`, `live-note`, `saving` |
-| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`        |
-| Built-in agent  | `pnpm dev:web`       | **Over a scripted Claude**: `agent-panel`, `agent-context`                  |
-| Mac app         | `pnpm dev`           | **Its shell**: `cargo test`; the window needs a human                       |
-| Extension       | `pnpm dev:extension` | **In Chromium**: `extension`                                                |
-| Phone           | `pnpm dev:mobile`    | **Its parts**: its suites; the app needs the simulator or a device          |
+| Surface         | Dev command          | Agent-verifiable at runtime? (specs in `tools/e2e/src`)                                  |
+| --------------- | -------------------- | ---------------------------------------------------------------------------------------- |
+| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                |
+| Library tab     | `pnpm dev:web`       | **Once it is on Next**: `account`, `library`, `search`, `editor`, `note-links`, `saving` |
+| Connector       | `pnpm dev:web`       | **Once it is on Next**: an MCP client on `/connector`, OAuth with PKCE; `connector`      |
+| Built-in agent  | `pnpm dev:web`       | **Once it is on eve, over its mock model**: `agent-panel`, `agent-context`               |
+| Mac app         | `pnpm dev`           | **Its shell**: `cargo test`; the window needs a human                                    |
+| Extension       | `pnpm dev:extension` | **In Chromium, once saving is on Next**: `extension`                                     |
+| Phone           | `pnpm dev:mobile`    | **Its parts**: its suites; the app needs the simulator or a device                       |
 
 ## Rules that matter
 
