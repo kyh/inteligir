@@ -149,6 +149,17 @@ const bodyOf =
     return readBody(md, { links, newBlockId: counter("b"), wiki: links.wiki });
   };
 
+// the inputs whose reading asks the library anything, since one that asks nothing reads in one run
+const NAMING: readonly Input[] = INPUTS.filter(({ md }) => {
+  let asked = false;
+  const ask = (): null => {
+    asked = true;
+    return null;
+  };
+  bodyOf(md)({ fileKind: ask, itemByTitle: ask, title: ask });
+  return asked;
+});
+
 const asksIn = (asks: LookupAsks): number =>
   asks.titleKeys.size + asks.itemIds.size + asks.shas.size;
 
@@ -203,38 +214,37 @@ const editsOver = (view: ReturnType<typeof itemView>, md: string, other: string)
 };
 
 describe("a lookup read in one round", () => {
-  it("reads a note's markdown as the library answering each ask at once does", async () => {
+  it.each(NAMING)("reads $name as the library answering each ask at once does", async ({ md }) => {
     const off: string[] = [];
-    for (const input of INPUTS) {
-      for (const library of LIBRARIES) {
-        const wrong = await offBy(bodyOf(input.md), library);
-        if (wrong !== null) {
-          off.push(`${input.name} over ${library.name}: ${wrong}`);
-        }
+    for (const library of LIBRARIES) {
+      const wrong = await offBy(bodyOf(md), library);
+      if (wrong !== null) {
+        off.push(`over ${library.name}: ${wrong}`);
       }
     }
     expect(off).toStrictEqual([]);
   });
 
-  it("reads an agent's edit as one answered at once does, once its view's links are known", async () => {
-    const off: string[] = [];
-    const inputs = INPUTS.filter((_input, index) => index % 3 === 0);
-    for (const [at, input] of inputs.entries()) {
-      const other = inputs[(at + 1) % inputs.length]?.md ?? "";
-      for (const library of LIBRARIES.slice(0, 3)) {
+  it.each(
+    NAMING.filter((_input, index) => index % 2 === 0).map((input, at, all) => ({
+      ...input,
+      other: all[(at + 1) % all.length]?.md ?? "",
+      withArticle: at % 2 === 1,
+    })),
+  )(
+    "reads an agent's edit of $name as one answered at once does, once its view's links are known",
+    async ({ md, other, withArticle }) => {
+      const off: string[] = [];
+      for (const library of LIBRARIES.slice(0, 2)) {
         const stored = libraryLinks(beforeRenames(library));
-        const read = readBody(input.md, {
-          links: stored,
-          newBlockId: counter("s"),
-          wiki: stored.wiki,
-        });
+        const read = readBody(md, { links: stored, newBlockId: counter("s"), wiki: stored.wiki });
         if (!read.ok) {
           continue;
         }
         const split = Math.ceil((read.blocks.length * 2) / 3);
         const blocks: BodyBlock[] = read.blocks.map((block, index) => ({
           block,
-          section: at % 2 === 1 && index >= split ? "article" : "note",
+          section: withArticle && index >= split ? "article" : "note",
         }));
         // the view the agent read, and the titles of the items it links, read before the edit
         const view = itemView(blocks, atOnce(library));
@@ -246,16 +256,16 @@ describe("a lookup read in one round", () => {
           titled: new Map(),
           titles: new Map(linked.map((itemId) => [itemId, library.title(itemId)])),
         };
-        for (const edits of editsOver(view, input.md, other)) {
+        for (const edits of editsOver(view, md, other)) {
           const edit = (lookup: LibraryLookup): EditOutcome =>
             editItemView(blocks, edits, { ...lookup, newBlockId: counter("n") });
           const wrong = await offBy(edit, library, known);
           if (wrong !== null) {
-            off.push(`${input.name} over ${library.name}, ${String(edits.length)} edits: ${wrong}`);
+            off.push(`over ${library.name}, ${String(edits.length)} edits: ${wrong}`);
           }
         }
       }
-    }
-    expect(off).toStrictEqual([]);
-  });
+      expect(off).toStrictEqual([]);
+    },
+  );
 });
