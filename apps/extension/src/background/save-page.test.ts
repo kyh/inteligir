@@ -14,6 +14,8 @@ import { queuedSaves, SEND_ALARM } from "./save-queue";
 import type { SignIn } from "./sign-in";
 import {
   fakeCloud,
+  KEPT,
+  keptAs,
   OTHER_SESSION,
   refusal,
   savedAs,
@@ -22,8 +24,6 @@ import {
   SIGNED_OUT,
 } from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
-
-const KEPT = { email: SESSION.email, origin: SESSION.origin };
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -173,7 +173,7 @@ describe("a tab saved", () => {
     });
     expect(ended.saves).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({ firstTry: false, url: URL_SAVED }),
+      expect.objectContaining({ url: URL_SAVED }),
     ]);
   });
 
@@ -277,7 +277,6 @@ describe("a tab saved", () => {
     });
     expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
       "email",
-      "firstTry",
       "id",
       "opId",
       "savedAt",
@@ -316,16 +315,16 @@ describe("a tab saved", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([
       expect.objectContaining({
         email: SESSION.email,
-        firstTry: false,
         title: TAB.title,
         url: URL_SAVED,
       }),
     ]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    // the site's sign-in sends it, which no timer brings
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
-    const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
+    const replaced = keptAs(OTHER_SESSION.email, OTHER_SESSION.bearer);
     const cloud = fakeCloud({
       save: async () => {
         await keepConnection(replaced);

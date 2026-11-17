@@ -6,15 +6,15 @@ import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 import { browser } from "wxt/browser";
 import type { PublicPath } from "wxt/browser";
 
-import { CAPTURE_OPTIONS, capturedPageSchema } from "../capture/captured-page";
-import type { CaptureOptions, CapturedPage } from "../capture/captured-page";
+import { capturedPageSchema } from "../capture/captured-page";
+import type { CapturedPage } from "../capture/captured-page";
 
 // src/entrypoints/capture.ts, which WXT writes at this path and types as one of its own
 const CAPTURE_SCRIPT = "/capture.js" satisfies PublicPath;
 
 // a cover candidate's fetch, and how many candidates a save fetches at most (the reader names no
-// more): together the longest a save's search for its cover runs (./save-queue)
-export const COVER_DEADLINE_MS = 10_000;
+// more): together the longest a save's search for its cover runs (./save-page)
+const COVER_DEADLINE_MS = 10_000;
 export const COVER_TRIES = 8;
 // the longest a save waits on the tab's own capture, which a page still loading or a main thread
 // stuck in a script never answers (./save-page)
@@ -23,11 +23,8 @@ export const CAPTURE_DEADLINE_MS = 10_000;
 // null when the tab cannot be scripted, or answered something that is not a captured page
 export const captureTab = async (tabId: number): Promise<CapturedPage | null> => {
   try {
-    await browser.scripting.executeScript({ files: [CAPTURE_SCRIPT], target: { tabId } });
-    // the function crosses into the page as its source text, so it names nothing outside itself
     const [frame] = await browser.scripting.executeScript({
-      args: [CAPTURE_OPTIONS],
-      func: (options: CaptureOptions) => window.inteligirCapture?.(options) ?? null,
+      files: [CAPTURE_SCRIPT],
       target: { tabId },
     });
     const parsed = capturedPageSchema.safeParse(frame?.result);

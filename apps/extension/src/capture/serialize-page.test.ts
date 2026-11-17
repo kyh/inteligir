@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CAPTURE_OPTIONS } from "./captured-page";
-import type { CaptureOptions } from "./captured-page";
-import { serializePage } from "./serialize-page";
-
-const OPTIONS: CaptureOptions = CAPTURE_OPTIONS;
+import { capturedPageSchema } from "./captured-page";
+import { CAPTURE_HTML_MAX_CHARS, serializePage } from "./serialize-page";
 
 const pageOf = (body: string, head = ""): Document => {
   const doc = document.implementation.createHTMLDocument("A rendered page");
@@ -21,7 +18,7 @@ const parsed = (html: string | null): Document => {
 describe("the captured page", () => {
   it("is the rendered DOM with a doctype, its title and its address", () => {
     const doc = pageOf("<article><h1>Hello</h1><p>Built by script.</p></article>");
-    const page = serializePage(doc, OPTIONS);
+    const page = serializePage(doc);
     expect(page.html?.startsWith("<!doctype html>\n<html")).toBe(true);
     expect(page.title).toBe("A rendered page");
     expect(page.url).toBe(doc.URL);
@@ -32,7 +29,7 @@ describe("the captured page", () => {
     const doc = pageOf(
       '<script>steal()</script><script type="module">x()</script><script type=" Application/LD+JSON ">{"@type":"Article"}</script><p>text</p>',
     );
-    const out = parsed(serializePage(doc, OPTIONS).html);
+    const out = parsed(serializePage(doc).html);
     const scripts = [...out.querySelectorAll("script")];
     expect(scripts.map((script) => script.textContent)).toStrictEqual(['{"@type":"Article"}']);
     expect(doc.querySelectorAll("script")).toHaveLength(3);
@@ -46,7 +43,7 @@ describe("the captured page", () => {
     if (typed !== null) {
       typed.value = "typed by the person";
     }
-    const html = serializePage(doc, OPTIONS).html ?? "";
+    const html = serializePage(doc).html ?? "";
     expect(html).not.toContain("prefilled");
     expect(html).not.toContain("hunter2");
     expect(html).not.toContain("typed by the person");
@@ -75,7 +72,7 @@ describe("the captured page", () => {
         '<div contenteditable="FALSE">kept, not editable</div>',
       ].join(""),
     );
-    const html = serializePage(doc, OPTIONS).html ?? "";
+    const html = serializePage(doc).html ?? "";
     expect(html).toContain("The article.");
     expect(html).toContain("kept, not editable");
     for (const typed of ["half a reply", "a comment", "a message", "a field drawn by script"]) {
@@ -92,7 +89,7 @@ describe("the captured page", () => {
       Object.defineProperty(chosen, "currentSrc", { value: "https://example.test/large.jpg" });
       Object.defineProperty(inPicture, "currentSrc", { value: "https://example.test/wide.jpg" });
     }
-    const out = parsed(serializePage(doc, OPTIONS).html);
+    const out = parsed(serializePage(doc).html);
     const images = [...out.querySelectorAll("img")];
     expect(images.map((image) => image.getAttribute("src"))).toStrictEqual([
       "https://example.test/large.jpg",
@@ -107,16 +104,24 @@ describe("the captured page", () => {
 
   it("names its base once, as the page resolved it, so relative links still resolve", () => {
     const doc = pageOf('<a href="next">next</a>', '<base href="https://old.test/">');
-    const out = parsed(serializePage(doc, OPTIONS).html);
+    const out = parsed(serializePage(doc).html);
     const bases = [...out.querySelectorAll("base")];
     expect(bases.map((base) => base.getAttribute("href"))).toStrictEqual([doc.baseURI]);
     expect(out.head.firstElementChild?.tagName).toBe("BASE");
   });
 
   it("answers no html past the cap, so the cloud reads the page from its address", () => {
-    const doc = pageOf(`<p>${"x".repeat(500)}</p>`);
-    const page = serializePage(doc, { ...OPTIONS, htmlMaxChars: 400 });
+    const doc = pageOf(`<p>${"x".repeat(CAPTURE_HTML_MAX_CHARS)}</p>`);
+    const page = serializePage(doc);
     expect(page.html).toBeNull();
     expect(page.title).toBe("A rendered page");
+  });
+
+  it("answers its title as long as the page wrote it, which the worker reads and the save clips", () => {
+    const doc = pageOf("<p>text</p>");
+    doc.title = "t".repeat(5000);
+    const page = serializePage(doc);
+    expect(page.title).toHaveLength(5000);
+    expect(capturedPageSchema.safeParse(page).success).toBe(true);
   });
 });

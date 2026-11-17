@@ -1,30 +1,28 @@
 // the extension's service worker: the toolbar's and the right-click's saves to the library over
-// `/v1`, under the browser's own sign-in to the site, which the connect page points it at, and the
-// alarm that sends what waited. It answers the extension's own pages and the one connect page its
-// manifest names, nothing else. Every listener is registered in main()'s first turn, as MV3 wants,
-// and nothing it needs later is held in memory: the account and the queue are storage's, the
-// session the browser's jar.
+// `/v1`, under the browser's own sign-in to the site its build names, and what sends a save that
+// waited: the alarm, a sign-in on the site and the worker's own start. It answers the extension's
+// own pages, nothing else. Every listener is registered in main()'s first turn, as MV3 wants, and
+// nothing it needs later is held in memory: the account and the queue are storage's, the session
+// the browser's jar.
 
 import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
 import type { ExtensionRequest, Outcome, Status, WorkerAnswer } from "../messages";
-import { flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import { cloudOrigin, readConnection } from "../background/connection";
-import { connectPageListener, ownPagesListener } from "../background/listeners";
+import { cloudOrigin } from "../background/connection";
+import { ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { ensureSendAlarm, SEND_ALARM, sendQueued } from "../background/save-queue";
+import { SEND_ALARM, sendQueued } from "../background/save-queue";
 import type { SendDeps } from "../background/save-queue";
-import { askedSignIn, cloudSignIn, heldSignIn, saveSignIn } from "../background/sign-in";
+import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "../background/sign-in";
 import type { Session } from "../background/sign-in";
 
 // src/entrypoints/welcome, which WXT writes at this path
@@ -42,11 +40,7 @@ const saveDeps: SaveDeps = {
   signIn: saveSignIn,
 };
 
-const sendDeps: SendDeps = {
-  cloud: cloudFor,
-  now: () => Date.now(),
-  signIn: cloudSignIn,
-};
+const sendDeps: SendDeps = { cloud: cloudFor, signIn: cloudSignIn };
 
 const tabFacts = (tab: Browser.tabs.Tab): TabFacts | null =>
   tab.id === undefined ? null : { id: tab.id, title: tab.title, url: tab.url };
@@ -63,24 +57,16 @@ const withBadge = async (tabId: number, run: () => Promise<Outcome>): Promise<Ou
   return outcome;
 };
 
-// a store build saves to the site, so the site's own sign-in serves it; a dev build's connect page
-// names the local Worker it saves to
-const signInPath = (): string =>
-  flavorOfMode(import.meta.env.MODE) === "store" ? SIGN_IN_PATH : CONNECT_EXTENSION_PATH;
-
 // the cloud asked, and when it does not answer, what the browser holds
 const status = async (): Promise<Status> => {
-  const origin = cloudOrigin(await readConnection());
+  const origin = await cloudOrigin();
   const signIn = (await cloudSignIn()) ?? (await heldSignIn());
   return {
     account:
       signIn.kind === "signed-in"
-        ? {
-            email: signIn.session.email,
-            libraryUrl: `${signIn.session.origin}${LIBRARY_PAGE_PATH}`,
-          }
+        ? { email: signIn.session.email, libraryUrl: `${origin}${LIBRARY_PAGE_PATH}` }
         : null,
-    signInUrl: `${origin}${signInPath()}`,
+    signInUrl: `${origin}${SIGN_IN_PATH}`,
   };
 };
 
@@ -163,10 +149,14 @@ const installed = async (reason: string): Promise<void> => {
 };
 
 // every start: the account and the queue kept from the capture script the worker injects, and
-// the alarm made again while a save waits, since an update or a restart can clear it
+// what waits sent where no alarm stands to send it, since a restart or an update can clear one and
+// brings what a save may have waited for
 const starting = async (): Promise<void> => {
   await browser.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
-  await ensureSendAlarm();
+  const alarm = await browser.alarms.get(SEND_ALARM);
+  if (alarm === undefined) {
+    await sendQueued(sendDeps);
+  }
 };
 
 // WXT imports this file at build time with main() emptied, so every browser call waits in it; the
@@ -175,15 +165,6 @@ export default defineBackground({
   main() {
     // oxlint-disable-next-line typescript/strict-void-return -- a listener answers later by returning true, as the extension messaging docs say, which WXT's types declare void
     browser.runtime.onMessage.addListener(ownPagesListener(answer));
-    browser.runtime.onMessageExternal.addListener(
-      // oxlint-disable-next-line typescript/strict-void-return -- as above: it returns true to answer later
-      connectPageListener(flavorOfMode(import.meta.env.MODE), {
-        answered: async () => {
-          await sendQueued(sendDeps);
-        },
-        signIn: askedSignIn,
-      }),
-    );
     browser.contextMenus.onClicked.addListener((info, tab) => {
       void clicked(info, tab);
     });
@@ -192,12 +173,18 @@ export default defineBackground({
         void sendQueued(sendDeps);
       }
     });
+    // a save that waits for its account goes as the site signs it in
+    browser.cookies.onChanged.addListener((change) => {
+      if (setsSession(change)) {
+        void sendQueued(sendDeps);
+      }
+    });
     browser.runtime.onInstalled.addListener((details) => {
       void installed(details.reason);
     });
-    // the one event that wakes the worker as the browser starts, which a cleared alarm cannot
     browser.runtime.onStartup.addListener(() => {
-      void sendQueued(sendDeps);
+      // listened to only so the browser's start starts the worker, which a cleared alarm cannot:
+      // `starting` sends what waits
     });
     void starting();
   },

@@ -1,8 +1,8 @@
 import path from "node:path";
 import { chromium, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
+import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
 import { signInOnSite, test as base, watchErrors } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
@@ -52,15 +52,14 @@ const test = base.extend<{ extension: BrowserContext }>({
   },
 });
 
-// signed in on the site, which comes back to the connect page, and Connect pressed when asked
-const connect = async (page: Page, cloud: Cloud, account: Account, press: boolean) => {
-  await page.goto(`${cloud.origin}${CONNECT_EXTENSION_PATH}`);
+// a page of the site that asks the cloud nothing, so the extension alone meets a session's end
+const QUIET_PAGE = "/privacy";
+
+// signed in on the site, which is all the extension's sign-in is
+const signIn = async (page: Page, cloud: Cloud, account: Account) => {
+  await page.goto(`${cloud.origin}${SIGN_IN_PATH}?next=${QUIET_PAGE}`);
   await signInOnSite(page, account);
-  await expect(page.getByRole("heading", { name: "Connect the browser extension" })).toBeVisible();
-  if (press) {
-    await page.getByRole("main").getByRole("button", { name: "Connect" }).click();
-    await expect(page.getByText("Connected.")).toBeVisible();
-  }
+  await expect(page).toHaveURL(`${cloud.origin}${QUIET_PAGE}`);
 };
 
 test("the extension rides the browser's sign-in, saves the page as shown, and holds saves until they can land", async ({
@@ -83,6 +82,11 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   // types for `chrome`
   const ask = async <T>(schema: z.ZodType<T>, source: string): Promise<T> =>
     schema.parse(await panel.evaluate(source));
+  // the dev build's cloud is `pnpm dev:web`'s unless its storage names another local Worker, as
+  // the one this run booted on a port of its own
+  await panel.evaluate(
+    `chrome.storage.local.set({ "cloud-origin": ${JSON.stringify(cloud.origin)} })`,
+  );
   const signedInAs = async () => {
     const status = await ask(StatusSchema, `chrome.runtime.sendMessage({ type: "status" })`);
     return status.account?.email ?? null;
@@ -107,10 +111,14 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     const { items } = await library.items.list({ kinds: ["link"] });
     return items.find((item) => item.url === `${PAGES}${pathname}`)?.id;
   };
-  // the extension's alarm sends what waits every 30 s
-  const sent = { timeout: 90_000 };
+  const alarms = async () => await ask(z.array(z.unknown()), `chrome.alarms.getAll()`);
+  // a save the cloud left unanswered is sent by the extension's alarm, 30 s on
+  const byAlarm = { timeout: 90_000 };
+  // one that waited for its account is sent as the site signs it in, well inside the alarm's 30 s
+  const bySignIn = { timeout: 10_000 };
 
-  await connect(site, cloud, account, true);
+  expect(await signedInAs()).toBeNull();
+  await signIn(site, cloud, account);
   expect(await signedInAs()).toBe(account.email);
   expect(await save("/file-over-app")).toEqual({
     created: true,
@@ -136,7 +144,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   expect(await save("/later")).toEqual({ kind: "queued", waitsFor: "connection" });
   expect(await queued()).toMatchObject([{ url: `${PAGES}/later` }]);
   await extension.unroute(cut);
-  await expect.poll(queued, sent).toEqual([]);
+  await expect.poll(queued, byAlarm).toEqual([]);
   expect(await landed("/later")).toBeDefined();
 
   const { devices } = await account.client.devices.list();
@@ -148,8 +156,8 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     { email: account.email, url: `${PAGES}/signed-out-elsewhere` },
   ]);
   expect(await signedInAs()).toBeNull();
-  await connect(site, cloud, account, true);
-  await expect.poll(queued, sent).toEqual([]);
+  await signIn(site, cloud, account);
+  await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-elsewhere")).toBeDefined();
 
   const signedOut = await site.evaluate(async () => {
@@ -163,9 +171,17 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   expect(signedOut).toBe(200);
   expect(await signedInAs()).toBeNull();
   expect(await save("/signed-out-here")).toEqual({ kind: "queued", waitsFor: "sign-in" });
-  // signed in again on the site, with no Connect asked
-  await connect(site, cloud, account, false);
-  await expect.poll(queued, sent).toEqual([]);
+  // it waits on a person, so no alarm wakes the worker for it
+  expect(await alarms()).toEqual([]);
+  await signIn(site, cloud, account);
+  await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-here")).toBeDefined();
   expect(await signedInAs()).toBe(account.email);
+
+  // the toolbar's popup, opened as a tab of its own: the tab it saves is itself, which is no web
+  // page, and it says so beside who is signed in
+  const popup = await extension.newPage();
+  await popup.goto(`${EXTENSION_ORIGIN}/popup.html`);
+  await expect(popup.getByRole("alert")).toHaveText("Inteligir can't save this kind of page");
+  await expect(popup.getByText(`Signed in as ${account.email}`)).toBeVisible();
 });

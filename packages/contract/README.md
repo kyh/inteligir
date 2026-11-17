@@ -28,7 +28,7 @@ src/
                  the node set, an item's fields and ops, a folder's order, the listing, the cell's rules
   items/         what an item is on every device: its kinds, a url's one key, a read page's facts
   knowledge/     what a markdown file is, a tag's name, the folder tree's paths
-  extension/     the extension's key, id and origin, and the connect page's messages
+  extension/     the extension's key, id and origin
   test-support/  the fake cell every client's suites drive, the seeded generator, library items
   *.ts           the library's scopes, the client build, the origins, a few shared primitives
 ```

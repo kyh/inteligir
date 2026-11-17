@@ -115,14 +115,15 @@ THE DEV BUILD SAVES TO `pnpm dev:web`'S WORKER, AS WHOEVER IS SIGNED IN THERE:
 it reads that browser's `better-auth.session_token` cookie for
 `http://localhost:5174` (its host permission names `http://localhost/*`, any
 port) and sends it as its bearer. Its welcome page's Sign in to Inteligir
-opens `http://localhost:5174/connect/extension`, which signs you in; Connect
-there tells the extension which site to save to, and nothing is handed over.
-Any local Worker on `localhost`, on whatever port, may name itself that way,
-which is how the e2e points the dev build at the Worker it boots
-(`tools/e2e/src/extension.spec.ts`). The store builds
+opens `http://localhost:5174/app/sign-in`, and signing in there is the whole of
+it. A dev build saves to a local Worker on another port once its storage names
+it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
+in the welcome page's console, which is how the e2e points the dev build at the
+Worker it boots (`tools/e2e/src/extension.spec.ts`). The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
-`https://inteligir.com/*` as their one host and save there alone.
+`https://inteligir.com/*` as their one host and save there alone, whatever
+their storage holds.
 
 ## Where state lives
 
@@ -132,7 +133,7 @@ which is how the e2e points the dev build at the Worker it boots
 | Scripted Messages API (`pnpm dev:web`)                               | 5177 (pinned — `.env`'s `ANTHROPIC_FAKE_URL` names it)                                                                                                                                  |
 | Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
-| The extension's account (its email and site), the saves it waits on  | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
+| The extension's account (email, its cookie's SHA-256), waiting saves | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |

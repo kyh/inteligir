@@ -289,8 +289,7 @@ Deleted…", which removes them for good.
 
 **Sign in to Inteligir** — the browser extension's sign-in, which is the
 browser's own: it sends that browser's **session** cookie for the site with
-each save, so signing out of the site signs it out too. The site's
-`/connect/extension` page only tells it where the site is
+each save, so signing out of the site signs it out too
 (`apps/extension/src/background/sign-in.ts`). The extension adds no row to
 **Devices**.
 

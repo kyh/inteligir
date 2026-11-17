@@ -6,7 +6,7 @@ import { browser } from "wxt/browser";
 
 import { askWorker } from "../../messages";
 import "../../styles/globals.css";
-import { Popup } from "./app";
+import { Popup, saveOpenedTab } from "./app";
 
 const container = document.querySelector("#root");
 if (container === null) {
@@ -19,8 +19,11 @@ const activeTabId = async (): Promise<number | null> => {
   return tab?.id ?? null;
 };
 
+// made here, once, and only read by React, which under StrictMode runs what it owns twice
+const opened = saveOpenedTab(activeTabId, askWorker);
+
 createRoot(container).render(
   <StrictMode>
-    <Popup activeTabId={activeTabId} ask={askWorker} />
+    <Popup opened={opened} />
   </StrictMode>,
 );

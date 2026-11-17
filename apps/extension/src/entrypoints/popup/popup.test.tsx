@@ -1,16 +1,16 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { StrictMode } from "react";
+import { deferred } from "@repo/contract/deferred";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
 import { OUTCOME_REASONS } from "../../messages";
 import type { ExtensionRequest, Outcome, OutcomeReason, Status, WorkerAsks } from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 import { Welcome } from "../welcome/app";
-import { Popup } from "./app";
+import { Popup, saveOpenedTab } from "./app";
 
 afterEach(cleanup);
 
-const SIGN_IN_URL = "https://inteligir.com/connect/extension";
+const SIGN_IN_URL = "https://inteligir.com/app/sign-in";
 const LIBRARY_URL = "https://inteligir.com/library";
 
 const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });
@@ -40,10 +40,22 @@ const worker = (status: Status | null, ...answers: Outcome[]) => {
 
 const tabSeven = async (): Promise<number | null> => 7;
 
+// the popup as its page opens it: over the one save its opening makes, which it suspends on as it
+// mounts, so React asks that the mount be awaited
+const openPopup = async (
+  ask: WorkerAsks,
+  activeTabId: () => Promise<number | null> = tabSeven,
+): Promise<void> => {
+  const opened = saveOpenedTab(activeTabId, ask);
+  await act(async () => {
+    render(<Popup opened={opened} />);
+  });
+};
+
 describe("the popup", () => {
   it("saves the tab it opened over, says it landed in Unsorted with its title, and links the library", async () => {
     const { ask, asked } = worker(signedIn, saved(true));
-    render(<Popup activeTabId={tabSeven} ask={ask} />);
+    await openPopup(ask);
     await expect(screen.findByText("Saved to Unsorted")).resolves.toBeTruthy();
     expect(screen.getByText("File over app")).toBeTruthy();
     expect(screen.getByText("Open your library").closest("a")?.getAttribute("href")).toBe(
@@ -53,66 +65,52 @@ describe("the popup", () => {
   });
 
   it("says who the browser is signed in as, and offers no sign-out of its own", async () => {
-    render(<Popup activeTabId={tabSeven} ask={worker(signedIn, saved(true)).ask} />);
+    await openPopup(worker(signedIn, saved(true)).ask);
     await expect(screen.findByText("Signed in as reader@example.test")).resolves.toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
     cleanup();
-    render(<Popup activeTabId={tabSeven} ask={worker(signedOut, refused("not-connected")).ask} />);
+    await openPopup(worker(signedOut, refused("not-connected")).ask);
     await screen.findByText(outcomeLine(refused("not-connected")).text);
     expect(screen.queryByText(/Signed in as/u)).toBeNull();
   });
 
-  // the page mounts under StrictMode, which runs an effect twice in a development build: a second
-  // save of the tab would answer that it is already in the library
-  it("saves once under StrictMode, as the page mounts", async () => {
-    const { ask, asked } = worker(signedIn, saved(true), saved(false));
-    render(
-      <StrictMode>
-        <Popup activeTabId={tabSeven} ask={ask} />
-      </StrictMode>,
-    );
+  it("says it is saving until the worker answers", async () => {
+    const held = deferred();
+    const { ask } = worker(signedIn, saved(true));
+    await openPopup({
+      ...ask,
+      save: async (tabId) => {
+        await held.promise;
+        return await ask.save(tabId);
+      },
+    });
+    await expect(screen.findByText("Saving…")).resolves.toBeTruthy();
+    held.resolve();
     await expect(screen.findByText("Saved to Unsorted")).resolves.toBeTruthy();
-    expect(asked.filter((request) => request.type === "save")).toStrictEqual([
-      { tabId: 7, type: "save" },
-    ]);
+    expect(screen.queryByText("Saving…")).toBeNull();
   });
 
   it("says a page already saved is already in the library, and one that waits when it goes", async () => {
-    render(<Popup activeTabId={tabSeven} ask={worker(signedIn, saved(false)).ask} />);
+    await openPopup(worker(signedIn, saved(false)).ask);
     await expect(screen.findByText("Already in your library")).resolves.toBeTruthy();
     cleanup();
-    render(
-      <Popup
-        activeTabId={tabSeven}
-        ask={worker(signedIn, { kind: "queued", waitsFor: "connection" }).ask}
-      />,
-    );
+    await openPopup(worker(signedIn, { kind: "queued", waitsFor: "connection" }).ask);
     await expect(screen.findByText("Saved when you're back online")).resolves.toBeTruthy();
     cleanup();
-    render(
-      <Popup
-        activeTabId={tabSeven}
-        ask={worker(signedIn, { kind: "queued", waitsFor: "update" }).ask}
-      />,
-    );
+    await openPopup(worker(signedIn, { kind: "queued", waitsFor: "update" }).ask);
     const update = await screen.findByText("Saved once this extension updates");
     expect(update.getAttribute("role")).toBe("status");
   });
 
   it("says a save made signed out waits for the sign-in, and links where to sign in", async () => {
-    render(
-      <Popup
-        activeTabId={tabSeven}
-        ask={worker(signedOut, { kind: "queued", waitsFor: "sign-in" }).ask}
-      />,
-    );
+    await openPopup(worker(signedOut, { kind: "queued", waitsFor: "sign-in" }).ask);
     const line = await screen.findByText("Saved once you sign in to Inteligir again");
     expect(line.closest("a")?.getAttribute("href")).toBe(SIGN_IN_URL);
   });
 
   it("says every refusal in its own sentence, and links the sign-in page where signing in helps", async () => {
     for (const reason of OUTCOME_REASONS) {
-      render(<Popup activeTabId={tabSeven} ask={worker(signedOut, refused(reason)).ask} />);
+      await openPopup(worker(signedOut, refused(reason)).ask);
       const line = outcomeLine(refused(reason));
       const shown = await screen.findByText(line.text);
       // a line that links the sign-in page is that link; any other is an alert
@@ -126,7 +124,7 @@ describe("the popup", () => {
   });
 
   it("says what to do about a full library", async () => {
-    render(<Popup activeTabId={tabSeven} ask={worker(signedOut, refused("library-full")).ask} />);
+    await openPopup(worker(signedOut, refused("library-full")).ask);
     await expect(
       screen.findByText("Your library is full. Free some room to save"),
     ).resolves.toBeDefined();
@@ -134,7 +132,7 @@ describe("the popup", () => {
 
   it("says a tab it cannot save is not one it saves", async () => {
     const { ask, asked } = worker(signedIn);
-    render(<Popup activeTabId={async () => null} ask={ask} />);
+    await openPopup(ask, async () => null);
     await expect(
       screen.findByText(outcomeLine(refused("unsupported-page")).text),
     ).resolves.toBeTruthy();

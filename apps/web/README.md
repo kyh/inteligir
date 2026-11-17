@@ -49,7 +49,6 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/v1/blobs/:sha`            | session         | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                                      |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                                   |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                                      |
-| `/connect/extension`        | session cookie  | The site's page that tells the browser extension where the site is and whose sign-in it found; it hands over nothing  |
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                               |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                         |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                   |
