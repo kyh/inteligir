@@ -246,7 +246,13 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
           <p className="m-0 text-body text-muted-foreground">{empty.body}</p>
         </div>
       ) : (
-        <LibraryGrid rows={page.items} selection={selection} onNearEnd={more} />
+        <LibraryGrid
+          listing={page}
+          scope={scope}
+          kind={kind}
+          selection={selection}
+          onNearEnd={more}
+        />
       )}
     </>
   );

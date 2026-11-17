@@ -1,10 +1,14 @@
 // What a command does to the cell (`./library-commands.tsx`), over the writes
 // `../cloud/library-writes.ts` holds. A verb over several items or several saves is one run that
-// says how it went (`./bulk-actions.ts`); a new note answers its caller, and a folder's write says
-// its own refusal.
+// says how it went (`./bulk-actions.ts`), and one over a scope the grid read only in part is one
+// ask the cell lands by itself; a new note answers its caller, and a folder's write says its own
+// refusal.
 
+import type { InferClientInputs } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { ordBetween } from "@repo/contract/library/order-key";
+import { refusalText } from "@repo/contract/refusal-text";
+import type { V1Client } from "@repo/contract/v1";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,13 +16,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import type { SaveInto } from "../cloud/library-writes";
 import { runBulk } from "./bulk-actions";
+import type { BulkRun } from "./bulk-actions";
 import type { CapturedLink } from "./capture/capture-payload";
+import type { Target } from "./library-selection";
 import { newId } from "./new-id";
 
 export interface TagChange {
   readonly add: readonly string[];
   readonly remove: readonly string[];
 }
+
+type SweepVerb = InferClientInputs<V1Client>["library"]["items"]["sweep"]["verb"];
 
 export const useLibraryVerbs = () => {
   const { orpc } = usePageLibrary().wire;
@@ -28,28 +36,46 @@ export const useLibraryVerbs = () => {
   const remove = useMutation(writes.remove());
   const restore = useMutation(writes.restore());
   const purge = useMutation(writes.purge());
+  const sweep = useMutation(writes.sweep());
   const writeFolders = useMutation(writes.folders());
   const refresh = useMutation(writes.refresh());
   const createNote = useMutation(writes.createNote());
   const saveLink = useMutation(writes.saveLink());
   const addFile = useMutation(writes.addFile());
-  const readDeleted = useMutation(writes.deletedIds());
 
   const folders = () =>
     queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.folders ?? [];
 
-  const restoreItems = async (ids: readonly string[]): Promise<void> => {
+  // A verb over its target. Items by id go in the chunks their route takes, as one run; a scope is
+  // one ask (`sweep`), which the cell lands after it answers, so its toast says what the cell took
+  // and the grid follows the cell as each lot lands
+  const bulk = async (
+    target: Target,
+    job: Omit<BulkRun<string>, "chunk" | "items"> & { readonly sweep: SweepVerb },
+  ): Promise<void> => {
+    if (target.kind === "ids") {
+      await runBulk({ ...job, chunk: BULK_ITEMS_MAX, items: target.ids });
+      return;
+    }
+    try {
+      const { items } = await sweep.mutateAsync({ ...target.swept, verb: job.sweep });
+      toast.success(`${job.verb} ${plural(items, "item")}.`);
+    } catch (error) {
+      toast.error(refusalText(error, `Those items couldn't be ${job.past}.`));
+    }
+  };
+
+  const restoreItems = async (target: Target): Promise<void> => {
     let held = 0;
-    await runBulk({
-      chunk: BULK_ITEMS_MAX,
+    await bulk(target, {
       done: (count) => `Restored ${plural(count, "item")}.`,
-      items: ids,
       past: "restored",
       run: async (chunk) => {
         const { addressHeld, restored } = await restore.mutateAsync({ ids: [...chunk] });
         held += addressHeld.length;
         return restored.length;
       },
+      sweep: { kind: "restore" },
       verb: "Restoring",
     });
     if (held > 0) {
@@ -77,68 +103,61 @@ export const useLibraryVerbs = () => {
     },
     // an empty note made, answering its id
     createNote: async (into: SaveInto): Promise<string> => await createNote.mutateAsync({ into }),
-    deletedIds: async (): Promise<string[]> => await readDeleted.mutateAsync(),
-    move: async (ids: readonly string[], folderId: string | null): Promise<void> => {
-      await runBulk({
-        chunk: BULK_ITEMS_MAX,
+    move: async (target: Target, folderId: string | null): Promise<void> => {
+      const folder = folderId === null ? null : { id: folderId };
+      await bulk(target, {
         done: (count) => `Moved ${plural(count, "item")}.`,
-        items: ids,
         past: "moved",
         run: async (chunk) => {
-          const { items } = await organize.mutateAsync({
-            folder: folderId === null ? null : { id: folderId },
-            ids: [...chunk],
-          });
+          const { items } = await organize.mutateAsync({ folder, ids: [...chunk] });
           return items.length;
         },
+        sweep: { folder, kind: "organize" },
         verb: "Moving",
       });
     },
-    pin: async (ids: readonly string[], pinned: boolean): Promise<void> => {
-      await runBulk({
-        chunk: BULK_ITEMS_MAX,
+    pin: async (target: Target, pinned: boolean): Promise<void> => {
+      await bulk(target, {
         done: (count) => `${pinned ? "Pinned" : "Unpinned"} ${plural(count, "item")}.`,
-        items: ids,
         past: pinned ? "pinned" : "unpinned",
         run: async (chunk) => {
           const { items } = await organize.mutateAsync({ ids: [...chunk], pinned });
           return items.length;
         },
+        sweep: { kind: "organize", pinned },
         verb: pinned ? "Pinning" : "Unpinning",
       });
     },
-    purge: async (ids: readonly string[]): Promise<void> => {
-      await runBulk({
-        chunk: BULK_ITEMS_MAX,
+    purge: async (target: Target): Promise<void> => {
+      await bulk(target, {
         done: (count) => `Deleted ${plural(count, "item")} forever.`,
-        items: ids,
         past: "deleted",
         run: async (chunk) => {
           const { purged } = await purge.mutateAsync({ ids: [...chunk] });
           return purged.length;
         },
+        sweep: { kind: "purge" },
         verb: "Deleting",
       });
     },
-    // to Deleted, with an Undo of what went
-    remove: async (ids: readonly string[]): Promise<void> => {
+    // to Deleted, with an Undo of what went when the device named it
+    remove: async (target: Target): Promise<void> => {
       const went: string[] = [];
-      await runBulk({
+      await bulk(target, {
         action: () => ({
           label: "Undo",
           onClick: () => {
-            void restoreItems(went);
+            void restoreItems({ ids: went, kind: "ids" });
           },
         }),
-        chunk: BULK_ITEMS_MAX,
         done: (count) => `Moved ${plural(count, "item")} to Deleted.`,
-        items: ids,
         past: "deleted",
         run: async (chunk) => {
           const { deleted } = await remove.mutateAsync({ ids: [...chunk] });
           went.push(...deleted);
           return deleted.length;
         },
+        sweep: { kind: "delete" },
         verb: "Deleting",
       });
     },
@@ -193,20 +212,16 @@ export const useLibraryVerbs = () => {
         verb: "Saving",
       });
     },
-    tag: async (ids: readonly string[], change: TagChange): Promise<void> => {
-      await runBulk({
-        chunk: BULK_ITEMS_MAX,
+    tag: async (target: Target, change: TagChange): Promise<void> => {
+      const tags = { addTags: [...change.add], removeTags: [...change.remove] };
+      await bulk(target, {
         done: (count) => `Tagged ${plural(count, "item")}.`,
-        items: ids,
         past: "tagged",
         run: async (chunk) => {
-          const { items } = await organize.mutateAsync({
-            addTags: [...change.add],
-            ids: [...chunk],
-            removeTags: [...change.remove],
-          });
+          const { items } = await organize.mutateAsync({ ...tags, ids: [...chunk] });
           return items.length;
         },
+        sweep: { ...tags, kind: "organize" },
         verb: "Tagging",
       });
     },

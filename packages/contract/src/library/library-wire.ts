@@ -58,7 +58,7 @@ export const FILING_RULES_MAX = 65_536;
 // what an agent or a list reads at once
 export const PAGE_MAX = 50;
 // what one page of the apps' listing carries, and the most a sweep leaves out
-export const LISTING_PAGE_MAX = 1000;
+const LISTING_PAGE_MAX = 1000;
 
 // ---- the rows ----
 

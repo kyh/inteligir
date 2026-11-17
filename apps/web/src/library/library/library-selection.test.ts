@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { createLibrarySelection, selectionAfter } from "./library-selection";
+import { createLibrarySelection, selectedIn, selectionAfter, targetOf } from "./library-selection";
 import type { LibrarySelection, SelectionGesture } from "./library-selection";
 
 const ORDER = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const ROWS = ORDER.map((id) => ({ id }));
+// a listing the grid read whole, and one of 8,512 it read the first eight of
+const WHOLE = { items: ROWS, total: ROWS.length };
+const PARTLY_READ = { items: ROWS, total: 8512 };
 
-const NONE: LibrarySelection = { anchor: null, focus: null, selected: new Set() };
+const NONE: LibrarySelection = {
+  anchor: null,
+  focus: null,
+  selected: { ids: new Set(), kind: "ids" },
+};
 
 const run = (...gestures: SelectionGesture[]): LibrarySelection => {
   let state = NONE;
@@ -21,7 +29,9 @@ const move = (
   extend = false,
 ): SelectionGesture => ({ columns: 3, delta, extend, kind: "move", order: ORDER });
 
-const names = (s: LibrarySelection): string[] => [...s.selected].toSorted();
+// the rows of the listing the selection names
+const names = (s: LibrarySelection): string[] =>
+  selectedIn(s.selected, WHOLE).rows.map((row) => row.id);
 
 describe("a click and its modifiers, as Finder reads them", () => {
   it("selects one item with a click, replacing what was selected", () => {
@@ -100,36 +110,54 @@ describe("the arrows over the grid's order", () => {
   });
 });
 
-describe("select all, clear and prune", () => {
-  it("selects every item in the scope with ⌘A, and edits from there", () => {
-    const s = run(
-      { id: "a", kind: "click" },
-      { kind: "all", order: ORDER },
-      { id: "c", kind: "toggle" },
-    );
+describe("select all and clear", () => {
+  it("selects the scope with ⌘A, read or not, and leaves out what a ⌘-click takes away", () => {
+    const s = run({ id: "a", kind: "click" }, { kind: "all" }, { id: "c", kind: "toggle" });
     expect(names(s)).toStrictEqual(["a", "b", "d", "e", "f", "g", "h"]);
+    expect(selectedIn(s.selected, PARTLY_READ).count).toBe(8511);
+    expect(names(selectionAfter(s, { id: "c", kind: "toggle" }))).toStrictEqual(ORDER);
   });
 
   it("clears everything", () => {
+    expect(run({ id: "a", kind: "click" }, { kind: "all" }, { kind: "clear" })).toStrictEqual(NONE);
+  });
+
+  it("selects nothing by an id the listing no longer shows", () => {
+    const s = run({ kind: "click", id: "a" }, { kind: "toggle", id: "gone" });
+    expect(selectedIn(s.selected, WHOLE)).toStrictEqual({ count: 1, rows: [{ id: "a" }] });
+  });
+});
+
+describe("what a verb takes of the selection", () => {
+  const everything = { kind: null, scope: { kind: "all" } } as const;
+
+  it("is its items by id while the grid read every one of them", () => {
+    const all = run({ kind: "all" }, { id: "c", kind: "toggle" });
+    expect(targetOf(all.selected, WHOLE, everything)).toStrictEqual({
+      ids: ["a", "b", "d", "e", "f", "g", "h"],
+      kind: "ids",
+    });
+    const clicked = run({ id: "b", kind: "click" });
+    expect(targetOf(clicked.selected, PARTLY_READ, everything)).toStrictEqual({
+      ids: ["b"],
+      kind: "ids",
+    });
+  });
+
+  it("is the scope, its kind and those left out once ⌘A reaches past what the grid read", () => {
+    const all = run({ kind: "all" }, { id: "c", kind: "toggle" });
     expect(
-      run({ id: "a", kind: "click" }, { kind: "all", order: ORDER }, { kind: "clear" }),
-    ).toStrictEqual(NONE);
-  });
-
-  it("takes items that left the library out, and the focus with them", () => {
-    const s = run(
-      { kind: "click", id: "a" },
-      { kind: "toggle", id: "b" },
-      { gone: new Set(["b", "z"]), kind: "prune" },
-    );
-    expect(names(s)).toStrictEqual(["a"]);
-    expect(s.focus).toBeNull();
-    expect(s.anchor).toBeNull();
-  });
-
-  it("answers the same selection when nothing it holds left", () => {
-    const before = run({ kind: "click", id: "a" });
-    expect(selectionAfter(before, { gone: new Set(["z"]), kind: "prune" })).toBe(before);
+      targetOf(all.selected, PARTLY_READ, { kind: "pdf", scope: { kind: "tag", tag: "field" } }),
+    ).toStrictEqual({
+      count: 8511,
+      kind: "scope",
+      swept: { except: ["c"], kinds: ["pdf"], scope: { kind: "tag", tag: "field" } },
+    });
+    expect(targetOf(run({ kind: "all" }).selected, PARTLY_READ, everything)).toStrictEqual({
+      count: 8512,
+      kind: "scope",
+      swept: { except: [], scope: { kind: "all" } },
+    });
   });
 });
 
@@ -141,7 +169,7 @@ describe("the store", () => {
       seen.push(state);
     });
     selection.apply({ kind: "click", id: "a" });
-    selection.apply({ gone: new Set(["z"]), kind: "prune" });
+    selection.apply({ columns: 3, delta: "down", extend: false, kind: "move", order: [] });
     expect(seen).toHaveLength(1);
     expect(names(selection.store.getState())).toStrictEqual(["a"]);
   });

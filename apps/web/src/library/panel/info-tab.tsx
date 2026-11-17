@@ -90,7 +90,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                   size="compact"
                   variant="ghost"
                   onClick={() => {
-                    commands.move([id]);
+                    commands.move({ ids: [id], kind: "ids" });
                   }}
                 >
                   Move…
@@ -108,7 +108,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                   size="compact"
                   variant="ghost"
                   onClick={() => {
-                    commands.tag([{ id, tags: fields.tags }]);
+                    commands.tag({ ids: [id], kind: "ids" }, [fields.tags]);
                   }}
                 >
                   Tag…

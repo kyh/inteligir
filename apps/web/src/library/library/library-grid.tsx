@@ -1,9 +1,12 @@
-// CLAUDE.md § The grid's selection is a store, a click selects and a double-click opens. The
-// listing as cards: the pages the cell answered so far, only the cards in view drawn, and the next
-// page asked for as the view nears the end of what is read. The grid
-// owns the gestures (the selection, the focus, the keys of the shortcut table's grid rows and the
-// menu); what a verb does is a command's.
+// CLAUDE.md § The grid's selection is a store. The listing as cards: the pages the cell answered
+// so far, only the cards in view drawn, and the next page asked for as the view nears the end of
+// what is read. The grid owns the gestures (the selection, the focus, the keys of the shortcut
+// table's grid rows and the menu) and says what a verb takes of the selection; what the verb does
+// is a command's.
 
+import type { ListingView } from "@repo/client/listing-view";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import type { LibraryScope } from "@repo/contract/library-scope";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import type { CardGridHandle } from "@repo/ui/components/card-grid";
 import { mediaCardHeight } from "@repo/ui/components/media-card";
@@ -19,6 +22,7 @@ import type { ItemMenuState } from "./item-menu";
 import { useLibraryCommands } from "./library-commands";
 import { shortcutFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
+import { isSelected, selectedIn, targetOf } from "./library-selection";
 import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
 import { QuickLook } from "./quick-look";
 import type { ListedItem } from "./listing";
@@ -43,13 +47,17 @@ const MOVES: Partial<Record<ShortcutIn<"grid">["action"], { delta: MoveDelta; ex
 const NEAR_END_ROWS = 60;
 
 export interface LibraryGridProps {
-  readonly rows: readonly ListedItem[];
+  // the listing as far as it is read, and the scope and kind it is of, which a ⌘A names
+  readonly listing: ListingView;
+  readonly scope: LibraryScope;
+  readonly kind: ItemKind | null;
   readonly selection: LibrarySelectionStore;
   // the view came near the end of the rows read so far
   readonly onNearEnd: () => void;
 }
 
-export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) => {
+export const LibraryGrid = ({ listing, scope, kind, selection, onNearEnd }: LibraryGridProps) => {
+  const rows = listing.items;
   const commands = useLibraryCommands();
   const [columns, setColumns] = useState(1);
   const [menu, setMenu] = useState<ItemMenuState | null>(null);
@@ -61,7 +69,7 @@ export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) =>
   const focusIndex = state.focus === null ? -1 : order.indexOf(state.focus);
   const modifier = platformShortcutModifier();
 
-  const selectedRows = (): ListedItem[] => rows.filter((row) => state.selected.has(row.id));
+  const selectedRows = (): ListedItem[] => selectedIn(state.selected, listing).rows;
 
   const press = (row: ListedItem, event: MouseEvent<HTMLDivElement>): void => {
     const toggling = modifier === "meta" ? event.metaKey : event.ctrlKey;
@@ -75,11 +83,13 @@ export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) =>
   };
 
   const openMenu = (row: ListedItem, anchor: HTMLElement): void => {
-    const inSelection = state.selected.has(row.id);
-    if (!inSelection) {
+    if (isSelected(state.selected, row.id)) {
+      const target = targetOf(state.selected, listing, { kind, scope });
+      setMenu({ anchor, row, subjects: selectedRows(), target });
+    } else {
       selection.apply({ id: row.id, kind: "click" });
+      setMenu({ anchor, row, subjects: [row], target: { ids: [row.id], kind: "ids" } });
     }
-    setMenu({ anchor, row, subjects: inSelection ? selectedRows() : [row] });
   };
 
   const focusCard = (id: string): void => {
@@ -131,7 +141,7 @@ export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) =>
       }
       case "select-all": {
         event.preventDefault();
-        selection.apply({ kind: "all", order });
+        selection.apply({ kind: "all" });
         return;
       }
       case "delete-selection": {
@@ -139,7 +149,7 @@ export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) =>
         if (subjects.length > 0) {
           event.preventDefault();
           if (subjects.every((row) => row.fields.deletedAt === null)) {
-            commands.remove(subjects.map((row) => row.id));
+            commands.remove(targetOf(state.selected, listing, { kind, scope }));
           }
         }
         break;
@@ -178,7 +188,7 @@ export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) =>
           return (
             <ItemCard
               row={row}
-              selected={state.selected.has(row.id)}
+              selected={isSelected(state.selected, row.id)}
               tabStop={focusIndex === -1 ? index === 0 : index === focusIndex}
               nowMs={nowMs}
               onPress={press}

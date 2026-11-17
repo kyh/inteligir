@@ -16,22 +16,27 @@ const ids = (count: number): string[] =>
 describe("the screen a message leaves from", () => {
   it("is the open item whatever the library shows", () => {
     expect(
-      viewContextOf({ kind: "link", openItem: ITEM, scope: { kind: "all" }, selected: ids(2) }),
+      viewContextOf({
+        kind: "link",
+        openItem: ITEM,
+        scope: { kind: "all" },
+        selected: { count: 2, ids: ids(2) },
+      }),
     ).toStrictEqual({ itemId: ITEM, surface: "item" });
   });
 
-  it("is the scope, its kind and the first of the selection, counted whole", () => {
+  it("is the scope, its kind and the first of the selection, counted past what the screen read", () => {
     const context = viewContextOf({
       kind: "link",
       openItem: null,
       scope: { kind: "unsorted" },
-      selected: ids(LIBRARY_SELECTION_MAX + 3),
+      selected: { count: 8512, ids: ids(LIBRARY_SELECTION_MAX + 3) },
     });
     expect(context).toStrictEqual({
       itemIds: ids(LIBRARY_SELECTION_MAX),
       kinds: ["link"],
       scope: { kind: "unsorted" },
-      selected: LIBRARY_SELECTION_MAX + 3,
+      selected: 8512,
       surface: "library",
     });
     expect(agentViewContextSchema.parse(context)).toStrictEqual(context);
@@ -39,10 +44,20 @@ describe("the screen a message leaves from", () => {
 
   it("names no kind when the library is not narrowed to one, and nothing from Deleted", () => {
     expect(
-      viewContextOf({ kind: null, openItem: null, scope: { kind: "all" }, selected: [] }),
+      viewContextOf({
+        kind: null,
+        openItem: null,
+        scope: { kind: "all" },
+        selected: { count: 0, ids: [] },
+      }),
     ).toStrictEqual({ itemIds: [], scope: { kind: "all" }, selected: 0, surface: "library" });
     expect(
-      viewContextOf({ kind: null, openItem: null, scope: { kind: "deleted" }, selected: ids(1) }),
+      viewContextOf({
+        kind: null,
+        openItem: null,
+        scope: { kind: "deleted" },
+        selected: { count: 1, ids: ids(1) },
+      }),
     ).toBeUndefined();
   });
 });

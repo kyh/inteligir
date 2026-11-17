@@ -107,13 +107,19 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   of the rail's scope; an item opens full size in its place, a file in its viewer and a note in the
   editor over its live document, since a list beside an open item reads saved pages as text files.
   `apps/web/src/library/item/item-view.tsx`.
-- **The grid's selection is a store, a click selects and a double-click opens.** Finder's grammar by
-  item id, and the store outlives an open item, since the selection is the panel's subject and the
-  agent's context. `apps/web/src/library/library/library-selection.ts`.
-- **A verb that makes several calls is one run, under one toast with Stop.** A chunk of items or
-  one link or file a call, in order, a failure saying how far it got beside Delete's Undo of what
-  went, and a delete of more than fifty asks first, since a loop of a verb's own says less of what
-  landed. `apps/web/src/library/library/bulk-actions.ts`.
+- **The grid's selection is a store, of ids or of its scope less those left out.** Finder's
+  grammar, a click selecting and a double-click opening, and ⌘A names the scope, read or not, since
+  the grid holds only the pages it read; an id the listing no longer shows selects nothing, so no
+  effect prunes it, and the store outlives an open item, since the selection is the panel's subject
+  and the agent's context. `apps/web/src/library/library/library-selection.ts`.
+- **A verb that makes several calls is one run, under one toast with Stop.** A chunk of the items
+  the device named or one link or file a call, in order, a failure saying how far it got beside
+  Delete's Undo of what went, and a delete of more than fifty asks first, since a loop of a verb's
+  own says less of what landed. `apps/web/src/library/library/bulk-actions.ts`.
+- **A verb over a scope the grid read only in part is one ask, which the cell lands.** The device
+  holds no id past its pages, so the toast says what the cell took and the grid follows the cell,
+  with no Stop and no Undo of items it never named; Empty Deleted is one, and a selection the grid
+  read whole goes by id. `apps/web/src/library/library/library-verbs.ts`.
 - **A save from the window is a paste or a drop that no field claimed.** Each link and file goes
   where the grid's scope saves, and a file past 100 MB is refused before a byte is queued, since the
   grid has no save field of its own. `apps/web/src/library/library/capture/window-capture.ts`.

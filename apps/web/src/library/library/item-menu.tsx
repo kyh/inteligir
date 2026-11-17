@@ -12,44 +12,47 @@ import { plural } from "@repo/ui/lib/plural";
 
 import { copyText } from "../copy-text";
 import { useLibraryCommands } from "./library-commands";
+import { targetCount } from "./library-selection";
+import type { Target } from "./library-selection";
 import type { ListedItem } from "./listing";
 
 export interface ItemMenuState {
   readonly row: ListedItem;
   readonly anchor: HTMLElement;
   // what the verbs act on: the row alone, or the selection it is part of. The grid selects a card
-  // it opens the menu on, so the subjects are the selection a message to the agent carries
+  // it opens the menu on, so the target is the selection a message to the agent carries
+  readonly target: Target;
+  // the rows of the target the grid read, which say what its items share
   readonly subjects: readonly ListedItem[];
 }
 
-const idsOf = (rows: readonly ListedItem[]): string[] => rows.map((row) => row.id);
-
 const DeletedVerbs = ({
-  subjects,
+  target,
   run,
 }: {
-  subjects: readonly ListedItem[];
+  target: Target;
   run: (verb: () => void) => () => void;
 }) => {
   const commands = useLibraryCommands();
-  const many = subjects.length > 1;
+  const count = targetCount(target);
+  const many = count > 1;
   return (
     <>
       <DropdownMenuItem
         onClick={run(() => {
-          commands.restore(idsOf(subjects));
+          commands.restore(target);
         })}
       >
-        {many ? `Restore ${plural(subjects.length, "item")}` : "Restore"}
+        {many ? `Restore ${plural(count, "item")}` : "Restore"}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
         variant="destructive"
         onClick={run(() => {
-          commands.purge(idsOf(subjects));
+          commands.purge(target);
         })}
       >
-        {many ? `Delete ${plural(subjects.length, "item")} forever…` : "Delete forever…"}
+        {many ? `Delete ${plural(count, "item")} forever…` : "Delete forever…"}
       </DropdownMenuItem>
     </>
   );
@@ -65,10 +68,12 @@ const LibraryVerbs = ({
   run: (verb: () => void) => () => void;
 }) => {
   const commands = useLibraryCommands();
-  const { row, subjects } = menu;
-  const ids = idsOf(subjects);
-  const many = subjects.length > 1;
-  const pinned = subjects.every((subject) => subject.fields.pinnedAt !== null);
+  const { row, subjects, target } = menu;
+  const count = targetCount(target);
+  const many = count > 1;
+  // a pin every item carries comes off; items the grid has not read may carry none
+  const pinned =
+    target.kind === "ids" && subjects.every((subject) => subject.fields.pinnedAt !== null);
   const { url } = row.fields;
   return (
     <>
@@ -101,26 +106,29 @@ const LibraryVerbs = ({
         </DropdownMenuItem>
       )}
       <DropdownMenuItem onClick={run(commands.askAgent)}>
-        {many ? `Ask the agent about ${plural(subjects.length, "item")}` : "Ask the agent"}
+        {many ? `Ask the agent about ${plural(count, "item")}` : "Ask the agent"}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onClick={run(() => {
-          commands.tag(subjects.map(({ fields, id }) => ({ id, tags: fields.tags })));
+          commands.tag(
+            target,
+            subjects.map((subject) => subject.fields.tags),
+          );
         })}
       >
-        {many ? `Tag ${plural(subjects.length, "item")}…` : "Tag…"}
+        {many ? `Tag ${plural(count, "item")}…` : "Tag…"}
       </DropdownMenuItem>
       <DropdownMenuItem
         onClick={run(() => {
-          commands.move(ids);
+          commands.move(target);
         })}
       >
-        {many ? `Move ${plural(subjects.length, "item")} to…` : "Move to…"}
+        {many ? `Move ${plural(count, "item")} to…` : "Move to…"}
       </DropdownMenuItem>
       <DropdownMenuItem
         onClick={run(() => {
-          commands.pin(ids, !pinned);
+          commands.pin(target, !pinned);
         })}
       >
         {pinned ? "Unpin" : "Pin"}
@@ -138,10 +146,10 @@ const LibraryVerbs = ({
       <DropdownMenuItem
         variant="destructive"
         onClick={run(() => {
-          commands.remove(ids);
+          commands.remove(target);
         })}
       >
-        {many ? `Delete ${plural(subjects.length, "item")}` : "Delete"}
+        {many ? `Delete ${plural(count, "item")}` : "Delete"}
       </DropdownMenuItem>
     </>
   );
@@ -174,7 +182,7 @@ export const ItemMenu = ({
           {menu.row.fields.deletedAt === null ? (
             <LibraryVerbs menu={menu} onQuickLook={onQuickLook} run={run} />
           ) : (
-            <DeletedVerbs subjects={menu.subjects} run={run} />
+            <DeletedVerbs target={menu.target} run={run} />
           )}
         </DropdownMenuContent>
       )}

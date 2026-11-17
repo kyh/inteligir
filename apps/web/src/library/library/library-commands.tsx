@@ -24,18 +24,14 @@ import type { LibraryGoes } from "../library-place";
 import type { WorkspaceStore } from "../workspace-store";
 import { askFolder, askName, askTags } from "./ask";
 import type { CapturePayload } from "./capture/capture-payload";
+import { targetCount } from "./library-selection";
+import type { Target } from "./library-selection";
 import { useLibraryVerbs } from "./library-verbs";
 import type { LibraryVerbs } from "./library-verbs";
 import { saveTagsOf } from "./listing";
 
 // a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
 const DELETE_ASKS_OVER = 50;
-
-// what a tag's verb acts on: each item and the tags its own field holds, which it can take off
-interface TagSubject {
-  readonly id: string;
-  readonly tags: readonly string[];
-}
 
 interface CommandPorts {
   readonly goes: LibraryGoes;
@@ -67,15 +63,15 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
     void verbs.saveLinks([{ title: null, url }], into(), goes.openItem);
   };
 
-  const purge = async (ids: readonly string[]): Promise<void> => {
+  const purge = async (target: Target): Promise<void> => {
     const sure = await confirm({
       body: "Their text and files are gone for good. This can't be undone.",
       confirmLabel: "Delete forever",
       destructive: true,
-      title: `Delete ${plural(ids.length, "item")} forever?`,
+      title: `Delete ${plural(targetCount(target), "item")} forever?`,
     });
     if (sure) {
-      await verbs.purge(ids);
+      await verbs.purge(target);
     }
   };
 
@@ -110,22 +106,18 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         verbs.deleteFolder(folderId);
       }
     }),
+    // all of Deleted, as the rail counts it, whatever kind the grid is narrowed to
     emptyDeleted: press(async () => {
-      let ids: string[];
-      try {
-        ids = await verbs.deletedIds();
-      } catch (error) {
-        toast.error(refusalText(error, "Deleted couldn't be read."));
-        return;
-      }
-      if (ids.length > 0) {
-        await purge(ids);
+      const scopes = queryClient.getQueryData(wire.orpc.library.listing.scopes.queryKey());
+      const count = scopes?.deleted ?? 0;
+      if (count > 0) {
+        await purge({ count, kind: "scope", swept: { except: [], scope: { kind: "deleted" } } });
       }
     }),
-    move: press(async (ids: readonly string[]) => {
-      const picked = await askFolder({ count: ids.length });
+    move: press(async (target: Target) => {
+      const picked = await askFolder({ count: targetCount(target) });
       if (picked !== null) {
-        await verbs.move(ids, picked.folderId);
+        await verbs.move(target, picked.folderId);
       }
     }),
     newFolder: press(async (parentId: string | null) => {
@@ -151,13 +143,14 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
     // a saved page read again by the cloud's fill
     refresh: verbs.refresh,
     // to Deleted; one this large asks first
-    remove: press(async (ids: readonly string[]) => {
-      if (ids.length > DELETE_ASKS_OVER) {
+    remove: press(async (target: Target) => {
+      const count = targetCount(target);
+      if (count > DELETE_ASKS_OVER) {
         const sure = await confirm({
           body: "They wait in Deleted, where you can restore them.",
           confirmLabel: "Delete",
           destructive: true,
-          title: `Delete ${plural(ids.length, "item")}?`,
+          title: `Delete ${plural(count, "item")}?`,
         });
         if (!sure) {
           return;
@@ -165,10 +158,10 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
       }
       // deleted on the person's word, so its leave asks nothing
       const { openItem } = goes.now();
-      if (openItem !== null && ids.includes(openItem)) {
+      if (openItem !== null && target.kind === "ids" && target.ids.includes(openItem)) {
         goes.closeItem({ unasked: true });
       }
-      await verbs.remove(ids);
+      await verbs.remove(target);
     }),
     renameFolder: press(async (folderId: string, name: string) => {
       const next = await askName({
@@ -198,18 +191,14 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
       workspace.compose({ kind: "tidy" });
       workspace.revealPanel("agent");
     },
-    tag: press(async (subjects: readonly TagSubject[]) => {
-      // the tags every subject carries, which the ask offers to take off
-      let held: string[] = [...(subjects[0]?.tags ?? [])];
-      for (const subject of subjects.slice(1)) {
-        held = held.filter((tag) => subject.tags.includes(tag));
-      }
-      const change = await askTags({ count: subjects.length, held });
+    // `carried`: the tags of each item of the target the screen read
+    tag: press(async (target: Target, carried: readonly (readonly string[])[]) => {
+      // the tags every one of them carries, which the ask offers to take off
+      const [first = [], ...rest] = carried;
+      const held = first.filter((tag) => rest.every((tags) => tags.includes(tag)));
+      const change = await askTags({ count: targetCount(target), held });
       if (change !== null) {
-        await verbs.tag(
-          subjects.map((subject) => subject.id),
-          change,
-        );
+        await verbs.tag(target, change);
       }
     }),
   };

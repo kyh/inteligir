@@ -347,6 +347,8 @@ The unpacked store build, against production, with no dev build loaded.
   VoiceOver, a Docs or Word list paste, Info's Add property picking a date and
   refusing an empty number, a dark window's note printing light, and a tab left
   open keeping its sign-in.
+- **A sweep on the platform's own alarm**: ⌘A then Delete over a scope of a few
+  thousand items empties the grid within seconds while another tab still reads.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
   Page not read opens its popover on a tap, and the header fits a phone.
 
