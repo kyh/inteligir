@@ -1,12 +1,15 @@
-// The policy every document the site renders carries, the library's among them: its own scripts,
-// each inline one by this request's nonce, and no wasm; calls and the socket to this origin alone;
-// nothing remote drawn in an item, so a saved page cannot beacon on open; no frame but the library's
-// own files, and no worker but the site's own scripts, which an import reads on. A response that
-// already names a policy keeps it (a file served under its own sandbox, the consent page), and one
-// that is no document carries none.
+// The two policies a document carries. Both draw only this origin's files and bytes the page holds,
+// so a saved page cannot beacon on open; call this origin and the Mac app's command channel alone;
+// and are framed by nobody. The library and the account pages render per request, so proxy.ts
+// hands each a nonce and nothing else inline runs. A marketing page is prerendered, and a page
+// built once cannot carry a per-request nonce, so its inline scripts run.
+
+import { createHash } from "node:crypto";
 
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { DRAWING_DIRECTIVES } from "@repo/editor/drawing-policy";
+
+import { noFlashThemeScript } from "../library/no-flash-theme";
 
 const NONCE_BYTES = 16;
 
@@ -15,22 +18,30 @@ export const mintNonce = (): string => {
   return btoa(String.fromCodePoint(...bytes));
 };
 
+// React rebuilds a server error's stack with eval in development, and never in a build
+const DEV_EVAL = process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : [];
+
+// the root layout's no-flash script is written by hand, so Next puts no nonce on it
+const THEME_SCRIPT_HASH = `'sha256-${createHash("sha256").update(noFlashThemeScript).digest("base64")}'`;
+
+// ipc: is the Mac app's command channel; blocked, Tauri falls back to postMessage, and no browser
+// has the scheme
+const IPC = "ipc:";
+
 // the socket's origin: CSP3 says 'self' covers it, which not every browser the page meets reads so
 const socketOrigin = (url: URL): string =>
   `${url.protocol === "https:" ? "wss:" : "ws:"}//${url.host}`;
 
-export const pagePolicy = (url: URL, nonce: string): string =>
+const FIXED_TAIL = ["base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"];
+
+export const libraryPolicy = (url: URL, nonce: string): string =>
   [
     ...DRAWING_DIRECTIVES,
-    `script-src 'self' 'nonce-${nonce}'`,
-    // ipc: is the Mac app's command channel; blocked, Tauri falls back to postMessage, and no
-    // browser has the scheme
-    `connect-src 'self' ${socketOrigin(url)} ipc:`,
+    ["script-src 'self'", `'nonce-${nonce}'`, THEME_SCRIPT_HASH, ...DEV_EVAL].join(" "),
+    `connect-src 'self' ${socketOrigin(url)} ${IPC}`,
     // a PDF item's viewer is the browser's, over the library's own bytes
     "object-src 'self'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
+    ...FIXED_TAIL,
     // Chromium draws a PDF item's viewer in a frame and checks it here as well as at object-src, so
     // the library's own files on this origin are framed, and nothing else
     `frame-src ${url.origin}${V1_BLOBS_PATH}/`,
@@ -38,19 +49,12 @@ export const pagePolicy = (url: URL, nonce: string): string =>
     "worker-src 'self'",
   ].join("; ");
 
-const isDocument = (response: Response): boolean =>
-  response.headers.get("content-type")?.startsWith("text/html") === true;
-
-export const withPagePolicy = (response: Response, url: URL, nonce: string): Response => {
-  if (!isDocument(response) || response.headers.has("content-security-policy")) {
-    return response;
-  }
-  // a fetched response's headers are immutable, so the policy goes on a copy over the same body
-  const headers = new Headers(response.headers);
-  headers.set("content-security-policy", pagePolicy(url, nonce));
-  return new Response(response.body, {
-    headers,
-    status: response.status,
-    statusText: response.statusText,
-  });
-};
+export const SITE_POLICY = [
+  ...DRAWING_DIRECTIVES,
+  ["script-src 'self' 'unsafe-inline'", ...DEV_EVAL].join(" "),
+  `connect-src 'self' ${IPC}`,
+  "object-src 'none'",
+  ...FIXED_TAIL,
+  "frame-src 'self'",
+  "worker-src 'self'",
+].join("; ");
