@@ -1,49 +1,63 @@
-// One item's field ops landed inside a write's transaction: guarded field by field
-// (`@repo/contract/library/field-ops`), whole or not at all, and the item laid only when something
-// changed. Every write the cell's procedures make of an existing item's fields comes through here:
-// a device's own ops, a reading, an organize, Deleted and back. An undo (`./cell-undo`) lands the
-// fields it merged, and a purge (`./cell-items`) empties the item.
+// An existing item's fields landed inside a write's transaction, by the rules every write meets
+// (`./cell-landing`), and only when something changed. The cell's own verbs compute the fields over
+// the item they read in the same transaction and land them: an organize, Deleted and back, a
+// reading. Only a device's property ops name a base, the value it showed
+// (`@repo/contract/library/field-ops`). An undo (`./cell-undo`) lands the fields its way back
+// leaves, and a purge (`./cell-items`) empties the item.
 
-import { applyFieldOps } from "@repo/contract/library/field-ops";
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import { applyPropertyOps } from "@repo/contract/library/field-ops";
+import type { PropertyOp } from "@repo/contract/library/field-ops";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 import { readItem } from "./library-queries";
+import type { StoredItem } from "./library-queries";
 
 import { landItem } from "./cell-landing";
 import type { ItemScope, LiveItemRow } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 
-export interface ItemWrite {
+export interface PropertyWrite {
   readonly itemId: string;
-  readonly ops: readonly FieldOp[];
+  readonly ops: readonly PropertyOp[];
 }
 
 // what a write of one item answers: the item as it landed
 export const landedSchema = z.object({ item: liveItemRowSchema });
 
-// the item's row as it stands, for a write every op of which was already true, or a save of an
-// address the item holds
+const rowOf = ({ card, fields, id, seq, updatedAt }: StoredItem): LiveItemRow => ({
+  card,
+  fields,
+  id,
+  seq,
+  updatedAt,
+});
+
+// the item's row as it stands, for a save of an address the item holds
 export const liveRowOf = (scope: ItemScope, itemId: string): LiveItemRow => {
   const item = readItem(scope.db, itemId);
-  if (item === null) {
-    return refuse({ kind: "not-found" });
-  }
-  const { card, fields, seq, updatedAt } = item;
-  return { card, fields, id: itemId, seq, updatedAt };
+  return item === null ? refuse({ kind: "not-found" }) : rowOf(item);
 };
 
-export const landWrite = (scope: ItemScope, input: ItemWrite): LiveItemRow => {
-  const { itemId } = input;
-  const before = readItem(scope.db, itemId);
+// the item with `fields` in place of its own; fields left as they were land nothing, and answer the
+// item as it stands
+export const landFields = (
+  scope: ItemScope,
+  item: StoredItem,
+  fields: LibraryItemFields,
+): LiveItemRow =>
+  canonicalJson(item.fields) === canonicalJson(fields)
+    ? rowOf(item)
+    : landItem(scope, { before: item, fields, itemId: item.id, seed: null });
+
+export const landPropertyOps = (scope: ItemScope, input: PropertyWrite): LiveItemRow => {
+  const before = readItem(scope.db, input.itemId);
   if (before === null) {
     return refuse({ kind: "not-found" });
   }
-  const outcome = applyFieldOps(before.fields, input.ops);
-  if (outcome.kind !== "applied") {
-    return refuse({ kind: outcome.kind === "conflict" ? "conflict" : "too-large" });
-  }
-  return outcome.changed
-    ? landItem(scope, { before, fields: outcome.fields, itemId, seed: null })
-    : liveRowOf(scope, itemId);
+  const outcome = applyPropertyOps(before.fields, input.ops);
+  return outcome.kind === "conflict"
+    ? refuse({ kind: "conflict" })
+    : landFields(scope, before, outcome.fields);
 };

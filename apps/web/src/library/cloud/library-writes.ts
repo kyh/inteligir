@@ -12,7 +12,7 @@
 import type { InferClientInputs, InferClientOutputs } from "@orpc/client";
 import type { V1Queries } from "@repo/client/library-cache";
 import { keptFileType } from "@repo/contract/items/item-kind";
-import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops";
+import { applyPropertyOps, mergeListField } from "@repo/contract/library/field-ops";
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
@@ -143,7 +143,7 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
 // would not land leaves them as they are, for the read after the refusal to settle
 const fieldsOverlay = (ops: readonly PropertyOp[]): Overlay => {
   const landed = (fields: LibraryItemFields): LibraryItemFields => {
-    const outcome = applyFieldOps(fields, ops);
+    const outcome = applyPropertyOps(fields, ops);
     return outcome.kind === "applied" ? outcome.fields : fields;
   };
   return {

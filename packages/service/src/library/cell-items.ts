@@ -1,15 +1,16 @@
 // The library's item writes beyond a device's own ops, each landed inside one write's transaction
-// by the rules every write meets (`./cell-landing`): a note or a file made whole, a bulk organize,
-// Deleted and back, Deleted emptied, and a url item's page asked for again. The markdown an agent
-// writes goes through the codec (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`);
-// its edit of a note's body is the note's (`./cell-edits`).
+// by the rules every write meets (`./cell-landing`): a note or a file made whole, an item's fields
+// as a bulk organize, Deleted and back, or its page asked for again leaves them (`./cell-writes`),
+// and Deleted emptied. The markdown an agent writes goes through the codec
+// (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's body is
+// the note's (`./cell-edits`).
 
 import { readBody } from "@repo/editor/codec/read-body";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { organizeOps } from "@repo/contract/library/cell-rules";
+import { organized } from "@repo/contract/library/cell-rules";
 import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
-import { readingOps } from "@repo/contract/library/item-reading";
+import { withReading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { changeSetItems } from "@repo/db/cell/schema";
 import { eq } from "drizzle-orm";
@@ -26,7 +27,7 @@ import { landItem } from "./cell-landing";
 import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
 import { forgetNoteSockets } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
-import { landWrite } from "./cell-writes";
+import { landFields } from "./cell-writes";
 
 export interface NewItem {
   readonly id: string;
@@ -119,8 +120,7 @@ export const organizeItems = (
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
-    const ops = organizeOps(item.fields, input, folderId, scope.now);
-    return landWrite(scope, { itemId, ops });
+    return landFields(scope, item, organized(item.fields, input, folderId, scope.now));
   });
 };
 
@@ -147,17 +147,13 @@ export const setDeleted = (
       missing.push(itemId);
       continue;
     }
-    const base = item.fields.deletedAt;
-    if ((base !== null) === input.deleted) {
+    if ((item.fields.deletedAt !== null) === input.deleted) {
       changed.push(itemId);
       continue;
     }
     try {
       landed.push(
-        landWrite(scope, {
-          itemId,
-          ops: [{ base, field: "deletedAt", op: "set", value: input.deleted ? scope.now : null }],
-        }),
+        landFields(scope, item, { ...item.fields, deletedAt: input.deleted ? scope.now : null }),
       );
       changed.push(itemId);
     } catch (error) {
@@ -205,5 +201,5 @@ export const refreshItem = (scope: ItemScope, itemId: string): LiveItemRow => {
   if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }
-  return landWrite(scope, { itemId, ops: readingOps(item.fields, { kind: "asked" }) });
+  return landFields(scope, item, withReading(item.fields, { kind: "asked" }));
 };

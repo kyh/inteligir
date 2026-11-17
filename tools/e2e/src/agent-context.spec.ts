@@ -101,14 +101,19 @@ test("Undo this turn takes the agent's line back and keeps what was typed, in th
     await expect(tab.locator(EDITOR)).not.toContainText(three);
   }
 
-  await page.getByRole("button", { name: "Info and the agent" }).click();
-  await page.getByRole("tab", { name: "Agent" }).click();
-  await page.getByRole("list", { name: "Conversations" }).getByRole("button").click();
+  for (const tab of [page, other]) {
+    await tab.getByRole("button", { name: "Info and the agent" }).click();
+    await tab.getByRole("tab", { name: "Agent" }).click();
+    await tab.getByRole("list", { name: "Conversations" }).getByRole("button").click();
+  }
   const thread = page.locator(`[data-thread="${threadId}"]`);
+  const undoOn = (tab: Page) =>
+    tab.locator(`[data-thread="${threadId}"]`).getByRole("button", { name: "Undo this turn" });
   await expect(thread.locator("[data-turn-ended]")).toBeVisible();
+  await expect(undoOn(other)).toBeVisible();
   // typed in another paragraph, and the undo pressed before the note saves it
   await typeAfter(page, two, " Typed since.");
-  await thread.getByRole("button", { name: "Undo this turn" }).click();
+  await undoOn(page).click();
   const undone = new RegExp(
     `${one} Typed while the agent wrote\\.[\\s\\S]*${two} Typed since\\.[\\s\\S]*${three}`,
     "u",
@@ -119,6 +124,8 @@ test("Undo this turn takes the agent's line back and keeps what was typed, in th
     await expect(tab.locator(EDITOR)).toContainText(three);
     await expect(tab.locator(EDITOR)).toContainText(`${two} Typed since.`);
     await expect(tab.locator(EDITOR)).not.toContainText("The agent's own line.");
+    // the turn has nothing left to take back, so neither tab offers its Undo, pressed or not
+    await expect(undoOn(tab)).toHaveCount(0);
   }
 });
 

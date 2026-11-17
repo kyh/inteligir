@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { applyFieldOps } from "./field-ops";
 import { blankItemFields, stubFields } from "./item-makes";
-import { readingAfter, readingFields, readingOf, readingOps } from "./item-reading";
+import { readingAfter, readingFields, readingOf, withReading } from "./item-reading";
 import type { Reading, ReadingEvent } from "./item-reading";
 import { FETCH_STATES } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
@@ -22,17 +21,13 @@ const ASKED: ReadingEvent = { kind: "asked" };
 const LANDED: ReadingEvent = { at: LATER, kind: "read" };
 const BROKE: ReadingEvent = { at: LATER, error: "Timed out.", kind: "failed" };
 
-// a link's fields holding `reading`, and what landing `event`'s ops on them leaves
+// a link's fields holding `reading`, and the reading `event` leaves them
 const landed = (reading: Reading, event: ReadingEvent): Reading => {
   const fields: LibraryItemFields = {
     ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
     ...readingFields(reading),
   };
-  const outcome = applyFieldOps(fields, readingOps(fields, event));
-  if (outcome.kind !== "applied") {
-    throw new Error(`the ops met ${outcome.kind}`);
-  }
-  return readingOf(outcome.fields);
+  return readingOf(withReading(fields, event));
 };
 
 describe("a saved page's reading", () => {
@@ -85,15 +80,8 @@ describe("a saved page's reading", () => {
 
   it("lands nothing on a note, and no failure over a read", () => {
     const note = blankItemFields(AT);
-    expect(readingOps(note, LANDED)).toStrictEqual([]);
-    expect(readingOps(note, BROKE)).toStrictEqual([]);
+    expect(withReading(note, LANDED)).toStrictEqual(note);
+    expect(withReading(note, BROKE)).toStrictEqual(note);
     expect(readingAfter(READ, BROKE)).toStrictEqual(READ);
-  });
-
-  it("names no field an ask leaves as it was", () => {
-    expect(readingOps(readingFields(WAITING), ASKED)).toStrictEqual([]);
-    expect(readingOps(readingFields(READ), ASKED)).toStrictEqual([
-      { base: "filled", field: "fetchState", op: "set", value: "pending" },
-    ]);
   });
 });

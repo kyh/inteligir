@@ -1,10 +1,9 @@
 // What the cell answers an agent's reads with, inside one read transaction: the listing and a
 // search's filters through the cell's listing (`./cell-listing`); an item as its markdown view,
-// paged by block position and cut to a page an agent's tool result can carry; the folder tree and
-// tags; and the change sets Undo takes back. Times an agent reads are ISO 8601.
+// paged by block position and cut to a page an agent's tool result can carry; and the folder tree
+// and tags. Times an agent reads are ISO 8601.
 
 import type {
-  changeSetSchema,
   itemReadSchema,
   itemSummarySchema,
   searchHitSchema,
@@ -17,34 +16,21 @@ import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { linksTo, linksToUrl, readItem } from "./library-queries";
-import {
-  and,
-  asc,
-  countDistinct,
-  desc,
-  eq,
-  getColumns,
-  inArray,
-  isNotNull,
-  isNull,
-} from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { z } from "zod";
 
-import { changeSetItems, changeSets, items, itemTags, links } from "@repo/db/cell/schema";
+import { items, itemTags, links } from "@repo/db/cell/schema";
 import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
 import { searchHits } from "../search/search-hits";
 import { listedWhole } from "./cell-listing";
-import { ENTRY_COLUMNS, entryOf } from "./change-sets";
-import type { SetEntry } from "./revert-change";
 import { refuse } from "./cell-refusal";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
 type ItemRead = z.infer<typeof itemReadSchema>;
-type ChangeSet = z.infer<typeof changeSetSchema>;
 
 export type ResponseFormat = "concise" | "detailed";
 
@@ -304,73 +290,5 @@ export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
       .groupBy(itemTags.tag)
       .orderBy(asc(itemTags.tag))
       .all(),
-  };
-};
-
-// ---- change sets ----
-
-// the items one set's entry names, at most a page of them
-const SET_ITEMS_SHOWN = 50;
-
-// whether the set moved the item to Deleted: its way back brings the item out
-const movedToDeleted = (entry: SetEntry): boolean =>
-  entry.kind === "made"
-    ? entry.fields.deletedAt !== null
-    : entry.inverse.some((op) => op.op === "set" && op.field === "deletedAt" && op.value === null);
-
-// an entry names a live item alone, since emptying Deleted drops the item's entries
-const setItemOf = (db: CellDb, itemId: string, entry: SetEntry) => {
-  const now = readItem(db, itemId);
-  return {
-    created: entry.kind === "made",
-    deleted: movedToDeleted(entry),
-    id: itemId,
-    title: now?.card.title ?? "",
-  };
-};
-
-interface ChangeSetsInput {
-  readonly cursor?: string | undefined;
-  // the sets one conversation's turns opened, which its Undo takes back; else the library's newest
-  readonly threadId?: string | undefined;
-  readonly limit: number;
-}
-
-export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
-  const offset = offsetOf(input.cursor);
-  const sets = db
-    .select({
-      ...getColumns(changeSets),
-      itemCount: db.$count(changeSetItems, eq(changeSetItems.changeSetId, changeSets.id)),
-    })
-    .from(changeSets)
-    .where(input.threadId === undefined ? undefined : eq(changeSets.threadId, input.threadId))
-    .orderBy(desc(changeSets.openedAt), desc(changeSets.id))
-    .limit(input.limit + 1)
-    .offset(offset)
-    .all();
-  const shown = sets.slice(0, input.limit);
-  return {
-    changeSets: shown.map((set): ChangeSet => {
-      const setItems = db
-        .select({ ...ENTRY_COLUMNS, itemId: changeSetItems.itemId })
-        .from(changeSetItems)
-        .where(eq(changeSetItems.changeSetId, set.id))
-        .orderBy(asc(changeSetItems.itemId))
-        .limit(SET_ITEMS_SHOWN)
-        .all()
-        .map(({ itemId, ...row }) => setItemOf(db, itemId, entryOf(row)));
-      return {
-        closedAt: set.sealedAt === null ? null : isoOf(set.sealedAt),
-        id: set.id,
-        itemCount: set.itemCount,
-        items: setItems,
-        openedAt: isoOf(set.openedAt),
-        threadId: set.threadId,
-        turn: set.turn,
-        undoneAt: set.undoneAt === null ? null : isoOf(set.undoneAt),
-      };
-    }),
-    cursor: sets.length > input.limit ? String(offset + input.limit) : null,
   };
 };

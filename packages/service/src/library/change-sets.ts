@@ -2,10 +2,12 @@
 // one. The turn's first landing makes its set, keyed by the turn, and the push that ends the turn
 // seals it, so one turn is one set. Each of the turn's landings joins the set's entry for its item
 // (`./revert-change`), and nobody else's write touches it. A set keeps an item's fields; what it did
-// to a note's body is that note's turn log, under the set's id.
+// to a note's body is that note's turn log, under the set's id. An entry goes once an Undo settled
+// it, with an emptied Deleted, or seven days after its turn ended (`./change-set-prune`), so a set
+// holds only what is left to take back.
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
-import { fieldOpSchema, sameList } from "@repo/contract/library/field-ops";
+import { sameList } from "@repo/contract/library/field-ops";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { and, eq, isNull } from "drizzle-orm";
@@ -19,7 +21,7 @@ import { ensureJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
 import type { CellDb } from "./cell-db";
 import { refuse } from "./cell-refusal";
-import { PRUNE_EVERY_MS } from "./change-set-prune";
+import { inverseOpSchema } from "./inverse-ops";
 import { nextEntry } from "./revert-change";
 import type { SetEntry } from "./revert-change";
 import { jsonTextSchema } from "./sql-value";
@@ -27,6 +29,7 @@ import { jsonTextSchema } from "./sql-value";
 // the change-set prune's job, made by whichever lands first, a sealed set or an op's answer,
 // either of which it bounds, and run once a day
 export const PRUNE_JOB: JobRequest<"prune"> = { id: "prune", kind: "prune", payload: {} };
+export const PRUNE_EVERY_MS = 24 * 60 * 60_000;
 
 type TurnKey = Pick<TurnActor, "threadId" | "turn">;
 
@@ -44,7 +47,7 @@ const entryRowSchema = z.union([
     .object({ inverse: z.null(), made: jsonTextSchema.pipe(libraryItemFieldsSchema) })
     .transform(({ made }): SetEntry => ({ fields: made, kind: "made" })),
   z
-    .object({ inverse: jsonTextSchema.pipe(z.array(fieldOpSchema)), made: z.null() })
+    .object({ inverse: jsonTextSchema.pipe(z.array(inverseOpSchema)), made: z.null() })
     .transform(({ inverse }): SetEntry => ({ inverse, kind: "changed" })),
 ]);
 
@@ -62,12 +65,7 @@ const filesOf = (entry: SetEntry | null): string[] =>
   entry?.kind === "changed" ? opFilesOf(entry.inverse) : [];
 
 // the set the turn's landings join, made by its first; a turn sealed is over, so it takes no more
-export const joinTurnSet = (
-  db: CellDb,
-  turn: TurnKey,
-  now: number,
-  newId: () => string,
-): string => {
+export const joinTurnSet = (db: CellDb, turn: TurnKey, newId: () => string): string => {
   const held = db
     .select({ id: changeSets.id, sealedAt: changeSets.sealedAt })
     .from(changeSets)
@@ -75,9 +73,7 @@ export const joinTurnSet = (
     .get();
   if (held === undefined) {
     const id = newId();
-    db.insert(changeSets)
-      .values({ id, openedAt: now, threadId: turn.threadId, turn: turn.turn })
-      .run();
+    db.insert(changeSets).values({ id, threadId: turn.threadId, turn: turn.turn }).run();
     return id;
   }
   return held.sealedAt === null ? held.id : refuse({ kind: "turn-ended" });
@@ -126,6 +122,16 @@ export const recordLanding = (
   if (!sameList(filesOf(prior), files)) {
     holdSetFiles(db, { changeSetId: setId, itemId }, files, now);
   }
+};
+
+// an entry gone, and with it its hold on the files its ops would name again
+export const dropEntry = (
+  db: CellDb,
+  entry: { readonly changeSetId: string; readonly itemId: string },
+  now: number,
+): void => {
+  db.delete(changeSetItems).where(entryIs(entry.changeSetId, entry.itemId)).run();
+  holdSetFiles(db, entry, [], now);
 };
 
 // A page's reading of an item a set made folds into what the set made while the item stood as the

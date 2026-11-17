@@ -17,7 +17,7 @@ import {
   openTurn,
   PERSON,
   refusalOf,
-  writeItem,
+  setFields,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { removalsOf, uploadedFile } from "../test-support/library-files";
@@ -64,16 +64,8 @@ const noteItem = async ({ client, clock, library }: Cell): Promise<string> => {
   return item.id;
 };
 
-const setCover = (
-  { library }: Cell,
-  actor: CellActor,
-  itemId: string,
-  base: string | null,
-  value: string,
-): void => {
-  landedValue(
-    writeItem(library, actor, { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
-  );
+const setCover = ({ library }: Cell, actor: CellActor, itemId: string, coverSha: string): void => {
+  landedValue(setFields(library, actor, itemId, { coverSha }));
 };
 
 const purge = async ({ client }: Cell, itemId: string): Promise<void> => {
@@ -136,10 +128,10 @@ describe("a file nothing names any more", () => {
       ];
       const fileHolder = await fileItem(cell, old);
       const note = await noteItem(cell);
-      setCover(cell, PERSON, note, null, old);
+      setCover(cell, PERSON, note, old);
       // the agent's turn replaces it, so its set keeps the cover it found
       const turn = openTurn(cell);
-      setCover(cell, turn.actor, note, old, fresh);
+      setCover(cell, turn.actor, note, fresh);
       turn.end();
       await purge(cell, fileHolder);
       await runJobs(cell);
@@ -161,8 +153,8 @@ describe("a file nothing names any more", () => {
         await uploadedFile(cell.library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      setCover(cell, PERSON, note, null, first);
-      setCover(cell, PERSON, note, first, second);
+      setCover(cell, PERSON, note, first);
+      setCover(cell, PERSON, note, second);
       await runJobs(cell);
       expect(fileRows(cell, first)).toBe(1);
       cell.clock.now += DAY;
@@ -181,12 +173,9 @@ describe("a file nothing names any more", () => {
       ];
       const note = await noteItem(cell);
       // two of the agent's turns, each a set of its own: the second's before names the old cover
-      for (const [base, value] of [
-        [null, old],
-        [old, fresh],
-      ] as const) {
+      for (const cover of [old, fresh]) {
         const turn = openTurn(cell);
-        setCover(cell, turn.actor, note, base, value);
+        setCover(cell, turn.actor, note, cover);
         turn.end();
       }
       clock.now += 6 * DAY;

@@ -20,8 +20,8 @@ import type { CellDb } from "./cell-db";
 import { fillsToSend } from "./cell-fills";
 import { finishJob, leaseJobs, scheduleJob } from "./cell-jobs";
 import type { JobKind, JobPayload, Lease } from "./cell-jobs";
-import { PRUNE_JOB } from "./change-sets";
-import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
+import { PRUNE_EVERY_MS, PRUNE_JOB } from "./change-sets";
+import { pruneChangeSets } from "./change-set-prune";
 import type { Cell } from "./open-cell";
 
 // a kind's run: the lot the alarm leased of it

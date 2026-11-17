@@ -46,8 +46,9 @@ as the turn last left one it made, keyed by the turn and sealed as the turn
 ends. No other writer keeps one: a person's, a connected
 assistant's, an import's and a page's reading land with nothing to undo, and a
 reading of a link the turn saved folds into the turn's set. The cell keeps each
-for the undo window (`packages/service/src/library/change-sets.ts`). Not a
-version: an undo writes forward and keeps no set of its own.
+for the undo window (`packages/service/src/library/change-sets.ts`), and a set
+holds only what is left to take back: an entry goes as an **Undo** settles it.
+Not a version: an undo writes forward and keeps no set of its own.
 
 **block** — one top-level element of a note's **live document**, named by its
 id and its **section**. The agent edits a body by block id, and a change to a
@@ -271,8 +272,10 @@ a Stop to the agent, and keeps only a **waiting save**. Never said of a note tha
 Deleted): each says its own words, and a hold outranks the connection.
 
 **Undo** — "Undo this turn" under an **answer** and "Undo this conversation"
-under a conversation, which revert the named **change sets** while their undo
-window lasts. What an agent's turn wrote in a note, that note takes back from
+under a conversation, which name a thread and its **turns** and take back what
+their **change sets** still hold, while the undo window lasts; a turn with
+nothing left offers none, and one pressed twice finds nothing left to undo.
+What an agent's turn wrote in a note, that note takes back from
 its **turn log**, and Undo names each note where typing inside a block the turn
 added went with it, each item a later edit kept whole, and each a rule held
 back. Not the editor's ⌘Z, which takes back only this device's typing.

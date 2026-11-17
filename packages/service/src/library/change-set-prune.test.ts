@@ -1,4 +1,4 @@
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { describe, expect, it } from "vitest";
 
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
@@ -12,9 +12,9 @@ import {
   landedValue,
   PERSON,
   placed,
+  setFields,
   storedItemOf,
   undoFields,
-  writeItem,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { runJobs } from "./cell-alarm";
@@ -34,8 +34,13 @@ const run = async (cell: Cell, state: DurableObjectState): Promise<void> => {
   expect(count(state, "SELECT count(*) AS n FROM jobs WHERE attempts > 0")).toBe(0);
 };
 
-const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: FieldOp): void => {
-  landedValue(writeItem(library, actor, { itemId, ops: [op] }));
+const set = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+  fields: Partial<LibraryItemFields>,
+): void => {
+  landedValue(setFields(library, actor, itemId, fields));
 };
 
 describe("the change-set prune", () => {
@@ -53,32 +58,20 @@ describe("the change-set prune", () => {
         }),
       );
       // the agent's renaming, three turns a minute apart
-      let title = "A note";
-      for (const next of ["typed", "typed more", "typed most"]) {
+      for (const title of ["typed", "typed more", "typed most"]) {
         clock.now += 60_000;
         const turn = openTurn(cell);
-        set(library, turn.actor, itemId, { base: title, field: "title", op: "set", value: next });
+        set(library, turn.actor, itemId, { title });
         turn.end();
-        title = next;
       }
       // three days on a turn describes it, and a day after that one renames it again
       clock.now = START + 3 * DAY;
       const describing = openTurn(cell);
-      set(library, describing.actor, itemId, {
-        base: null,
-        field: "description",
-        op: "set",
-        value: "the agent's",
-      });
+      set(library, describing.actor, itemId, { description: "the agent's" });
       describing.end();
       clock.now = START + 4 * DAY;
       const renaming = openTurn(cell);
-      set(library, renaming.actor, itemId, {
-        base: title,
-        field: "title",
-        op: "set",
-        value: "typed later",
-      });
+      set(library, renaming.actor, itemId, { title: "typed later" });
       renaming.end();
       const entries = (): number =>
         count(state, "SELECT count(*) AS n FROM change_set_items WHERE item_id = ?", itemId);
@@ -89,12 +82,12 @@ describe("the change-set prune", () => {
       // the first three turns' sets went; the describing and the last renaming stay
       expect(
         state.storage.sql
-          .exec("SELECT thread_id FROM change_sets ORDER BY opened_at")
+          .exec("SELECT thread_id FROM change_sets ORDER BY sealed_at")
           .toArray()
           .map((row) => row.thread_id),
       ).toStrictEqual([describing.actor.threadId, renaming.actor.threadId]);
       expect(entries()).toBe(2);
-      const answer = landedValue(undoFields(library, [describing.setId()]));
+      const answer = landedValue(undoFields(library, describing.actor));
       expect(answer.reverted).toStrictEqual([itemId]);
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { description: null, title: "typed later" },

@@ -15,12 +15,11 @@ import { nextHead, readCellState, writeCellState } from "./library-queries";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { appliedOps } from "@repo/db/cell/schema";
 
-import type { TurnUndone } from "../note/note-wire";
-import type { CellActor, TurnActor } from "./cell-actor";
+import type { CellActor } from "./cell-actor";
 import type { CellIds } from "./cell-ids";
 import { holdListing } from "./cell-listing";
 import { ensureJob, nextJobAt } from "./cell-jobs";
@@ -29,9 +28,7 @@ import { collectMoved } from "./cell-moved";
 import type { MovedCollector } from "./cell-moved";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
-import { undoChangeSets } from "./cell-undo";
-import { joinTurnSet, PRUNE_JOB } from "./change-sets";
-import { PRUNE_EVERY_MS } from "./change-set-prune";
+import { joinTurnSet, PRUNE_EVERY_MS, PRUNE_JOB } from "./change-sets";
 
 export interface LibraryEngineDeps {
   readonly db: CellDb;
@@ -63,18 +60,6 @@ export type Built<T> = T extends readonly (infer E)[]
   : T extends object
     ? { readonly [K in keyof T]: Built<T[K]> }
     : T;
-
-export interface UndoInput {
-  readonly changeSetIds: readonly string[];
-  readonly opId?: string | undefined;
-}
-
-const undoSchema = z.object({
-  kept: z.array(z.string()),
-  lostText: z.array(z.string()),
-  refused: z.array(z.string()),
-  reverted: z.array(z.string()),
-});
 
 // the last sequence number a write took, 0 before the first
 export const libraryHead = (db: CellDb): number => readCellState(db)?.head ?? 0;
@@ -176,32 +161,25 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }),
     );
 
-  // a write that changes items, kept in `turn`'s change set from its first landing, and in none
-  // when no turn of the built-in agent made it
-  const inTurn = <S extends z.ZodType>(
+  // a write by `actor` that changes items: kept in its turn's change set from its first landing
+  // when the built-in agent made it, and in none for any other writer, an Undo's included
+  const land = <S extends z.ZodType>(
+    actor: CellActor,
     request: WriteRequest<S>,
-    turn: TurnActor | null,
     work: (scope: ItemScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> =>
     transact(request, (scope, taken) =>
       work({
         ...scope,
         set: () => {
-          if (turn === null) {
+          if (actor.kind !== "agent") {
             return null;
           }
-          taken.set ??= joinTurnSet(db, turn, scope.now, ids.changeSet);
+          taken.set ??= joinTurnSet(db, actor, ids.changeSet);
           return taken.set;
         },
       }),
     );
-
-  // a write by `actor`, joining its turn's change set when it is the built-in agent's
-  const land = <S extends z.ZodType>(
-    actor: CellActor,
-    request: WriteRequest<S>,
-    work: (scope: ItemScope) => Built<z.input<S>>,
-  ): CellResult<z.output<S>> => inTurn(request, actor.kind === "agent" ? actor : null, work);
 
   // a write that changes no item, so no change set could keep it: a folder, a thread, a file's
   // room, a note's typing, a purge
@@ -209,13 +187,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     request: WriteRequest<S>,
     work: (scope: WriteScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => transact(request, (scope) => work(scope));
-
-  // an undo, which no turn made: what each note the sets wrote in answered first lands beside the
-  // fields
-  const undo = (input: UndoInput, notes: ReadonlyMap<string, TurnUndone>) =>
-    inTurn({ answer: undoSchema, opId: input.opId }, null, (scope) =>
-      undoChangeSets(scope, input.changeSetIds, notes),
-    );
 
   // the cell's own bookkeeping in one transaction, which takes no sequence number, joins no set
   // and keeps no answer: a job's row, a note's socket, a seed handed over
@@ -259,7 +230,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  return { answered, deletedAt, ids, land, landApart, read, readListing, rows, tombstone, undo };
+  return { answered, deletedAt, ids, land, landApart, read, readListing, rows, tombstone };
 };
 
 export type LibraryEngine = ReturnType<typeof openLibraryEngine>;

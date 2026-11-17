@@ -2,12 +2,13 @@
 // own handler over the rows a client writes through and the reads its screens make (an item whole,
 // a listing's pages, the rail's counts and every title), and `/v1/blobs/<sha>`, each device
 // reaching it through a transport of its own whose network a suite can take down or whose next
-// answers it can lose after the cell acted. It keeps the rules a client leans on: a write lands
-// only on the bases it names (`@repo/contract/library/field-ops`) and answers CONFLICT where one
-// moved, an op id is answered once, a file must be uploaded before a write names it, every write
-// takes the library's next sequence, and a read answers through the cell's own derivation and
-// listing (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). A suite
-// seeds it without a call, and reads an item back as a listing or `items.get` answers it.
+// answers it can lose after the cell acted. It keeps the rules a client leans on: a property op
+// lands only on the base it names (`@repo/contract/library/field-ops`) and answers CONFLICT where
+// one moved, a verb of the cell's lands the fields the cell's own rules compute, an op id is
+// answered once, a file must be uploaded before a write names it, every write takes the library's
+// next sequence, and a read answers through the cell's own derivation and listing
+// (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). A suite seeds it
+// without a call, and reads an item back as a listing or `items.get` answers it.
 
 import { createORPCClient } from "@orpc/client";
 import type { ClientContext, ClientLink } from "@orpc/client";
@@ -29,11 +30,12 @@ import {
 } from "../v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { folderOpLanding, folderOpRefusal, organizeOps } from "../library/cell-rules";
+import { canonicalJson } from "../library/canonical-json";
+import { folderOpLanding, folderOpRefusal, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
-import { applyFieldOps } from "../library/field-ops";
-import { readingOps } from "../library/item-reading";
-import type { FieldOp } from "../library/field-ops";
+import { applyPropertyOps } from "../library/field-ops";
+import { withReading } from "../library/item-reading";
+import type { PropertyOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
@@ -53,6 +55,7 @@ import {
   listingPageOf,
 } from "../library/library-index";
 import type { ItemListing, SearchHits } from "../library/library-index";
+import { libraryItemFieldsSchema } from "../library/library-item";
 import type { LibraryItemFields } from "../library/library-item";
 import { uuidV7 } from "../library/uuid-v7";
 import { mulberry32 } from "./seeded-random";
@@ -258,31 +261,32 @@ export const createFakeCell = (): FakeCell => {
     return null;
   };
 
-  const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
-    const item = items.get(input.itemId);
-    if (item === undefined) {
-      throw new NotFoundError();
-    }
-    const outcome = applyFieldOps(item.fields, input.ops);
-    if (outcome.kind === "conflict") {
-      throw new ConflictError();
-    }
-    if (outcome.kind === "invalid") {
-      throw new PayloadTooLargeError();
-    }
-    // every op already true, a resend's after its answer was let go: the item as it stands
-    if (!outcome.changed) {
-      return { item: liveRow(input.itemId, item) };
-    }
-    return land(input.itemId, outcome.fields, item.blocks);
-  };
-
   const holding = (id: string): CellItem => {
     const item = items.get(id);
     if (item === undefined) {
       throw new NotFoundError();
     }
     return item;
+  };
+
+  // an item's fields as a write leaves them; fields left as they were land nothing, and answer
+  // the item as it stands
+  const landFields = (id: string, fields: LibraryItemFields) => {
+    const item = holding(id);
+    return canonicalJson(item.fields) === canonicalJson(fields)
+      ? { item: liveRow(id, item) }
+      : land(id, fields, item.blocks);
+  };
+
+  const write = (input: { readonly itemId: string; readonly ops: readonly PropertyOp[] }) => {
+    const outcome = applyPropertyOps(holding(input.itemId).fields, input.ops);
+    if (outcome.kind === "conflict") {
+      throw new ConflictError();
+    }
+    if (!libraryItemFieldsSchema.validate(outcome.fields)) {
+      throw new PayloadTooLargeError();
+    }
+    return landFields(input.itemId, outcome.fields);
   };
 
   const held = (id: string): HeldItem => {
@@ -314,7 +318,7 @@ export const createFakeCell = (): FakeCell => {
     return target.id;
   };
 
-  // tags, folder, pin and title for each item, by the ops the cell's own organize lands
+  // tags, folder, pin and title for each item, as the cell's own organize leaves them
   // (`organizeItems` in `@repo/service`); an id naming no item refuses them all
   const organize = (input: OrganizeInput): LiveRow[] => {
     const folderId = folderIdOf(input.folder);
@@ -323,8 +327,7 @@ export const createFakeCell = (): FakeCell => {
       throw new NotFoundError();
     }
     return ids.map(
-      (itemId) =>
-        write({ itemId, ops: organizeOps(holding(itemId).fields, input, folderId, NOW) }).item,
+      (itemId) => landFields(itemId, organized(holding(itemId).fields, input, folderId, NOW)).item,
     );
   };
 
@@ -435,7 +438,7 @@ export const createFakeCell = (): FakeCell => {
             if (fields.url === null) {
               throw new NotFoundError();
             }
-            return write({ itemId: input.id, ops: readingOps(fields, { kind: "asked" }) });
+            return landFields(input.id, withReading(fields, { kind: "asked" }));
           }),
         ),
         restore: os.library.items.restore.handler(({ input }) =>

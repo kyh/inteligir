@@ -2,16 +2,11 @@
 // account's socket invalidates a family by its key (`@repo/client/library-cache`) and a mutation
 // patches what a screen shows by the same keys.
 
-import type { InferClientOutputs } from "@orpc/client";
 import { threadQueries } from "@repo/client/thread-queries";
-import type { V1Client } from "@repo/contract/v1";
-import { keepPreviousData, queryOptions, skipToken } from "@tanstack/react-query";
+import { keepPreviousData, skipToken } from "@tanstack/react-query";
 
 import type { ListingQuery } from "../library/listing";
-import { everyChangeSet } from "./change-set-pages";
 import type { CloudWire } from "./v1";
-
-type Outputs = InferClientOutputs<V1Client>["library"];
 
 // a grid's page: past it the grid asks for the next as it scrolls near the end
 const LISTING_PAGE = 200;
@@ -50,17 +45,10 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
 
   titles: () => orpc.library.listing.titles.queryOptions(),
 
-  // a conversation's change sets, every page of them, which each finished turn's Undo and the
-  // whole conversation's need; the socket asks again as a turn moves the thread, its set sealing
-  // as it ends
-  changeSets: (threadId: string) =>
-    queryOptions({
-      ...orpc.library.history.list.queryOptions({ input: { threadId } }),
-      queryFn: async ({ signal }): Promise<Outputs["history"]["list"]> => ({
-        changeSets: await everyChangeSet(client, { threadId }, signal),
-        cursor: null,
-      }),
-    }),
+  // the conversation's turns that still hold something to take back, which each finished turn's
+  // Undo and the whole conversation's show by; the socket asks again as a turn or an undo moves
+  // the thread
+  undoable: (threadId: string) => orpc.library.agent.undoable.queryOptions({ input: { threadId } }),
 });
 
 export type LibraryQueries = ReturnType<typeof libraryQueries>;

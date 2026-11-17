@@ -7,13 +7,14 @@ import type { Client } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { sessionHeaders, signUpUser, v1Link } from "../test-support/cloud-helpers";
+import { signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import {
   CONNECTOR_URL,
   connectAssistant,
   connectorClient,
   workerFetch,
 } from "../test-support/connector-session";
+import { cellOf, inCell } from "../test-support/library-cell";
 import { CONNECTOR_INSTRUCTIONS } from "./connector-server";
 
 const ALL_TOOLS = [
@@ -105,7 +106,7 @@ describe("the connector's tools", () => {
     await client.close();
   });
 
-  it("searches, reads and edits an item, every write by the assistant one change set it named", async () => {
+  it("searches, reads and edits an item, no write by the assistant kept in a change set", async () => {
     const { cookie } = await signUpUser("tools-edit@example.test");
     const grant = await connectAssistant(cookie);
     const client = await connectorClient(grant.access_token);
@@ -139,8 +140,10 @@ describe("the connector's tools", () => {
     expect(after.view.markdown).toContain("It jumped over the dog.");
 
     // only the built-in agent's turns keep a change set
-    const history = await v1Link(sessionHeaders(cookie)).library.history.list({});
-    expect(history.changeSets).toStrictEqual([]);
+    const sets = await inCell(cellOf(await userIdOf(cookie)), (state) =>
+      state.storage.sql.exec("SELECT id FROM change_sets").toArray(),
+    );
+    expect(sets).toStrictEqual([]);
     await client.close();
   });
 

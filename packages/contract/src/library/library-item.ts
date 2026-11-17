@@ -107,5 +107,4 @@ export const importedFieldsSchema = libraryItemFieldsSchema.omit({
   folderId: true,
 });
 export type ImportedFields = z.infer<typeof importedFieldsSchema>;
-export type LibraryItemField = keyof LibraryItemFields;
 export type PropertyValue = LibraryItemFields["properties"][string];

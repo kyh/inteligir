@@ -91,10 +91,7 @@ CREATE TABLE `change_sets` (
 	`id` text PRIMARY KEY,
 	`thread_id` text NOT NULL,
 	`turn` integer NOT NULL,
-	`opened_at` integer NOT NULL,
-	`sealed_at` integer,
-	`undone_at` integer,
-	CONSTRAINT "change_sets_undone" CHECK("undone_at" IS NULL OR "sealed_at" IS NOT NULL)
+	`sealed_at` integer
 );
 
 CREATE TABLE `folders` (

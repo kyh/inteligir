@@ -243,21 +243,18 @@ export const itemBlobs = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.sha256] }), index("item_blobs_sha").on(t.sha256)],
 );
 
-// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one
+// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one. It
+// is open until its turn ends, and holds only what is left to take back: an Undo drops each entry
+// it settles, so a set undone is a set with none
 export const changeSets = sqliteTable(
   "change_sets",
   {
     id: text().primaryKey(),
     threadId: text("thread_id").notNull(),
     turn: integer().notNull(),
-    openedAt: integer("opened_at").notNull(),
     sealedAt: integer("sealed_at"),
-    undoneAt: integer("undone_at"),
   },
-  (t) => [
-    uniqueIndex("change_sets_turn").on(t.threadId, t.turn),
-    check("change_sets_undone", sql`${t.undoneAt} IS NULL OR ${t.sealedAt} IS NOT NULL`),
-  ],
+  (t) => [uniqueIndex("change_sets_turn").on(t.threadId, t.turn)],
 );
 
 // What a set did to one item, as JSON: the fields of an item it made, as it last left them, or the

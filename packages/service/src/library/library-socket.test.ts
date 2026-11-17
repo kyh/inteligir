@@ -491,22 +491,22 @@ describe("the moved frame", () => {
     });
   });
 
-  it("names what an undo took back", async () => {
+  it("names what an undo took back, and the thread it took it from", async () => {
     const { accountId, phone, ticket } = await signedInPhone("moved-undo@example.test");
     const opened = await openWithTicket(ticket);
     const { library } = v1Link(phoneHeaders(phone));
-    const item = await inCell(cellOf(accountId), async (state) => {
+    const { item, threadId } = await inCell(cellOf(accountId), async (state) => {
       const turn = openTurn(cellIn(state));
       const made = await turn.client.items.createNote({ markdown: "Before." });
       turn.end();
-      return made.item;
+      return { item: made.item, threadId: turn.actor.threadId };
     });
-    const { changeSets } = await library.history.list({});
     const heard = movedOf(opened).length;
-    await library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
+    await library.agent.undo({ threadId });
     await until(() => movedOf(opened).length === heard + 1);
     const undone = movedOf(opened).at(-1);
-    expect(undone).toMatchObject({ folders: false, threads: [], type: "moved" });
+    // the thread too, so every device reads again which of its turns are left to undo
+    expect(undone).toMatchObject({ folders: false, threads: [threadId], type: "moved" });
     expect(undone?.items).toStrictEqual([{ id: item.id, seq: expect.any(Number) }]);
   });
 });

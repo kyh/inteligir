@@ -15,7 +15,6 @@ import { storableBlockSchema } from "./library-nodes";
 import {
   AgentBudgetError,
   AgentUnavailableError,
-  AlreadyUndoneError,
   BlobMissingError,
   ConflictError,
   EditRefusedError,
@@ -27,7 +26,6 @@ import {
 import {
   agentViewContextSchema,
   BULK_ITEMS_MAX,
-  changeSetSchema,
   cursorSchema,
   eventIdSchema,
   folderNameSchema,
@@ -405,37 +403,6 @@ const organizeContract = {
   ),
 };
 
-// the built-in agent's turns' change sets, each kept until seven days after its turn closed
-const historyContract = {
-  // the sets one conversation's turns made, or the library's newest
-  list: signedBase
-    .input(z.strictObject({ cursor, limit, threadId: idSchema.optional() }))
-    .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
-
-  // newest first, in one write; an item a later edit overlaps is named under `kept`, and one a
-  // rule refuses under `refused`, its set left to undo again. A set of which only kept items remain
-  // stays undoable too, and a set whose turn is still open is a conflict. When a rule held back all
-  // that could land, its own error is the answer
-  undo: signedBase
-    .errors({
-      [AlreadyUndoneError.code]: AlreadyUndoneError,
-      [BlobMissingError.code]: BlobMissingError,
-      [ConflictError.code]: ConflictError,
-      [NotFoundError.code]: NotFoundError,
-      [PayloadTooLargeError.code]: PayloadTooLargeError,
-    })
-    .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
-    .output(
-      z.object({
-        kept: z.array(idSchema),
-        // the items whose undo took text someone wrote inside a block the undone turn added
-        lostText: z.array(idSchema),
-        refused: z.array(idSchema),
-        reverted: z.array(idSchema),
-      }),
-    ),
-};
-
 // an item an import lands: one the device read (`new`), filed under the folder path it stood in,
 // with the picture its source named for the cloud's reading to try after the page's; or one in
 // Deleted it brings back (`restore`). A device parses each through this before it sends a batch,
@@ -489,6 +456,8 @@ const importsContract = {
 };
 
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });
+// a turn by its number in its thread, as its `turn.ended` event names it
+const turnNumber = z.number().int().positive();
 
 const agentContract = {
   // a message to the built-in agent: a new thread when none is named; it waits behind its thread's
@@ -582,12 +551,46 @@ const agentContract = {
   setRules: signedBase
     .input(z.strictObject({ opId, rules: z.string().max(FILING_RULES_MAX) }))
     .output(z.object({ rules: z.string() })),
+
+  // the thread's ended turns that still hold something Undo takes back, oldest first; a turn goes
+  // seven days after it ended
+  undoable: signedBase
+    .input(z.strictObject({ threadId: idSchema }))
+    .output(z.object({ turns: z.array(turnNumber) })),
+
+  // What the thread's turns changed, taken back in one write: one turn, or the conversation's,
+  // newest first, so many a call, those before `before`. `next` is where the turns this call left
+  // start, null once none wait. An item a later edit overlaps is named under `kept` and one a rule
+  // refuses under `refused`, each left to undo again; when a rule held back all that could land,
+  // its own error is the answer. A turn with nothing left to take back, already undone or still
+  // open, changes nothing, so the call takes no opId: sent again, it finds nothing left
+  undo: signedBase
+    .errors({
+      [BlobMissingError.code]: BlobMissingError,
+      [ConflictError.code]: ConflictError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+    })
+    .input(
+      z.union([
+        z.strictObject({ threadId: idSchema, turn: turnNumber }),
+        z.strictObject({ before: turnNumber.optional(), threadId: idSchema }),
+      ]),
+    )
+    .output(
+      z.object({
+        kept: z.array(idSchema),
+        // the items whose undo took text someone wrote inside a block the undone turn added
+        lostText: z.array(idSchema),
+        next: turnNumber.nullable(),
+        refused: z.array(idSchema),
+        reverted: z.array(idSchema),
+      }),
+    ),
 };
 
 export const libraryContract = {
   agent: agentContract,
   folders: foldersContract,
-  history: historyContract,
   imports: importsContract,
   items: itemsContract,
   listing: listingContract,

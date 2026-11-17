@@ -12,9 +12,9 @@ import { and, eq, exists, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
-import type { FieldOp } from "@repo/contract/library/field-ops";
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { InverseOp } from "./inverse-ops";
 import { readCellState, writeCellState } from "./library-queries";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
@@ -34,7 +34,7 @@ const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): string[] =>
   [originalSha, coverSha].filter((sha) => sha !== null);
 
 // the files ops would name: an original or a cover they set
-export const opFilesOf = (ops: readonly FieldOp[]): string[] =>
+export const opFilesOf = (ops: readonly InverseOp[]): string[] =>
   ops.flatMap((op) =>
     op.op === "set" && (op.field === "originalSha" || op.field === "coverSha") && op.value !== null
       ? [op.value]

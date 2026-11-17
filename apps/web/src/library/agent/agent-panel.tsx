@@ -36,17 +36,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
-import { retryUnlessRefused } from "@repo/client/library-cache";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import type { ComposerEvent, ComposerState } from "./agent-composer";
 import { quotePassage } from "./quote-passage";
-import { chunksOf } from "../library/bulk-actions";
-import { conversationUndo, turnUndo } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
+import { UNDO_SCOPE, undoToEnd, useUndoWaits } from "./undo-queue";
 
 export interface AgentPanelProps {
   // the conversation shown and what the composer holds, which the workspace keeps
@@ -239,78 +236,38 @@ const Conversation = ({
   const titles = useQuery(queries.titles()).data?.targets ?? [];
   const { blocks, waiting } = conversationOf(rows);
   const preview = useLivePreview(threadId);
-  const changeSets = useQuery(queries.changeSets(threadId)).data?.changeSets;
+  const undoable = useQuery(queries.undoable(threadId)).data?.turns ?? [];
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
+  // a press names its conversation, so one that waits offline keeps to it whichever is open when
+  // it goes
   const undo = useMutation(
-    orpc.library.history.undo.mutationOptions({
+    orpc.library.agent.undo.mutationOptions({
+      mutationFn: async (press) => await undoToEnd(client, press),
       onError: (cause) => {
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
       onMutate: flushOpen,
-      // refused too: an open list hears nothing of what another device took back, so a refusal can
-      // be the first it learns of it
+      // awaited, so the queue holds every Undo down until the turns left to undo are read again:
+      // the socket's frame may land after the answer, and a press between the two would ask for
+      // what just went back
       onSettled: async () => {
-        await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
+        await queryClient.invalidateQueries({ queryKey: orpc.library.agent.undoable.key() });
+      },
+      onSuccess: (answer) => {
+        announceUndo(answer, (id) =>
+          shownTitle(titles.find((target) => target.id === id)?.title ?? ""),
+        );
       },
       scope: UNDO_SCOPE,
     }),
   );
   const undoWaits = useUndoWaits();
-  const undoSets = (ids: readonly string[]): void => {
-    void (async () => {
-      const kept: string[] = [];
-      const lostText: string[] = [];
-      const refused: string[] = [];
-      const reverted: string[] = [];
-      for (const batch of chunksOf(ids)) {
-        try {
-          const answer = await undo.mutateAsync({ changeSetIds: batch });
-          kept.push(...answer.kept);
-          lostText.push(...answer.lostText.filter((id) => !lostText.includes(id)));
-          refused.push(...answer.refused);
-          reverted.push(...answer.reverted);
-        } catch {
-          // the undo's own onError said why; the batches after it are not sent
-          return;
+  const undoTurn = (turn: number): (() => void) | null =>
+    undoable.includes(turn)
+      ? () => {
+          undo.mutate({ threadId, turn });
         }
-      }
-      announceUndo({ kept, lostText, refused, reverted }, (id) =>
-        shownTitle(titles.find((target) => target.id === id)?.title ?? ""),
-      );
-    })();
-  };
-  const undoTurn = (turn: number): (() => void) | null => {
-    const ids = changeSets === undefined ? null : turnUndo(changeSets, turn);
-    return ids === null
-      ? null
-      : () => {
-          undoSets(ids);
-        };
-  };
-  const whole = changeSets === undefined ? null : conversationUndo(changeSets);
-  // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
-  // so that list can be a turn short of the conversation, or hold what another device took back. A
-  // mutation though it writes nothing, so the press waits offline under the layout's notice and in
-  // the undos' queue. Keyed by the conversation, since one that waits can outlast this component:
-  // the key keeps it to the conversation it was pressed in
-  const undoConversation = useMutation({
-    mutationFn: async () => await everyChangeSet(client, { threadId }),
-    mutationKey: ["undo-conversation", threadId],
-    onError: (cause) => {
-      toast.error(refusalText(cause, "That couldn't be undone."));
-    },
-    onSuccess: async (read) => {
-      const ids = conversationUndo(read);
-      if (ids !== null) {
-        undoSets(ids);
-        return;
-      }
-      toast.info("There's nothing left to undo in this conversation.");
-      await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
-    },
-    retry: retryUnlessRefused,
-    scope: UNDO_SCOPE,
-  });
+      : null;
   const working = thread !== undefined && isWorking(thread.status);
   const underWay = thread !== undefined && isUnderWay(thread.status);
   // a reversed column scrolls from its end, so the browser keeps the conversation on the reply as
@@ -353,13 +310,13 @@ const Conversation = ({
               Stop
             </Button>
           ) : null}
-          {whole === null || underWay ? null : (
+          {undoable.length === 0 || underWay ? null : (
             <Button
               size="compact"
               variant="ghost"
               disabled={undoWaits}
               onClick={() => {
-                undoConversation.mutate();
+                undo.mutate({ threadId });
               }}
             >
               Undo this conversation

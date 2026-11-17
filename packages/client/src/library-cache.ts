@@ -130,7 +130,7 @@ const invalidateMoved = (
   }
   if (frame.threads === "all" || frame.threads.length > 0) {
     void queryClient.invalidateQueries({ queryKey: library.agent.list.key() });
-    void queryClient.invalidateQueries({ queryKey: library.history.key() });
+    void queryClient.invalidateQueries({ queryKey: library.agent.undoable.key() });
   }
   if (frame.threads === "all") {
     void queryClient.invalidateQueries({ queryKey: library.agent.events.key() });

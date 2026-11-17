@@ -81,16 +81,18 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   `packages/service/src/library/library-engine.ts`.
 - **The engine guards a transaction and holds no rule: an op is its `cell-*`
   module's, landed through `land`, `landApart` or `rows`.** A method per op is a
-  catalogue every new op grows, and only `land`'s scope has a change set, so a
-  write that joins none cannot ask for one.
+  catalogue every new op grows, and only `land`'s scope lands an item, in its
+  turn's change set when the built-in agent made it.
   `packages/service/src/library/library-engine.ts`.
 - **An alarm's run tells the sockets once, its writes' frames merged on a cell
   of its own.** Each job commits alone, so a frame a commit would wake every
   device once a job, and a flag on the wake's cell would hold a call's frame for
   the whole run. `packages/service/src/library/library-do.ts`.
-- **A library write changes fields alone, only on the bases it names, in one
-  transaction.** Last write wins loses an edit unseen, and a whole-item base
-  makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.
+- **A verb of the cell's is a function over an item's fields, landed in the
+  transaction that read them; a base guards only what was computed away from
+  it, a device's property op and a change set's way back.** A base over fields
+  read lines earlier cannot fail, and ops built to meet it are a second
+  spelling of the change. `packages/service/src/library/cell-writes.ts`.
 - **A change set is one built-in agent turn's, sealed by the push that ends
   the turn, and Undo reaches back seven days** (owner decision). Undo takes
   back only the agent's turns, so a set for any other writer is history nobody
@@ -100,6 +102,10 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   snapshots of an item take back an edit made between two of the set's writes;
   Yjs's UndoManager lives in memory, which an eviction ends.
   `packages/service/src/library/revert-change.ts`.
+- **Undo names a thread and its turns, and a change set holds only what is left
+  to take back.** A set's id on the wire has every device page and join them,
+  and a set marked undone is a state the press another device already made has
+  to be refused by. `packages/service/src/library/cell-undo.ts`.
 - **Each note's body is a live document in an object of its own, which the cell
   seeds and reads back** (owner decision). No keystroke goes through the
   account's one object; `NoteDO` pushes its projection on a debounced save.

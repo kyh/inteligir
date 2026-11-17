@@ -40,6 +40,7 @@ const openSocket = async () => {
     scopes: listing.scopes.queryKey(),
     threads: agent.list.queryKey({ input: {} }),
     titles: listing.titles.queryKey(),
+    undoable: agent.undoable.queryKey({ input: { threadId: THREAD } }),
   } satisfies Record<string, QueryKey>;
   const { sockets, WebSocket } = fakeSockets();
   const socket = createLibrarySocket({
@@ -68,6 +69,7 @@ const openSocket = async () => {
       keys.scopes,
       keys.threads,
       keys.titles,
+      keys.undoable,
     ];
     for (const key of held) {
       queryClient.setQueryData(key, "held");
@@ -126,6 +128,7 @@ describe("what the account's socket reads again", () => {
       "scopes",
       "threads",
       "titles",
+      "undoable",
     ]);
     expect(device.moved).toStrictEqual([null]);
   });
@@ -145,10 +148,10 @@ describe("what the account's socket reads again", () => {
     expect(moved).toStrictEqual([new Set([note.id, other.id])]);
   });
 
-  it("reads again the rail's scopes for a folder that moved, and a thread for its turn", async () => {
+  it("reads again the rail's scopes for a folder that moved, and a thread for its turn or its undo", async () => {
     const { hear, moved, staleOf } = await openSocket();
     hear({ folders: true, items: [], threads: [THREAD], type: "moved" });
-    expect(staleOf()).toStrictEqual(["events", "scopes", "threads"]);
+    expect(staleOf()).toStrictEqual(["events", "scopes", "threads", "undoable"]);
     expect(moved).toStrictEqual([]);
   });
 

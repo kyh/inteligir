@@ -5,14 +5,13 @@
 // in the closing sentence, so a run where none landed says that, a failure among them, rather than a
 // count of 0.
 
-import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
 
 import { formatCount } from "./item-labels";
 
 // `items` in order, `size` at a time: as many as one cell call takes
-export const chunksOf = <T>(items: readonly T[], size = BULK_ITEMS_MAX): T[][] => {
+const chunksOf = <T>(items: readonly T[], size: number): T[][] => {
   const chunks: T[][] = [];
   for (let start = 0; start < items.length; start += size) {
     chunks.push(items.slice(start, start + size));

@@ -8,7 +8,6 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import type { FieldOp } from "./library/field-ops";
 import { liveItemRowSchema } from "./library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
@@ -50,7 +49,7 @@ const LIBRARY_READS = new Set([
   "agent.list",
   "agent.rules",
   "agent.status",
-  "history.list",
+  "agent.undoable",
   "imports.named",
   "imports.settle",
   "items.get",
@@ -63,6 +62,9 @@ const LIBRARY_READS = new Set([
   "organize.outline",
   "search",
 ]);
+
+// the write that takes none: an undo names turns, and a turn already taken back has nothing left
+const RESENT_UNKEYED = new Set(["agent.undo"]);
 
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";
@@ -155,21 +157,6 @@ describe("/v1's error statuses", () => {
       },
     },
     {
-      code: "ALREADY_UNDONE",
-      data: { changeSetId: UUID_V7 },
-      refusal: async (client) =>
-        await refusalOf(client.library.history.undo({ changeSetIds: [UUID_V7] })),
-      router: {
-        library: {
-          history: {
-            undo: os.library.history.undo.handler(({ errors }) => {
-              throw errors.ALREADY_UNDONE({ data: { changeSetId: UUID_V7 } });
-            }),
-          },
-        },
-      },
-    },
-    {
       code: "BLOB_MISSING",
       data: { shas: [SHA] },
       refusal: async (client) => await refusalOf(client.library.items.createFile(FILE)),
@@ -243,7 +230,9 @@ describe("/v1's error statuses", () => {
 
 describe("/v1's rows", () => {
   it("takes an optional opId on every library write, so a resend lands once", () => {
-    const writes = rowsOf(v1Contract.library).filter((row) => !LIBRARY_READS.has(row.path));
+    const writes = rowsOf(v1Contract.library).filter(
+      (row) => !LIBRARY_READS.has(row.path) && !RESENT_UNKEYED.has(row.path),
+    );
     expect(writes.length).toBeGreaterThan(0);
     for (const row of writes) {
       const [input] = schemasOf(row.contract["~orpc"].inputSchemas);
@@ -265,9 +254,11 @@ describe("/v1's rows", () => {
     ).toStrictEqual([]);
   });
 
-  it("names every read it exempts", () => {
+  it("names every row it exempts", () => {
     const paths = new Set(rowsOf(v1Contract.library).map((row) => row.path));
-    expect([...LIBRARY_READS].filter((path) => !paths.has(path))).toStrictEqual([]);
+    expect([...LIBRARY_READS, ...RESENT_UNKEYED].filter((path) => !paths.has(path))).toStrictEqual(
+      [],
+    );
   });
 
   it("converts every input and output to JSON Schema, as the connector and its tools need", () => {
@@ -333,10 +324,17 @@ describe("the library's wire", () => {
 
   it("takes a property's op alone on a write, so no device sets a field the cell's verbs move", () => {
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
-    const taken = (op: FieldOp) => write?.validate({ itemId: UUID_V7, ops: [op] });
-    expect(taken({ key: "status", op: "property", value: "draft" })).toBe(true);
-    expect(taken({ base: "none", field: "fetchState", op: "set", value: "pending" })).toBe(false);
-    expect(taken({ base: 1, field: "deletedAt", op: "set", value: null })).toBe(false);
-    expect(taken({ base: [], op: "tags", value: ["later"] })).toBe(false);
+    const ops = [
+      { key: "status", op: "property", value: "draft" },
+      { base: "none", field: "fetchState", op: "set", value: "pending" },
+      { base: 1, field: "deletedAt", op: "set", value: null },
+      { base: [], op: "tags", value: ["later"] },
+    ];
+    expect(ops.map((op) => write?.validate({ itemId: UUID_V7, ops: [op] }))).toStrictEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });

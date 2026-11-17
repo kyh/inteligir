@@ -8,25 +8,27 @@ import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import { createRouterClient } from "@orpc/server";
 import { heldBody } from "../library/cell-body";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { changeSets } from "@repo/db/cell/schema";
 import { landPush } from "../agent/agent-turns";
 import { createThread, insertTurn, restatus } from "../agent/turn-rows";
 import type { CellActor, TurnActor } from "../library/cell-actor";
 import { landNew } from "../library/cell-items";
 import type { NewItem } from "../library/cell-items";
 import { tellSockets } from "../library/cell-sockets";
+import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
+import { planUndo, undoableTurns, undoChangeSets, undoneSchema } from "../library/cell-undo";
+import type { UndoTarget } from "../library/cell-undo";
+import { landedSchema, landFields, landPropertyOps } from "../library/cell-writes";
+import type { PropertyWrite } from "../library/cell-writes";
 import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
-import { landedSchema, landWrite } from "../library/cell-writes";
-import type { ItemWrite } from "../library/cell-writes";
 import { libraryHead } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
 import { agentPrincipal } from "../library/library-principal";
@@ -111,19 +113,39 @@ export const createItem = (
     item: landNew(scope, input),
   }));
 
-// one item's field ops, landed as the library's own procedure lands them
+// one item's property ops, landed as the library's own procedure lands them
 export const writeItem = (
   library: LibraryEngine,
   actor: CellActor,
-  input: ItemWrite & { readonly opId?: string },
+  input: PropertyWrite & { readonly opId?: string },
 ) =>
   library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-    item: landWrite(scope, input),
+    item: landPropertyOps(scope, input),
   }));
 
-// an undo of sets that wrote no note's body, so no note has anything to answer first
-export const undoFields = (library: LibraryEngine, changeSetIds: readonly string[]) =>
-  library.undo({ changeSetIds }, new Map());
+// an item's fields with `fields` written over them, landed as the cell's own verbs land theirs
+export const setFields = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+  fields: Partial<LibraryItemFields>,
+) =>
+  library.land(actor, { answer: landedSchema, opId: undefined }, (scope) => {
+    const item = readItem(scope.db, itemId);
+    return {
+      item:
+        item === null
+          ? refuse({ kind: "not-found" })
+          : landFields(scope, item, { ...item.fields, ...fields }),
+    };
+  });
+
+// an undo of turns that wrote no note's body, so no note has anything to answer first, landed as
+// the person who pressed it
+export const undoFields = (library: LibraryEngine, target: UndoTarget) =>
+  library.land(PERSON, { answer: undoneSchema, opId: undefined }, (scope) =>
+    undoChangeSets(scope, planUndo(scope.db, target), new Map()),
+  );
 
 // blocks in the order given, in one section
 export const placed = (
@@ -149,17 +171,24 @@ export const refusalOf = <T>(result: CellResult<T>) => {
   return result.refusal;
 };
 
+// the thread's turns Undo can still take back
+export const undoableOf = (library: LibraryEngine, threadId: string): number[] =>
+  landedValue(library.read((db) => undoableTurns(db, threadId)));
+
 const TURN_TEXT = "A turn under test.";
 
-// A turn of the built-in agent in a thread of its own, opened in the cell as a send opens one: whom
-// its writes are by, the library's procedures as its tool calls reach them, the push that ends it
-// landed as its conversation's object sends it, and the change set its writes joined.
-export const openTurn = (cell: Cell) => {
-  const threadId = crypto.randomUUID();
-  const actor: TurnActor = { kind: "agent", threadId, turn: 1 };
+// A turn of the built-in agent, opened in the cell as a send opens one, in a thread of its own or
+// as the next turn of the thread `after` ended one in: whom its writes are by, the library's
+// procedures as its tool calls reach them, and the push that ends it landed as its conversation's
+// object sends it.
+export const openTurn = (cell: Cell, after?: { readonly actor: TurnActor }) => {
+  const threadId = after?.actor.threadId ?? crypto.randomUUID();
+  const actor: TurnActor = { kind: "agent", threadId, turn: (after?.actor.turn ?? 0) + 1 };
   landedValue(
     cell.library.landApart({ answer: z.object({}), opId: undefined }, (scope) => {
-      createThread(scope, threadId, TURN_TEXT);
+      if (after === undefined) {
+        createThread(scope, threadId, TURN_TEXT);
+      }
       insertTurn(scope.db, {
         at: scope.now,
         message: { text: TURN_TEXT, viewContext: null },
@@ -178,7 +207,7 @@ export const openTurn = (cell: Cell) => {
     end: (): void => {
       const ended = landPush(cell, {
         events: [{ reason: "done", turn: actor.turn, type: "turn.ended" }],
-        seq: 1,
+        seq: actor.turn,
         threadId,
         turn: actor.turn,
       });
@@ -186,21 +215,6 @@ export const openTurn = (cell: Cell) => {
         throw new Error(`the cell landed no end of the turn: ${ended.refusal}`);
       }
     },
-    setId: (): string =>
-      z
-        .string()
-        .parse(
-          landedValue(
-            cell.library.read(
-              (db) =>
-                db
-                  .select({ id: changeSets.id })
-                  .from(changeSets)
-                  .where(eq(changeSets.threadId, threadId))
-                  .get()?.id,
-            ),
-          ),
-        ),
   };
 };
 

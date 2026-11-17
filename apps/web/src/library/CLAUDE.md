@@ -117,10 +117,10 @@ app's update.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
   merges. `apps/web/src/library/cloud/library-writes.ts`.
-- **Undo is one queue of the agent's change sets.** A set goes back once the open note stored what
-  was typed, so typing since stays, and every undo waits in press order; there is no version
-  history, since ⌘Z and Deleted take back the person's own.
-  `apps/web/src/library/agent/undo-answer.ts`.
+- **Undo is one queue of presses, each naming a conversation's turns.** A turn goes back once the
+  open note stored what was typed, so typing since stays, and every undo waits in press order;
+  there is no version history, since ⌘Z and Deleted take back the person's own.
+  `apps/web/src/library/agent/undo-queue.ts`.
 - **The agent panel is the account's threads.** A conversation is the cell's rows, the same on
   every device, a send carrying the screen it leaves from, since an agent the device runs needs a
   model credential on every device. `apps/web/src/library/agent/agent-panel.tsx`.

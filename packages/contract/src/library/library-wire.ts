@@ -135,7 +135,7 @@ export const newBodyBlockSchema = z.strictObject({
   section: librarySectionSchema,
 });
 
-// ---- writes beside the field ops ----
+// ---- writes beside a property's ops ----
 
 export const folderOpSchema = z.discriminatedUnion("op", [
   z.strictObject({
@@ -265,26 +265,6 @@ export const itemReadSchema = z.object({
     to: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
   }),
-});
-
-// what one turn of the built-in agent changed, which its Undo takes back
-export const changeSetSchema = z.object({
-  closedAt: isoInstant.nullable(),
-  id: idSchema,
-  // how many items the set changed; `items` names the first of them, at most a page
-  itemCount: z.number().int().nonnegative(),
-  items: z.array(
-    z.object({
-      created: z.boolean(),
-      deleted: z.boolean(),
-      id: idSchema,
-      title: z.string(),
-    }),
-  ),
-  openedAt: isoInstant,
-  threadId: idSchema,
-  turn: z.number().int().positive(),
-  undoneAt: isoInstant.nullable(),
 });
 
 // ---- what the built-in agent is asked from ----

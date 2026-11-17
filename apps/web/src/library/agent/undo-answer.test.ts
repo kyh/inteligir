@@ -11,6 +11,12 @@ describe("what an undo says", () => {
     );
   });
 
+  it("says there was nothing left when the answer took nothing back and kept nothing", () => {
+    expect(undoSentence({ kept: [], refused: [], reverted: [] })).toBe(
+      "There's nothing left to undo.",
+    );
+  });
+
   it("says nothing was undone when a later change kept all of it", () => {
     const sentence = undoSentence({ kept: ["a"], refused: [], reverted: [] });
     expect(sentence).toMatch(/^Nothing was undone/u);

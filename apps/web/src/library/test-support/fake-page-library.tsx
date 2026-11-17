@@ -24,7 +24,7 @@ import { createPageQueryClient } from "../cloud/v1";
 export type ThreadRow = z.infer<typeof threadRowSchema>;
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
-// a call the screen made of the cell: its procedure (`library.history.undo`) and its input
+// a call the screen made of the cell: its procedure (`library.agent.undo`) and its input
 export interface CellCall {
   readonly path: string;
   readonly input: unknown;
