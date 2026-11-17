@@ -24,6 +24,7 @@
     "package:desktop": "turbo run package --filter=@repo/desktop",
     "package:extension": "turbo run zip --filter=@repo/extension",
     "prepare": "git config core.hooksPath .githooks || true",
+    "smoke": "tsx scripts/smoke.ts",
     "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "tsc --noEmit && turbo run typecheck",
@@ -32,12 +33,15 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
+    "@orpc/client": "catalog:",
+    "@repo/contract": "workspace:*",
     "@types/node": "catalog:",
     "dotenv-cli": "catalog:",
     "knip": "^6.43.0",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.88.0",
     "oxlint-tsgolint": "catalog:",
+    "tsx": "catalog:",
     "turbo": "^2.11.10",
     "typescript": "catalog:",
     "ultracite": "^8.0.0"
