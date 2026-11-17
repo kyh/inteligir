@@ -15,6 +15,9 @@ import { siteGraph } from "./structured-data";
 // the floor agent-readiness checks hold a trust page and the homepage's raw text to
 const MIN_CHARS = 500;
 
+const PREVIEW = "https://inteligir-git-branch.vercel.app";
+const LLMS = llmsTxt(PREVIEW);
+
 // a claim can break across a source line, a quoted llms.txt line or an element
 const flowing = (text: string): string =>
   text
@@ -58,7 +61,7 @@ describe("the site's markdown", () => {
     ["home", homeMarkdown],
     ["about", aboutMarkdown],
     ["contact", contactMarkdown],
-    ["llms.txt", llmsTxt],
+    ["llms.txt", LLMS],
   ])("%s makes none of the replaced product's claims", (_page, markdown) => {
     expect(claimsIn(markdown)).toStrictEqual([]);
   });
@@ -66,7 +69,7 @@ describe("the site's markdown", () => {
   it.each([
     ["home", homeMarkdown],
     ["about", aboutMarkdown],
-    ["llms.txt", llmsTxt],
+    ["llms.txt", LLMS],
   ])("%s says what the product is", (_page, markdown) => {
     const text = flowing(markdown);
     expect(text).toMatch(/\baccount is required\b/iu);
@@ -84,15 +87,21 @@ describe("the site's markdown", () => {
 
   it.each([
     ["home", homeMarkdown],
-    ["llms.txt", llmsTxt],
+    ["llms.txt", LLMS],
   ])("%s links the library", (_page, markdown) => {
     expect(markdown).toContain(`(${siteConfig.url}/library)`);
   });
 
   it("shapes llms.txt per llmstxt.org with when-to-use guidance", () => {
-    expect(llmsTxt).toMatch(/^# Inteligir\n\n> /u);
-    expect(llmsTxt).toContain("## When to use Inteligir");
-    expect(llmsTxt).toContain(`${siteConfig.url}/sitemap.xml`);
+    expect(LLMS).toMatch(/^# Inteligir\n\n> /u);
+    expect(LLMS).toContain("## When to use Inteligir");
+    expect(LLMS).toContain(`${siteConfig.url}/sitemap.xml`);
+  });
+
+  it("sends an agent to the connector of the deployment it asked, and every reader to the site", () => {
+    expect(LLMS).toContain(`${PREVIEW}/connector`);
+    expect(LLMS).not.toContain(`${siteConfig.url}/connector`);
+    expect(LLMS).toContain(`(${siteConfig.url}/privacy)`);
   });
 
   it.each(["/privacy", "/terms"])("lists the legal page %s in the sitemap", (path) => {
@@ -103,7 +112,7 @@ describe("the site's markdown", () => {
     "links the legal page %s from the home page and llms.txt",
     (path) => {
       expect(homeMarkdown).toContain(`(${siteConfig.url}${path})`);
-      expect(llmsTxt).toContain(`(${siteConfig.url}${path})`);
+      expect(LLMS).toContain(`(${siteConfig.url}${path})`);
     },
   );
 

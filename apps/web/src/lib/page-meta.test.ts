@@ -1,23 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { pageHead, pageTitle } from "./page-head";
+import sitemap from "../app/sitemap";
+import { LEGAL_DOCS } from "./legal-docs";
 import { PAGES, statedDate } from "./page-meta";
+import { pageMetadata, pageTitle } from "./page-metadata";
 import { siteConfig } from "./site-config";
 import { homeMarkdown } from "./site-content";
-import { buildSitemap } from "./sitemap";
 import { pageGraph } from "./structured-data";
-
-import privacy from "../../../../docs/privacy.md?raw";
-import terms from "../../../../docs/terms.md?raw";
-
-const metaContent = (head: ReturnType<typeof pageHead>, key: string): string | undefined => {
-  for (const tag of head.meta) {
-    if (("property" in tag && tag.property === key) || ("name" in tag && tag.name === key)) {
-      return "content" in tag ? tag.content : undefined;
-    }
-  }
-  return undefined;
-};
 
 describe("page metadata", () => {
   it("gives every page a distinct title and description", () => {
@@ -27,26 +16,39 @@ describe("page metadata", () => {
   });
 
   it("reads the effective date each legal doc states", () => {
-    expect(statedDate(privacy)).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
-    expect(statedDate(terms)).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    expect(statedDate(LEGAL_DOCS.privacy)).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    expect(statedDate(LEGAL_DOCS.terms)).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
     expect(statedDate("Effective as of October 3, 2026.")).toBe("2026-10-03");
     expect(statedDate("no date here")).toBeNull();
   });
 
-  it("names the page's own URL and image in its Open Graph tags", () => {
-    const head = pageHead(PAGES.about);
-    expect(metaContent(head, "og:url")).toBe(`${siteConfig.url}/about`);
-    expect(metaContent(head, "og:image")).toBe(`${siteConfig.url}/og/about.jpg`);
+  it("names the page's own URL and image in its card, and its canonical address", () => {
+    const image = { url: `${siteConfig.url}/og/about.jpg` };
+    expect(pageMetadata(PAGES.about)).toMatchObject({
+      alternates: { canonical: `${siteConfig.url}/about` },
+      openGraph: { images: [image], type: "website", url: `${siteConfig.url}/about` },
+      title: { absolute: `About · ${siteConfig.name}` },
+      twitter: { images: [image] },
+    });
   });
 
   it("titles the home page as its own heading names it", () => {
     expect(homeMarkdown.split("\n", 1)[0]).toBe(`# ${siteConfig.name}: ${PAGES.home.title}`);
   });
 
-  it("gives the home page its own image", () => {
-    const head = pageHead(PAGES.home);
-    expect(metaContent(head, "og:image")).toBe(`${siteConfig.url}/og.jpg`);
-    expect(metaContent(head, "twitter:image")).toBe(`${siteConfig.url}/og.jpg`);
+  it("gives the home page its own image, at the site's root", () => {
+    const image = { url: `${siteConfig.url}/og.jpg` };
+    expect(pageMetadata(PAGES.home)).toMatchObject({
+      alternates: { canonical: siteConfig.url },
+      openGraph: { images: [image] },
+      twitter: { images: [image] },
+    });
+  });
+
+  it("dates a legal page as an article by the day its doc states", () => {
+    expect(pageMetadata(PAGES.terms, { dateModified: "2026-10-03" })).toMatchObject({
+      openGraph: { modifiedTime: "2026-10-03", type: "article" },
+    });
   });
 
   it("gives a page below the root a two-step breadcrumb", () => {
@@ -56,11 +58,12 @@ describe("page metadata", () => {
 });
 
 describe("the sitemap", () => {
-  it("lists a lastmod only where a date is stated", () => {
-    const xml = buildSitemap([{ path: "/" }, { lastModified: "2026-10-03", path: "/terms" }]);
-    expect(xml).toContain(`<url><loc>${siteConfig.url}/</loc></url>`);
-    expect(xml).toContain(
-      `<url><loc>${siteConfig.url}/terms</loc><lastmod>2026-10-03</lastmod></url>`,
-    );
+  it("lists a lastModified only where a doc states one", () => {
+    const entries = sitemap();
+    expect(entries).toContainEqual({ url: `${siteConfig.url}/` });
+    expect(entries).toContainEqual({
+      lastModified: statedDate(LEGAL_DOCS.terms),
+      url: `${siteConfig.url}/terms`,
+    });
   });
 });

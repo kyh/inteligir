@@ -9,19 +9,24 @@ decisions are this app's [`CLAUDE.md`](CLAUDE.md), and the library tab's
 
 ```
 src/
-  app/           the App Router's layouts, pages and route handlers
+  app/           the App Router's layouts, pages and route handlers; (marketing)/ the site's pages
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, document policy, config and page markdown
-next.config.ts   the React Compiler on
+next.config.ts   Cache Components, the React Compiler, `?raw`
 ```
 
 ## Routes
 
-| Route         | What                                              |
-| ------------- | ------------------------------------------------- |
-| `/api/health` | `{"ok":true}` once the database answers, else 503 |
-| `/*`          | 404                                               |
+| Route                                      | What                                              |
+| ------------------------------------------ | ------------------------------------------------- |
+| `/`, `/about`, `/contact`                  | the site's pages, prerendered                     |
+| `/privacy`, `/terms`                       | `docs/privacy.md` and `docs/terms.md`, rendered   |
+| `/app`                                     | a 307 to `/library`                               |
+| `/llms.txt`, `/robots.txt`, `/sitemap.xml` | for agents and crawlers                           |
+| `/api/markdown/*`                          | a page's markdown; no public address              |
+| `/api/health`                              | `{"ok":true}` once the database answers, else 503 |
+| `/api/*`                                   | a JSON 404                                        |
 
 The library tab's code is here, but no page mounts it yet: its suites draw it
 over memory.

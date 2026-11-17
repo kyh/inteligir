@@ -61,7 +61,7 @@ const PAGE_TYPE = {
 const absolute = (path: string): string => `${url}${path === "/" ? "" : path}`;
 
 /** The page's own node and its breadcrumb, beside the site-wide graph the root document carries. */
-export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {}) => {
+export const pageGraph = (page: PageMeta, options: { dateModified?: string | null } = {}) => {
   const pageUrl = absolute(page.path);
   const isHome = page.kind === "home";
   return {
@@ -73,7 +73,7 @@ export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {
         // JSON drops an undefined field, so a page without one simply omits it
         about: isHome ? { "@id": APP_ID } : undefined,
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        dateModified: options.dateModified,
+        dateModified: options.dateModified ?? undefined,
         description: page.description,
         inLanguage: "en-US",
         isPartOf: { "@id": WEBSITE_ID },

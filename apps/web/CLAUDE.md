@@ -17,3 +17,14 @@ routes over `@repo/service`. The cloud's decisions are
 - **A sign-in or sign-up lands in the library unless something asked it back,
   and the site links the library.** Only a document load opens the account just
   signed in to. `apps/web/src/lib/next-path.ts`.
+- **A page asked for as markdown answers its one markdown source.** A page and
+  its markdown drawn from two sources drift.
+  `apps/web/src/lib/site-content.ts`.
+- **A page names the answering deployment (`APP_URL`) where an agent connects,
+  and the canonical site everywhere else.** A preview that named the site
+  would send an agent, and what the preview handed it, there.
+  `apps/web/src/lib/app-url.ts`.
+- **The home page's orb is plain three.js an effect mounts, and no React
+  renderer draws it.** A renderer for one mesh is a second reconciler, whose
+  peer ranges reach the catalog's React and name react-native and expo.
+  `apps/web/src/components/geometric-orb.tsx`.
