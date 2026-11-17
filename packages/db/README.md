@@ -1,8 +1,8 @@
 # @repo/db
 
-Postgres: Better Auth's tables and the invite codes, the drizzle client over
-`POSTGRES_URL`, the push of its schema and of
-the extensions the schema leans on, the local Supabase that runs it, and the
+Postgres: Better Auth's tables, the invite codes and every account's library,
+the drizzle client over `POSTGRES_URL`, the push of its schema and of the
+extensions the schema leans on, the local Supabase that runs it, and the
 suites' databases. Why each ships as it does is this package's
 [`CLAUDE.md`](CLAUDE.md).
 
@@ -12,6 +12,7 @@ suites' databases. Why each ships as it does is this package's
 src/drizzle-client.ts      the one Postgres client, pooled, over POSTGRES_URL
 src/*-schema.ts            the Postgres schema, one module per area, each table withRLS
 src/auth-schema.ts         Better Auth's tables, rate_limit and invite_code
+src/library-schema.ts      every account's library: items, bodies, search, folders, change sets, the op ledger, files, jobs
 src/drizzle-relations.ts   every table's relations, where Better Auth's adapter finds its models
 src/run-databases.ts       a run's template database pushed once, its clones and their drop: the suites' and the e2e's
 src/test-database*.ts      dbSuite, and the vitest globalSetup and setup file that give each suite file a database

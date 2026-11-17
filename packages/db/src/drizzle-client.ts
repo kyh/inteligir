@@ -19,3 +19,8 @@ const client = postgres(connectionString, {
 });
 
 export const db = drizzle({ client, relations });
+
+// what `db.transaction` hands its callback, a savepoint's nested one included
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type DbExecutor = typeof db | Tx;
