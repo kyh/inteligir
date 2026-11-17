@@ -198,8 +198,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }),
     );
 
-  // a read, refused once the account is being deleted, or by its own rules (a cursor this library
-  // never gave, an id naming nothing)
+  // a read, refused once the account is being deleted, or by its own rules (an id naming nothing)
   const reading = <T>(work: () => T): CellResult<T> =>
     answering(() => {
       live();
