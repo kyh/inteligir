@@ -3,8 +3,9 @@
 The Chromium extension (Chrome, Arc, Brave, Edge, Vivaldi): a toolbar button
 and a right-click Save that read the page you're on with `@repo/page-reader`
 and save it to your library over `/v1`, under the browser's own sign-in to the
-site, keeping a save the cloud did not answer until it lands. Its decisions are
-this app's [`CLAUDE.md`](CLAUDE.md).
+site, keeping a save the cloud did not answer until it lands and one the library
+refused until you try it again or let it go (`@repo/client`'s waiting saves).
+Its decisions are this app's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
 

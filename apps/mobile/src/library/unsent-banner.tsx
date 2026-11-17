@@ -15,7 +15,7 @@ const savesWaiting = (count: number): string =>
   count === 1 ? "1 save waiting" : `${String(count)} saves waiting`;
 
 const shareName = (share: WaitingShare): string =>
-  share.save.kind === "link" ? share.save.url : share.save.text;
+  share.payload.kind === "link" ? share.payload.url : share.payload.text;
 
 const confirmDiscard = (letGo: () => void): void => {
   Alert.alert("Let this save go?", "It was kept only on this iPhone, and goes for good.", [

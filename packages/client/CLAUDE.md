@@ -1,7 +1,8 @@
 # Decisions: @repo/client
 
-What the library tab and the phone share above the contract. It names no platform and no UI
-(`oxlint.config.ts`), so the Mac's window, the tab and the phone say one thing of one library.
+What the library tab and the phone share above the contract, and the extension the waiting saves.
+It names no platform and no UI (`oxlint.config.ts`), so the Mac's window, the tab and the phone
+say one thing of one library.
 
 ## The library on a device
 
@@ -13,6 +14,17 @@ What the library tab and the phone share above the contract. It names no platfor
 - **One module says what a frame reads again, for the tab and the phone alike.** An item's read goes
   again only when the copy held is older than the frame's sequence, and a thread's by its key, since
   a copy per device drifts. `packages/client/src/library-cache.ts`.
+
+## A save that waits
+
+- **A waiting save is one queue over its host's key-value store, and a call's outcome moves a save
+  one way.** One record shape and one pass for the phone's shares and the extension's saves, and
+  one the library refuses is parked with its words, since a queue per host lets one drop what
+  another parks. `packages/client/src/waiting-saves.ts`.
+- **The queue reads its store at every step and changes it one step at a time.** Nothing rests on
+  memory a stopped host loses, and a try's answer never brings back a save let go while its call
+  was on its way, since a read and a write a clear can land between is a save that returns.
+  `packages/client/src/waiting-saves.ts`.
 
 ## The agent's panel
 

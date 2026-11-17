@@ -6,8 +6,9 @@
 // by its sha the same way, before the write naming it. A save never throws: it answers what became
 // of it. Platform-free: its suites run it under node.
 
-import { CHANGE_REFUSED, sharedFailure } from "@repo/contract/library/call-outcome";
-import { refusalText } from "@repo/contract/refusal-text";
+import type { SaveStamp } from "@repo/client/waiting-saves";
+import { outcomeOf } from "@repo/contract/library/call-outcome";
+import type { CallOutcome } from "@repo/contract/library/call-outcome";
 import type { V1Client } from "@repo/contract/v1";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
@@ -20,27 +21,9 @@ interface SaveTarget {
   readonly folderId: string | null;
 }
 
-// the ids a save names and when it was made, minted before its first call
-interface SaveStamp {
-  readonly id: string;
-  readonly opId: string;
-  readonly savedAt: number;
-}
-
-export type SaveOutcome =
-  // `created` false: an item already held the address, and is answered as it stands
-  | { readonly kind: "saved"; readonly id: string; readonly created: boolean }
-  // no resend lands it as it is, said in the person's words
-  | { readonly kind: "refused"; readonly message: string }
-  // the cloud did not answer (offline, busy, a fault of its own): the same save may go again
-  | { readonly kind: "unreachable" }
-  // the sign-in ended under it
-  | { readonly kind: "ended" };
-
-type SaveMiss = Exclude<SaveOutcome, { readonly kind: "saved" }>;
-
-// a file's bytes sent up and kept on the phone as they went, or why not
-type KeepOutcome = { readonly kind: "kept"; readonly sha: string } | SaveMiss;
+// the item a save landed as. `created` false: an item already held the address, and is answered as
+// it stands
+export type SaveOutcome = CallOutcome<{ readonly id: string; readonly created: boolean }>;
 
 type SharedLink = Omit<Extract<ShareSave, { kind: "link" }>, "kind">;
 
@@ -56,8 +39,8 @@ export interface PhoneSaves {
   readonly saveText: (text: string, target: SaveTarget, stamp?: SaveStamp) => Promise<SaveOutcome>;
   // an empty note, its title to be typed
   readonly newNote: (target: SaveTarget) => Promise<SaveOutcome>;
-  // a file's bytes up by their sha, and kept on the phone as they went
-  readonly keepFile: (file: HeldFile) => Promise<KeepOutcome>;
+  // a file's bytes up by their sha, which it answers, and kept on the phone as they went
+  readonly keepFile: (file: HeldFile) => Promise<CallOutcome<string>>;
   // a photo or a file: its bytes kept, then its item
   readonly addFile: (
     file: HeldFile & { readonly name: string },
@@ -93,37 +76,20 @@ const paragraphsOf = (text: string, newBlockId: () => string) =>
     .filter((paragraph) => paragraph !== "")
     .map((paragraph) => ({ children: [{ text: paragraph }], id: newBlockId(), type: "p" }));
 
-// what a call or an upload that threw met, in the save's terms
-const failedWith = (cause: unknown): SaveMiss => {
-  const failure = cause instanceof Error ? sharedFailure(cause) : null;
-  if (failure === null) {
-    return { kind: "refused", message: refusalText(cause, CHANGE_REFUSED) };
-  }
-  switch (failure.kind) {
-    case "session": {
-      return { kind: "ended" };
-    }
-    case "malformed": {
-      return { kind: "refused", message: failure.message };
-    }
-    case "busy":
-    case "unreachable": {
-      return { kind: "unreachable" };
-    }
-    // no default
-  }
-};
+// a save the phone refuses before any call, as the cloud would its input
+const refused = (message: string): SaveOutcome => ({
+  code: "BAD_REQUEST",
+  kind: "refused",
+  message,
+});
 
 const answered = async (
   call: () => Promise<{ readonly item: { readonly id: string }; readonly created?: boolean }>,
-): Promise<SaveOutcome> => {
-  try {
+): Promise<SaveOutcome> =>
+  await outcomeOf(async () => {
     const { created = true, item } = await call();
-    return { created, id: item.id, kind: "saved" };
-  } catch (error) {
-    return failedWith(error);
-  }
-};
+    return { created, id: item.id };
+  });
 
 export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
   const { library } = args.client;
@@ -132,7 +98,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
 
   const saveLink: PhoneSaves["saveLink"] = async (link, { folderId }, ids = stamp()) => {
     if (!isWebUrl(link.url)) {
-      return { kind: "refused", message: WEB_URL_RULE };
+      return refused(WEB_URL_RULE);
     }
     return await answered(
       async () =>
@@ -150,20 +116,21 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
 
   const keepFile: PhoneSaves["keepFile"] = async ({ bytes, mime }) => {
     const sha = await args.sha256Hex(bytes);
-    try {
+    const sent = await outcomeOf(async () => {
       await args.upload({ bytes, mime, sha });
-    } catch (error) {
-      return failedWith(error);
+      return sha;
+    });
+    if (sent.kind === "landed") {
+      await args.files.keep(sha, { bytes, mime });
     }
-    await args.files.keep(sha, { bytes, mime });
-    return { kind: "kept", sha };
+    return sent;
   };
 
   return {
     addFile: async ({ bytes, mime, name }, { folderId }) => {
       const ids = stamp();
       const kept = await keepFile({ bytes, mime });
-      if (kept.kind !== "kept") {
+      if (kept.kind !== "landed") {
         return kept;
       }
       return await answered(
@@ -174,7 +141,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
             name,
             opId: ids.opId,
             savedAt: ids.savedAt,
-            sha: kept.sha,
+            sha: kept.answer,
             tags: [],
           }),
       );
@@ -199,7 +166,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
     saveText: async (text, target, ids = stamp()) => {
       const trimmed = text.trim();
       if (trimmed === "") {
-        return { kind: "refused", message: NOTHING_TO_SAVE };
+        return refused(NOTHING_TO_SAVE);
       }
       const link = linkInText(trimmed);
       if (link !== null) {

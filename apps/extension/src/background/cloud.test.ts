@@ -41,11 +41,11 @@ describe("the extension's calls to its cloud", () => {
     expect(put?.signal.aborted).toBe(false);
   });
 
-  it("read a file the cloud refused by the code it answered, as a call's", async () => {
+  it("read a file the cloud refused as a call's refusal, by its code and in the cloud's words", async () => {
     cloudAnswering(() => refusalResponse(new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } })));
     await expect(
       sendFile(cloudOf(SESSION, "0.6.0"), new Uint8Array([1]), "image/png"),
-    ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused" });
+    ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused", message: "Your library is full." });
   });
 
   it("sign every call to the library the same way", async () => {

@@ -3,13 +3,17 @@ import { describe, expect, it } from "vitest";
 
 import { refusalResponse } from "../test-support/refusal-response";
 import {
+  AccountGoneError,
   BlobMismatchError,
   ClientOutdatedError,
   PayloadTooLargeError,
   QuotaError,
+  TooManyRequestsError,
 } from "../v1-errors";
-import { sessionEndOf, sharedFailure, uploadBlob } from "./call-outcome";
-import type { SessionEnd, V1Transport } from "./call-outcome";
+import { outcomeOf, sessionEndOf, sharedFailure, uploadBlob } from "./call-outcome";
+import type { CallOutcome, SessionEnd, V1Transport } from "./call-outcome";
+
+const CHANGE_REFUSED = "Your library couldn't take this change.";
 
 const FILE = { bytes: new Uint8Array([1, 2, 3]), mime: "image/png", sha: "a".repeat(64) };
 
@@ -69,8 +73,10 @@ describe(uploadBlob, () => {
   });
 });
 
-const defined = (code: string) =>
-  createORPCErrorFromJson({ code, data: undefined, defined: true, message: code });
+const defined = (code: string, message = code) =>
+  createORPCErrorFromJson({ code, data: undefined, defined: true, message });
+const undeclared = (code: string) =>
+  createORPCErrorFromJson({ code, data: undefined, defined: false, message: code });
 
 describe(sessionEndOf, () => {
   it("ends the sign-in on a signed-out, deleted or outdated one, and on nothing else", () => {
@@ -79,5 +85,74 @@ describe(sessionEndOf, () => {
     expect(sessionEndOf(defined("CLIENT_OUTDATED"))).toBe("outdated");
     expect(sessionEndOf(defined("INVALID_CREDENTIALS"))).toBeNull();
     expect(sessionEndOf(new Error("offline"))).toBeNull();
+  });
+});
+
+const WAITS_FOR_CONNECTION = { for: "connection", kind: "wait" } as const;
+
+describe(outcomeOf, () => {
+  it("answers what the call did", async () => {
+    await expect(outcomeOf(async () => "the answer")).resolves.toStrictEqual({
+      answer: "the answer",
+      kind: "landed",
+    });
+  });
+
+  it("reads every miss one way: a later try may pass, no resend does, or the account is gone", async () => {
+    const misses: readonly (readonly [string, unknown, CallOutcome<never>])[] = [
+      ["a session the cloud ended", defined("UNAUTHORIZED"), { for: "sign-in", kind: "wait" }],
+      ["a build too old", defined("CLIENT_OUTDATED"), { for: "update", kind: "wait" }],
+      ["the cloud's budget", defined("TOO_MANY_REQUESTS"), WAITS_FOR_CONNECTION],
+      ["no connection", new TypeError("Failed to fetch"), WAITS_FOR_CONNECTION],
+      ["the call's deadline", new DOMException("timed out", "TimeoutError"), WAITS_FOR_CONNECTION],
+      ["a fault of the cloud's", undeclared("INTERNAL_SERVER_ERROR"), WAITS_FOR_CONNECTION],
+      ["a throw that is no error", "offline", WAITS_FOR_CONNECTION],
+      ["the account deleted", defined("GONE"), { kind: "gone" }],
+      [
+        "a refusal of the call's own, in its words",
+        defined("QUOTA", "Your library is full."),
+        { code: "QUOTA", kind: "refused", message: "Your library is full." },
+      ],
+      [
+        "a refusal that says nothing",
+        defined("CONFLICT", ""),
+        { code: "CONFLICT", kind: "refused", message: CHANGE_REFUSED },
+      ],
+      [
+        "input the cloud refused",
+        undeclared("BAD_REQUEST"),
+        { code: "BAD_REQUEST", kind: "refused", message: CHANGE_REFUSED },
+      ],
+    ];
+    for (const [met, thrown, outcome] of misses) {
+      await expect(
+        outcomeOf(async () => {
+          throw thrown;
+        }),
+        met,
+      ).resolves.toStrictEqual(outcome);
+    }
+  });
+
+  it("reads a file's upload as any call, the sha its answer", async () => {
+    const sent = async (answer: (() => Response) | null) =>
+      await outcomeOf(async () => {
+        await uploadBlob(answering(answer), FILE);
+        return FILE.sha;
+      });
+    await expect(sent(() => new Response(null, { status: 201 }))).resolves.toStrictEqual({
+      answer: FILE.sha,
+      kind: "landed",
+    });
+    await expect(
+      sent(() => refusalResponse(new QuotaError({ data: { bytesCap: 10, bytesUsed: 10 } }))),
+    ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused", message: "Your library is full." });
+    await expect(sent(() => refusalResponse(new AccountGoneError()))).resolves.toStrictEqual({
+      kind: "gone",
+    });
+    await expect(sent(() => refusalResponse(new TooManyRequestsError()))).resolves.toStrictEqual(
+      WAITS_FOR_CONNECTION,
+    );
+    await expect(sent(null)).resolves.toStrictEqual(WAITS_FOR_CONNECTION);
   });
 });

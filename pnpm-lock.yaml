@@ -486,6 +486,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
+      '@repo/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract

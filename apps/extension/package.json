@@ -14,6 +14,7 @@
   "dependencies": {
     "@noble/hashes": "catalog:",
     "@orpc/client": "catalog:",
+    "@repo/client": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",

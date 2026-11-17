@@ -26,9 +26,9 @@ const metaOf = (meta: ShareIntent["meta"]): Record<string, string> | null => {
 // the share sent, then its item opened; one that waits or was refused is the banner's, with the
 // cloud's words, until it is tried again or let go
 const deliver = async (library: PhoneLibrary, opId: string): Promise<void> => {
-  const outcome = await library.shares.deliver(opId);
-  if (outcome.kind === "landed") {
-    openItem(outcome.itemId);
+  const itemId = await library.shares.deliver(opId);
+  if (itemId !== null) {
+    openItem(itemId);
   }
 };
 

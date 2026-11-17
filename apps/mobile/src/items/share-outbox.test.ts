@@ -6,8 +6,8 @@ import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { describe, expect, it } from "vitest";
 
-import { memoryKv } from "../test-support/memory-kv";
-import type { MemoryKv } from "../test-support/memory-kv";
+import { memoryKv } from "@repo/client/test-support/memory-kv";
+import type { MemoryKv } from "@repo/client/test-support/memory-kv";
 import { createPhoneSaves } from "./phone-saves";
 import { createShareOutbox } from "./share-outbox";
 
@@ -67,7 +67,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
       throw new Error("the outbox refused a share while signed in");
     }
     expect(storage.held.has(`share:${kept.opId}`)).toBe(true);
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toHaveLength(1);
     expect(cell.items().size).toBe(0);
   });
@@ -101,12 +101,9 @@ describe("the shares this phone keeps until the cloud takes them", () => {
       throw new Error("the outbox refused a share while signed in");
     }
     device.loseAnswers(1);
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
 
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({
-      itemId: kept.id,
-      kind: "landed",
-    });
+    await expect(shares.deliver(kept.opId)).resolves.toBe(kept.id);
     expect(itemsAt(cell, PAGE)).toHaveLength(1);
   });
 
@@ -117,7 +114,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
-    await expect(shares.deliver(kept.opId)).resolves.toMatchObject({ kind: "landed" });
+    await expect(shares.deliver(kept.opId)).resolves.toBe(kept.id);
     expect(cell.item(kept.id)?.fields.title).toBe("Call the printer");
   });
 
@@ -128,10 +125,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({
-      kind: "refused",
-      message: WEB_URL_RULE,
-    });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toMatchObject([{ refused: WEB_URL_RULE }]);
 
     await shares.retry(kept.opId);
@@ -166,15 +160,5 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     await expect(
       shares.keep({ kind: "link", note: null, title: null, url: PAGE }),
     ).resolves.toBeNull();
-  });
-
-  it("keeps a share it could not write as no share, and says so", async () => {
-    const cell = createFakeCell();
-    const { shares, storage } = phoneOver(cell.device("phone"));
-    storage.failWrites(true);
-    await expect(shares.keep({ kind: "link", note: null, title: null, url: PAGE })).rejects.toThrow(
-      /full/u,
-    );
-    expect(shares.waiting.get()).toStrictEqual([]);
   });
 });

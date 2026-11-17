@@ -65,9 +65,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   PNG.** The Mac's editor draws no HEIC, no location may reach the library, and a JPEG draws
   transparency black. `apps/mobile/src/items/photo-plan.ts`.
 - **A share is a save the app makes, kept on the phone before its first call until it lands; the
-  share extension only hands it over.** The outbox sends what waits at each launch and each time
-  the phone is back in front and online, so it lands once, and a sign-out with any asks, then
-  discards them (owner decision).
+  share extension only hands it over.** The outbox, `@repo/client`'s waiting saves over the phone's
+  store, sends what waits at each launch and each time the phone is back in front and online, so
+  it lands once, and a sign-out with any asks, then discards them (owner decision).
   `apps/mobile/src/items/share-outbox.ts`.
 - **A shared text's link is read whole, to its last character.** Every spelling of the link comes
   out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an

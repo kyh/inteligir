@@ -10,12 +10,15 @@ import { keepSave, queuedSaves, SEND_ALARM } from "./save-queue";
 import { KEPT, SESSION } from "./test-support/fake-cloud";
 
 const WAITING = {
-  email: SESSION.email,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
+  payload: {
+    email: SESSION.email,
+    title: "File over app",
+    url: "https://example.test/file-over-app",
+  },
+  refused: null,
   savedAt: Date.UTC(2026, 10, 5, 12),
-  title: "File over app",
-  url: "https://example.test/file-over-app",
 };
 
 // the local Worker's session cookie, as Better Auth names it on plain http
@@ -54,8 +57,22 @@ const jarTells = (cause: "explicit" | "overwrite"): void => {
 const GET_SESSION = "/api/auth/get-session";
 const SAVE_LINK = "/v1/rpc/library/items/saveLink";
 
-// the cloud: get-session answers the account, and every other call goes unanswered
-const cloudAnswers = () => {
+const FULL = "Your library is full.";
+
+// `/v1/rpc`'s answers to a link's save: a full library's refusal, and the item it landed as
+const refusesFull = (): Response =>
+  Response.json(
+    {
+      json: { code: "QUOTA", data: { bytesCap: 1, bytesUsed: 1 }, defined: true, message: FULL },
+    },
+    { status: 507 },
+  );
+const lands = (): Response =>
+  Response.json({ json: { created: true, item: { fields: { title: "File over app" } } } });
+
+// the cloud: get-session answers the account, a link's save as the case says, and every other
+// call goes unanswered, as a link's save does where the case says nothing
+const cloudAnswers = (saveLink?: () => Response) => {
   const asked: string[] = [];
   const bearers: (string | null)[] = [];
   vi.stubGlobal(
@@ -70,6 +87,9 @@ const cloudAnswers = () => {
           session: { id: "session-1" },
           user: { email: SESSION.email, id: "reader" },
         });
+      }
+      if (pathname === SAVE_LINK && saveLink !== undefined) {
+        return saveLink();
       }
       throw new TypeError("Failed to fetch");
     }),
@@ -212,5 +232,38 @@ describe("the worker", () => {
       fakeBrowser.runtime.onMessage.trigger({ type: "disconnect" }, PAGE, () => {}),
     ).resolves.toStrictEqual([false]);
     await expect(queuedSaves()).resolves.toHaveLength(1);
+  });
+
+  it("keeps a save the library refused for its popup, and sends it again as the popup asks", async () => {
+    jarHolds(true);
+    await keepSave(WAITING);
+    let answer = refusesFull;
+    const { asked } = cloudAnswers(() => answer());
+    worker.main();
+    const parked = [{ message: FULL, name: "File over app", opId: WAITING.opId }];
+    // the start's pass meets the full library
+    await vi.waitFor(async () => {
+      await expect(ask({ type: "refused" })).resolves.toStrictEqual(parked);
+    });
+    await expect(ask({ opId: WAITING.opId, type: "retry" })).resolves.toStrictEqual(parked);
+    answer = lands;
+    await expect(ask({ opId: WAITING.opId, type: "retry" })).resolves.toStrictEqual([]);
+    expect(asked.filter((pathname) => pathname === SAVE_LINK)).toHaveLength(3);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("lets a refused save go as the popup asks, and lists none to a browser signed out", async () => {
+    jarHolds(true);
+    await keepSave(WAITING);
+    cloudAnswers(refusesFull);
+    worker.main();
+    await vi.waitFor(async () => {
+      await expect(ask({ type: "refused" })).resolves.toHaveLength(1);
+    });
+    jarHolds(false);
+    await expect(ask({ type: "refused" })).resolves.toStrictEqual([]);
+    jarHolds(true);
+    await expect(ask({ opId: WAITING.opId, type: "discard" })).resolves.toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 });
