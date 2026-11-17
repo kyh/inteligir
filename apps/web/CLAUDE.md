@@ -41,6 +41,10 @@ routes over `@repo/service`. The cloud's decisions are
   and the canonical site everywhere else.** A preview that named the site
   would send an agent, and what the preview handed it, there.
   `apps/web/src/lib/app-url.ts`.
+- **The licences page is written at prebuild from pnpm's list of every
+  production package the site's workspace reaches.** Turbopack has no
+  counterpart of Vite's `build.license`, so the list over-includes what only
+  the server loads. `apps/web/scripts/write-licenses.ts`.
 - **The home page's orb is plain three.js an effect mounts, and no React
   renderer draws it.** A renderer for one mesh is a second reconciler, whose
   peer ranges reach the catalog's React and name react-native and expo.

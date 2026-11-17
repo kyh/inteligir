@@ -14,6 +14,7 @@ src/
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, document policies, config and page markdown
+scripts/         write-licenses.ts, which writes public/licenses.md at prebuild
 next.config.ts   Cache Components, the React Compiler, the static policy and headers, `?raw`
 ```
 
@@ -26,6 +27,7 @@ next.config.ts   Cache Components, the React Compiler, the static policy and hea
 | `/library`, `/library/settings`            | a 307 to `/app/sign-in?next=…` with no session cookie                       |
 | `/app`                                     | a 307 to `/library`                                                         |
 | `/llms.txt`, `/robots.txt`, `/sitemap.xml` | for agents and crawlers                                                     |
+| `/licenses.md`                             | every production package's licence, written at prebuild                     |
 | `/api/markdown/*`                          | what `proxy.ts` rewrites a markdown request to; no public address           |
 | `/api/health`                              | `{"ok":true}` once the database answers, else 503                           |
 | `/api/*`                                   | a JSON 404                                                                  |
