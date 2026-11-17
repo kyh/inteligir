@@ -31,7 +31,7 @@ export const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.
 // the header Better Auth reads an address from off Vercel (../auth/client-ip.ts)
 export const CALLER_IP_HEADER = "x-forwarded-for";
 
-export const freshAddress = (): string =>
+const freshAddress = (): string =>
   `10.${String(randomInt(256))}.${String(randomInt(256))}.${String(randomInt(1, 255))}`;
 
 interface AppInit {
