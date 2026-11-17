@@ -2,7 +2,7 @@
 // their order key, then by name, each with its depth and its path of names from the top, so a
 // folder two parents hold under one name reads apart.
 
-import type { ListingFolder } from "@repo/contract/library/library-index";
+import type { ListingFolder } from "@repo/contract/library/folder-rail";
 import { compareText } from "@repo/contract/library/order-key";
 
 export interface FolderRow {

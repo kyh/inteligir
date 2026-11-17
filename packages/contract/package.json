@@ -35,6 +35,7 @@
     "./library/item-makes": "./src/library/item-makes.ts",
     "./library/item-reading": "./src/library/item-reading.ts",
     "./library/library-blobs": "./src/library/library-blobs.ts",
+    "./library/folder-rail": "./src/library/folder-rail.ts",
     "./library/library-index": "./src/library/library-index.ts",
     "./library/library-item": "./src/library/library-item.ts",
     "./library/library-nodes": "./src/library/library-nodes.ts",

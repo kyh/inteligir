@@ -150,6 +150,23 @@ describe(LibraryIndex, () => {
     ]);
   });
 
+  it("counts an item once under a tag it carries in two spellings", () => {
+    const index = filled();
+    index.upsert(row("twice", { savedAt: 6, tags: ["Read", "read"] }));
+    expect(index.scopes().tags).toStrictEqual([
+      { items: 2, tag: "Read" },
+      { items: 1, tag: "Read/later" },
+    ]);
+  });
+
+  it("lists nothing under a folder no longer live, and what was in it as unsorted", () => {
+    const index = filled();
+    index.setFolders([{ id: "plans", name: "Plans", parentId: "work", sort: "a0" }]);
+    expect(ids(index, { folderId: "work" })).toStrictEqual([]);
+    expect(ids(index, { folderId: "plans" })).toStrictEqual(["link"]);
+    expect(ids(index, { folderId: null })).toStrictEqual(["pinned", "new", "old"]);
+  });
+
   it("titles every item outside Deleted, pinned first", () => {
     expect(filled().titles()).toStrictEqual({
       targets: [

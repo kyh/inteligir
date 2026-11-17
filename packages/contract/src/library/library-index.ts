@@ -1,9 +1,10 @@
-// The library listing over the cell's rows: which items a list shows, in what order and how many
-// of each kind, answered from memory, and what is read of it (a screen's page, the rail's counts,
-// every title, an item as a list names it to an agent, the items a sweep takes), assembled here
-// once for the cell and the fake cell alike. A page costs its own rows; only a filter walks the
-// members. Pinned items lead every order; Deleted lists what was deleted and nothing else, and a
-// purged item is never a row here.
+// The library listing: which items a list shows, in what order and how many of each kind, and what
+// is read of it (a screen's page, the rail's counts, every title, an item as a list names it to an
+// agent, the items a sweep takes). The fake cell answers it from memory here; the server answers it
+// in SQL (`@repo/service/library/library-listing`), sharing the folder rail, the tags' order, a
+// scope's filter and the rows each answer carries, and a suite holds the two to one order. Pinned
+// items lead every order; Deleted lists what was deleted and nothing else, and a purged item is
+// never a row here.
 
 import type { z } from "zod";
 
@@ -12,7 +13,6 @@ import type { LibraryScope } from "../library-scope";
 import type { ItemCard } from "./derive-item";
 import type { LibraryItemFields } from "./library-item";
 import type {
-  folderCountSchema,
   itemSummarySchema,
   listedItemSchema,
   listingPageInputSchema,
@@ -20,6 +20,8 @@ import type {
   sweptSchema,
   tagCountSchema,
 } from "./library-wire";
+import { FolderRail } from "./folder-rail";
+import type { ListingFolder } from "./folder-rail";
 import { compareText } from "./order-key";
 
 // what the listing reads of an item; a host's row type adds whatever its cards draw
@@ -36,14 +38,6 @@ export interface ListingRow {
   readonly updatedAt: number;
   readonly pinnedAt: number | null;
   readonly deletedAt: number | null;
-}
-
-export interface ListingFolder {
-  readonly id: string;
-  readonly parentId: string | null;
-  readonly name: string;
-  // its order key among its siblings
-  readonly sort: string;
 }
 
 type ListingSort = z.infer<typeof listingSortSchema>;
@@ -80,7 +74,6 @@ export interface ListingPage<R extends ListingRow> {
   readonly kindCounts: Readonly<Record<ItemKind, number>>;
 }
 
-type FolderCount = z.infer<typeof folderCountSchema>;
 type TagCount = z.infer<typeof tagCountSchema>;
 
 interface Entry<R extends ListingRow> {
@@ -88,7 +81,7 @@ interface Entry<R extends ListingRow> {
   readonly tagKeys: readonly string[];
 }
 
-const emptyKindCounts = (): Record<ItemKind, number> => ({
+export const emptyKindCounts = (): Record<ItemKind, number> => ({
   audio: 0,
   file: 0,
   image: 0,
@@ -121,11 +114,14 @@ const bySort = (a: ListingRow, b: ListingRow, sort: ListingSort): number => {
   }
 };
 
+// the rail's tags, the most held first, then by their spelling
+export const compareTagCounts = (a: TagCount, b: TagCount): number =>
+  b.items - a.items || a.tag.localeCompare(b.tag);
+
 export class LibraryIndex<R extends ListingRow> {
   private readonly entries = new Map<string, Entry<R>>();
   private readonly sorted = new Map<string, readonly string[]>();
-  private folders = new Map<string, ListingFolder>();
-  private children = new Map<string | null, ListingFolder[]>();
+  private rail = new FolderRail([]);
 
   upsert(row: R): void {
     const prior = this.entries.get(row.id)?.row;
@@ -153,21 +149,7 @@ export class LibraryIndex<R extends ListingRow> {
 
   // the live folders; an item in a folder not named here reads as unsorted
   setFolders(folders: readonly ListingFolder[]): void {
-    this.folders = new Map(folders.map((folder) => [folder.id, folder]));
-    this.children = new Map();
-    for (const folder of folders) {
-      const parent =
-        folder.parentId !== null && this.folders.has(folder.parentId) ? folder.parentId : null;
-      const siblings = this.children.get(parent) ?? [];
-      siblings.push(folder);
-      this.children.set(parent, siblings);
-    }
-    for (const siblings of this.children.values()) {
-      siblings.sort(
-        (a, b) =>
-          compareText(a.sort, b.sort) || compareText(a.name, b.name) || compareText(a.id, b.id),
-      );
-    }
+    this.rail = new FolderRail(folders);
   }
 
   items(query: ListingQuery): ListingPage<R> {
@@ -179,7 +161,7 @@ export class LibraryIndex<R extends ListingRow> {
     const folderIds =
       query.folderId === undefined || query.folderId === null
         ? null
-        : this.folderTree(query.folderId);
+        : this.rail.tree(query.folderId);
     const kindCounts = emptyKindCounts();
     const matched: R[] = [];
     for (const id of order) {
@@ -201,10 +183,9 @@ export class LibraryIndex<R extends ListingRow> {
     };
   }
 
-  // the rail's counts, as `library.listing.scopes` answers them: the folders in rail order (a
-  // parent before its children, siblings by their order key, then name), each with the items in it
-  // and in every folder under it; each tag under the spelling met first in saved order, the most
-  // held first
+  // the rail's counts, as `library.listing.scopes` answers them: the folders in rail order, each
+  // with the items in it and in every folder under it; each tag under the spelling met first in
+  // saved order, counting each item carrying it once however many of its spellings it holds
   scopes() {
     const direct = new Map<string, number>();
     const tags = new Map<string, TagCount>();
@@ -216,10 +197,14 @@ export class LibraryIndex<R extends ListingRow> {
       if (row.tags.length === 0) {
         untagged += 1;
       }
+      const counted = new Set<string>();
       for (const tag of row.tags) {
         const key = tag.toLowerCase();
-        const held = tags.get(key);
-        tags.set(key, { items: (held?.items ?? 0) + 1, tag: held?.tag ?? tag });
+        if (!counted.has(key)) {
+          counted.add(key);
+          const held = tags.get(key);
+          tags.set(key, { items: (held?.items ?? 0) + 1, tag: held?.tag ?? tag });
+        }
       }
       const folderId = this.liveFolderOf(row);
       if (folderId === null) {
@@ -228,19 +213,6 @@ export class LibraryIndex<R extends ListingRow> {
         direct.set(folderId, (direct.get(folderId) ?? 0) + 1);
       }
     }
-    const folders: FolderCount[] = [];
-    const walk = (parent: string | null): number => {
-      let sum = 0;
-      for (const { id, name, parentId, sort } of this.children.get(parent) ?? []) {
-        const at = folders.length;
-        folders.push({ id, items: 0, name, parentId, sort });
-        const items = (direct.get(id) ?? 0) + walk(id);
-        folders[at] = { id, items, name, parentId, sort };
-        sum += items;
-      }
-      return sum;
-    };
-    walk(null);
     let deleted = 0;
     for (const { row } of this.entries.values()) {
       if (row.deletedAt !== null) {
@@ -249,8 +221,8 @@ export class LibraryIndex<R extends ListingRow> {
     }
     return {
       deleted,
-      folders,
-      tags: [...tags.values()].toSorted((a, b) => b.items - a.items || a.tag.localeCompare(b.tag)),
+      folders: this.rail.counted(direct),
+      tags: [...tags.values()].toSorted(compareTagCounts),
       total,
       unsorted,
       untagged,
@@ -273,20 +245,7 @@ export class LibraryIndex<R extends ListingRow> {
   }
 
   private liveFolderOf(row: ListingRow): string | null {
-    return row.folderId !== null && this.folders.has(row.folderId) ? row.folderId : null;
-  }
-
-  // a folder and every folder under it
-  private folderTree(folderId: string): ReadonlySet<string> {
-    const tree = new Set([folderId]);
-    const pending = [folderId];
-    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-      for (const child of this.children.get(next) ?? []) {
-        tree.add(child.id);
-        pending.push(child.id);
-      }
-    }
-    return tree;
+    return row.folderId !== null && this.rail.has(row.folderId) ? row.folderId : null;
   }
 
   // whether a row of the query's side answers its filters, `folderIds` its folder's tree
@@ -411,7 +370,9 @@ export interface SearchHits {
 
 // what a scope asks the listing: every item, those in no folder, a folder and what is under it, a
 // tag and its children, or what was deleted
-const scopeFilter = (scope: LibraryScope): Pick<ListingQuery, "deleted" | "folderId" | "tag"> => {
+export const scopeFilter = (
+  scope: LibraryScope,
+): Pick<ListingQuery, "deleted" | "folderId" | "tag"> => {
   switch (scope.kind) {
     case "all": {
       return { deleted: false };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isOrdKey, ordBetween } from "./order-key";
+import { compareText, isOrdKey, ordBetween } from "./order-key";
 import { mulberry32 } from "../test-support/seeded-random";
 
 describe(isOrdKey, () => {
@@ -27,5 +27,22 @@ describe(isOrdKey, () => {
     `a${"1".repeat(200)}`,
   ])("refuses %j", (key) => {
     expect(isOrdKey(key)).toBe(false);
+  });
+});
+
+describe(compareText, () => {
+  it("orders by code point, a character past U+FFFF after every one below it", () => {
+    const texts = ["b", "\u{1F600}", "a", "\u{FF5E}", "ab", "\u{E000}", "", "\u{10000}"];
+    expect(texts.toSorted(compareText)).toStrictEqual([
+      "",
+      "a",
+      "ab",
+      "b",
+      "\u{E000}",
+      "\u{FF5E}",
+      "\u{10000}",
+      "\u{1F600}",
+    ]);
+    expect(compareText("same", "same")).toBe(0);
   });
 });

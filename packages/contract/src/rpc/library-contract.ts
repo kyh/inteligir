@@ -137,7 +137,7 @@ const sweepVerbSchema = z.discriminatedUnion("kind", [
 
 // the inputs of the rows that read for an agent, by name: the cell's reads take each as its
 // schema parsed it, every default in place (packages/service/src/library/cell-reads.ts)
-const listInputSchema = z.strictObject({
+export const listInputSchema = z.strictObject({
   cursor,
   // a folder and every folder under it
   folderId: idSchema.optional(),
@@ -150,13 +150,13 @@ const listInputSchema = z.strictObject({
   tag: FIELDS.tags.element.optional(),
 });
 // `from` and `count` are block positions, so a long item reads a page at a time
-const readInputSchema = z.strictObject({
+export const readInputSchema = z.strictObject({
   count: z.number().int().min(1).max(500).default(200),
   from: z.number().int().nonnegative().default(0),
   id: idSchema,
   responseFormat,
 });
-const searchInputSchema = z.strictObject({
+export const searchInputSchema = z.strictObject({
   cursor,
   folderId: idSchema.optional(),
   kinds: kindsSchema.optional(),

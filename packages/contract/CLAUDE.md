@@ -35,10 +35,10 @@ random bytes and fresh ids are injected.
   `packages/contract/src/rpc/v1-errors.ts`.
 - **A folder's place is a fractional key.** An integer position renumbers on
   insert, and two renumberings conflict. `packages/contract/src/library/order-key.ts`.
-- **The listing is in memory over what it filters and orders by, and pinned
-  leads it.** One assembly answers the apps and an agent, for the cell and the
-  fake cell alike, and a host hands a batch's rows whole.
-  `packages/contract/src/library/library-index.ts`.
+- **The listing's rules are the model's, pinned first and text in code-point
+  order: the fake cell lists in memory, the cloud in SQL held to it.** One
+  assembly answers the apps and an agent, and code point is the one order JS
+  and Postgres's `"C"` collation share. `packages/contract/src/library/library-index.ts`.
 - **A listing page asks by the scope union, and its order is a sort or a
   search's ranks.** A bag of flags lets Deleted take a folder and relevance go
   without words, and each device then flattens the scope its own way.

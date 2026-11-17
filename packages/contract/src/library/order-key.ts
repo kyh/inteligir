@@ -51,10 +51,21 @@ export const ordSchema = z.string().refine(isOrdKey, { error: "is not an order k
 export const ordBetween = (before: string | null, after: string | null): string =>
   generateKeyBetween(before, after);
 
-// code-unit order, the order fractional keys are minted in and SQLite's BINARY collation reads
+// Code-point order, the order fractional keys are minted in and Postgres's "C" collation reads, so
+// the library's model and its SQL list alike. JavaScript's own `<` reads UTF-16 units, which put a
+// character past U+FFFF ahead of U+E000 to U+FFFF; read at the first unit the two differ by, a
+// character's first unit gives its whole code point
 export const compareText = (a: string, b: string): number => {
   if (a === b) {
     return 0;
   }
-  return a < b ? -1 : 1;
+  const shared = Math.min(a.length, b.length);
+  let at = 0;
+  while (at < shared && a[at] === b[at]) {
+    at += 1;
+  }
+  if (at === shared) {
+    return a.length < b.length ? -1 : 1;
+  }
+  return (a.codePointAt(at) ?? 0) < (b.codePointAt(at) ?? 0) ? -1 : 1;
 };
