@@ -2,7 +2,7 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // the flows boot the Worker's build output and load the extension's dev build
+    // the flows boot the app's build output and load the extension's dev build
     "e2e": {
       "dependsOn": ["@repo/web#build", "@repo/extension#build"],
       "cache": false

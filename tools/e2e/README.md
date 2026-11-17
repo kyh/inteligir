@@ -1,8 +1,10 @@
 # @repo/e2e — the end-to-end flows
 
-Playwright Test over the built Worker (apps/web's `cf build` output under
-in-process Miniflare) and the browser extension's dev build. Outside
-`pnpm verify`; turbo builds both first.
+Playwright Test over the built app and the browser extension's dev build.
+Outside `pnpm verify`; turbo builds both first. Every flow waits in
+`playwright.config.ts`'s `PENDING` until its area runs on Next, and the
+fixtures below still boot the Worker the tag `cloudflare-last` holds, so the
+first flow to leave `PENDING` brings them onto the app.
 
 ```sh
 pnpm e2e                          # every flow

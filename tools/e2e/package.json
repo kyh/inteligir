@@ -5,7 +5,7 @@
   "description": "Playwright flows over the built Worker and the extension, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
   "type": "module",
   "scripts": {
-    "e2e": "playwright test",
+    "e2e": "playwright test --pass-with-no-tests",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
