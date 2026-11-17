@@ -3,7 +3,6 @@
 // landing, and an import builds each item it read from them.
 
 import { fileKindOf, fileKindOfMime } from "../items/item-kind";
-import { itemNameFromUrl } from "../items/item-name";
 import { cleanUrl, kindForUrl } from "../items/item-url";
 import type { ImportedFields, LibraryItemFields } from "./library-item";
 
@@ -48,14 +47,15 @@ export const noteFields = (input: Filing & { readonly title: string }): LibraryI
   title: input.title,
 });
 
-// an address saved to read later: unread, and named after itself until its page is read
+// an address saved to read later: unread, and with no name unless its save gave one, so its card
+// goes by the address until its page names it
 export const stubFields = (
   input: Filing & { readonly url: string; readonly title?: string | undefined },
 ): LibraryItemFields => ({
   ...filedFields(input),
   kind: kindForUrl(input.url),
   reading: { at: null, state: "pending" },
-  title: input.title ?? itemNameFromUrl(input.url),
+  title: input.title ?? "",
   url: cleanUrl(input.url),
 });
 
@@ -76,7 +76,7 @@ export const pageFields = (
   coverSha: input.coverSha,
   kind: kindForUrl(input.url),
   reading: { at: readAt, state: "read" },
-  title: input.title === "" ? itemNameFromUrl(input.url) : input.title,
+  title: input.title,
   url: cleanUrl(input.url),
 });
 

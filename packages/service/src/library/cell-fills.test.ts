@@ -101,7 +101,26 @@ describe("a page's reading, landed", () => {
     });
   });
 
-  it("never touches the person's note or a title they gave while it waited", async () => {
+  it("names by its page a link saved with an empty title, which goes by its address until then", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const { client: library, library: engine } = cellIn(state);
+      const url = "https://pages.example/posts/a-long-read";
+      const saved = await library.items.saveLink({ title: "", url });
+      expect(saved.item).toMatchObject({
+        card: { title: "pages.example - a long read" },
+        fields: { title: "" },
+      });
+      landReading(
+        engine,
+        read({ itemId: saved.item.id, url }, [paragraph("p1", "The article.")]),
+        null,
+      );
+      expect(stateOf(state, saved.item.id)?.fields.title).toBe("The page's own title");
+    });
+  });
+
+  it("never touches the person's note or a title they gave while it waited, its address's name too", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const { client: library, library: engine } = cellIn(state);
@@ -116,7 +135,12 @@ describe("a page's reading, landed", () => {
         {
           itemId: id,
           ops: [
-            { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
+            {
+              base: saved.item.fields.title,
+              field: "title",
+              op: "set",
+              value: "pages.example - b",
+            },
           ],
         },
       );
@@ -130,7 +154,7 @@ describe("a page's reading, landed", () => {
       expect(JSON.stringify((after?.blocks ?? []).filter((b) => b.section === "note"))).toContain(
         "First thought.",
       );
-      expect(after?.fields.title).toBe("My name for it");
+      expect(after?.fields.title).toBe("pages.example - b");
     });
   });
 

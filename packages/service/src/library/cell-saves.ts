@@ -17,7 +17,6 @@ import { pageFields, stubFields } from "@repo/contract/library/item-makes";
 import { readingOps } from "@repo/contract/library/item-reading";
 import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
-import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { urlKey } from "@repo/contract/items/item-url";
 
 import { withArticle } from "../note/article-body";
@@ -70,8 +69,8 @@ const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as co
 
 // the fields a read page sets, however it reached the item: what it said of itself where it said
 // anything (a value it did not give never removes one an import gave), its cover where it brought
-// one, the reading's own state, and its title (empty when it gave none) only over the address the
-// item is still named by
+// one, the reading's own state, and its title (empty when it gave none) only where the item has
+// no name of its own
 export const pageFieldOps = (
   fields: LibraryItemFields,
   page: Pick<ReadPage, "coverSha" | "facts" | "title">,
@@ -88,7 +87,7 @@ export const pageFieldOps = (
     ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
   }
   ops.push(...readingOps(fields.reading, { at: now, kind: "read" }));
-  if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
+  if (page.title !== "" && fields.title.trim() === "") {
     ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
   }
   return ops.filter(changes);

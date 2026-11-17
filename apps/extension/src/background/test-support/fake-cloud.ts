@@ -22,7 +22,7 @@ export const OTHER_SESSION: Session = { ...SESSION, email: "other@example.test" 
 
 export const savedAs = (title: string, created = true): Saved => ({
   created,
-  item: { fields: { title } },
+  item: { card: { title } },
 });
 
 type Answer<T> = () => Promise<T>;

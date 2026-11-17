@@ -242,6 +242,13 @@ describe("a save that waits", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
+  it("is sent with the empty title of a tab that gave none, a link with no name yet", async () => {
+    await keepSave(waiting({ title: "" }));
+    const cloud = fakeCloud({});
+    await sendQueued(depsWith(cloud));
+    expect(cloud.links).toMatchObject([{ title: "", url: "https://example.test/file-over-app" }]);
+  });
+
   it("leaves a first try still under way alone for as long as that try can run", async () => {
     // every cover candidate fetched to its deadline, then the cover's put and the save to theirs
     const longestTry = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;

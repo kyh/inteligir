@@ -161,6 +161,23 @@ describe("an open item's title", () => {
   });
 });
 
+describe("an open link nobody named", () => {
+  it("leaves its title empty, the address it goes by as the placeholder", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({
+      kind: "link",
+      title: "",
+      url: "https://example.com/posts/a-long-read",
+    });
+    pageAt(`/library?item=${id}`, cell);
+
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    expect(title).toHaveProperty("value", "");
+    expect(title).toHaveProperty("placeholder", "example.com - a long read");
+  });
+});
+
 describe("an open item's body", () => {
   it("is its note's live document, dialled on the account socket's ticket, read-only offline", async () => {
     const { server } = await pageOverALiveNote();

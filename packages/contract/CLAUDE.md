@@ -36,6 +36,10 @@ clock, random bytes and fresh ids are injected.
 - **An item's reading is one field, a union the row and the wire hold as it
   is, and every writer moves it by one function.** Three fields paired by hand
   can badge a failure over a read. `packages/contract/src/library/item-reading.ts`.
+- **A saved link nobody named holds an empty title, and its card goes by its
+  address.** A made-up name in the person's field has to be made up again to
+  ask whether a page may still name the link.
+  `packages/contract/src/library/derive-item.ts`.
 - **A make's fields are spelled once, and an import's item is a make less its
   place.** An item spelled by hand at each landing reads one way on the device
   that drew it and another once the cell answers.

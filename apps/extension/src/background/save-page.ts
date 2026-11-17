@@ -61,7 +61,7 @@ const outcomeOf = (settled: Settled<Saved>): Outcome => {
       return {
         created: settled.answer.created,
         kind: "saved",
-        title: settled.answer.item.fields.title,
+        title: settled.answer.item.card.title,
       };
     }
     case "waiting": {
@@ -298,7 +298,7 @@ export const savePicture = async (
   const settled = settledBy(made);
   switch (settled.kind) {
     case "landed": {
-      return { created: true, kind: "saved", title: settled.answer.item.fields.title };
+      return { created: true, kind: "saved", title: settled.answer.item.card.title };
     }
     case "waiting": {
       return refused(PICTURE_WAITS[settled.for]);

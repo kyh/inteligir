@@ -134,6 +134,16 @@ describe(deriveBody, () => {
     expect(derive(noteFixture({ title: "Named" }), bodyOf([heading])).card.title).toBe("Named");
   });
 
+  it("names a saved link nobody named by its address, whatever its words say", () => {
+    const link = noteFixture({ kind: "link", url: "https://stephango.com/file-over-app" });
+    const words = bodyOf([paragraph("p", "First words.")]);
+    expect(derive({ ...link, title: "" }, words)).toMatchObject({
+      card: { title: "stephango.com - file over app" },
+      search: { title: "stephango.com - file over app" },
+    });
+    expect(derive({ ...link, title: "File over app" }, words).card.title).toBe("File over app");
+  });
+
   it("cards an item: its first paragraph, its outline and its words", () => {
     const blocks = bodyOf([
       { children: [{ text: "Intro" }], id: "h", type: "h1" },
