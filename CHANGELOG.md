@@ -16,6 +16,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
 - **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, a save made offline lands once you're back online, and one made signed out lands the moment you sign in again, in the account it was saved for.
+- **A save your library refuses stays in the extension's popup**: it is listed under "Didn't reach your library" in your library's words, with Try again and Let it go.
+- **The extension says a refusal in your library's words** ("Your library is full."), the same sentence your iPhone shows, in the popup and on the toolbar button.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.
 - **An item opens full size**: a file in its viewer, a saved page as its article under Open original, and what you type into a saved page stays your note when it's read again.
@@ -36,6 +38,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Ask the agent to add to an item's note** and it writes after what's there, in a saved page, a picture or a PDF with no note yet too; what it adds stays when the page is read again.
 - **A link can open an item on its words**: add `find=` and the words to an item's address, and its find bar opens on them.
 - **Terms of Use**, at inteligir.com/terms.
+- **The open-source software Inteligir is built on, and its licenses**: Licenses in Settings › About opens them in your browser, inteligir.com links them at the foot of its home page, and the browser extension carries its own.
 
 ### Changed
 
@@ -56,6 +59,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
 - **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier, and a long page is read in about two thirds of the time.
 - **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
+- **A saved link you haven't named keeps an empty title**: its card and the title box go by its address until its page names it, and a title you type is never replaced by the page's.
 - **A link saved as a numeric address is turned down at once, with why**: `http://192.168.1.20/`, `http://93.184.216.34/` or `http://[::1]/` reads "The cloud opens pages by name, so an address written as numbers isn't read." Save the page by its name, or from the browser extension, which reads the page itself.
 - **A saved page keeps more of its page**: a picture that is itself a link stays a picture, a table's cells keep their links, bold and code, a definition list reads as a list, and a quotation reads in quotes.
 - **A web address a saved page shows as plain text stays text**, where it used to turn into a link, and highlighted or underlined words in a saved page read in italics; Read the page again re-reads a page saved before.
@@ -82,6 +86,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A folded heading is folded in every window showing its note.**
 - **Choosing a new password looks like the rest of the website.**
 - **Dragging across the window selects only text you would copy.**
+- **In a menu, the highlight sits only on the row Enter acts on**: nothing is lit while the pointer is over a divider, a heading or a row that is off.
+- **A folder's More button stays visible while its menu is open.**
 - **Long notes open, scroll and type faster.**
 - **Diagrams draw as you type, in the app's own colours.**
 - **A very long page keeps its first part.**
@@ -102,6 +108,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Pin, Unpin and Restore from the grid's menu say how many items they changed**, and a restore names every item that stayed in Deleted because another item has its address.
 - **Adding files shows its progress from the first one**, "Adding 3 of 12…", as saving several links does, with Stop only while any are left.
 - **A link or file that couldn't be saved says why**, and what was saved before it is counted: "Stopped after 2 of 5."
+- **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
 - **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
 - **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
