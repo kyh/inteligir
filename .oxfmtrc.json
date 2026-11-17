@@ -7,8 +7,8 @@
     "*.tsbuildinfo",
     ".output",
     ".wxt",
-    ".tanstack",
-    "routeTree.gen.ts",
+    ".next",
+    "next-env.d.ts",
     "packages/editor/src/test-support/fixtures",
     "__snapshots__",
     "apps/desktop/src-tauri/about.hbs"

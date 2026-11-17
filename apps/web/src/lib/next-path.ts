@@ -3,7 +3,7 @@ import { z } from "zod";
 import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
 
 // where a sign-in or sign-up lands when nothing asked to come back
-export const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;
+const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;
 
 // Narrows a sign-in return target to a same-document path (open-redirect guard):
 // browsers read `//` and `/\` as protocol-relative, and resolving against a sentinel

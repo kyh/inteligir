@@ -11,24 +11,10 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow
-      "entry": [
-        "cloudflare.config.ts",
-        "src/worker/*.test-d.ts",
-        "src/library/import/import-worker.ts"
-      ],
+      // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow;
+      // the library's stylesheet waits for the page that loads it, its suites reaching the rest
+      "entry": ["src/library/import/import-worker.ts", "src/library/styles/*.css"],
       "ignoreDependencies": ["tailwindcss"]
-    },
-    "packages/db": {
-      // the local D1's config throws on load until `pnpm dev:web` has made that database, so its
-      // schema, which drizzle-kit reads, is named here
-      "ignore": ["drizzle.config.local.ts"],
-      "drizzle": { "config": ["drizzle.config.ts"], "entry": ["src/d1/schema.ts"] }
-    },
-    "packages/service": {
-      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts"],
-      "ignore": ["src/types/highlight-js.d.ts"],
-      "ignoreDependencies": ["cloudflare"]
     }
   }
 }

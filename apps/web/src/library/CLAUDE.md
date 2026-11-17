@@ -5,8 +5,9 @@ the open item, the panel, the palette, Settings and the tab's own preferences.
 
 ## Shape
 
-The tab is the site's `/library` route (`apps/web/src/routes/library.tsx`), its children the
-workspace and Settings, its code this folder. `library-tab.ts` opens the tab once a document (the
+The tab is the site's `/library` page, its children the workspace and Settings, its code this
+folder; no page mounts its routes until it runs on App Router, so its suites mount them over memory
+(`test-support/library-router.tsx`). `library-tab.ts` opens the tab once a document (the
 session, the wire, the account's socket, the shell's store and the QueryClient) in the route's
 `beforeLoad`, and `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1`
 client, the queries, the writes and the socket; `workspace.tsx` lays out the rail, the grid or the

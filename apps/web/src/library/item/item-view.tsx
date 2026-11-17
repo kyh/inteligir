@@ -20,6 +20,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { useLibraryCommands } from "../library/library-commands";
+import type { LibrarySearch } from "../library-search";
 import { shortcutFor } from "../shortcuts";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
@@ -90,7 +91,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const commands = useLibraryCommands();
   const item = useQuery(useLibraryQueries().item(itemId));
   const modifier = platformShortcutModifier();
-  const find = libraryRoute.useSearch({ select: (search) => search.find });
+  const find = libraryRoute.useSearch({ select: (search: LibrarySearch) => search.find });
   const navigate = useNavigate();
 
   // the find bar lands on a search's words once the item's editor answers, and the address then
@@ -103,7 +104,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
       jumpToFindMatch(editor, find, 0);
       void navigate({
         replace: true,
-        search: (prior) => ({ ...prior, find: undefined }),
+        search: (prior: LibrarySearch) => ({ ...prior, find: undefined }),
         to: ".",
       });
     });

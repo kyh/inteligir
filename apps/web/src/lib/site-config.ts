@@ -1,7 +1,7 @@
 const GITHUB = "https://github.com/kyh/inteligir";
 
-// the notices a licence asks to travel with a copy: every package the pages bundle, in the file the
-// client build writes (vite.config.ts), beside public/licenses, the texts of what is vendored
+// the notices a licence asks to travel with a copy: every package the pages bundle, beside
+// public/licenses, the texts of what is vendored
 export const LICENSES_PATH = "/licenses.md";
 
 export const siteConfig = {

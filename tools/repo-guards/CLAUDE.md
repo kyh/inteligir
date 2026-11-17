@@ -14,26 +14,26 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   (`apps/web/public/licenses`), and the .app ships its crates' notices
   (`apps/desktop/src-tauri/about.toml`).
 - **A bundle's notices are its build's**: Vite's `build.license` writes the
-  licence of each package the site's pages bundle, served as `/licenses.md` and
-  linked from the home page and Settings, and of each the extension's zip
-  holds, a file per group of entrypoints. Why: a generator of ours is a list to
-  keep in step with the lockfile. `apps/web/vite.config.ts`.
-- **The React Compiler is on for every bundle, through react.dev's Vite path**
-  (owner decision), every DOM suite compiles its sources the same way, and a
-  hand `useMemo` or `useCallback` stays only as an effect's dependency or where
-  the compiler would key a value wrongly. Why: the suites run what ships, a
-  `compiled-under-test` case fails without the preset, and the compiler
-  memoizes the rest. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
-- **A hook or component defined inside a function fails the build**, the
-  site's, the extension's and the phone's alike. Why: the compiler outlines its
+  licence of each package the extension's zip holds, a file per group of
+  entrypoints. Why: a generator of ours is a list to keep in step with the
+  lockfile. `apps/extension/wxt.config.ts`.
+- **The React Compiler is on for every bundle** (owner decision), Next's
+  `reactCompiler` for the site and react.dev's Vite path for the extension,
+  every DOM suite compiles its sources the same way, and a hand `useMemo` or
+  `useCallback` stays only as an effect's dependency or where the compiler would
+  key a value wrongly. Why: the suites run what ships, a `compiled-under-test`
+  case fails without the preset, and the compiler memoizes the rest.
+  `apps/web/next.config.ts`, `apps/extension/wxt.config.ts`,
+  `apps/mobile/app.config.js`.
+- **A hook or component defined inside a function fails the extension's and the
+  phone's build, and the library tab's suites.** Why: the compiler outlines its
   closures to module scope, past the enclosing function's locals, and says so
-  only under `validateNoDynamicallyCreatedComponentsOrHooks`.
-  `apps/web/vite.config.ts`.
+  only under `validateNoDynamicallyCreatedComponentsOrHooks`, which Next's
+  compiler option has no slot for. `apps/web/vitest.config.ts`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
   `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.
-  `pnpm-workspace.yaml`, `packages/service/compatibility.ts`,
-  `apps/desktop/rust-toolchain.toml`.
+  `pnpm-workspace.yaml`, `apps/desktop/rust-toolchain.toml`.
 - **The product's version is the root `package.json`'s, and each shipped app
   reads it there.** Why: one client build floor holds every app, so a copy per
   manifest is three chances to ship apart. `package.json`.

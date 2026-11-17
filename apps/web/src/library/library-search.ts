@@ -15,3 +15,5 @@ export const librarySearchSchema = z.object({
   kind: orNothing(z.enum(ITEM_KINDS)),
   scope: orNothing(libraryScopeSchema),
 });
+
+export type LibrarySearch = z.infer<typeof librarySearchSchema>;

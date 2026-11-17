@@ -19,51 +19,12 @@ type ImportPattern =
 // a client reaching the connector's decoration bundles the MCP SDK's node shims, which Metro keeps
 const SERVER_ONLY = {
   message: "MCP and OpenAPI meta live in @repo/service alone",
-  regex: "^(?:@orpc/(?:mcp|openapi)|@modelcontextprotocol/server)(?:/|$)",
-};
-// `pnpm dev:web` stops on a module both cloudflare.config.ts and the Worker load
-const CONFIG_MODULES = {
-  message: "cloudflare.config.ts loads this module: read the value from a binding it declares",
-  regex: "(?:^|/)(?:compatibility|fill-queues|agent-limits|cloudflare\\.config)(?:\\.ts)?$",
-};
-// every other entry of the 0.x Agents SDK is experimental or brings what a thread never runs
-const AGENTS_SDK = {
-  group: ["agents", "agents/**", "!agents/lifecycle"],
-  message: "the Worker imports agents/lifecycle alone",
+  regex: "^(?:@orpc/openapi|@modelcontextprotocol/server)(?:/|$)",
 };
 const SERVICE_PLATFORM = {
-  message: "@repo/service runs on workerd: take the platform from the runtime or a port",
-  regex: NODE_OR_REACT,
+  message: "@repo/service runs on the server: no DOM and no React",
+  regex: "^(?:react(?:-dom)?|@repo/ui)(?:/|$)",
 };
-// only the account's cell names a conversation's or a note's object, so no caller reaches another account's
-const THREAD_STUB = {
-  message: "only library-do.ts and agent-turns.ts name a conversation's object",
-  regex: "(?:^|/)thread-stub(?:\\.ts)?$",
-};
-const NOTE_STUB = {
-  message: "only the cell (open-cell.ts) and the note's own door and object name a note",
-  regex: "(?:^|/)note-stub(?:\\.ts)?$",
-};
-// a cold note asks its cell for the seed, so a cell blocked while it awaits a note deadlocks
-const NOTE_REENTRY = [
-  { message: "the cell never blocks its own events", property: "blockConcurrencyWhile" },
-  { message: "the cell writes in transactionSync alone (cell-db.ts)", property: "transaction" },
-];
-// drizzle-kit plans `.unique()` as a table recreate, and D1 ignores `PRAGMA foreign_keys=OFF`, so
-// the recreate's DROP cascades through every ON DELETE CASCADE child; `push` applies it unasked
-const D1_UNIQUE = {
-  message: 'declare a D1 unique as uniqueIndex("<table>_<column>_unique") in the table\'s config',
-  property: "unique",
-};
-const THREAD_STUB_CALLERS = [
-  "packages/service/src/library/library-do.ts",
-  "packages/service/src/agent/agent-turns.ts",
-];
-const NOTE_STUB_CALLERS = [
-  "packages/service/src/library/open-cell.ts",
-  "packages/service/src/note/note-routes.ts",
-  "packages/service/src/note/note-do.ts",
-];
 // Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
 const NO_ORPC_IN_PAGE = {
   message: "the editor, @repo/ui, the live socket and the phone's note page reach no oRPC module",
@@ -77,19 +38,18 @@ const ORPC_IN_RPC_FOLDER = {
   regex: "^@orpc/|(?:^|/)rpc/",
 };
 const CONTRACT_PLATFORM = {
-  message: "@repo/contract loads on every client and the Worker",
+  message: "@repo/contract loads on every client and the server",
   regex: NODE_OR_REACT,
 };
 const EDITOR_PLATFORM = {
-  message: "@repo/editor runs in pages and headless in the Worker",
+  message: "@repo/editor runs in pages and headless on the server",
   regex: NODE,
 };
-// the Worker and the page reader load the editor's headless folder. The Worker's program compiles
-// no jsx, which catches a .tsx; a `platejs/react` import from a .ts file type-checks and drags
-// React into the Worker
+// the server and the page reader load the editor's headless folder; a `platejs/react` import from a
+// .ts file type-checks and drags React onto the server
 const HEADLESS_FOLDER = "packages/editor/src/headless/**";
 const HEADLESS_PLATFORM = {
-  message: "packages/editor/src/headless/ runs in the Worker: no React half, stylesheet or node",
+  message: "packages/editor/src/headless/ runs on the server: no React half, stylesheet or node",
   regex:
     "^(?:node:|react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react$|\\.css$",
 };
@@ -101,7 +61,7 @@ const HEADLESS_WALL = {
 // a group, for its negation
 const HEADLESS_ALONE = {
   group: ["@repo/editor/**", "!@repo/editor/headless/**"],
-  message: "the Worker and the page reader load @repo/editor/headless/ alone",
+  message: "the server and the page reader load @repo/editor/headless/ alone",
 };
 // the phone's note page runs in its web view and reaches the phone only through its props
 const NOTE_PAGE_PLATFORM = {
@@ -121,18 +81,12 @@ const SHELL_API = {
 };
 const LIBRARY_IMPORTS = [
   { message: "the library runs in a browser, where no node module loads", regex: NODE },
-  CONFIG_MODULES,
-  AGENTS_SDK,
 ];
 
 // an override's options replace the base's, so each restates the repo-wide row
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
   "error",
   { patterns: [SERVER_ONLY, ...patterns] },
-];
-const serviceImports = (...stubs: readonly ImportPattern[]) => [
-  "error",
-  { patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, HEADLESS_ALONE, ...stubs] },
 ];
 const platformPurity = (dir: string, regex: string, message: string, ...more: ImportPattern[]) => ({
   excludeFiles: tests,
@@ -143,14 +97,7 @@ const platformPurity = (dir: string, regex: string, message: string, ...more: Im
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
-  ignorePatterns: [
-    ...(core.ignorePatterns ?? []),
-    ".agents",
-    ".claude",
-    ".codex",
-    ".tanstack",
-    ".wxt",
-  ],
+  ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".codex", ".wxt"],
   overrides: [
     {
       // no tsconfig program includes the few JS files a tool loads by name, so every value is `any`
@@ -284,15 +231,9 @@ export default defineConfig({
       },
     },
     {
-      files: ["packages/service/src/**"],
-      rules: { "no-restricted-imports": ["error", { patterns: [AGENTS_SDK] }] },
-    },
-    {
       excludeFiles: tests,
       files: ["apps/web/src/**"],
-      rules: {
-        "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK, SHELL_API]),
-      },
+      rules: { "no-restricted-imports": restrictedImports([SHELL_API]) },
     },
     {
       excludeFiles: [...tests, DESKTOP_BRIDGE],
@@ -304,33 +245,12 @@ export default defineConfig({
       rules: { "no-restricted-imports": restrictedImports(LIBRARY_IMPORTS) },
     },
     {
-      // Start's middleware `next` is a continuation, not a Node callback
-      files: ["apps/web/src/start.ts"],
-      rules: { "node/callback-return": ["error", ["callback", "cb"]] },
-    },
-    {
-      excludeFiles: [...tests, ...THREAD_STUB_CALLERS, ...NOTE_STUB_CALLERS],
-      files: ["packages/service/src/**"],
-      rules: { "no-restricted-imports": serviceImports(THREAD_STUB, NOTE_STUB) },
-    },
-    {
-      excludeFiles: NOTE_STUB_CALLERS,
-      files: THREAD_STUB_CALLERS,
-      rules: { "no-restricted-imports": serviceImports(NOTE_STUB) },
-    },
-    {
-      excludeFiles: THREAD_STUB_CALLERS,
-      files: NOTE_STUB_CALLERS,
-      rules: { "no-restricted-imports": serviceImports(THREAD_STUB) },
-    },
-    {
+      // MCP and OpenAPI meta are this package's, so the repo-wide row is left out
       excludeFiles: tests,
-      files: ["packages/service/src/library/**"],
-      rules: { "no-restricted-properties": ["error", ...NOTE_REENTRY] },
-    },
-    {
-      files: ["packages/db/src/d1/**"],
-      rules: { "no-restricted-properties": ["error", D1_UNIQUE] },
+      files: ["packages/service/src/**"],
+      rules: {
+        "no-restricted-imports": ["error", { patterns: [SERVICE_PLATFORM, HEADLESS_ALONE] }],
+      },
     },
     {
       // the model ships to runtimes without crypto
@@ -350,13 +270,6 @@ export default defineConfig({
         "packages/editor/src/headless/knowledge/**",
         "packages/editor/src/headless/markdown/**",
         "packages/editor/src/headless/text/**",
-        "packages/service/src/imports/**",
-        "packages/service/src/library/library-queries.ts",
-        "packages/service/src/library/library-sql.ts",
-        "packages/service/src/library/revert-change.ts",
-        "packages/service/src/library/sql-value.ts",
-        "packages/service/src/note/turn-log.ts",
-        "packages/service/src/search/**",
       ],
       rules: {
         "no-restricted-globals": [

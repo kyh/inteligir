@@ -1,9 +1,5 @@
-import { createElement } from "react";
-import { renderToString } from "react-dom/server";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
-import { routeTree } from "../routeTree.gen";
 import { PAGES } from "./page-meta";
 import {
   aboutMarkdown,
@@ -18,16 +14,6 @@ import { siteGraph } from "./structured-data";
 
 // the floor agent-readiness checks hold a trust page and the homepage's raw text to
 const MIN_CHARS = 500;
-
-// the whole document a route answers: its head, its JSON-LD and what a person sees
-const renderedDocument = async (path: string): Promise<string> => {
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [path] }),
-    routeTree,
-  });
-  await router.load();
-  return renderToString(createElement(RouterProvider, { router }));
-};
 
 // a claim can break across a source line, a quoted llms.txt line or an element
 const flowing = (text: string): string =>
@@ -130,31 +116,6 @@ describe("the site's markdown", () => {
 });
 
 describe("what a page says about the product", () => {
-  it.each(["/", "/about", "/contact"])(
-    "%s makes none of the replaced product's claims, head and JSON-LD included",
-    async (path) => {
-      expect(claimsIn(await renderedDocument(path))).toStrictEqual([]);
-    },
-  );
-
-  it("says what the app needs beside the Download button", async () => {
-    const text = flowing(await renderedDocument("/"));
-    expect(text).toContain("For Macs with Apple silicon.");
-    expect(text).toMatch(
-      /An account is required, by invite for now, and its first 1 GB is free\./u,
-    );
-    expect(text).toContain("The agent is built in.");
-  });
-
-  it.each(["/", "/about", "/contact", "/privacy", "/terms"])(
-    "%s offers the way into the library",
-    async (path) => {
-      await expect(renderedDocument(path)).resolves.toMatch(
-        /<a\b[^>]*href="\/library"[^>]*>Open your library<\/a>/u,
-      );
-    },
-  );
-
   it.each(Object.values(PAGES).map((page) => [page.path, page.description] as const))(
     "%s describes itself in the product's terms",
     (_path, description) => {

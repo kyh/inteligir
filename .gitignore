@@ -10,10 +10,12 @@ coverage
 test-results/
 playwright-report/
 
-# tanstack start / cloudflare (.wrangler/ holds local dev state)
-.tanstack/
-.cloudflare/
-.wrangler/
+# next.js
+.next/
+next-env.d.ts
+
+# vercel
+.vercel
 
 # build output
 dist/
@@ -37,7 +39,6 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
-.dev.vars
 
 # typescript
 *.tsbuildinfo

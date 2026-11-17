@@ -106,7 +106,9 @@ const reload = (): void => {
 };
 
 export const LibraryLayout = () => {
-  const opening = libraryRoute.useRouteContext({ select: (context) => context.opening });
+  const opening = libraryRoute.useRouteContext({
+    select: (context: { readonly opening: TabOpening }) => context.opening,
+  });
   return (
     <div data-library>
       {opening.kind === "open" ? <OpenLibrary {...opening} /> : <OpenFailedPage reload={reload} />}

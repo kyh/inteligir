@@ -127,7 +127,3 @@ export const usePref = <State extends object, Key extends keyof State>(
     store.setState(patch);
   },
 ];
-
-// runs in <head> before the first paint of a page the Worker drew, over the blob `persist` writes;
-// a theme it cannot read follows the system's
-export const noFlashThemeScript = `(function(){var t;try{t=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS)})).state.theme}catch(e){}document.documentElement.classList.toggle("dark",t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches))})();`;

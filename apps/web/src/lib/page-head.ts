@@ -1,5 +1,4 @@
 import type { PageMeta } from "#lib/page-meta";
-import { statedDate } from "#lib/page-meta";
 import { siteConfig } from "#lib/site-config";
 import { pageGraph } from "#lib/structured-data";
 
@@ -38,10 +37,4 @@ export const pageHead = (page: PageMeta, options: { dateModified?: string } = {}
       { "script:ld+json": pageGraph(page, options) },
     ],
   };
-};
-
-/** A legal page's head, dated by the effective date its own doc states. */
-export const legalHead = (page: PageMeta, markdown: string) => {
-  const dateModified = statedDate(markdown);
-  return pageHead(page, dateModified === null ? {} : { dateModified });
 };

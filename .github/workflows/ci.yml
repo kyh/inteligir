@@ -35,6 +35,8 @@ jobs:
       TURBO_TELEMETRY_DISABLED: 1
       # the server the database suites make their run's databases on (@repo/db/test-database)
       TEST_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/suites
+      # the schema's push, and the build, whose route modules open @repo/db's client on import
+      POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -60,8 +62,6 @@ jobs:
       # a second push must plan nothing: drizzle-kit can misread what it created and fail halfway
       # through the next push (packages/db/scripts/check-push.ts)
       - name: Schema push
-        env:
-          POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
         run: pnpm --filter @repo/db push && pnpm --filter @repo/db push:check
 
       # the static gate a developer runs, less the shell's, which the macOS job checks, so a local

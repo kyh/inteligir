@@ -3,11 +3,6 @@ import { createAuthClient } from "better-auth/client";
 // no baseURL: the same Worker serves the app and /api/auth/*, so the relative default is right on every host
 export const authClient = createAuthClient();
 
-export const AUTH_FALLBACK_ERROR = "Something went wrong — try again.";
-
-export const authErrorMessage = (error: { message?: string | undefined } | null): string =>
-  error?.message ?? AUTH_FALLBACK_ERROR;
-
 // who is signed in: Settings › Account names them
 export interface SignedIn {
   readonly email: string;

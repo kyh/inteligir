@@ -2,7 +2,6 @@ import babel from "@rolldown/plugin-babel";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
-// the Worker's code and its suites are @repo/service's
 export default defineConfig({
   // What the library's two projects extend, and the site's does not. Compiled like the shipped
   // bundle, so a component the compiler memoizes wrongly fails here rather than only in the built
@@ -17,7 +16,12 @@ export default defineConfig({
         /\.test\.tsx?$/u,
         /\/test-support\//u,
       ],
-      presets: [reactCompilerPreset()],
+      // Next's own compiler option has no slot for it, so the suites hold the rule the build cannot
+      presets: [
+        reactCompilerPreset({
+          environment: { validateNoDynamicallyCreatedComponentsOrHooks: true },
+        }),
+      ],
     }),
   ],
   test: {
@@ -31,7 +35,7 @@ export default defineConfig({
     ],
     projects: [
       {
-        // the site's suites, which render its routes to a string as the Worker's SSR does
+        // the site's suites, under node
         test: {
           exclude: [...configDefaults.exclude, "src/library/**"],
           include: ["src/**/*.test.ts"],

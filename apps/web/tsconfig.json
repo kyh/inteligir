@@ -1,12 +1,12 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // the Mac app's WebKit 16.6 stdlib: Vite lowers syntax, never stdlib
+    // the Mac app's WebKit 16.6 stdlib: the build lowers syntax, never stdlib
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client", "node"]
+    "types": ["node"],
+    "plugins": [{ "name": "next" }]
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"],
-  // workerd's and the DOM's globals clash, so src/worker is a program of its own
-  "exclude": ["node_modules", "dist", ".wrangler", ".tanstack", "src/worker"]
+  "include": ["src", "*.ts", "next-env.d.ts", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

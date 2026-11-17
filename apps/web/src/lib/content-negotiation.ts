@@ -2,7 +2,7 @@ import Negotiator from "negotiator";
 
 // every negotiated response carries it, or a cache hands the markdown to a browser (or the HTML
 // to an agent) depending on which variant primed it first
-export const VARY = "Accept, Accept-Encoding";
+const VARY = "Accept, Accept-Encoding";
 
 // the page leads, so a client that ranks both alike, as `*/*` does, keeps the HTML
 const REPRESENTATIONS = ["text/html", "text/markdown"];

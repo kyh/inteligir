@@ -6,9 +6,9 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { NavigateFn } from "@tanstack/react-router";
-import type { z } from "zod";
 
 import { librarySearchSchema } from "./library-search";
+import type { LibrarySearch } from "./library-search";
 
 interface LibraryPlace {
   readonly scope: LibraryScope;
@@ -16,7 +16,7 @@ interface LibraryPlace {
   readonly openItem: string | null;
 }
 
-export const placeOf = (search: z.infer<typeof librarySearchSchema>): LibraryPlace => ({
+export const placeOf = (search: LibrarySearch): LibraryPlace => ({
   kind: search.kind ?? null,
   openItem: search.item ?? null,
   scope: search.scope ?? { kind: "all" },
@@ -42,7 +42,7 @@ export const libraryGoes = (router: PlaceRouter) => {
     void router.navigate({
       ignoreBlocker,
       replace: itemId === now().openItem,
-      search: (prior) => ({ ...prior, find, item: itemId ?? undefined }),
+      search: (prior: LibrarySearch) => ({ ...prior, find, item: itemId ?? undefined }),
       to: ".",
     });
   };
@@ -63,7 +63,7 @@ export const libraryGoes = (router: PlaceRouter) => {
     showKind: (kind: ItemKind | null): void => {
       void router.navigate({
         replace: true,
-        search: (prior) => ({ ...prior, kind: kind ?? undefined }),
+        search: (prior: LibrarySearch) => ({ ...prior, kind: kind ?? undefined }),
         to: ".",
       });
     },
