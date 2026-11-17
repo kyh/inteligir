@@ -91,11 +91,11 @@ through the Service or otherwise includes:
     to your library in our cloud. What you type in a note goes there as you type
     it and on to every device that has the note open, as do the built-in agent's
     edits. Nobody learns who else has a note open or where their cursor is.
-  - For seven days, so Undo can take it back, your library keeps what each
-    change to an item's fields, a folder or a tag replaced, and what the
-    built-in agent, an assistant, an import or a reading of a page changed, each
-    change named for the device, assistant or conversation that made it. What
-    you type in a note is not kept for Undo.
+  - For seven days after a turn of the built-in agent ends, so Undo can take it
+    back, your library keeps what that turn changed in each item's fields, the
+    reading of a link it saved included, named for its conversation and turn,
+    until you undo it. What you, an assistant or an import change is not kept
+    for Undo, nor is what you type in a note.
   - Your library is reachable only with a sign-in to your own account and holds
     about 1 GB, each note's text and what Undo keeps included. A full library
     still opens, downloads and lets you edit what it holds, but takes no new
@@ -140,9 +140,10 @@ as:
     keeps no record of it.
   - **The Mac app's update check, to GitHub.** The Mac app asks GitHub's release
     feed whether a newer version exists each time its window opens your library
-    and when you choose Check for Updates…; it downloads one only when you
-    choose Download, and installs it when you choose Restart. GitHub sees your
-    IP address, nothing about your library or your account.
+    and when you choose Check for updates in Settings › About; it downloads one
+    only when you choose Download, and installs it when you choose Restart to
+    update. GitHub sees your IP address, nothing about your library or your
+    account.
   - **The phone's update check, to Expo.** Each time the phone app starts, it
     asks Expo's update service for newer app code, downloads it in the
     background and runs it from the next start. Expo sees your IP address, the
@@ -214,8 +215,9 @@ The apps also hold to these:
   request carries no cookies, sign-in or referrer, names inteligir in a
   Safari-compatible user agent with English as its language, and shows the site
   Cloudflare's address, never yours. Our cloud fetches only web addresses on
-  their standard ports, and never one that points into a private network or
-  into space no site holds, whether you saved it or a page redirected there.
+  their standard ports, by name: never an address written as numbers, and never
+  a name that points into a private network, whether you saved it or a page
+  redirected there.
   The page's text and pictures land in your library; the page itself is not
   kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
@@ -225,8 +227,10 @@ The apps also hold to these:
   about itself and its cover picture, which it fetches from your browser without
   your cookies, to your library, signed in as the account you are signed in to
   on inteligir.com in that browser. Signing out there, or signing that browser
-  out from Settings › Account, signs the extension out too. It keeps only the
-  account's email and the site's address in its storage. Nothing you typed into
+  out from Settings › Account, signs the extension out too. Beside the saves
+  described below, it keeps only the account's email and a SHA-256 fingerprint
+  of that sign-in's session cookie, which is not the cookie and signs nobody
+  in, in its storage. Nothing you typed into
   the page goes with it: form fields, choices the page filled in for you and
   every box you type into, such as an email you are writing, are emptied first.
   A link or picture saved from the right-click menu, and a page the extension
@@ -234,10 +238,16 @@ The apps also hold to these:
   with no text), go as an address, the page with its title, for our cloud to
   read as above. A page with no web address, such as the browser's own pages,
   is never saved: the extension says so and sends nothing. A picture a page drew
-  itself is uploaded as a file of its own. A save made offline or signed out
-  waits in the extension's browser storage as the page's address and title, and
-  is sent, for our cloud to read, once you are online and signed in as that
-  account; one for an account that was deleted is dropped.
+  itself is uploaded as a file of its own. A page or link you save is kept in
+  the extension's browser storage before it is sent, as its address and title
+  with the email of the account it was saved for, two ids our cloud knows it by
+  and the time you saved it, and is removed once your library takes it. One
+  made offline or signed out waits there and is sent, for our cloud to read,
+  once you are online and signed in as that account. One your library refuses,
+  a full library for one, stays there with the sentence your library refused it
+  in, listed in the popup while you are signed in as that account, until you
+  choose Try again or Let it go. One for an account that was deleted is
+  dropped.
 - **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves its
   address, with the title the sharing app gave it and the words you shared,
   into your library; the phone fetches nothing from the site, and our cloud then
@@ -245,8 +255,9 @@ The apps also hold to these:
   A link inside shared text is saved the same way, the words around it its note;
   other text is saved as you shared it.
 - **Importing.** The file you import (a Raindrop CSV, or a zip of notes such as
-  an Obsidian folder) is uploaded to your library, read there and deleted once
-  the import ends. Each imported link is then read as above.
+  an Obsidian folder) is read on your device, in the window you import from;
+  only the items it holds and the files they name go to your library. Each
+  imported link is then read as above.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own (on a Mac, press fn
   twice; on the phone, the keyboard's microphone key) and types into the app
@@ -349,14 +360,17 @@ we may either delete it, anonymize it, or isolate it from further processing.
 Specifically, in our cloud:
 
 - **Items** stay until deleted for good or the account is deleted. Deleting an
-  item moves it to Deleted; emptying Deleted, or Delete forever, removes its
-  text and what Undo kept of it at once, and each of its files once no other
-  item, and nothing Undo can still bring back, names it.
-- **What Undo keeps** of a change stays seven days after the change is finished
-  and is deleted within about a day after that. For each turn of the built-in
-  agent that edited a note, the note's own store keeps the note as it stood at
-  the turn's first edit there and every change through its last, so Undo this
-  turn can take it back, for the same time.
+  item moves it to Deleted; Delete forever removes its text and what Undo kept
+  of it at once, and each of its files once no other item, and nothing Undo can
+  still bring back, names it. Emptying Deleted, or Delete forever over more
+  items than the window has shown, does the same a batch at a time, which your
+  library finishes on its own within minutes, even if you close the window.
+- **What Undo keeps** of a turn of the built-in agent stays seven days after
+  the turn ends, or until you undo it, which deletes it at once, and is deleted
+  within about a day after that. For each turn of the built-in agent that
+  edited a note, the note's own store keeps the note as it stood at the turn's
+  first edit there and every change through its last, so Undo this turn can
+  take it back, for the same time.
 - **A conversation with the built-in agent**, its own record and its messages in
   your library alike, is kept until you delete it or the account, which deletes
   both.
