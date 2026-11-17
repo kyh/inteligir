@@ -19,6 +19,7 @@ import {
   PASSWORD,
   PHONE_USER_AGENT,
   sessionOf,
+  sessionTokenOf,
   signInPhone,
   signUpUser,
   userIdOf,
@@ -39,18 +40,6 @@ const liveSessionsOf = async (userId: string) =>
     .select({ id: session.id, token: session.token })
     .from(session)
     .where(and(eq(session.userId, userId), gt(session.expiresAt, new Date())));
-
-// a session cookie's value as the browser's jar holds it, signed and encoded as Better Auth set it
-const sessionTokenOf = (cookie: string): string => {
-  const value = cookie
-    .split("; ")
-    .find((pair) => pair.split("=")[0]?.endsWith("session_token") === true)
-    ?.split("=")[1];
-  if (value === undefined) {
-    throw new Error("no session cookie");
-  }
-  return value;
-};
 
 // what the browser extension sends: the browser's own session cookie as a bearer
 const extensionHeaders = (cookie: string) => ({

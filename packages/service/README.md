@@ -1,8 +1,8 @@
 # @repo/service
 
 The cloud's code, which `apps/web` serves: the environment it reads, one zod
-schema in `src/env.ts`, and accounts on Better Auth over Postgres. Its decisions
-are this package's [`CLAUDE.md`](CLAUDE.md).
+schema in `src/env.ts`, accounts on Better Auth over Postgres, and `/v1/rpc`.
+Its decisions are this package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
 
@@ -15,11 +15,16 @@ src/auth/auth-route.ts  /api/auth/*: the six routes a client calls, a 404 to the
 src/auth/invite.ts      POST /api/sign-up: claim the code, forward, release on failure
 src/auth/send-email.ts  the reset mail's one transport, in EMAIL_MODE's way
 src/seed.ts             pnpm db:seed: the dev account and DEV-INVITE
+src/rpc/v1-rpc.ts       /v1/rpc: admit, then the rows routed so far, a fault in the protocol
+src/rpc/admit.ts        the build floor, the door and its session, before a call is read
+src/rpc/orpc.ts         the contract's implementer, its context the admitted principal
+src/rpc/account-router.ts account.devices.* and account.delete
+src/rpc/rpc-refusal.ts  a refusal or fault outside every row, in the RPC protocol
 ```
 
-`apps/web` mounts the two handlers (`src/app/api/auth/[...all]/route.ts`,
-`src/app/api/sign-up/route.ts`) and reads a page's session through
-`src/lib/auth-server.ts`.
+`apps/web` mounts the three handlers (`src/app/api/auth/[...all]/route.ts`,
+`src/app/api/sign-up/route.ts`, `src/app/v1/rpc/[...rest]/route.ts`) and reads
+a page's session through `src/lib/auth-server.ts`.
 
 ## Seed
 

@@ -90,6 +90,18 @@ export const cookieHeaderOf = (response: Response): string => {
   return headers.get("cookie") ?? "";
 };
 
+// a session cookie's value as the browser's jar holds it, signed and encoded as Better Auth set it
+export const sessionTokenOf = (cookie: string): string => {
+  const value = cookie
+    .split("; ")
+    .find((pair) => pair.split("=")[0]?.endsWith("session_token") === true)
+    ?.split("=")[1];
+  if (value === undefined) {
+    throw new Error("no session cookie");
+  }
+  return value;
+};
+
 export const signUpUser = async (email: string): Promise<{ cookie: string; password: string }> => {
   const code = `TEST-${crypto.randomUUID()}`;
   await mintCode(code);

@@ -1,7 +1,7 @@
 # Decisions: @repo/service and the cloud
 
-The cloud's code, which `apps/web` serves on Node: the environment it reads and
-accounts. It imports no React and no DOM (`oxlint.config.ts`). Another area's
+The cloud's code, which `apps/web` serves on Node: the environment it reads,
+accounts and `/v1`. It imports no React and no DOM (`oxlint.config.ts`). Another area's
 decisions port with its code from the tag `cloudflare-last`.
 
 ## The environment
@@ -58,3 +58,30 @@ decisions port with its code from the tag `cloudflare-last`.
   log in production would hold live reset links, and with mail off a reset is
   refused up front rather than promising a link. No sender is built in (owner
   decision pending). `packages/service/src/auth/send-email.ts`.
+
+## The wire
+
+- **A `/v1` client ignores what it does not know, the app is held to exactly
+  what it declares, and the wire breaks only behind the client build floor**
+  (owner decision). Requests stay `z.strictObject`, since only the newest
+  deployment reads them. `packages/contract/src/rpc/call-outcome.ts`.
+- **Every install's request names its build, and `/v1` refuses one below
+  `MIN_CLIENT_BUILD` with 426** (owner decision). The session stays live, so the
+  next build resumes signed in; a page the deployment served ships in it and
+  names none. `packages/service/src/rpc/admit.ts`.
+- **A `/v1` call or file is admitted once, by one function, before anything
+  reads its path or body: the floor, the door, its session.** A check per
+  handler is an order each spells again and a new route forgets.
+  `packages/service/src/rpc/admit.ts`.
+- **`/v1` is one oRPC wire, `/v1/rpc`, and a refusal or a fault outside every
+  row is answered in its protocol.** REST beside RPC is two serializers and two
+  error vocabularies, and Next's own 500 is a body no link reads.
+  `packages/service/src/rpc/rpc-refusal.ts`.
+- **`/v1` answers no CORS: every page that calls it is the site's own.** The
+  extension reaches the site under its host permission, and an origin allowed
+  to send `expo-origin` would hold the phone's door.
+  `packages/service/src/rpc/admit.ts`.
+- **The router grows by area, and a suite names the contract's rows not served
+  yet.** `os.router(v1Contract)` compiles only once every row is there; the list
+  shrinks as each area lands, and goes with the last.
+  `packages/service/src/rpc/unrouted.test.ts`.

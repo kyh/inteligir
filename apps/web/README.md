@@ -18,10 +18,11 @@ next.config.ts   the React Compiler on
 
 ## Routes
 
-| Route         | What                                              |
-| ------------- | ------------------------------------------------- |
-| `/api/health` | `{"ok":true}` once the database answers, else 503 |
-| `/*`          | 404                                               |
+| Route         | What                                                             |
+| ------------- | ---------------------------------------------------------------- |
+| `/api/health` | `{"ok":true}` once the database answers, else 503                |
+| `/v1/rpc/*`   | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`) |
+| `/*`          | 404                                                              |
 
 The library tab's code is here, but no page mounts it yet: its suites draw it
 over memory.

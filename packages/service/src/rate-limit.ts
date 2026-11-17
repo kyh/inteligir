@@ -8,7 +8,8 @@ import { env } from "./env";
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own writes:
 // a row whose last request is older than its longest window goes, the app's included. An
 // unauthenticated caller of the app's own routes is keyed on its address, the one thing known of
-// it yet; a sign-in is Better Auth's route, under its own limiter (./auth/auth.ts).
+// it yet, and a deletion's password check on the session that asks; a sign-in is Better Auth's
+// route, under its own limiter (./auth/auth.ts).
 
 interface RateWindow {
   readonly max: number;
@@ -27,10 +28,13 @@ const CALLER_RATE_KEY_PREFIXES = {
 type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 export const RATE_WINDOWS = {
+  // a password check behind a session, so a stolen one guesses here rather than at the sign-in's
+  // per-address window; a person mistypes a few times, never dozens
+  accountDelete: { max: 5, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a refused
   // invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
-} as const satisfies Record<CallerRateFamily, RateWindow>;
+} as const satisfies Record<CallerRateFamily | "accountDelete", RateWindow>;
 
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
   `${CALLER_RATE_KEY_PREFIXES[family]}${clientAddressOf(request) ?? "unknown"}`;
@@ -62,3 +66,8 @@ export const spendCallerBudget = async (
   family: CallerRateFamily,
   request: Request,
 ): Promise<boolean> => await allowInWindow(callerRateKey(family, request), RATE_WINDOWS[family]);
+
+// keyed on the session's id, a row with no foreign key: a session that lapses announces nothing,
+// so its window waits for Better Auth's prune
+export const spendDeleteBudget = async (sessionId: string): Promise<boolean> =>
+  await allowInWindow(`account-delete:${sessionId}`, RATE_WINDOWS.accountDelete);

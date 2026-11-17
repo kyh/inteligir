@@ -1191,6 +1191,9 @@ importers:
       '@better-auth/expo':
         specifier: 'catalog:'
         version: 1.7.25(@better-auth/core@1.7.25(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(@opentelemetry/api@1.10.0)(better-call@1.4.5(zod@4.6.7))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(better-auth@1.7.25(45cc34caf4436cb4d5d049b95ebbee13))(better-call@1.4.5(zod@4.6.7))(expo-constants@57.0.21)(expo-linking@57.0.12)(expo-network@57.0.2(expo@57.0.27)(react@19.2.8))(expo-secure-store@57.0.4(expo@57.0.27))
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.50
       '@repo/contract':
         specifier: workspace:*
         version: link:../contract
@@ -1216,6 +1219,9 @@ importers:
       '@kyh/tsconfig':
         specifier: 'catalog:'
         version: 1.3.0
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.50
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

@@ -1,7 +1,6 @@
-// The account's procedures, which the Worker answers itself on `/v1/rpc/account` (the library's go
-// on to the account's cell): the account's devices, each a signed-in session, its deletion, the
-// ticket its socket opens with and the assistants it has let in. Signing in and out is Better
-// Auth's own, on `/api/auth`.
+// The account's procedures, on `/v1/rpc/account`: the account's devices, each a signed-in session,
+// its deletion, the ticket its socket opens with and the assistants it has let in. Signing in and
+// out is Better Auth's own, on `/api/auth`.
 
 import { z } from "zod";
 

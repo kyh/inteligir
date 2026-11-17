@@ -17,7 +17,7 @@ export const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown>
 
 // ---- what any request may meet before its procedure runs ----
 
-// the build is below the Worker's floor: the credential stands, and only an update moves past it
+// the build is below the cloud's floor: the credential stands, and only an update moves past it
 export const ClientOutdatedError = error("CLIENT_OUTDATED", {
   message: "This version of the app is too old. Update it to keep going.",
 });
@@ -108,7 +108,7 @@ export const V1_CUSTOM_ERROR_STATUS = {
   [QuotaError.code]: 507,
 } as const;
 
-// every RPCHandler on `/v1` maps codes to statuses with this, the Worker's and the cell's alike
+// the `/v1` handler maps codes to statuses with this, and every suite that stands one up
 export const V1_ERROR_STATUS_MAP = {
   ...COMMON_ERROR_STATUS_MAP,
   ...V1_CUSTOM_ERROR_STATUS,

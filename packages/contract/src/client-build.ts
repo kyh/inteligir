@@ -1,4 +1,4 @@
-// every request an install sends names the build that sent it, so the Worker can refuse one older
+// every request an install sends names the build that sent it, so the cloud can refuse one older
 // than what it answers now: a shape retires by raising the floor past every build that reads it,
 // never while one of them can still reach the wire. the platform is telemetry, never a gate.
 

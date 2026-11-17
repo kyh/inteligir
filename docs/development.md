@@ -100,7 +100,14 @@ From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
 with `-c jar`, then call `/v1` as the phone does, `-b jar -H 'expo-origin:
 inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
-A raw, unsigned token is refused.
+A raw, unsigned token is refused, and a build below `MIN_CLIENT_BUILD` (0.7.0
+unless `.env` names one) answers 426:
+
+```sh
+curl -s -b jar -X POST localhost:5174/v1/rpc/account/devices/list \
+  -H 'content-type: application/json' -H 'expo-origin: inteligir://' \
+  -H 'x-inteligir-build: 0.7.0+mobile' -d '{"json":{}}'
+```
 
 The built-in agent's system prompt is the files of
 `packages/service/src/agent/prompt/`, which `agent-prompt.ts` beside them
