@@ -120,6 +120,13 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await page.getByLabel("Folder name").fill("Archive");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("list", { name: "Folders" })).toContainText("Archive");
+  // a folder's menu button stays drawn under its own open menu, wherever the pointer went
+  const more = page.getByRole("button", { name: "More for Archive" });
+  await more.click();
+  await page.getByRole("menuitem", { name: "Rename…" }).hover();
+  await expect(more).toHaveAttribute("data-popup-open", "");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
   const { folders } = await library.organize.outline();
   const archive = folders.find((folder) => folder.name === "Archive");
   await cardOf(page, "Welcome").click({ button: "right" });
