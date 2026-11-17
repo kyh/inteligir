@@ -45,9 +45,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   by name, and `typescript` is web's too. `pnpm-workspace.yaml`.
 - **A turbo cache key names everything its output reads.** Why: a hit replays
   the output with no error, and the e2e and `package:*` ship it. `apps/web/turbo.json`.
-- **The Worker deploys when a task's inputs changed**, which
-  `futureFlags.affectedUsingTaskInputs` counts. Why: an edit to the legal texts
-  alone deploys. `.github/workflows/deploy.yml`.
+- **A changed file counts for every task whose inputs name it**, under
+  `futureFlags.affectedUsingTaskInputs`. Why: an edit to the legal texts alone
+  deploys, and `verify:affected` lints and knips a change in any workspace,
+  which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
   fails without it.** Why: a bump fails the install until the patch is re-cut
   or dropped. `patches/` (micromark: `packages/editor/src/markdown/parse-cost.test.ts`;
