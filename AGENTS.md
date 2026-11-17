@@ -81,8 +81,10 @@ pnpm dev               # the Mac app's window on it
 ```
 
 Node 24 and pnpm 12 (`corepack enable`), no Cloudflare or Anthropic account.
-The root `.env` is the one env file (restart `pnpm dev:web` after an edit); do
-not reintroduce `apps/web/.dev.vars`, which wrangler reads alone. Its
+The root `.env` is the one env file you edit (restart `pnpm dev:web` after an
+edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which
+`@repo/db`'s scripts read first. Do not reintroduce `apps/web/.dev.vars`, which
+wrangler reads alone. Its
 `ANTHROPIC_FAKE_URL` runs the agent on a scripted Claude (`tools/messages-fake`);
 a real agent needs `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` naming your own gateway.
 
@@ -105,11 +107,11 @@ curl -s -c jar localhost:5174/api/auth/sign-in/email \
 ```
 
 Sign-up stays invite-only: another account takes a row in `invite_code`
-(`pnpm --filter @repo/db studio`), its `code` typed at `/app/sign-up` or on the
-phone. Auth allows 10 requests/60s per IP; a script making several users sets
-`RATE_LIMIT_DISABLED=true` in `.env`.
-**Never run `@repo/db`'s `push:remote` or `studio:remote`**: both hit the
-PRODUCTION D1. Drive the site with agent-browser (`.agents/skills/agent-browser`).
+(`pnpm --filter @repo/db exec drizzle-kit studio --config drizzle.config.local.ts`),
+its `code` typed at `/app/sign-up` or on the phone. Auth allows 10 requests/60s
+per IP; a script making several users sets `RATE_LIMIT_DISABLED=true` in `.env`.
+**Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it pushes the
+PRODUCTION Postgres. Drive the site with agent-browser (`.agents/skills/agent-browser`).
 
 ## Verify a change
 

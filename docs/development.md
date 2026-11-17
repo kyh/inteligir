@@ -43,18 +43,32 @@ pnpm verify             # The static gate (CI adds the e2e flows on top)
 pnpm e2e                # The Playwright flows, over the built Worker and the extension's dev build
 ```
 
-The databases' commands are `@repo/db`'s (`packages/db/README.md`), run
-against the local Worker's files:
+The databases' commands are `@repo/db`'s (`packages/db/README.md`). Postgres
+runs on its own, with no Worker:
+
+```bash
+pnpm db:start                                   # local Postgres 17 on 54622 (Supabase's native runtime), its URL into .env.local
+pnpm db:push                                    # sql/extensions.sql, then the Postgres schema, after an edit to it
+pnpm --filter @repo/db push:check               # a second push plans nothing, as CI asks
+pnpm --filter @repo/db studio                   # browse local Postgres (Drizzle Studio)
+pnpm --filter @repo/db stop                     # stop it; `status` says whether it runs
+```
+
+D1 and the objects' schemas still run against the local Worker's files:
 
 ```bash
 pnpm bootstrap                                  # the D1 schema and the dev account, into a running pnpm dev:web
-pnpm --filter @repo/db push                     # the D1 schema alone, after an edit to it
-pnpm --filter @repo/db studio                   # browse the local D1 (another account's invite is a row here)
 pnpm --filter @repo/db ddl                      # each schema's ddl.sql, from its src/<schema>/schema.ts
 ```
 
-Never `push:remote` or `studio:remote`: both reach the PRODUCTION D1
-(`AGENTS.md` § Seeded login).
+A suite under `dbSuite` (`@repo/db/test-database`) runs only with
+`TEST_POSTGRES_URL` set, on a server that names: the run pushes the schema once
+into a template there and gives each suite file a clone of it, all named
+`<the URL's database>__…` and dropped as the run ends, so each worktree names
+its own (`postgres://postgres:postgres@127.0.0.1:54622/wt_<name>`).
+
+Never `pnpm db:push-remote` (`@repo/db`'s `push:remote`): it pushes the
+PRODUCTION Postgres (`AGENTS.md` § Seeded login).
 
 ## Running
 
@@ -137,6 +151,7 @@ their storage holds.
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
 | The extension's account (email, its cookie's SHA-256), waiting saves | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
+| Local Postgres (`pnpm db:start`)                                     | 54622, its transaction pooler 54629; its files in the Supabase CLI's own store, `~/.supabase/stacks`                                                                                    |
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
 | Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables made from `packages/db/src/cell/ddl.sql` as it wakes                                              |

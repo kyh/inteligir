@@ -69,7 +69,8 @@ same context answers a page's guard whether its request is signed in,
 Minting invites is a raw insert, deliberately — no admin UI, no self-serve
 issuance. Locally, `pnpm bootstrap` signs the dev account up on an invite it
 writes, and another account takes an `invite_code` row added in
-`pnpm --filter @repo/db studio`; in production:
+`pnpm --filter @repo/db exec drizzle-kit studio --config drizzle.config.local.ts`;
+in production:
 
 ```bash
 pnpm -F @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
@@ -92,9 +93,8 @@ app, Worker and scripts programs.
 # 1. Authenticate (once)
 pnpm -F @repo/web exec cf auth login
 
-# 2. Push the D1 schema. No migration files: put the three creds in the root
-#    .env.production.local (see .env.example), then:
-pnpm --filter @repo/db push:remote
+# 2. The D1 schema stays as deployed: Postgres replaces it, and nothing here pushes D1 any more
+#    (@repo/db's push:remote pushes the PRODUCTION Postgres).
 
 # 3. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED signing key: a fresh
 #    random 32+ char value. AGENT_GATEWAY_URL is the `inteligir` AI Gateway's Anthropic route,

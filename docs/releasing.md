@@ -176,32 +176,10 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
 ## 3. The cloud first
 
-1. **The D1 schema.** `pnpm --filter @repo/db push:remote --explain`
-   prints the SQL a push would run against production and runs none of it.
-   - Nothing planned: go on.
-   - Only `CREATE INDEX`, `CREATE TABLE` or `ALTER TABLE … ADD`: run
-     `pnpm --filter @repo/db push:remote`, then `--explain` again, which
-     now plans nothing.
-   - A `DROP INDEX` or an `ALTER TABLE … DROP COLUMN` of a column Better Auth
-     does not write (such as `account.issuer`, with its index): push it as
-     Deploy finishes, since a sign-up fails while one side has it and the
-     other does not, then `--explain` again.
-   - `DROP TABLE device` alone, once, in the release that ends the device
-     credential: the table is a child of `user` that nothing references, so the
-     drop cascades nothing. Push it as Deploy finishes, since the Worker before
-     it reads the table, then `--explain` again. drizzle-kit refuses a drop of a
-     table that holds rows until `--hints` confirms the loss, and its refusal
-     prints the hint to pass (`confirm_data_loss` for `device`).
-   - Anything else that recreates a table (a `__new_` table, a `DROP TABLE`):
-     STOP. D1 ignores the foreign-key pragma a recreate leans on, so the drop
-     cascades through every session and account (`packages/db/CLAUDE.md`,
-     Declare D1 uniques as named unique indexes).
-
-   Deploy never touches the schema, so it belongs in D1 before the code that
-   needs it reaches main. A plan found here means main's Worker already runs
-   on an older schema: push it now. D1's `revoked_grant` table goes in alone
-   before the Worker deploys (`push:remote --tablesFilter revoked_grant`),
-   since every connector call reads it; the drops wait for Deploy as above.
+1. **The D1 schema.** It stays as deployed: Postgres replaces it, and nothing
+   in the repo pushes D1 any more (`@repo/db`'s `push:remote` pushes the
+   PRODUCTION Postgres). A release whose Worker needs a D1 schema change waits
+   for the move off Cloudflare.
 
 2. **The Worker.** Nothing the Worker builds from has changed since what it
    deployed, and the deployed Worker answers the newest routes:

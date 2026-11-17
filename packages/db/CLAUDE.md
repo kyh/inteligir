@@ -1,10 +1,31 @@
 # Decisions: @repo/db
 
-The D1 accounts database's schema, and each library cell's, each note's and
+Postgres's schema, which ships by `drizzle-kit push`; beside it until they go,
+the D1 accounts database's schema, and each library cell's, each note's and
 each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
 `drizzle-kit export` prints, which it applies when it wakes.
 
-## Schemas
+## Postgres
+
+- **The schema ships by `drizzle-kit push`, never a migration file, and a
+  second push must plan nothing.** No users and one deployer, so a history
+  serves nobody; drizzle-kit can misread what it created and fail halfway
+  through the next push, so CI pushes twice. `packages/db/scripts/check-push.ts`.
+- **Every table is `pgTable.withRLS(...)`, with no policy.** Supabase's API
+  roles then read no table, while the app connects as the owner, whom row-level
+  security does not bind; a suite fails on any pushed table without it.
+  `packages/db/src/schema-rls.test.ts`.
+- **An extension the schema leans on is a line of `sql/extensions.sql`, which
+  `push` applies before drizzle-kit's.** drizzle-kit declares no extension, and
+  a schema naming `unaccent` or a trigram index fails its push without it.
+  `packages/db/scripts/push.ts`.
+- **The client runs `prepare: false`.** Production reaches Postgres through
+  Supabase's transaction pooler, which hands each transaction any server
+  connection, where a statement prepared on another is missing; drizzle-kit
+  alone takes the direct `POSTGRES_URL_NON_POOLING`, since its introspection
+  stalls on the pooler. `packages/db/src/drizzle-client.ts`.
+
+## D1 and the objects' schemas
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and no users, so a history serves nobody; the suites and
