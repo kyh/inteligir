@@ -195,29 +195,6 @@ export const urlLastSegment = (value: string): string =>
       .findLast((part) => part !== "") ?? "",
   );
 
-const YOUTUBE_ID = /^[\w-]{6,20}$/u;
-const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/]+)/u;
-
-const youTubeIdOf = (url: URL): string | null => {
-  const host = bareHost(url);
-  if (host === SHORT_YOUTUBE_HOST) {
-    return safeDecode(firstSegment(url.pathname));
-  }
-  if (host !== "youtube.com" && !host.endsWith(".youtube.com")) {
-    return null;
-  }
-  const fromPath = YOUTUBE_PATH_ID.exec(url.pathname)?.groups?.id;
-  return url.searchParams.get("v") ?? (fromPath === undefined ? null : safeDecode(fromPath));
-};
-
-// a YouTube video's id, from any of its addresses (a watch page, a short link, a short, a live, an
-// embed); null for any other address
-export const youTubeVideoId = (value: string): string | null => {
-  const url = parseWebUrl(value);
-  const id = url === null ? null : youTubeIdOf(url);
-  return id !== null && YOUTUBE_ID.test(id) ? id : null;
-};
-
 // the dedupe key: no scheme or userinfo, the host folded and aliased, the path normalized, the
 // tracking parameters dropped and the rest sorted, a fragment kept only when it is a route
 export const urlKey = (value: string): string | null => {

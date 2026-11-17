@@ -6,12 +6,10 @@
   // background at the start of `turbo run`
   "cacheMaxSize": "10GB",
   "cacheMaxAge": "14d",
-  // Deploy asks `turbo query affected` whether the Worker changed. Without this flag a changed
-  // file counts only for the package that holds it, and a file in no workspace is the root's,
-  // which nothing depends on: an edit to docs/privacy.md alone would deploy nothing. With it, a
-  // file counts for every task whose `inputs` name it (apps/web/turbo.json names the legal texts),
-  // and the root's inputs are every file in the tree, so `verify:affected` lints and knips a
-  // change in any workspace, which only the root's tasks do.
+  // Without this flag a changed file counts only for the package that holds it, and a file in no
+  // workspace is the root's, which nothing depends on. With it, a file counts for every task whose
+  // `inputs` name it, and the root's inputs are every file in the tree, so `verify:affected` lints
+  // and knips a change in any workspace, which only the root's tasks do.
   "futureFlags": {
     "affectedUsingTaskInputs": true
   },
@@ -29,10 +27,9 @@
       "cache": false,
       "persistent": true
     },
-    // a workspace's generated sources (the Worker's and the service's Env and runtime types, from
-    // `cf workers types`),
-    // which its typecheck and its suites both read: a test file can carry type claims too. ^topo:
-    // the Env is typed from the entry's exports, which import other workspaces
+    // a workspace's generated sources (the extension's `.wxt/` types and tsconfig), which its
+    // typecheck and its suites both read. ^topo: wxt loads the entrypoints, which import other
+    // workspaces
     "generate": {
       "dependsOn": ["^topo"]
     },
@@ -58,11 +55,11 @@
       "cache": false,
       "dependsOn": ["@repo/extension#generate"]
     },
-    // the type-aware pass reads each workspace's program, and the Worker's, the service's and the
-    // extension's extend what their `generate` writes (the Env types, `.wxt/tsconfig.json`)
+    // the type-aware pass reads each workspace's program, and the extension's extends what its
+    // `generate` writes (`.wxt/tsconfig.json`)
     "//#lint": {
       "cache": false,
-      "dependsOn": ["@repo/web#generate", "@repo/service#generate", "@repo/extension#generate"]
+      "dependsOn": ["@repo/extension#generate"]
     },
     "format:fix": {
       "cache": false
@@ -76,9 +73,22 @@
       "passThroughEnv": ["TEST_POSTGRES_URL"]
     }
   },
-  // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
-  // `development`, so a build run from a shell that sets it would otherwise store a dev bundle
-  // under the production key in the cache every worktree shares
-  "globalEnv": ["NODE_ENV"],
+  // each key packages/service/src/env.ts parses, since turbo hands a task only what is listed
+  // (its suite holds the two lists equal), and NODE_ENV, hashed rather than passed through: next
+  // and vite emit React's dev build under an ambient `development`, so a build run from a shell
+  // that sets it would otherwise store a dev bundle under the production key in the cache every
+  // worktree shares
+  "globalEnv": [
+    "APP_URL",
+    "BETTER_AUTH_SECRET",
+    "CRON_SECRET",
+    "EMAIL_MODE",
+    "LIBRARY_STORAGE_CAP_BYTES",
+    "MIN_CLIENT_BUILD",
+    "NODE_ENV",
+    "POSTGRES_URL",
+    "RATE_LIMIT_DISABLED",
+    "RESEND_API_KEY"
+  ],
   "globalPassThroughEnv": ["CI", "npm_lifecycle_event"]
 }

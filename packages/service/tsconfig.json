@@ -1,15 +1,8 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // the generated types are in `include`: other tools read a relative `types` path as a package
-    "types": ["@cloudflare/vitest-plugin/types"],
-    // highlight.js's declarations would load the DOM's lib into a workerd program
-    "paths": {
-      "highlight.js": ["./src/types/highlight-js.d.ts"]
-    },
-    // the configs import the config modules by their `.ts`, as node loads them
-    "allowImportingTsExtensions": true
+    "types": ["node"]
   },
-  "include": [".", ".cloudflare/types/index.d.ts"],
+  "include": ["src", "*.ts"],
   "exclude": ["node_modules"]
 }

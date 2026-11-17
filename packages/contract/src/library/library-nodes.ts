@@ -12,7 +12,7 @@ import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import { SHA256_HEX_RE } from "./library-item";
 
 // what part of an item a block belongs to: the person's writing, or the page a fill read
-export const LIBRARY_SECTIONS = ["note", "article"] as const;
+const LIBRARY_SECTIONS = ["note", "article"] as const;
 export const librarySectionSchema = z.enum(LIBRARY_SECTIONS);
 export type LibrarySection = z.infer<typeof librarySectionSchema>;
 

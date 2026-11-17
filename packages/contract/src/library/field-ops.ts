@@ -44,10 +44,7 @@ export const mergeListField = (
   return merged;
 };
 
-export const sameList = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((entry, index) => entry === b[index]);
-
-export const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
+const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
 
 // one property by its key; a missing base or value is the property absent. The value's size is
@@ -65,10 +62,10 @@ export type PropertyOp = z.infer<typeof propertyOpSchema>;
 // base nor its value
 export type OpVerdict = "apply" | "satisfied" | "conflict";
 
-export const propertyAt = (fields: LibraryItemFields, key: string): PropertyValue | undefined =>
+const propertyAt = (fields: LibraryItemFields, key: string): PropertyValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
-export const propertyVerdict = (fields: LibraryItemFields, op: PropertyOp): OpVerdict => {
+const propertyVerdict = (fields: LibraryItemFields, op: PropertyOp): OpVerdict => {
   const current = propertyAt(fields, op.key);
   if (sameOptionalJson(current, op.base)) {
     return "apply";
@@ -76,7 +73,7 @@ export const propertyVerdict = (fields: LibraryItemFields, op: PropertyOp): OpVe
   return sameOptionalJson(current, op.value) ? "satisfied" : "conflict";
 };
 
-export const landPropertyOp = (fields: LibraryItemFields, op: PropertyOp): LibraryItemFields => {
+const landPropertyOp = (fields: LibraryItemFields, op: PropertyOp): LibraryItemFields => {
   const properties = Object.fromEntries(
     Object.entries(fields.properties).filter(([name]) => name !== op.key),
   );
@@ -92,7 +89,7 @@ export type GuardedOutcome =
 
 // every op in order, each against the fields as the ones before it left them; one conflict lands
 // none
-export const applyGuarded = <Op>(
+const applyGuarded = <Op>(
   fields: LibraryItemFields,
   ops: readonly Op[],
   verdictOf: (fields: LibraryItemFields, op: Op) => OpVerdict,

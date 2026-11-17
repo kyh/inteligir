@@ -64,7 +64,7 @@ const properties = z
   });
 
 // why a page could not be read, in a sentence
-export const readingErrorSchema = text;
+const readingErrorSchema = text;
 
 // Where a url item's page reading stands: never asked (a note, a file), asked and waiting, read,
 // or tried and failed; a stub is a url item still `pending`. `at` is when the page was last read

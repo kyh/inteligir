@@ -60,14 +60,6 @@ export const isPage = (answer: {
     answer.mediaType === "text/html" ||
     answer.mediaType === "application/xhtml+xml");
 
-// a link that answered with a video or a sound is kept as its link, read as that kind
-export const playableKindOf = (mediaType: string | null): "video" | "audio" | null => {
-  if (mediaType?.startsWith("video/") === true) {
-    return "video";
-  }
-  return mediaType?.startsWith("audio/") === true ? "audio" : null;
-};
-
 // which of a page's texts a reading keeps as its article: a video's or a song's page holds little
 // prose, so its description stands for it. It goes by the address the item's kind goes by: a link
 // takes the kind of where it landed, and a video or a song stays one wherever it landed

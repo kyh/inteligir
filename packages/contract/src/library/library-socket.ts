@@ -9,7 +9,7 @@ import { z } from "zod";
 import { idSchema, seqSchema } from "./library-wire";
 
 export const V1_SOCKET_PATH = "/v1/socket";
-export const SOCKET_TICKET_PARAM = "ticket";
+const SOCKET_TICKET_PARAM = "ticket";
 
 // a socket's address at `path` on the cloud's origin, its scheme the origin's own made a socket's
 export const socketUrl = (origin: string, path: string, ticket: string): string => {
@@ -25,10 +25,7 @@ export const SOCKET_KEEPALIVE_PONG = "pong";
 // RFC 6455's policy violation: the cell closes a revoked credential's sockets with it. No client
 // reads it: a closed socket dials again, its ticket is refused, and the refusal of the client's
 // next call is what ends the session
-export const SOCKET_REVOKED_CLOSE_CODE = 1008;
-
-// the most ids a moved frame names in one list; past it the list says "all"
-export const MOVED_IDS_MAX = 200;
+const SOCKET_REVOKED_CLOSE_CODE = 1008;
 
 // An item's note, edited live: a socket of its own at `/v1/notes/<itemId>`, opened on the same
 // ticket as the account's, carrying y-sync to and from the note's object.

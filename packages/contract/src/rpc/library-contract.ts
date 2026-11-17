@@ -101,7 +101,7 @@ const folderTargetSchema = z
 
 // the inputs of the two rows the built-in agent asks the person about, by name: its thread reads
 // a call through them before it asks (packages/service/src/agent/agent-tools.ts)
-export const saveLinkInputSchema = z.strictObject({
+const saveLinkInputSchema = z.strictObject({
   folder: folderTargetSchema.optional(),
   id: newIdSchema.optional(),
   note: z.string().max(MARKDOWN_MAX).optional(),
@@ -111,7 +111,7 @@ export const saveLinkInputSchema = z.strictObject({
   title: FIELDS.title.optional(),
   url: FIELDS.url.unwrap(),
 });
-export const deleteInputSchema = z.strictObject({ ids, opId });
+const deleteInputSchema = z.strictObject({ ids, opId });
 
 // tags, folder, pin and title for the items a call names by id
 const organizeInputSchema = z.strictObject({
@@ -126,7 +126,7 @@ const organizeInputSchema = z.strictObject({
 
 // what a sweep does to each item it takes: an organize's change but a title, or to Deleted, back
 // from it, or out of it for good
-export const sweepVerbSchema = z.discriminatedUnion("kind", [
+const sweepVerbSchema = z.discriminatedUnion("kind", [
   organizeInputSchema
     .omit({ ids: true, opId: true, title: true })
     .extend({ kind: z.literal("organize") }),
@@ -135,7 +135,7 @@ export const sweepVerbSchema = z.discriminatedUnion("kind", [
 
 // the inputs of the rows that read for an agent, by name: the cell's reads take each as its
 // schema parsed it, every default in place (packages/service/src/library/cell-reads.ts)
-export const listInputSchema = z.strictObject({
+const listInputSchema = z.strictObject({
   cursor,
   // a folder and every folder under it
   folderId: idSchema.optional(),
@@ -148,13 +148,13 @@ export const listInputSchema = z.strictObject({
   tag: FIELDS.tags.element.optional(),
 });
 // `from` and `count` are block positions, so a long item reads a page at a time
-export const readInputSchema = z.strictObject({
+const readInputSchema = z.strictObject({
   count: z.number().int().min(1).max(500).default(200),
   from: z.number().int().nonnegative().default(0),
   id: idSchema,
   responseFormat,
 });
-export const searchInputSchema = z.strictObject({
+const searchInputSchema = z.strictObject({
   cursor,
   folderId: idSchema.optional(),
   kinds: kindsSchema.optional(),

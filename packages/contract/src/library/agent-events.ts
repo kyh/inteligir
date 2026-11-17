@@ -11,7 +11,7 @@ import { agentViewContextSchema } from "./library-wire";
 
 // how much of a tool's result a stored event carries: the agent reads the whole of it, and a
 // thread's event row never carries a page
-export const TOOL_RESULT_SUMMARY_MAX = 2000;
+const TOOL_RESULT_SUMMARY_MAX = 2000;
 
 const instant = z.number().int().nonnegative();
 const toolUseIdSchema = z.string().min(1).max(128);

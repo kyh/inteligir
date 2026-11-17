@@ -32,12 +32,12 @@ export interface BodyBlock {
 
 // an item a page link names, or a url's key, so an item saved from that address finds the
 // notes that linked it
-export type DerivedLink =
+type DerivedLink =
   | { readonly targetId: string; readonly targetKey: null }
   | { readonly targetId: null; readonly targetKey: string };
 
 // a field tag is one the item's tags list names; an inline one a `#name` in its note's text
-export interface DerivedTag {
+interface DerivedTag {
   readonly tag: string;
   readonly origin: "field" | "inline";
 }
@@ -75,7 +75,7 @@ export const itemCardSchema = z.object({
 }) satisfies z.ZodType<ItemCard>;
 
 // the four literal columns the ranked index reads (`@repo/service/search/search-index`)
-export interface ItemSearchText {
+interface ItemSearchText {
   readonly title: string;
   readonly headings: string;
   readonly meta: string;
@@ -100,17 +100,6 @@ export interface BodyDigest {
   // whether the body holds a page a fill or a device read
   readonly article: boolean;
 }
-
-export const bodyDigestSchema = z.object({
-  article: z.boolean(),
-  files: z.array(z.string()),
-  headings: z.string(),
-  lead: z.string(),
-  outline: itemCardSchema.shape.outline,
-  preview: z.string(),
-  tags: z.array(z.string()),
-  words: z.number().int().nonnegative(),
-}) satisfies z.ZodType<BodyDigest>;
 
 export interface DerivedBody {
   readonly digest: BodyDigest;

@@ -22,7 +22,6 @@ const deviceSchema = z.object({
   lastSeenAt: z.number().int(),
   name: z.string(),
 });
-export type Device = z.infer<typeof deviceSchema>;
 
 export const listDevicesResponseSchema = z.object({
   devices: z.array(deviceSchema),

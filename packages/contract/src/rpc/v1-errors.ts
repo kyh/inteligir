@@ -89,12 +89,6 @@ export const InvalidCredentialsError = error("INVALID_CREDENTIALS", {
   message: "That email and password don't match an account.",
 });
 
-// the invite gate's, which answers its form in plain HTTP: one sentence for "no such code" and
-// "already used", so a caller learns only that it will not work
-export const InviteRefusedError = error("FORBIDDEN", {
-  message: "That invite code isn't valid. Check it and try again.",
-});
-
 // what every row is built on, since every row is signed: the floor, the rate limits and the
 // session's own refusals
 export const signedBase = oc.errors({
