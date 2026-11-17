@@ -222,6 +222,13 @@ rail's row of that name, and where a save lands when the screen shows no
 folder. Not a folder: an item stays Unsorted until it is filed, whatever it is
 tagged.
 
+**sweep** — a verb over every item a scope lists but those left out: what ⌘A
+then Move, Tag, Pin, Delete or Restore asks once the grid read only part of the
+scope, and what "Empty Deleted…" asks (`library.items.sweep`). The cell takes
+the items the scope lists as it is asked and lands them a lot at a time from
+its jobs (`packages/service/src/library/cell-sweeps.ts`). Not a bulk change,
+which names its items by id, a hundred a call.
+
 **filing rules** — what the person wrote for the agent about their library,
 written only from Settings › Account
 (`packages/service/src/library/library-rules.ts`). Every turn is sent under

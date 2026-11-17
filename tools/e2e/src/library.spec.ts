@@ -116,6 +116,24 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await expect.poll(async () => await fieldsOf(pier.item.id)).toMatchObject({ deletedAt: null });
   await expect(cardOf(page, "pier")).toBeVisible();
 
+  // ⌘A over a scope the grid read whole names its items, so Delete's Undo brings each back
+  await cardOf(page, "pier").click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+Backspace");
+  await expect
+    .poll(async () => await library.listing.scopes())
+    .toMatchObject({ deleted: 3, total: 0 });
+  await page
+    .getByRole("region", { name: /Notifications/u })
+    .getByRole("listitem")
+    .filter({ hasText: "Moved 3 items to Deleted." })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect
+    .poll(async () => await library.listing.scopes())
+    .toMatchObject({ deleted: 0, total: 3 });
+  await expect(cardOf(page, "pier")).toBeVisible();
+
   await page.getByRole("button", { name: "New folder" }).click();
   await page.getByLabel("Folder name").fill("Archive");
   await page.keyboard.press("Enter");
@@ -177,6 +195,19 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
         expect.objectContaining({ kind: "pdf", title: expect.stringContaining("Lecture") }),
       ]),
     );
+
+  // Empty Deleted is one ask, which the cell lands by itself while the grid follows it
+  await cardOf(page, "pier").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await page
+    .getByRole("list", { name: "Deleted" })
+    .getByRole("button", { name: "Deleted" })
+    .click();
+  await expect(grid.getByRole("gridcell")).toHaveText([/pier/u]);
+  await page.getByRole("button", { name: "Empty Deleted…" }).click();
+  await page.getByRole("button", { name: "Delete forever" }).click();
+  await expect(page.getByText("Nothing deleted")).toBeVisible();
+  await expect.poll(async () => await library.listing.scopes()).toMatchObject({ deleted: 0 });
 });
 
 // the note's socket is cut while the browser still says it is online, so what is typed before the

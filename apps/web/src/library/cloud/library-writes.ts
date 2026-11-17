@@ -16,7 +16,6 @@ import { applyPropertyOps, mergeListField } from "@repo/contract/library/field-o
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
 import { toast } from "@repo/ui/components/sonner";
@@ -360,25 +359,9 @@ export const libraryWrites = ({
         },
         onSettled: readAgain,
       }),
-    // a read a press acts on, so it waits for a connection as a write does
-    deletedIds: () =>
-      mutationOptions({
-        mutationFn: async (): Promise<string[]> => {
-          const ids: string[] = [];
-          let cursor: number | undefined;
-          do {
-            const page = await client.library.listing.page({
-              cursor,
-              limit: LISTING_PAGE_MAX,
-              scope: { kind: "deleted" },
-            });
-            ids.push(...page.items.map((row) => row.id));
-            cursor = page.cursor ?? undefined;
-          } while (cursor !== undefined);
-          return ids;
-        },
-        scope: LIBRARY_WRITES,
-      }),
+    // a verb over every item a scope lists, which the cell lands after it answers: the socket
+    // says what moved as each lot lands
+    sweep: () => orpc.library.items.sweep.mutationOptions({ scope: LIBRARY_WRITES }),
   };
 };
 

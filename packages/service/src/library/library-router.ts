@@ -6,6 +6,7 @@
 // declares (`./library-orpc`). The built-in agent's rows are `../agent/agent-router`'s.
 
 import { NotFoundError } from "@repo/contract/v1/errors";
+import { sweptIds } from "@repo/contract/library/library-index";
 import {
   folderRowSchema,
   itemSummarySchema,
@@ -38,6 +39,7 @@ import type { ItemScope, LiveItemRow } from "./cell-landing";
 import { itemRow, itemWhole, listingPage } from "./cell-listing";
 import { landedSummaries, listItems, readItemView, searchItems } from "./cell-reads";
 import { saveLink, savePage } from "./cell-saves";
+import { askSweep } from "./cell-sweeps";
 import { landedSchema, landPropertyOps } from "./cell-writes";
 import type { CellActor } from "./cell-actor";
 import { libraryHead } from "./library-engine";
@@ -55,6 +57,7 @@ const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: 
 const count = z.number().int().nonnegative();
 const importLandedSchema = z.object({ added: count, alreadySaved: count, unreadable: count });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
+const sweepAskedSchema = z.object({ items: count });
 
 // an item's body in reading order, read where it lives: the seed the cell kept, or its note, which
 // is read outside any transaction since a cold note's load calls back into the cell
@@ -210,6 +213,13 @@ export const libraryRouter = os.router({
         }
         return saved;
       });
+    }),
+    // the items the scope lists as it is asked, left as lots for the alarm to land
+    sweep: os.items.sweep.handler(({ context, input }) => {
+      const itemIds = context.readListing((listing) => sweptIds(listing, input));
+      return context.landApart({ answer: sweepAskedSchema, opId: input.opId }, ({ db, now }) =>
+        askSweep(db, now, context.library.ids.sweep(), input.verb, itemIds),
+      );
     }),
   },
   listing: {

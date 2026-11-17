@@ -47,13 +47,33 @@ describe("a restore", () => {
     const held = vi.spyOn(toast, "info");
 
     await act(async () => {
-      await verbs.current.restore(ids);
+      await verbs.current.restore({ ids, kind: "ids" });
     });
 
     expect(restored.mock.lastCall?.[0]).toBe(`Restored ${String(TWO_CALLS - 2)} items.`);
     expect(held).toHaveBeenCalledWith(
       "2 items stayed in Deleted: another item holds the same address.",
     );
+  });
+});
+
+describe("a verb over a scope", () => {
+  it("says so when the cell does not take it", async () => {
+    const verbs = verbsOver(createFakeCell(), (call) => {
+      if (call.path === "library.items.sweep") {
+        throw new Error("the cell is down");
+      }
+    });
+    const failed = vi.spyOn(toast, "error");
+
+    await act(async () => {
+      await verbs.current.tag(
+        { count: 8512, kind: "scope", swept: { except: [], scope: { kind: "all" } } },
+        { add: ["field"], remove: [] },
+      );
+    });
+
+    expect(failed.mock.lastCall?.[0]).toBe("Those items couldn't be tagged.");
   });
 });
 
@@ -73,7 +93,7 @@ describe("a delete", () => {
     const failed = vi.spyOn(toast, "error");
 
     await act(async () => {
-      await verbs.current.remove(ids);
+      await verbs.current.remove({ ids, kind: "ids" });
     });
     expect(failed.mock.lastCall?.[0]).toBe(
       `Stopped after ${String(BULK_ITEMS_MAX)} of ${String(TWO_CALLS)}. The library didn't answer.`,

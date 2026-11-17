@@ -3,7 +3,7 @@ import type { z } from "zod";
 
 import type { LibraryScope } from "../library-scope";
 import { blankItemFields } from "./item-makes";
-import { itemListing, itemSummary, LibraryIndex, listingPageOf } from "./library-index";
+import { itemListing, itemSummary, LibraryIndex, listingPageOf, sweptIds } from "./library-index";
 import type { ItemListing, ListingQuery, ListingRow } from "./library-index";
 import type { LibraryItemFields } from "./library-item";
 import { listingPageInputSchema } from "./library-wire";
@@ -278,6 +278,21 @@ describe(listingPageOf, () => {
       ["tree", false],
       ["tree", true],
     ]);
+  });
+});
+
+describe(sweptIds, () => {
+  it("names every item its scope lists, narrowed to its kinds, but those left out", () => {
+    const index = filled();
+    expect(sweptIds(index, { except: ["old"], scope: { kind: "all" } })).toStrictEqual([
+      "pinned",
+      "new",
+      "link",
+    ]);
+    expect(
+      sweptIds(index, { except: [], kinds: ["link"], scope: { folderId: "work", kind: "folder" } }),
+    ).toStrictEqual(["link"]);
+    expect(sweptIds(index, { except: [], scope: { kind: "deleted" } })).toStrictEqual(["binned"]);
   });
 });
 

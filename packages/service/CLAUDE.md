@@ -151,6 +151,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   batches, each item whole or not at all.** An alarm has 30 s of CPU and a zip
   in R2 is a second copy, so the device that holds the file reads it.
   `packages/service/src/library/cell-imports.ts`.
+- **A sweep is the cell's job, a lot a transaction, over the items its scope
+  listed as it was asked.** A landing costs 0.5 to 2 ms, measured, so one
+  transaction over 50,000 items outlasts an invocation's 30 s with every other
+  call held behind it, and the device that asks holds no id past its pages.
+  `packages/service/src/library/cell-sweeps.ts`.
 - **A file is let go once nothing names it, asked of the rows that name it.** An
   item or a change set keeps it, and a count kept beside those rows is a second
   spelling that can drift from them. `packages/service/src/library/cell-blobs.ts`.

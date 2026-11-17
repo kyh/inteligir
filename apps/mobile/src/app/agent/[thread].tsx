@@ -43,7 +43,12 @@ import { TextButton } from "@/ui/text-button";
 
 // the screen a message leaves from: the item it was asked about, else the whole library
 const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
-  viewContextOf({ kind: null, openItem: fromItem, scope: { kind: "all" }, selected: [] });
+  viewContextOf({
+    kind: null,
+    openItem: fromItem,
+    scope: { kind: "all" },
+    selected: { count: 0, ids: [] },
+  });
 
 const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
   if (block.kind === "work") {

@@ -58,6 +58,7 @@ import {
   LibraryIndex,
   listedItem,
   listingPageOf,
+  sweptIds,
 } from "../library/library-index";
 import type { ItemListing, SearchHits } from "../library/library-index";
 import { libraryItemFieldsSchema } from "../library/library-item";
@@ -355,6 +356,23 @@ export const createFakeCell = (): FakeCell => {
     );
   };
 
+  // emptying Deleted: an item there goes for good, its id kept, and any other id is missing
+  const purge = (ids: readonly string[]) => {
+    const purged: string[] = [];
+    const missing: string[] = [];
+    for (const id of new Set(ids)) {
+      const item = items.get(id);
+      if (item === undefined || item.fields.deletedAt === null) {
+        missing.push(id);
+      } else {
+        items.delete(id);
+        tombstones.add(id);
+        purged.push(id);
+      }
+    }
+    return { missing, purged };
+  };
+
   // every op against the tree the ones before it left, as the cell lands them, and none if any
   // refuses
   const folderWrite = (ops: readonly FolderOp[]) => {
@@ -439,23 +457,8 @@ export const createFakeCell = (): FakeCell => {
             items: organize(input).map(({ id }) => itemSummary(listingRow(id, holding(id)))),
           })),
         ),
-        // emptying Deleted: an item there goes for good, its id kept, and any other id is missing
         purge: os.library.items.purge.handler(({ input }) =>
-          once(input.opId, purgedSchema, () => {
-            const purged: string[] = [];
-            const missing: string[] = [];
-            for (const id of new Set(input.ids)) {
-              const item = items.get(id);
-              if (item === undefined || item.fields.deletedAt === null) {
-                missing.push(id);
-              } else {
-                items.delete(id);
-                tombstones.add(id);
-                purged.push(id);
-              }
-            }
-            return { missing, purged };
-          }),
+          once(input.opId, purgedSchema, () => purge(input.ids)),
         ),
         // a link's page read again: it waits once more; an item with no address has no page
         refresh: os.library.items.refresh.handler(({ input }) =>
@@ -523,6 +526,28 @@ export const createFakeCell = (): FakeCell => {
             };
           }),
         ),
+        // the scope's items, each by its verb's rule, landed as it is asked: the alarm's lots are
+        // the Worker's suites' to hold
+        sweep: os.library.items.sweep.handler(({ input: { verb, ...swept } }) => {
+          const ids = sweptIds(listing(), swept);
+          switch (verb.kind) {
+            case "organize": {
+              organize({ ...verb, ids });
+              break;
+            }
+            case "delete":
+            case "restore": {
+              setDeleted(ids, verb.kind === "delete");
+              break;
+            }
+            case "purge": {
+              purge(ids);
+              break;
+            }
+            // no default
+          }
+          return { items: ids.length };
+        }),
       },
       listing: {
         page: os.library.listing.page.handler(({ input }) =>

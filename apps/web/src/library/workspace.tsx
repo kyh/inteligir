@@ -27,13 +27,16 @@ import { ItemView } from "./item/item-view";
 import { useLeaveItem } from "./item/leave-item";
 import { useWindowCapture } from "./library/capture/window-capture";
 import { useLibraryCommands } from "./library/library-commands";
-import { createLibrarySelection } from "./library/library-selection";
+import { createLibrarySelection, selectedIn } from "./library/library-selection";
 import { LibraryView } from "./library/library-view";
 import { listingQuery } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
+
+// a listing no page of which has answered yet
+const NOTHING_LISTED = { items: [], total: 0 };
 
 export interface WorkspaceProps {
   // where the tab is: its address's scope as the library lists it, the kind it is narrowed to and
@@ -62,36 +65,35 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
 
-  // the selection as it changes, which the panel's Info follows
-  const selected = useStore(selection.store, (state) => state.selected);
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
+  // the selection as it changes, which the panel's Info follows: what it names of the listing as
+  // far as that is read
+  const selected = useStore(selection.store, (state) => state.selected);
+  const picked = selectedIn(selected, view ?? NOTHING_LISTED);
 
-  // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since the
-  // prune below waits for the scope's listing and keeps an id both scopes list
+  // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since
+  // an id both scopes list would stay selected and a ⌘A would name the new scope
   const scopeKey = JSON.stringify(scope);
-  const selectedIn = useRef(scopeKey);
+  const selectedUnder = useRef(scopeKey);
   useEffect(() => {
-    if (selectedIn.current !== scopeKey) {
-      selectedIn.current = scopeKey;
+    if (selectedUnder.current !== scopeKey) {
+      selectedUnder.current = scopeKey;
       selection.apply({ kind: "clear" });
     }
   }, [scopeKey, selection]);
 
-  // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
-  const listed = view?.items;
+  // a ⌘A with nothing left in it (a verb emptied its scope, or every item was left out) selects
+  // nothing more, so the next item saved there is not born selected
+  const spent =
+    selected.kind === "scope" && view !== undefined && view.total <= selected.except.size;
   useEffect(() => {
-    if (listed === undefined) {
-      return;
+    if (spent) {
+      selection.apply({ kind: "clear" });
     }
-    const ids = new Set(listed.map((row) => row.id));
-    const gone = [...selection.store.getState().selected].filter((id) => !ids.has(id));
-    if (gone.length > 0) {
-      selection.apply({ gone: new Set(gone), kind: "prune" });
-    }
-  }, [listed, selection]);
+  }, [spent, selection]);
 
   useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
@@ -128,11 +130,15 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
 
   // what the agent is told about the screen a message leaves from
   const viewContext = (): AgentViewContext | undefined =>
-    viewContextOf({ kind, openItem, scope, selected: [...selection.store.getState().selected] });
+    viewContextOf({
+      kind,
+      openItem,
+      scope,
+      selected: { count: picked.count, ids: picked.rows.map((row) => row.id) },
+    });
 
   // the panel's item: the open one, else the one card selected
-  const [onlySelected = null, ...moreSelected] = selected;
-  const panelItem = openItem ?? (moreSelected.length === 0 ? onlySelected : null);
+  const panelItem = openItem ?? (picked.count === 1 ? (picked.rows[0]?.id ?? null) : null);
 
   return (
     <>

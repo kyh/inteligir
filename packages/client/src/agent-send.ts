@@ -18,12 +18,13 @@ export interface SendInput {
 }
 
 // the screen a message leaves from: the item open, else the library's scope, the kind it is
-// narrowed to and the selection, the first of it by id; none from Deleted
+// narrowed to and the selection, counted whole, the first of what the screen read of it by id;
+// none from Deleted
 export const viewContextOf = (screen: {
   readonly openItem: string | null;
   readonly scope: LibraryScope;
   readonly kind: NonNullable<LibraryViewContext["kinds"]>[number] | null;
-  readonly selected: readonly string[];
+  readonly selected: { readonly count: number; readonly ids: readonly string[] };
 }): AgentViewContext | undefined => {
   if (screen.openItem !== null) {
     return { itemId: screen.openItem, surface: "item" };
@@ -32,9 +33,9 @@ export const viewContextOf = (screen: {
     return undefined;
   }
   const library: LibraryViewContext = {
-    itemIds: screen.selected.slice(0, LIBRARY_SELECTION_MAX),
+    itemIds: screen.selected.ids.slice(0, LIBRARY_SELECTION_MAX),
     scope: screen.scope,
-    selected: screen.selected.length,
+    selected: screen.selected.count,
     surface: "library",
   };
   if (screen.kind !== null) {

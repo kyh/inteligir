@@ -40,8 +40,8 @@ describe("Info over an item", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move…" }));
     fireEvent.click(screen.getByRole("button", { name: "Read the page again" }));
 
-    expect(commands.tag).toHaveBeenCalledWith([{ id, tags: ["reading"] }]);
-    expect(commands.move).toHaveBeenCalledWith([id]);
+    expect(commands.tag).toHaveBeenCalledWith({ ids: [id], kind: "ids" }, [["reading"]]);
+    expect(commands.move).toHaveBeenCalledWith({ ids: [id], kind: "ids" });
     await waitFor(() => {
       expect(calls.filter((call) => call.path === "library.items.refresh")).toStrictEqual([
         { input: { id }, path: "library.items.refresh" },

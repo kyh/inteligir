@@ -8,9 +8,12 @@ import type { LibraryGoes } from "../library-place";
 import { createWorkspaceStore } from "../workspace-store";
 import { asks } from "./ask";
 import { libraryCommands } from "./library-commands";
+import type { Target } from "./library-selection";
 import type { LibraryVerbs } from "./library-verbs";
 
 const NOTE = "0199a4c2-0000-7000-8000-0000000000d1";
+
+const idsOf = (...ids: string[]): Target => ({ ids, kind: "ids" });
 
 const spyVerbs = () =>
   ({
@@ -18,7 +21,6 @@ const spyVerbs = () =>
     createFolder: vi.fn<LibraryVerbs["createFolder"]>(),
     createNote: vi.fn<LibraryVerbs["createNote"]>(async () => await Promise.resolve(NOTE)),
     deleteFolder: vi.fn<LibraryVerbs["deleteFolder"]>(),
-    deletedIds: vi.fn<LibraryVerbs["deletedIds"]>(),
     move: vi.fn<LibraryVerbs["move"]>(),
     pin: vi.fn<LibraryVerbs["pin"]>(),
     purge: vi.fn<LibraryVerbs["purge"]>(),
@@ -79,34 +81,33 @@ describe("a command", () => {
   it("asks for a folder before a move, and moves nothing once the ask is let go", async () => {
     const { commands, verbs } = await commandsAt();
 
-    commands.move(["a", "b"]);
+    commands.move(idsOf("a", "b"));
     expect(folderAsk().count).toBe(2);
     folderAsk().answer({ folderId: "f1" });
     await vi.waitFor(() => {
-      expect(verbs.move).toHaveBeenCalledExactlyOnceWith(["a", "b"], "f1");
+      expect(verbs.move).toHaveBeenCalledExactlyOnceWith(idsOf("a", "b"), "f1");
     });
 
-    commands.move(["a"]);
+    commands.move(idsOf("a"));
     folderAsk().answer(null);
     await Promise.resolve();
     expect(verbs.move).toHaveBeenCalledOnce();
   });
 
-  it("offers to take off only the tags every subject carries", async () => {
+  it("offers to take off only the tags every subject read carries, counting a scope past them", async () => {
     const { commands, verbs } = await commandsAt();
+    const scope: Target = {
+      count: 8512,
+      kind: "scope",
+      swept: { except: [], scope: { kind: "all" } },
+    };
 
-    commands.tag([
-      { id: "a", tags: ["field", "spring"] },
-      { id: "b", tags: ["spring"] },
-    ]);
-    expect(tagsAsk().held).toStrictEqual(["spring"]);
+    commands.tag(scope, [["field", "spring"], ["spring"]]);
+    expect(tagsAsk()).toMatchObject({ count: 8512, held: ["spring"] });
     tagsAsk().answer({ add: [], remove: ["spring"] });
 
     await vi.waitFor(() => {
-      expect(verbs.tag).toHaveBeenCalledExactlyOnceWith(["a", "b"], {
-        add: [],
-        remove: ["spring"],
-      });
+      expect(verbs.tag).toHaveBeenCalledExactlyOnceWith(scope, { add: [], remove: ["spring"] });
     });
   });
 
@@ -135,10 +136,10 @@ describe("a command", () => {
   it("leaves the open item unasked when it is among what a delete takes", async () => {
     const { commands, goes, verbs } = await commandsAt({ openItem: NOTE });
 
-    commands.remove([NOTE]);
+    commands.remove(idsOf(NOTE));
 
     await vi.waitFor(() => {
-      expect(verbs.remove).toHaveBeenCalledExactlyOnceWith([NOTE]);
+      expect(verbs.remove).toHaveBeenCalledExactlyOnceWith(idsOf(NOTE));
     });
     expect(goes.closeItem).toHaveBeenCalledExactlyOnceWith({ unasked: true });
   });

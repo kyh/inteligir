@@ -1,4 +1,3 @@
-import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
@@ -37,6 +36,10 @@ const pageAt = (entry: string, cell: FakeCell, answer?: (call: CellCall) => obje
   render(<RouterProvider router={router} />);
   return { calls, router };
 };
+
+// a key under the platform's modifier
+const chord = (key: string) =>
+  platformShortcutModifier() === "meta" ? { key, metaKey: true } : { ctrlKey: true, key };
 
 const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
   calls.filter((call) => call.path === path).map((call) => call.input);
@@ -132,29 +135,59 @@ describe("Save a link", () => {
 });
 
 describe("Empty Deleted", () => {
-  it("goes in the chunks the route takes, under one toast with Stop", async () => {
+  it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to", async () => {
     const cell = createFakeCell();
-    for (let at = 0; at <= BULK_ITEMS_MAX; at += 1) {
-      cell.seed.item({ deletedAt: 1, title: `Deleted ${String(at)}` });
+    const kept = cell.seed.item({ title: "Kept" });
+    cell.seed.item({ deletedAt: 1, title: "A deleted note" });
+    cell.seed.item({ deletedAt: 1, kind: "pdf", title: "A deleted paper" });
+    const said = vi.spyOn(toast, "success");
+    const deleted = encodeURIComponent(JSON.stringify({ kind: "deleted" }));
+    const { calls } = pageAt(`/library?scope=${deleted}&kind=pdf`, cell);
+
+    // offered once the listing answered
+    const empty = await screen.findByRole("button", { name: "Empty Deleted…" });
+    await waitFor(() => {
+      expect(empty).toHaveProperty("disabled", false);
+    });
+    fireEvent.click(empty);
+    await screen.findByText("Delete 2 items forever?");
+    fireEvent.click(screen.getByRole("button", { name: "Delete forever" }));
+
+    await vi.waitFor(() => {
+      expect(said.mock.lastCall?.[0]).toBe("Deleting 2 items.");
+    });
+    expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
+      { except: [], scope: { kind: "deleted" }, verb: { kind: "purge" } },
+    ]);
+    expect([...cell.items().keys()]).toStrictEqual([kept]);
+  });
+});
+
+describe("⌘A", () => {
+  it("selects the scope past the cards read, and its verb asks the cell for all of it", async () => {
+    // one more than the grid's first page reads
+    const listed = 201;
+    const cell = createFakeCell();
+    for (let at = 0; at < listed; at += 1) {
+      cell.seed.item({ title: `Note ${String(at)}` });
     }
-    const purge = z.object({ ids: z.array(z.string()) });
-    const running = vi.spyOn(toast, "loading");
     const said = vi.spyOn(toast, "success");
     const { calls } = pageAt("/library", cell);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Deleted" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Empty Deleted…" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Delete forever" }));
+    const grid = await screen.findByRole("grid", { name: "Library" });
+    fireEvent.keyDown(grid, chord("a"));
+    fireEvent.keyDown(grid, chord("Backspace"));
+    await screen.findByText("Delete 201 items?");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe(`Deleted ${String(BULK_ITEMS_MAX + 1)} items forever.`);
+      expect(said.mock.lastCall?.[0]).toBe("Deleting 201 items.");
     });
-    const chunks = callsTo(calls, "library.items.purge").map(
-      (input) => purge.parse(input).ids.length,
-    );
-    expect(chunks).toStrictEqual([BULK_ITEMS_MAX, 1]);
-    expect(cell.items().size).toBe(0);
-    expect(running.mock.calls[0]?.[1]?.action).toMatchObject({ label: "Stop" });
+    expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
+      { except: [], scope: { kind: "all" }, verb: { kind: "delete" } },
+    ]);
+    expect(callsTo(calls, "library.items.delete")).toStrictEqual([]);
+    expect([...cell.items().values()].every((item) => item.fields.deletedAt !== null)).toBe(true);
   });
 });
 
@@ -431,12 +464,7 @@ describe("where the tab is", () => {
   it("opens every scope with nothing selected, Back's too, though both scopes list the item", async () => {
     const NOTHING_SELECTED = "Select an item to see it here.";
     const selectAll = async (): Promise<void> => {
-      fireEvent.keyDown(
-        await screen.findByRole("grid", { name: "Library" }),
-        platformShortcutModifier() === "meta"
-          ? { key: "a", metaKey: true }
-          : { ctrlKey: true, key: "a" },
-      );
+      fireEvent.keyDown(await screen.findByRole("grid", { name: "Library" }), chord("a"));
       await waitFor(() => {
         expect(screen.queryByText(NOTHING_SELECTED)).toBeNull();
       });

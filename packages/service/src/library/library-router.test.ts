@@ -19,6 +19,8 @@ import {
 import type { Clock } from "../test-support/library-cell";
 import { holdFileOf } from "../test-support/library-files";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
+import { runKind } from "./cell-alarm";
+import { SWEEP_LOT } from "./cell-sweeps";
 import { FILL_ACTOR } from "./cell-fills";
 import { readSeed } from "./cell-notes";
 import { isOrpcError } from "@repo/contract/v1/errors";
@@ -41,6 +43,10 @@ const refusalOf = async (call: Promise<unknown>) => {
   }
   throw new Error("the call landed what the test expected it to refuse");
 };
+
+// the lots of a sweep that still wait for the alarm
+const sweepJobs = (state: DurableObjectState): number =>
+  state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'sweep'").toArray().length;
 
 // an undo's answer when nothing of what it named is left to take back
 const NOTHING_LEFT = { kept: [], lostText: [], next: null, refused: [], reverted: [] };
@@ -461,6 +467,70 @@ describe("the library's procedures", () => {
       await library.items.purge({ ids: [item.id] });
       await expect(refusalOf(library.items.read({ id: item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",
+      });
+    });
+  });
+
+  it("sweeps every item its scope lists but those left out, in lots the alarm lands", async () => {
+    await inCell(cellOf(), async (state) => {
+      const cell = cellIn(state, { clock: clockAt() });
+      const library = cell.client;
+      const swept = SWEEP_LOT + 1;
+      const filed = await library.items.createNote({ folder: { path: "A" }, markdown: "Filed." });
+      const kept = await library.items.createNote({ markdown: "Left out." });
+      for (let at = 0; at < swept; at += 1) {
+        await library.items.createNote({ markdown: `Loose ${String(at)}.` });
+      }
+      const ask = async (kind: "delete" | "restore" | "purge", scope: "unsorted" | "deleted") =>
+        await library.items.sweep({
+          except: [kept.item.id],
+          scope: { kind: scope },
+          verb: { kind },
+        });
+
+      await expect(ask("delete", "unsorted")).resolves.toStrictEqual({ items: swept });
+      await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0 });
+      expect(sweepJobs(state)).toBe(2);
+      await runKind(cell, "sweep");
+      await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: swept, total: 2 });
+      expect(sweepJobs(state)).toBe(0);
+
+      await ask("restore", "deleted");
+      await runKind(cell, "sweep");
+      await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0 });
+
+      await library.items.delete({ ids: [filed.item.id, kept.item.id] });
+      await expect(ask("purge", "deleted")).resolves.toStrictEqual({ items: 1 });
+      await runKind(cell, "sweep");
+      await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 1, total: swept });
+    });
+  });
+
+  it("organizes the kinds a sweep is narrowed to, passing over an item gone since it was asked", async () => {
+    await inCell(cellOf(), async (state) => {
+      const cell = cellIn(state, { clock: clockAt() });
+      const library = cell.client;
+      const note = await library.items.createNote({ markdown: "A note." });
+      const gone = await library.items.createNote({ markdown: "Soon gone." });
+      const link = await library.items.saveLink({ url: "https://example.com/kept" });
+
+      await library.items.sweep({
+        except: [],
+        kinds: ["note"],
+        scope: { kind: "all" },
+        verb: { addTags: ["swept"], folder: { path: "Archive" }, kind: "organize", pinned: true },
+      });
+      await library.items.delete({ ids: [gone.item.id] });
+      await library.items.purge({ ids: [gone.item.id] });
+      await runKind(cell, "sweep");
+
+      expect(sweepJobs(state)).toBe(0);
+      const { folders } = await library.organize.outline();
+      await expect(library.items.row({ id: note.item.id })).resolves.toMatchObject({
+        fields: { folderId: folders[0]?.id, pinnedAt: expect.any(Number), tags: ["swept"] },
+      });
+      await expect(library.items.row({ id: link.item.id })).resolves.toMatchObject({
+        fields: { folderId: null, pinnedAt: null, tags: [] },
       });
     });
   });

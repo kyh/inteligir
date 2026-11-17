@@ -1,9 +1,9 @@
 // The library listing over the cell's rows: which items a list shows, in what order and how many
 // of each kind, answered from memory, and what is read of it (a screen's page, the rail's counts,
-// every title, an item as a list names it to an agent), assembled here once for the cell and the
-// fake cell alike. A page costs its own rows; only a filter walks the members. Pinned items lead
-// every order; Deleted lists what was deleted and nothing else, and a purged item is never a row
-// here.
+// every title, an item as a list names it to an agent, the items a sweep takes), assembled here
+// once for the cell and the fake cell alike. A page costs its own rows; only a filter walks the
+// members. Pinned items lead every order; Deleted lists what was deleted and nothing else, and a
+// purged item is never a row here.
 
 import type { z } from "zod";
 
@@ -17,6 +17,7 @@ import type {
   listedItemSchema,
   listingPageInputSchema,
   listingSortSchema,
+  sweptSchema,
   tagCountSchema,
 } from "./library-wire";
 import { compareText } from "./order-key";
@@ -458,6 +459,23 @@ export const listingPageOf = <R extends ListingRow>(
     kindCounts: page.kindCounts,
     total: page.total,
   };
+};
+
+// the items a sweep takes, as `library.items.sweep` names them
+export const sweptIds = <R extends ListingRow>(
+  index: LibraryIndex<R>,
+  swept: z.infer<typeof sweptSchema>,
+): string[] => {
+  const except = new Set(swept.except);
+  return index
+    .items({
+      ...scopeFilter(swept.scope),
+      kinds: swept.kinds,
+      limit: Number.MAX_SAFE_INTEGER,
+      offset: 0,
+      order: { by: "saved" },
+    })
+    .items.flatMap((row) => (except.has(row.id) ? [] : [row.id]));
 };
 
 // ---- an agent's answers ----

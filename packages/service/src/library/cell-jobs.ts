@@ -1,10 +1,10 @@
 // The cell's one alarm runs what the `jobs` table holds (`./cell-alarm`): the daily prune of change
 // sets, an upload whose room was held too long, a file nothing may name any more, a page's reading
-// to send to the fill queue, a stray file to take out of R2, a purged item's note to empty, and the
-// built-in agent's turns: one to hand to its conversation's object, and one whose object has gone
-// quiet to ask after. A job is a row, so it survives eviction and a missed alarm; the alarm is set
-// to the earliest due one, and only while any is waiting
-// (https://developers.cloudflare.com/durable-objects/api/alarms/).
+// to send to the fill queue, a stray file to take out of R2, a purged item's note to empty, the
+// built-in agent's turns (one to hand to its conversation's object, and one whose object has gone
+// quiet to ask after) and a lot of a person's sweep (`./cell-sweeps`). A job is a row, so it
+// survives eviction and a missed alarm; the alarm is set to the earliest due one, and only while
+// any is waiting (https://developers.cloudflare.com/durable-objects/api/alarms/).
 //
 // A row's life is its `nextAt` and `attempts`. Asked for (`scheduleJob`, `ensureJob`), it waits
 // until `nextAt`. A run takes it by a lease (`leaseJobs`), which counts the run and puts the row
@@ -16,6 +16,7 @@
 import { and, asc, eq, lte, min } from "drizzle-orm";
 import { z } from "zod";
 
+import { sweepVerbSchema } from "@repo/contract/library/library-contract";
 import { jobs } from "@repo/db/cell/schema";
 import type { JOB_KINDS } from "@repo/db/cell/schema";
 import { excluded } from "./cell-db";
@@ -41,6 +42,7 @@ const PAYLOAD_SCHEMAS = {
   "note-purge": z.object({ itemId: z.string() }),
   prune: z.object({}),
   stray: fileSchema,
+  sweep: z.strictObject({ ids: z.array(z.string()), verb: sweepVerbSchema }),
   unnamed: fileSchema,
   upload: fileSchema,
 } satisfies Record<JobKind, z.ZodType>;
