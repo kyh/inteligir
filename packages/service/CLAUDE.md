@@ -115,6 +115,11 @@ decisions port with its code from the tag `cloudflare-last`.
   that takes back the sequence it took with it.** A refusal rolls back the
   part, and a sequence kept past its rollback stamps rows the head never
   reached. `packages/service/src/library/library-store.ts`.
+- **A device learns what moved by `library.changes`: the head, and the ids
+  stamped past the one it sends, up to 200 before it says "all".** Every write
+  stamps the rows it touches and a purge keeps the id at its sequence, so one
+  indexed read per table answers it, with no socket held per device.
+  `packages/service/src/library/library-changes.ts`.
 - **The library's rows split into a reading module and a writing one, merged
   by the router where both route under `items`.** Reads and writes land apart,
   and neither side edits the other's file.

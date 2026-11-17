@@ -74,6 +74,7 @@ type ListedItem = z.infer<typeof listedItemSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
 type HeldItem = LiveRow & { readonly blocks: BodyBlock[] };
+type Changes = Awaited<ReturnType<V1Client["library"]["changes"]>>;
 
 interface CellItem {
   readonly fields: LibraryItemFields;
@@ -142,8 +143,8 @@ export const createFakeCell = (): FakeCell => {
   let head = 0;
   let signedOut = false;
   const items = new Map<string, CellItem>();
-  // the ids of the items Deleted was emptied of
-  const tombstones = new Set<string>();
+  // the ids of the items Deleted was emptied of, each at the sequence of the purge
+  const tombstones = new Map<string, number>();
   const folders = new Map<string, FolderRow>();
   // each file's bytes, and its type as its upload named it
   const blobs = new Map<
@@ -356,19 +357,21 @@ export const createFakeCell = (): FakeCell => {
     );
   };
 
-  // emptying Deleted: an item there goes for good, its id kept, and any other id is missing
+  // emptying Deleted: an item there goes for good, its id kept at the one sequence the purge
+  // takes, and any other id is missing
   const purge = (ids: readonly string[]) => {
-    const purged: string[] = [];
-    const missing: string[] = [];
-    for (const id of new Set(ids)) {
-      const item = items.get(id);
-      if (item === undefined || item.fields.deletedAt === null) {
-        missing.push(id);
-      } else {
-        items.delete(id);
-        tombstones.add(id);
-        purged.push(id);
-      }
+    const unique = [...new Set(ids)];
+    const purged = unique.filter((id) => {
+      const deletedAt = items.get(id)?.fields.deletedAt;
+      return deletedAt !== undefined && deletedAt !== null;
+    });
+    const missing = unique.filter((id) => !purged.includes(id));
+    if (purged.length > 0) {
+      head += 1;
+    }
+    for (const id of purged) {
+      items.delete(id);
+      tombstones.set(id, head);
     }
     return { missing, purged };
   };
@@ -403,6 +406,29 @@ export const createFakeCell = (): FakeCell => {
     return { folders: [...landed.values()], seq: head };
   };
 
+  // what moved after `after`: each item stamped past it, a purged one too, and whether a folder
+  // was; everything past a head the cell never reached. The fake holds no thread
+  const changes = (after: number | undefined): Changes => {
+    if (after === undefined || after === head) {
+      return { head, moved: null };
+    }
+    if (after > head) {
+      return { head, moved: { folders: true, items: "all", threads: "all" } };
+    }
+    const stamped = [
+      ...[...items].map(([id, { seq }]) => ({ id, seq })),
+      ...[...tombstones].map(([id, seq]) => ({ id, seq })),
+    ].filter(({ seq }) => seq > after);
+    return {
+      head,
+      moved: {
+        folders: [...folders.values()].some(({ seq }) => seq > after),
+        items: stamped,
+        threads: [],
+      },
+    };
+  };
+
   const landedSchema = z.object({ item: liveItemRowSchema });
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
   const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
@@ -424,6 +450,7 @@ export const createFakeCell = (): FakeCell => {
       })),
     },
     library: {
+      changes: os.library.changes.handler(({ input }) => changes(input.after)),
       folders: {
         write: os.library.folders.write.handler(({ input }) =>
           once(input.opId, foldersWrittenSchema, () => folderWrite(input.ops)),

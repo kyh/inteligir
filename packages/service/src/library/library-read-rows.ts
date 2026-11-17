@@ -7,6 +7,7 @@ import { NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 
 import { reading } from "./library-access";
+import { libraryChanges } from "./library-changes";
 import { listingPage, listingScopes, listingTitles, readLibrary } from "./library-listing";
 import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
 import { readItem, readItemWhole } from "./library-rows";
@@ -22,6 +23,9 @@ const itemRow = ({ card, fields, id, seq, updatedAt }: StoredItem) => ({
 });
 
 export const libraryReadRows = {
+  changes: reading.changes.handler(
+    async ({ context, input }) => await libraryChanges(db, context.library.accountId, input.after),
+  ),
   items: {
     get: reading.items.get.handler(async ({ context, input }) => {
       const whole = await readItemWhole(db, context.library.accountId, input.id);

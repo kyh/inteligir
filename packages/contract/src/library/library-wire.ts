@@ -127,6 +127,16 @@ export const threadEventRowSchema = z.object({
   type: z.string().min(1),
 });
 
+// what moved in the library after a head a device holds, so it reads again only what it shows of
+// that: each item at the sequence it now holds, one emptied from Deleted too, whether any folder
+// moved, and which threads did; "all" where more moved than a list names. No client bounds the
+// lists, so the cloud may raise its cap
+export const libraryMovedSchema = z.object({
+  folders: z.boolean(),
+  items: z.union([z.literal("all"), z.array(z.object({ id: idSchema, seq: seqSchema }))]),
+  threads: z.union([z.literal("all"), z.array(idSchema)]),
+});
+
 // ---- bodies ----
 
 // a top-level block of an item's body as a read answers it, in reading order

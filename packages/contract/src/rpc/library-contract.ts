@@ -41,6 +41,7 @@ import {
   itemReadSchema,
   itemSummarySchema,
   kindsSchema,
+  libraryMovedSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
   folderRowSchema,
@@ -617,6 +618,14 @@ const agentContract = {
 
 export const libraryContract = {
   agent: agentContract,
+
+  // the library's head and what moved after `after`, the head this device last read, for a device
+  // to read again only what it shows of that. With no `after` it learns the head alone, and where
+  // nothing moved it names nothing
+  changes: signedBase
+    .input(z.strictObject({ after: seqSchema.optional() }))
+    .output(z.object({ head: seqSchema, moved: libraryMovedSchema.nullable() })),
+
   folders: foldersContract,
 
   // how an item's text is written, as markdown, for an assistant that writes one: the library's
