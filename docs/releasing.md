@@ -18,9 +18,9 @@ notes are `CHANGELOG.md`'s top section, which
 `apps/desktop/scripts/release-notes.ts` refuses to print until it is titled
 for that version.
 
-The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
-every green CI on main and moves the `deployed/web` tag to what it deployed.
-**The order is the rule**: the D1 schema, then the Worker, then any build that
+The cloud is not one of them, and nothing on main deploys it: production
+serves the Worker last deployed from the tag `cloudflare-last`, until the cloud
+deploys to Vercel. **The order is the rule**: the D1 schema, then the Worker, then any build that
 calls a route the Worker just gained. An app ahead of its Worker fails every
 such call; a Worker ahead of its apps costs nothing, because `/v1` breaks a
 build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
@@ -181,20 +181,14 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    PRODUCTION Postgres). A release whose Worker needs a D1 schema change waits
    for the move off Cloudflare.
 
-2. **The Worker.** Nothing the Worker builds from has changed since what it
-   deployed, and the deployed Worker answers the newest routes:
+2. **The Worker.** Nothing on main deploys it (above), so the deployed Worker
+   is the tag `cloudflare-last`'s, and a release that needs a cloud change
+   waits for the cloud's deploy to Vercel:
 
    ```sh
-   git fetch origin --tags --force
-   gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
-   pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
    curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+mobile' \
      --data '{}' https://inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
    ```
-
-   The query is the one Deploy asks. A package named means the Worker at this
-   commit is not deployed yet: wait for Deploy, or re-run it from the Actions
-   tab.
 
 3. **The fill queues.** `pnpm --filter @repo/web exec cf queues list` names
    `inteligir-fill` and `inteligir-fill-failed`, the one made by hand
