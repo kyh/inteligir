@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { applyFieldOps } from "./field-ops";
 import { blankItemFields, stubFields } from "./item-makes";
-import { readingAfter, readingOps } from "./item-reading";
+import { readingAfter, readingOps, takesRead } from "./item-reading";
 import type { Reading, ReadingEvent } from "./item-reading";
 import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
+import { paragraph } from "../test-support/library-items";
 
 const AT = 1_700_000_000_000;
 const LATER = AT + 60_000;
@@ -93,5 +94,15 @@ describe("a saved page's reading", () => {
       kind: "conflict",
     });
     expect(applyFieldOps(linkWith({ ...READ }), readingOps(READ, ASKED)).kind).toBe("applied");
+  });
+
+  it("takes a device's read that found an article, only while it waits or failed with none of its own", () => {
+    const found = { article: [paragraph("p1", "Read.")] };
+    const takers = [NONE, WAITING, AGAIN, READ, FAILED].filter((reading) =>
+      takesRead(reading, false, found),
+    );
+    expect(takers).toStrictEqual([WAITING, AGAIN, FAILED]);
+    expect(takesRead(WAITING, true, found)).toBe(false);
+    expect(takesRead(WAITING, false, { article: [] })).toBe(false);
   });
 });

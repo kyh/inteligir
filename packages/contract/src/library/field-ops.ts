@@ -119,6 +119,9 @@ export const fieldOpSchema = z.discriminatedUnion("op", [
 ]);
 export type FieldOp = z.infer<typeof fieldOpSchema>;
 
+// a field op that changes something; one whose value is its base is left out
+export const changes = (op: FieldOp): boolean => op.op !== "set" || !sameJson(op.base, op.value);
+
 // `satisfied`: what the op would make is already there (a resend after a lost answer, or two
 // writers doing the same thing), so landing it changes nothing. `conflict`: the op met neither its
 // base nor its value, which a list field never does

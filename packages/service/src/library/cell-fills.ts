@@ -14,8 +14,9 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { jobs } from "@repo/db/cell/schema";
+import { changes } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
-import { readingOps } from "@repo/contract/library/item-reading";
+import { pageFieldOps, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
@@ -32,7 +33,7 @@ import type { Lease } from "./cell-jobs";
 import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
 import type { CellResult } from "./cell-refusal";
-import { changes, landRead, pageFieldOps } from "./cell-saves";
+import { landRead } from "./cell-saves";
 import { setSealed } from "./change-sets";
 import { landWrite } from "./cell-writes";
 import type { LibraryEngine } from "./library-engine";
