@@ -40,13 +40,13 @@ Worker hands it to the cell beside the call, an argument no request can name
 the socket's **ticket** key on it. Not a credential: the cell never sees one.
 
 **change set** — the unit of undo: what one **turn** of the **built-in agent**
-changed, each item it touched kept as the ops that take its changes back, or
-as the turn last left one it made, keyed by the turn and sealed as the turn
-ends. No other writer keeps one: a person's, a connected
-assistant's, an import's and a page's reading land with nothing to undo, and a
-reading of a link the turn saved folds into the turn's set. The cell keeps each
-for the undo window (`packages/service/src/library/change-sets.ts`), and a set
-holds only what is left to take back: an entry goes as an **Undo** settles it.
+changed, each item it touched kept as the ops that take its fields' changes
+back, or as the turn last left one it made, with its body as it stood before the
+turn, keyed by the turn and sealed as the turn ends. No other writer keeps one:
+a person's, a connected assistant's, an import's, a **sweep**'s and a page's
+reading land with nothing to undo. The library keeps each for the undo window
+(`packages/service/src/library/library-change-sets.ts`), and a set holds only
+what is left to take back: an entry goes as an **Undo** settles it.
 Not a version: an undo writes forward and keeps no set of its own.
 
 **block** — one top-level element of a note's **live document**, named by its
@@ -222,10 +222,11 @@ tagged.
 
 **sweep** — a verb over every item a scope lists but those left out: what ⌘A
 then Move, Tag, Pin, Delete or Restore asks once the grid read only part of the
-scope, and what "Empty Deleted…" asks (`library.items.sweep`). The cell takes
-the items the scope lists as it is asked and lands them a lot at a time from
-its jobs (`packages/service/src/library/cell-sweeps.ts`). Not a bulk change,
-which names its items by id, a hundred a call.
+scope, and what "Empty Deleted…" asks (`library.items.sweep`). The library
+takes the items the scope lists as it is asked and lands them in the call, a
+change of tags over 5,000 items a lot at a time from its jobs
+(`packages/service/src/library/library-sweeps.ts`). Not a bulk change, which
+names its items by id, a hundred a call.
 
 **filing rules** — what the person wrote for the agent about their library,
 written only from Settings › Account
@@ -284,10 +285,10 @@ Deleted): each says its own words, and a hold outranks the connection.
 under a conversation, which name a thread and its **turns** and take back what
 their **change sets** still hold, while the undo window lasts; a turn with
 nothing left offers none, and one pressed twice finds nothing left to undo.
-What an agent's turn wrote in a note, that note takes back from
-its **turn log**, and Undo names each note where typing inside a block the turn
-added went with it, each item a later edit kept whole, and each a rule held
-back. Not the editor's ⌘Z, which takes back only this device's typing.
+An item goes back whole, its fields and its note together, or not at all: one
+edited since, in a field the turn wrote or anywhere in its note, is kept as it
+is and named, and so is one a rule held back. Not the editor's ⌘Z, which takes
+back only this device's typing.
 
 **Deleted** — the rail's row: the items deleted, each restorable, and "Empty
 Deleted…", which removes them for good.

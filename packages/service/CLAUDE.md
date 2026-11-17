@@ -146,6 +146,36 @@ decisions port with its code from the tag `cloudflare-last`.
   reading is never asked by a write that rolled back nor lost by one that
   landed, a save calls no model, and the built-in agent reads the web itself, so
   its turn holds nothing back. `packages/service/src/library/library-fills.ts`.
+- **Items one write makes land together, a statement a table, and a sweep or
+  an import is set statements under the one lock.** One item's landing costs
+  25–30 round trips from the function's region, so a landing per item holds
+  the account's lock for minutes at a library's scale.
+  `packages/service/src/library/library-landing.ts`.
+- **An id list goes to Postgres as one array parameter, never spread.** drizzle
+  spreads an array into a parameter each, and a sweep of 50,000 items passes
+  Postgres's 65,535. `packages/service/src/library/set-sql.ts`.
+- **A change of tags over 5,000 items goes to `sweep` jobs of 5,000, each a
+  write of its own; every other sweep lands in its call.** Deriving tags and
+  search rows costs about 4 s a 5,000 under the lock, and past the 5 s lock
+  wait every other write of the account is refused.
+  `packages/service/src/library/library-sweeps.ts`.
+- **A restore of many items brings back, of those at one address, only the one
+  deleted last, and none a live item holds.** Two at one address each pass a
+  check against the statement's snapshot, and the second fails it whole on
+  `item_one_url`. `packages/service/src/library/library-items.ts`.
+- **Only the built-in agent's writes keep a change set, one a turn, made by its
+  first landing and sealed by the turn's end; a sweep or an import keeps none.**
+  Undo reaches only the agent's turns, and the apps alone ask a sweep.
+  `packages/service/src/library/library-change-sets.ts`.
+- **A set's entry keeps an item's fields as guarded ops back and its body as it
+  stood before the turn, with the versions before and after it; Undo lands an
+  item whole or not at all.** A body written since keeps the item, named,
+  rather than a merge of two writers' blocks, and turns undone together chain
+  by those versions. `packages/service/src/library/revert-change.ts`.
+- **Housekeeping prunes change sets and op answers inside its own
+  transaction, skipping an account a write holds.** It locks each account's
+  row as a write does, so a prune never races an Undo, and a busy account
+  waits for the next run. `packages/service/src/library/library-change-sets.ts`.
 - **Only a new item is refused past the account's cap, which counts the sum of
   its files' and bodies' rows.** A person never loses a word mid-note and a full
   library can still be tidied; fields and the search rows are small beside them.
