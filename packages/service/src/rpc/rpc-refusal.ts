@@ -3,12 +3,18 @@
 // `V1_ERROR_STATUS_MAP` gives its code and its serialized error, so a client's link reads it as it
 // reads a procedure's own (`@repo/contract/rpc/call-outcome`).
 
-import type { ClientOutdatedError, UnauthorizedError } from "@repo/contract/rpc/v1-errors";
+import type {
+  ClientOutdatedError,
+  TooManyRequestsError,
+  UnauthorizedError,
+} from "@repo/contract/rpc/v1-errors";
 import { V1_ERROR_STATUS_MAP } from "@repo/contract/rpc/v1-errors";
 import { ORPCError, RPCSerializer } from "@orpc/server";
 
 // what a request may meet before its procedure runs, which every row declares (`signedBase`)
-export type RpcRefusal = InstanceType<typeof ClientOutdatedError | typeof UnauthorizedError>;
+export type RpcRefusal = InstanceType<
+  typeof ClientOutdatedError | typeof TooManyRequestsError | typeof UnauthorizedError
+>;
 
 const serializer = new RPCSerializer();
 

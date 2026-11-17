@@ -14,6 +14,10 @@ import { clientIpOptions } from "./client-ip";
 // past the ceiling of any window the auth routes set
 const ATTEMPT_CAP = 20;
 
+// ./auth.ts's window for every route, and Better Auth's own stricter one for a sign-in
+const AUTH_MAX = 10;
+const SIGN_IN_MAX = 3;
+
 const signInFrom = async (callerIp: string): Promise<Response> =>
   await authPost(
     "/sign-in/email",
@@ -21,23 +25,33 @@ const signInFrom = async (callerIp: string): Promise<Response> =>
     { email: "nobody@example.test", password: "not-the-password" },
   );
 
-const spendSignInWindow = async (callerIp: string): Promise<void> => {
-  for (let attempt = 0; attempt < ATTEMPT_CAP; attempt += 1) {
-    const response = await signInFrom(callerIp);
-    if (response.status === 429) {
-      return;
-    }
-    expect(response.status).toBe(401);
+// a route under ./auth.ts's window alone, which answers with no session
+const signOutFrom = async (callerIp: string): Promise<Response> =>
+  await authPost("/sign-out", { [CALLER_IP_HEADER]: callerIp, origin: ORIGIN });
+
+const statusesOf = async (times: number, call: () => Promise<Response>): Promise<number[]> => {
+  const statuses = [];
+  for (let attempt = 0; attempt < times; attempt += 1) {
+    const response = await call();
+    statuses.push(response.status);
   }
-  throw new Error(`the sign-in window for ${callerIp} never shut`);
+  return statuses;
 };
 
 dbSuite("Better Auth's limiter", () => {
-  it("shuts one address's sign-in window and leaves another's open", async () => {
-    await spendSignInWindow("203.0.113.10");
+  it("holds one address to 3 sign-ins in 10 s, and leaves another's open", async () => {
+    await expect(
+      statusesOf(SIGN_IN_MAX + 1, async () => await signInFrom("203.0.113.10")),
+    ).resolves.toStrictEqual([...Array.from({ length: SIGN_IN_MAX }, () => 401), 429]);
 
     const other = await signInFrom("203.0.113.11");
     expect(other.status).toBe(401);
+  });
+
+  it("holds one address to 10 calls a minute on a route with no rule of its own", async () => {
+    await expect(
+      statusesOf(AUTH_MAX + 1, async () => await signOutFrom("203.0.113.12")),
+    ).resolves.toStrictEqual([...Array.from({ length: AUTH_MAX }, () => 200), 429]);
   });
 
   it("prunes the app's lapsed rows beside its own when one of its windows rolls over", async () => {

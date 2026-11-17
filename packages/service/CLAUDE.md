@@ -50,6 +50,10 @@ decisions port with its code from the tag `cloudflare-last`.
   that table never outlast Better Auth's 60 s.** In memory a count is per
   instance; Better Auth prunes a row older than its longest window, which would
   reset a longer one mid-count. `packages/service/src/rate-limit.ts`.
+- **Each of the app's windows is one upsert that returns its count, keyed on the
+  caller's address before sign-in and on what it holds after: its session, its
+  account or its assistant's grant.** A read then a write lets concurrent
+  calls read one count and all pass. `packages/service/src/rate-limit.ts`.
 - **On Vercel the caller's address is `x-vercel-forwarded-for`'s.** The edge sets
   it, while a client can send any `x-forwarded-for` chain.
   `packages/service/src/auth/client-ip.ts`.
@@ -70,9 +74,10 @@ decisions port with its code from the tag `cloudflare-last`.
   next build resumes signed in; a page the deployment served ships in it and
   names none. `packages/service/src/rpc/admit.ts`.
 - **A `/v1` call or file is admitted once, by one function, before anything
-  reads its path or body: the floor, the door, its session.** A check per
-  handler is an order each spells again and a new route forgets.
-  `packages/service/src/rpc/admit.ts`.
+  reads its path or body: the floor, the door, its session, then that
+  session's minute of 1,200 calls.** A check per handler is an order each
+  spells again and a new route forgets, and the minute is a ceiling only a loop
+  meets. `packages/service/src/rpc/admit.ts`.
 - **`/v1` is one oRPC wire, `/v1/rpc`, and a refusal or a fault outside every
   row is answered in its protocol.** REST beside RPC is two serializers and two
   error vocabularies, and Next's own 500 is a body no link reads.

@@ -1,6 +1,6 @@
 // Who may call `/v1`, said once for the wire and a file's bytes alike: the build floor, the door the
-// request came through and the session that door reads, in that order. Each door is a mark no
-// other page can forge (https://orpc.dev/docs/integrations/better-auth):
+// request came through, the session that door reads and the session's minute, in that order. Each
+// door is a mark no other page can forge (https://orpc.dev/docs/integrations/better-auth):
 //
 // - a bearer is the browser extension's, the browser's own session cookie read from its jar. The
 //   cookie beside it is never read, so a bearer that fails is refused, never retried as the cookie.
@@ -15,10 +15,15 @@ import {
   parseClientBuildHeader,
 } from "@repo/contract/client-build";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import { ClientOutdatedError, UnauthorizedError } from "@repo/contract/rpc/v1-errors";
+import {
+  ClientOutdatedError,
+  TooManyRequestsError,
+  UnauthorizedError,
+} from "@repo/contract/rpc/v1-errors";
 
 import { readSession } from "../auth/auth";
 import { env } from "../env";
+import { spendHolderBudget } from "../rate-limit";
 import type { RpcRefusal } from "./rpc-refusal";
 
 type SessionDoor = "page" | "phone" | "extension";
@@ -65,11 +70,12 @@ export const admit = async (request: Request): Promise<Admission> => {
   if (door === null || signedIn === null) {
     return { kind: "refused", refusal: new UnauthorizedError() };
   }
+  const sessionId = signedIn.session.id;
+  if (!(await spendHolderBudget("rpcCall", sessionId))) {
+    return { kind: "refused", refusal: new TooManyRequestsError() };
+  }
   return {
     kind: "admitted",
-    principal: {
-      accountId: signedIn.user.id,
-      actor: { door, kind: "session", sessionId: signedIn.session.id },
-    },
+    principal: { accountId: signedIn.user.id, actor: { door, kind: "session", sessionId } },
   };
 };

@@ -1,12 +1,16 @@
 // Who `/v1/rpc` admits, before anything reads the call: the build floor, refused as outdated with
-// the session left live; the door a request came through; and the session that door reads, a
-// cookie or the extension's bearer.
+// the session left live; the door a request came through; the session that door reads, a cookie or
+// the extension's bearer; and that session's minute of calls.
 
 import { CLIENT_BUILD_HEADER } from "@repo/contract/client-build";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { rateLimit } from "@repo/db/auth-schema";
+import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
+import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 
+import { holderRateKey, RATE_WINDOWS } from "../rate-limit";
 import { sessionOf, sessionTokenOf, signInPhone, signUpUser } from "../test-support/auth-requests";
 import {
   buildHeaders,
@@ -20,6 +24,7 @@ import {
 
 const OUTDATED = { code: "CLIENT_OUTDATED", defined: true, status: 426 };
 const SIGNED_OUT = { code: "UNAUTHORIZED", defined: true, status: 401 };
+const TOO_MANY = { code: "TOO_MANY_REQUESTS", defined: true, status: 429 };
 
 // one minor under the floor, whatever the patch, and one major over it
 const versionAround = (majorStep: number, minorStep: number): string => {
@@ -143,5 +148,46 @@ dbSuite("the extension's bearer", () => {
         bearer,
       ).resolves.toStrictEqual(SIGNED_OUT);
     }
+  });
+});
+
+dbSuite("the session's minute", () => {
+  it("answers a session's calls up to the minute's max and refuses the next, its session live and its account's others answered", async () => {
+    const { cookie, phone } = await signedIn("minute-spent@example.test");
+    const phoneSession = await sessionOf({ cookie: phone });
+    if (phoneSession === null) {
+      throw new Error("the phone signed in with no session");
+    }
+    await db.insert(rateLimit).values({
+      count: RATE_WINDOWS.rpcCall.max - 1,
+      id: crypto.randomUUID(),
+      key: holderRateKey("rpcCall", phoneSession.session.id),
+      lastRequest: Date.now(),
+    });
+
+    await expect(v1Link(phoneHeaders(phone)).account.devices.list()).resolves.toMatchObject({
+      devices: [{ current: false }, { current: true }],
+    });
+    await expect(refusalOfList(phoneHeaders(phone))).resolves.toStrictEqual(TOO_MANY);
+
+    await expect(sessionOf({ cookie: phone })).resolves.not.toBeNull();
+    await expect(v1Link(pageHeaders(cookie)).account.devices.list()).resolves.toMatchObject({
+      devices: [{ current: true }, { current: false }],
+    });
+  });
+
+  it("is spent only by a signed call, so a refused one leaves it whole", async () => {
+    const { phone } = await signedIn("minute-unsigned@example.test");
+    const phoneSession = await sessionOf({ cookie: phone });
+    if (phoneSession === null) {
+      throw new Error("the phone signed in with no session");
+    }
+    await refusalOfList(asBuild(phone, null));
+    await refusalOfList({ ...buildHeaders(), cookie: phone });
+
+    const minute = holderRateKey("rpcCall", phoneSession.session.id);
+    await expect(
+      db.select().from(rateLimit).where(eq(rateLimit.key, minute)),
+    ).resolves.toStrictEqual([]);
   });
 });

@@ -5,12 +5,12 @@
 import { getAuth } from "../auth/auth";
 import { deleteAccountUnderSession } from "../auth/delete-account";
 import { listSessionDevices, revokeSessionDevice } from "../auth/session-devices";
-import { spendDeleteBudget } from "../rate-limit";
+import { spendHolderBudget } from "../rate-limit";
 import { os } from "./orpc";
 
 export const accountRouter = {
   delete: os.account.delete.handler(async ({ context, errors, input }) => {
-    if (!(await spendDeleteBudget(context.principal.actor.sessionId))) {
+    if (!(await spendHolderBudget("accountDelete", context.principal.actor.sessionId))) {
       throw errors.TOO_MANY_REQUESTS();
     }
     const deletion = await deleteAccountUnderSession(context.headers, input.password);
