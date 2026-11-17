@@ -1,7 +1,7 @@
 // The library's tab, in a browser or the Mac app's window alike, opened once a document whatever
-// library route it opens on: it reads the session the site's sign-in left and makes the wire, the
-// account's socket, the shell's store and the QueryClient every library route shares, and with no
-// session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
+// library page it opens on: it reads the session the site's sign-in left and makes the wire, the
+// account's socket, the shell's store and the QueryClient the workspace and Settings share, and with
+// no session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
 // run: there is nothing to choose before it. Where the tab's session stands after that is one
 // value, moved by one step (`tabAfter`) whichever way the page meets its end.
 
@@ -10,7 +10,6 @@ import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createLibrarySocket } from "@repo/client/library-cache";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { redirect } from "@tanstack/react-router";
 
 import { activeSession, keepSession } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
@@ -24,8 +23,8 @@ import type {
   TabSessionStore,
 } from "./cloud/library-context";
 import type { FileCloud } from "./cloud/library-files";
+import { libraryQueries } from "./cloud/library-queries";
 import { createCloudWire, createPageQueryClient } from "./cloud/v1";
-import type { CloudWire } from "./cloud/v1";
 import { followDevicePrefs } from "./document-prefs";
 import { createWorkspaceStore } from "./workspace-store";
 
@@ -44,7 +43,9 @@ interface TabStep {
 export type TabOpening =
   | { readonly kind: "open"; readonly library: PageLibrary; readonly queryClient: QueryClient }
   // the site or the connection failed before anything was drawn
-  | { readonly kind: "unreached" };
+  | { readonly kind: "unreached" }
+  // no session: the browser is on its way to the site's sign-in
+  | { readonly kind: "leaving" };
 
 // the floor spares a page the Worker served by a header only a browser this old leaves out, and
 // the sign-in would send a tab it signed in straight back here, so that tab keeps its session
@@ -133,8 +134,8 @@ const open = async (): Promise<TabOpening> => {
   if (session.kind === "signed-out") {
     // a session ends with no tab open too, so nothing else saw it go
     forgetAccountStorage();
-    // oxlint-disable-next-line typescript/only-throw-error -- TanStack Router's redirect() is thrown as it returns it (tanstack.com/router/latest/docs/framework/react/guide/authenticated-routes)
-    throw redirect({ href: signInHref(window.location), reloadDocument: true });
+    window.location.assign(signInHref(window.location));
+    return { kind: "leaving" };
   }
   const { user } = session;
   claimAccountStorage(user.id);
@@ -174,34 +175,23 @@ const open = async (): Promise<TabOpening> => {
     wire,
     workspace: createWorkspaceStore(),
   };
-  return { kind: "open", library, queryClient };
-};
-
-// what a route's screen reads first, asked once as the route loads over the options the screen
-// reads with, waiting for one answer and not the retries the screen's own query makes; a read whose
-// seed failed draws its own refusal, so it is not the route's failure, and with no connection
-// nothing is awaited and each read says it needs one. `seed` is generic, since the reads answer
-// different shapes and a list of them has no one options type
-export const seedReads = async (
-  opening: TabOpening,
-  reads: (seed: QueryClient["query"], wire: CloudWire) => readonly Promise<unknown>[],
-): Promise<void> => {
-  if (opening.kind !== "open" || !onlineManager.isOnline()) {
-    return;
+  // the rail's scopes before the grid draws, waiting for one answer and not the retries the rail's
+  // own query makes: a refusal is the rail's to draw, and with no connection nothing waits
+  if (onlineManager.isOnline()) {
+    await Promise.allSettled([
+      queryClient.query({ ...libraryQueries(wire).scopes(), retry: 0, staleTime: "static" }),
+    ]);
   }
-  const { queryClient } = opening;
-  await Promise.allSettled(
-    reads(
-      async (options) => await queryClient.query({ ...options, retry: 0, staleTime: "static" }),
-      opening.library.wire,
-    ),
-  );
+  return { kind: "open", library, queryClient };
 };
 
 let opening: Promise<TabOpening> | undefined;
 
-// once a document, so Settings and back keeps one wire, one socket and one QueryClient
-export const openTab = async (): Promise<TabOpening> => {
-  opening ??= open();
-  return await opening;
+// once a document, so Settings and back keeps one wire, one socket and one QueryClient: one promise,
+// which the page's `use` reads again on every render
+export const pageTab = {
+  get opening(): Promise<TabOpening> {
+    opening ??= open();
+    return opening;
+  },
 };

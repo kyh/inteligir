@@ -1,6 +1,6 @@
 // What a press does to the library: every verb a menu row, a button, a chord or the palette asks
 // for is one function here, which asks or confirms first where it must (`./ask.ts`), runs its verb
-// (`./library-verbs.ts`) and goes where it leads (`../library-place.ts`). Made once under the
+// (`./library-verbs.ts`) and goes where it leads (`../library-history.ts`). Made once under the
 // library's layout and read by context, so a screen calls a command and is handed none. A press
 // waits for nothing: each run says its own outcome.
 
@@ -12,15 +12,15 @@ import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 
 import { usePageLibrary } from "../cloud/library-context";
 import type { SaveInto } from "../cloud/library-writes";
 import type { CloudWire } from "../cloud/v1";
-import { libraryGoes, shownScope } from "../library-place";
-import type { LibraryGoes } from "../library-place";
+import { shownScope } from "../library-address";
+import { libraryGoes } from "../library-history";
+import type { LibraryGoes } from "../library-history";
 import type { WorkspaceStore } from "../workspace-store";
 import { askFolder, askName, askTags } from "./ask";
 import type { CapturePayload } from "./capture/capture-payload";
@@ -34,7 +34,10 @@ import { saveTagsOf } from "./listing";
 const DELETE_ASKS_OVER = 50;
 
 interface CommandPorts {
-  readonly goes: LibraryGoes;
+  readonly goes: Pick<
+    LibraryGoes,
+    "closeItem" | "now" | "openItem" | "openSettings" | "showKind" | "showScope"
+  >;
   readonly verbs: LibraryVerbs;
   readonly workspace: Pick<WorkspaceStore, "compose" | "revealPanel" | "setPaletteOpen">;
   // the rail's scopes as the page last read them, which say whether an addressed folder is listed
@@ -210,11 +213,10 @@ export const LibraryCommandsContext = createContext<LibraryCommands | null>(null
 
 export const LibraryCommandsProvider = ({ children }: { children: ReactNode }) => {
   const { wire, workspace } = usePageLibrary();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
   const commands = libraryCommands({
-    goes: libraryGoes(router),
+    goes: libraryGoes,
     queryClient,
     verbs,
     wire,

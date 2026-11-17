@@ -1,17 +1,18 @@
 // CLAUDE.md § The tab asks before it loses the open item's edit. The open item rides the URL, so
-// the router's blocker is the one gate on every way off it: a click, Back, Forward and the tab's
-// close or reload. The open note is asked whether it stored every edit made here, and an edit typed
-// while no connection could carry it is given up only on the person's word.
+// every way off it is guarded: a move the tab makes and Back or Forward through the address's
+// history (`library-history.ts`), and the tab's close or reload through the browser's own ask. The
+// open note is asked whether it stored every edit made here, and an edit typed while no connection
+// could carry it is given up only on the person's word.
 
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
-import { useBlocker } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type { RefObject } from "react";
 
 import { usePageLibrary } from "../cloud/library-context";
 import type { TabSession } from "../cloud/library-context";
-import { librarySearchSchema } from "../library-search";
+import { guardLeaves } from "../library-history";
 
 // whether the page may leave the item
 export const leaveItem = async (
@@ -36,15 +37,24 @@ export const leaveItem = async (
 export const unloadAsks = (note: Pick<OpenNote, "unsent"> | null, session: TabSession): boolean =>
   session.kind === "live" && note !== null && note.unsent();
 
-// guards the open note for as long as the workspace is mounted; both questions are asked as a leave
-// happens, so they read the note the ref holds then
+// guards the open note for as long as the workspace is mounted; every question is asked as a leave
+// happens, so it reads the note the ref holds then
 export const useLeaveItem = (note: RefObject<OpenNote | null>): void => {
   const { session } = usePageLibrary();
-  useBlocker({
-    enableBeforeUnload: () => unloadAsks(note.current, session.get()),
-    // the blocker hands over each address's search as it is spelled, which is the route's once parsed
-    shouldBlockFn: async ({ current, next }) =>
-      librarySearchSchema.parse(current.search).item !==
-        librarySearchSchema.parse(next.search).item && !(await leaveItem(note.current, confirm)),
-  });
+  useEffect(() => {
+    const asksOnUnload = (event: BeforeUnloadEvent): void => {
+      if (unloadAsks(note.current, session.get())) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", asksOnUnload);
+    const release = guardLeaves({
+      holdsWork: () => note.current?.unsaved() === true,
+      mayLeave: async () => await leaveItem(note.current, confirm),
+    });
+    return () => {
+      window.removeEventListener("beforeunload", asksOnUnload);
+      release();
+    };
+  }, [note, session]);
 };

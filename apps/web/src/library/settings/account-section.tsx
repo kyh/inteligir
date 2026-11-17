@@ -23,11 +23,11 @@ import { relativeTimeLabel, useNow } from "../relative-time";
 import { FILING_RULES_TEXT } from "./filing-rules";
 import { Row, SectionHeading } from "./settings-chrome";
 
-// what the account's rows read, which Settings' route asks for as it opens: fresh for half a
-// minute, so a row drawing what the route asked does not ask the cell again as it mounts
+// what the account's rows read: fresh for half a minute, so Settings opened again soon after does
+// not ask the cell again as its rows mount
 const ACCOUNT_FRESH_MS = 30_000;
 
-export const accountReads = (orpc: CloudWire["orpc"]) => ({
+const accountReads = (orpc: CloudWire["orpc"]) => ({
   agent: orpc.library.agent.status.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
   assistants: orpc.account.assistants.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),

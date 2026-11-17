@@ -7,6 +7,8 @@ import { absoluteUrl } from "#lib/page-metadata";
 import { siteConfig } from "#lib/site-config";
 import { siteGraph } from "#lib/structured-data";
 
+import "#styles/globals.css";
+
 const homeCard = {
   alt: PAGES.home.image.alt,
   height: PAGES.home.image.height,

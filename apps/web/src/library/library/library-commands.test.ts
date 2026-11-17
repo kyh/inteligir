@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { libraryQueries } from "../cloud/library-queries";
 import { createPageQueryClient } from "../cloud/v1";
-import type { LibraryGoes } from "../library-place";
+import type { LibraryGoes } from "../library-history";
 import { createWorkspaceStore } from "../workspace-store";
 import { asks } from "./ask";
 import { libraryCommands } from "./library-commands";
@@ -32,7 +32,7 @@ const spyVerbs = () =>
     tag: vi.fn<LibraryVerbs["tag"]>(),
   }) satisfies LibraryVerbs;
 
-// the commands over spies for the cell's verbs and the router, with no layout, host or screen: the
+// the commands over spies for the cell's verbs and the tab's moves, with no layout, host or screen: the
 // tab is at `place`, and the rail's scopes are as the cell lists them
 const commandsAt = async (
   place: Partial<ReturnType<LibraryGoes["now"]>> = {},
@@ -44,12 +44,19 @@ const commandsAt = async (
   await queryClient.query(libraryQueries(wire).scopes());
   const goes = {
     closeItem: vi.fn<LibraryGoes["closeItem"]>(),
-    now: () => ({ kind: null, openItem: null, scope: { kind: "all" }, ...place }),
+    now: () => ({
+      find: null,
+      kind: null,
+      openItem: null,
+      scope: { kind: "all" },
+      settings: false,
+      ...place,
+    }),
     openItem: vi.fn<LibraryGoes["openItem"]>(),
     openSettings: vi.fn<LibraryGoes["openSettings"]>(),
     showKind: vi.fn<LibraryGoes["showKind"]>(),
     showScope: vi.fn<LibraryGoes["showScope"]>(),
-  } satisfies LibraryGoes;
+  } satisfies Parameters<typeof libraryCommands>[0]["goes"];
   const verbs = spyVerbs();
   const workspace = createWorkspaceStore();
   return {

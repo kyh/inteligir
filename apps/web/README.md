@@ -15,7 +15,8 @@ src/
   components/    the site's own components
   lib/           the site's auth client, document policies, config and page markdown
 scripts/         write-licenses.ts, which writes public/licenses.md at prebuild
-next.config.ts   Cache Components, the React Compiler, the static policy and headers, `?raw`
+next.config.ts   Cache Components, the React Compiler, the static policy and headers, Turbopack's
+                 `?raw` and the import worker's alias
 vercel.json      the functions' region
 ```
 
@@ -25,7 +26,7 @@ vercel.json      the functions' region
 | ------------------------------------------ | --------------------------------------------------------------------------- |
 | `/`, `/about`, `/contact`                  | the site's pages, prerendered; their markdown under `Accept: text/markdown` |
 | `/privacy`, `/terms`                       | `docs/privacy.md` and `docs/terms.md`, rendered                             |
-| `/library`, `/library/settings`            | a 307 to `/app/sign-in?next=…` with no session cookie                       |
+| `/library`, `/library/settings`            | the library tab, Settings over it; a 307 to `/app/sign-in?next=…` unsigned  |
 | `/app`                                     | a 307 to `/library`                                                         |
 | `/app/sign-in`, `/app/sign-up`             | the account pages, skipped to `next` when signed in                         |
 | `/app/forgot-password`                     | asks for the reset mail                                                     |
@@ -38,9 +39,6 @@ vercel.json      the functions' region
 | `/api/health`                              | `{"ok":true}` once the database answers, else 503                           |
 | `/api/*`                                   | a JSON 404                                                                  |
 | `/v1/rpc/*`                                | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`)            |
-
-The library tab's code is here, but no page mounts it yet: its suites draw it
-over memory.
 
 ## Testing and the dev loop
 

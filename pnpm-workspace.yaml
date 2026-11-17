@@ -45,8 +45,6 @@ catalog:
   # version, and the phone's persisted cache is read back in the shape that build dehydrates
   "@tanstack/query-async-storage-persister": 5.105.0
   "@tanstack/react-query-persist-client": 5.105.0
-  # exact: the library tab's router, held until the tab runs on App Router
-  "@tanstack/react-router": 1.170.46
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2

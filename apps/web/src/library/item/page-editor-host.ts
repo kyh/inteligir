@@ -1,5 +1,5 @@
 // The editor's host on this page: what the editor's kits ask of the page, answered by the cell, the
-// router and the tab's store, so it is whole the moment it is installed. A note's live document is
+// tab's moves and its store, so it is whole the moment it is installed. A note's live document is
 // dialled on the cloud's origin, the page's own, on the account socket's ticket, and goes read-only
 // the moment the browser says it has no connection. A link names its item by id, and opening it
 // opens that item; an embed draws the item's blocks as the cell holds them; a file a note names by
@@ -21,7 +21,7 @@ import type { FileCloud } from "../cloud/library-files";
 import { libraryQueries } from "../cloud/library-queries";
 import { libraryWrites } from "../cloud/library-writes";
 import type { CloudWire } from "../cloud/v1";
-import type { LibraryGoes } from "../library-place";
+import type { LibraryGoes } from "../library-history";
 import type { WorkspaceStore } from "../workspace-store";
 
 interface PageEditorPorts {

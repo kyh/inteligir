@@ -1,8 +1,7 @@
-import { RouterProvider } from "@tanstack/react-router";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createLibraryRouter, openedOver } from "../test-support/library-router";
+import { openedOver, renderLibraryAt } from "../test-support/library-page";
 import { fakePageLibrary } from "../test-support/fake-page-library";
 
 afterEach(() => {
@@ -12,15 +11,13 @@ afterEach(() => {
 // the whole page, over a cell's wire
 const openedAtSettings = async () => {
   const { library } = fakePageLibrary({ answer: () => ({ assistants: [], devices: [] }) });
-  const router = createLibraryRouter("/library/settings", openedOver(library));
-  render(<RouterProvider router={router} />);
+  renderLibraryAt("/library/settings", await openedOver(library));
   await screen.findByRole("heading", { name: "Settings" });
-  return router;
 };
 
 describe("Settings' sections", () => {
-  it("moves to a section and leaves the address, which is the route, alone", async () => {
-    const router = await openedAtSettings();
+  it("moves to a section and leaves the address alone", async () => {
+    await openedAtSettings();
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
 
     fireEvent.click(
@@ -30,8 +27,8 @@ describe("Settings' sections", () => {
     await vi.waitFor(() => {
       expect(scrolled.mock.contexts).toContain(document.querySelector("#editor"));
     });
-    expect(router.history.location.pathname).toBe("/library/settings");
-    expect(router.history.location.hash).toBe("");
+    expect(window.location.pathname).toBe("/library/settings");
+    expect(window.location.hash).toBe("");
     expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
   });
 

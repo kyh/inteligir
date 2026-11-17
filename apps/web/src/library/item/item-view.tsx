@@ -13,19 +13,16 @@ import { Button } from "@repo/ui/components/button";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { useLibraryCommands } from "../library/library-commands";
-import type { LibrarySearch } from "../library-search";
+import { libraryGoes, useLibraryAddress } from "../library-history";
 import { shortcutFor } from "../shortcuts";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
-
-const libraryRoute = getRouteApi("/library");
 
 export interface ItemViewProps {
   readonly itemId: string;
@@ -91,24 +88,19 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const commands = useLibraryCommands();
   const item = useQuery(useLibraryQueries().item(itemId));
   const modifier = platformShortcutModifier();
-  const find = libraryRoute.useSearch({ select: (search: LibrarySearch) => search.find });
-  const navigate = useNavigate();
+  const { find } = useLibraryAddress();
 
   // the find bar lands on a search's words once the item's editor answers, and the address then
   // drops them
   useEffect(() => {
-    if (find === undefined) {
+    if (find === null) {
       return;
     }
     return onLiveEditor(itemId, (editor) => {
       jumpToFindMatch(editor, find, 0);
-      void navigate({
-        replace: true,
-        search: (prior: LibrarySearch) => ({ ...prior, find: undefined }),
-        to: ".",
-      });
+      libraryGoes.dropFind();
     });
-  }, [find, itemId, navigate]);
+  }, [find, itemId]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (shortcutFor(event.nativeEvent, "item", modifier)?.action === "back-to-library") {

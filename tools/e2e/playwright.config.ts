@@ -20,8 +20,6 @@ const PENDING_TESTS = [
   // each lands in the library tab
   "the site's sign-up spends its invite, and a signed-out tab signs in and comes back",
   "Settings waits offline, ends another device, turns the agent off, signs out and deletes",
-  "sign-in and sign-up are skipped for someone signed in, to where they were going",
-  "each library document carries its own nonce policy, and the home page loads none of the library's code",
   // the connector's routes
   "the connector's routes answer in their own protocol",
 ];

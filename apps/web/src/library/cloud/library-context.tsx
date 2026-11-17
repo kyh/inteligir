@@ -1,8 +1,8 @@
 // The page's library, handed to every screen through one context: the wire to the account's cell,
 // the account's socket that says what moved, wanted while the page shows the library, what the
 // host decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes),
-// and what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the router's routes,
-// so Settings and back keeps the one socket.
+// and what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the workspace and
+// Settings, so Settings and back keeps the one socket.
 
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { createContext, useContext, useEffect } from "react";

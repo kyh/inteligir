@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
+import "#styles/globals.css";
+
 // the account pages are forms for people already invited, never a search result
 export const metadata: Metadata = { robots: { follow: false, index: false } };
 

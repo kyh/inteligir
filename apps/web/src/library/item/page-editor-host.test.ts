@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { libraryQueries } from "../cloud/library-queries";
 import { createPageQueryClient } from "../cloud/v1";
-import type { LibraryGoes } from "../library-place";
+import type { LibraryGoes } from "../library-history";
 import { createWorkspaceStore } from "../workspace-store";
 import { installPageEditorHost } from "./page-editor-host";
 
@@ -34,7 +34,7 @@ const install = (
   const queryClient = createPageQueryClient();
   const workspace = createWorkspaceStore();
   const goes = {
-    now: () => ({ kind: null, openItem, scope: { kind: "all" } }),
+    now: () => ({ find: null, kind: null, openItem, scope: { kind: "all" }, settings: false }),
     openItem: vi.fn<LibraryGoes["openItem"]>(),
     showScope: vi.fn<LibraryGoes["showScope"]>(),
   } satisfies Pick<LibraryGoes, "now" | "openItem" | "showScope">;

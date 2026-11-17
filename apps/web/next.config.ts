@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import { createRequire } from "node:module";
+import path from "node:path";
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
@@ -21,6 +23,17 @@ const PRIVATE_DOCUMENT_HEADERS = [
   { key: "X-Robots-Tag", value: "noindex, nofollow" },
 ];
 
+// micromark's entity decoder parses through a DOM element under the browser condition, which
+// Turbopack resolves for a worker's modules as for the page's, so the import's module worker would
+// load with no document; the table it takes everywhere else costs the page about 12 kB gzipped. The
+// package exports no subpath, so the alias names its file, relative to this directory, since
+// Turbopack takes an alias as a request
+const require = createRequire(import.meta.url);
+const NAMED_REFERENCES_TABLE = `./${path.relative(
+  import.meta.dirname,
+  require.resolve("decode-named-character-reference"),
+)}`;
+
 const config: NextConfig = {
   // Else `next dev` writes its own `apps/web/AGENTS.md`; the guidance is the root's.
   agentRules: false,
@@ -38,6 +51,7 @@ const config: NextConfig = {
   redirects: async () =>
     await Promise.resolve([{ destination: LIBRARY_PAGE_PATH, permanent: false, source: "/app" }]),
   turbopack: {
+    resolveAlias: { "decode-named-character-reference": { browser: NAMED_REFERENCES_TABLE } },
     // Vite's `?raw`, which Turbopack has no built-in for: the legal pages import their docs' text
     rules: { "*": { condition: { query: "?raw" }, type: "text" } },
   },

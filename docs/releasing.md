@@ -379,11 +379,12 @@ The unpacked store build, against production, with no dev build loaded.
   schema starts the cell over; and the output says which deleted class may leave the
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
-  prompt with unsent typing on Back and on closing the tab, popups fading, the
-  highlight gliding from row to row in the rail and in a menu, ⌘P, VoiceOver, a
-  Docs or Word list paste, Info's Add property picking a date and refusing an
-  empty number, a dark window's note printing light, and a tab left open keeping
-  its sign-in.
+  prompt with unsent typing on Back and on closing the tab, Settings opened,
+  closed, and opened again by Back over a grid still where it was, popups
+  fading, the highlight gliding from row to row in the rail and in a menu, ⌘P,
+  VoiceOver, a Docs or Word list paste, Info's Add property picking a date and
+  refusing an empty number, a dark window's note printing light, and a tab left
+  open keeping its sign-in.
 - **A sweep on the platform's own alarm**: ⌘A then Delete over a scope of a few
   thousand items empties the grid within seconds while another tab still reads.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,

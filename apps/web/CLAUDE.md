@@ -30,6 +30,9 @@ routes over `@repo/service`. The cloud's decisions are
   alike, and nothing suspends above their layout's `await connection()`.** A
   404 under the list, or a prerendered shell, is written without the nonce, and
   its scripts are refused. `apps/web/src/proxy.ts`.
+- **Each route group's layout links its own stylesheet, and the root's none.**
+  A sheet the root links reaches every document, so the library would load the
+  site's and the site the library's. `apps/web/src/app/layout.tsx`.
 - **A config header never reaches `/v1/blobs/`.** A config header replaces a
   route's header of the same name, so the site's policy would replace a file's
   sandbox. `apps/web/next.config.ts`.

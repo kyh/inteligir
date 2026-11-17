@@ -3,8 +3,6 @@ import type { Metadata, Viewport } from "next";
 import { siteConfig } from "#lib/site-config";
 import { noFlashThemeScript } from "#library/no-flash-theme";
 
-import "#styles/globals.css";
-
 export const metadata: Metadata = {
   description: siteConfig.description,
   icons: {
@@ -26,7 +24,7 @@ export const viewport: Viewport = {
 };
 
 // The document every page shares, the site's and the library's: what each draws beyond this is its
-// own group's layout's. React writes a script's text verbatim, so the theme script runs before the
+// own group's layout's, its stylesheet among it, so the library loads none of the site's. React writes a script's text verbatim, so the theme script runs before the
 // first paint, and the library's policy allows it by its hash (lib/document-policy.ts): this layout
 // reads no request, and the marketing pages stay prerendered. suppressHydrationWarning: that script
 // sets the theme class before hydration. isolate: the document's own stacking context, so a popup

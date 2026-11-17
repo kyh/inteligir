@@ -46,9 +46,8 @@ export const authPageSearchSchema = z.object({
   next: z.catch(wayBackSchema, undefined),
 });
 
-// where a session goes once it has one, by a document load: the landing may be a page the Worker
-// answers before this router (an assistant's consent page), and the library opens on a document of
-// its own
+// where a session goes once it has one, by a document load: the landing may be a page another route
+// answers (an assistant's consent page), and the library opens on a document of its own
 export const signedInLanding = (next?: string): string => internalNextPath(next) ?? SIGNED_IN_HOME;
 
 // another account page, carrying on the way back this one was opened with

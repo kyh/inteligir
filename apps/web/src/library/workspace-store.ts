@@ -1,4 +1,4 @@
-// What the tab's shell holds beside its address (`./library-search.ts`) and its window's layout
+// What the tab's shell holds beside its address (`./library-address.ts`) and its window's layout
 // (`./prefs.ts`): which of the panel's tabs shows, whether ⌘P is up, and the agent's composer. Made
 // once a tab (`./library-tab.ts`) and carried on the page's library, so a command, the editor's
 // host and the screen that draws each move one holder, in React or out of it.

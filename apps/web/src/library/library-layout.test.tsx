@@ -1,11 +1,10 @@
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/rpc/v1-contract";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { RouterProvider } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createLibraryRouter } from "./test-support/library-router";
+import { renderLibraryAt } from "./test-support/library-page";
 
 // the tab's open is the whole library and its first read, loaded fresh each test
 const LOADS_THE_PAGE_MS = 60_000;
@@ -21,8 +20,8 @@ const freshTab = async () => {
 };
 
 const openedAt = async (entry: string): Promise<void> => {
-  const { openTab } = await freshTab();
-  render(<RouterProvider router={createLibraryRouter(entry, openTab)} />);
+  const { pageTab } = await freshTab();
+  renderLibraryAt(entry, await pageTab.opening);
 };
 
 afterEach(() => {
@@ -42,17 +41,20 @@ describe("the tab's open", () => {
   );
 
   it(
-    "reads the session and makes the library once a document, however often a route asks",
+    "reads the session and makes the library once a document, however often the page asks",
     async () => {
       let sessionReads = 0;
-      vi.stubGlobal("fetch", async () => {
-        sessionReads += 1;
+      // the session is read by url, and the library's first read is a call to /v1
+      vi.stubGlobal("fetch", async (input: Request | string | URL) => {
+        if (!(input instanceof Request)) {
+          sessionReads += 1;
+        }
         await Promise.resolve();
         return Response.json(SIGNED_IN);
       });
-      const { openTab } = await freshTab();
-      const first = await openTab();
-      const second = await openTab();
+      const { pageTab } = await freshTab();
+      const first = await pageTab.opening;
+      const second = await pageTab.opening;
       expect(second).toBe(first);
       expect(first.kind).toBe("open");
       expect(sessionReads).toBe(1);

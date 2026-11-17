@@ -12,7 +12,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The Mac app opens your library from inteligir.com**: close the window and click Inteligir in the Dock to bring it back; offline, choose View › Reload once you're back.
 - **Your library, one card per item**: All items, Unsorted, a folder or a tag in the sidebar, a kind above the grid, Finder's selection, Space for a quick look, quick with tens of thousands of items.
 - **⌘A selects everything the header counts**, not only the cards scrolled into view: Move, Tag, Pin, Delete and Restore act on all of it, and ⌘-click a card leaves it out.
-- **Back and Forward walk your library**: a folder, a tag or Deleted is its own place in the window's address, so a reload keeps it and a link opens it; choosing a kind above the grid adds no step to Back.
+- **Back and Forward walk your library**: a folder, a tag or Deleted is its own place in the window's address, one you can read and type (`?folder=…`, `?tag=…`, `?scope=deleted`), so a reload keeps it and a link opens it; choosing a kind above the grid adds no step to Back.
 - **A new window, and the Mac app when it starts, open All items**: choose a folder or a tag in the sidebar to go back to it.
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.

@@ -5,17 +5,18 @@ the open item, the panel, the palette, Settings and the tab's own preferences.
 
 ## Shape
 
-The tab is the site's `/library` page, its children the workspace and Settings, its code this
-folder; no page mounts its routes until it runs on App Router, so its suites mount them over memory
-(`test-support/library-router.tsx`). `library-tab.ts` opens the tab once a document (the
-session, the wire, the account's socket, the shell's store and the QueryClient) in the route's
-`beforeLoad`, and `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1`
+The tab is the site's `/library` page, `/library/settings` the same page with Settings over it,
+its code this folder. `src/app/(library)/library/layout.tsx` renders each document per request, for
+its nonce, and mounts `library-root.tsx`, the tab drawn only in the browser; the pages draw nothing.
+`library-tab.ts` opens the tab once a document (the session, the wire, the account's socket, the
+shell's store and the QueryClient), and `library-layout.tsx` draws it. `cloud/` is the `/v1`
 client, the queries, the writes and the socket; `workspace.tsx` lays out the rail, the grid or the
-open item, the panel and the palette, `workspace-store.ts` holds what they share and
-`library-place.ts` moves where the tab is; `library/` the grid, its verbs and the commands every
-screen presses; `item/` the open item; `panel/` Info; `agent/` the agent's conversations;
-`palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an import's reading; `styles/`
-the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
+open item, the panel and the palette, `workspace-store.ts` holds what they share,
+`library-address.ts` spells where the tab is and `library-history.ts` moves it; `library/` the
+grid, its verbs and the commands every screen presses; `item/` the open item; `panel/` Info;
+`agent/` the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings;
+`import/` an import's reading; `styles/` the sheet only this route links;
+`shell/desktop-bridge.ts` the Mac app's update.
 
 ## The tab over the cell
 
@@ -23,9 +24,9 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   through `/v1`, a listing a batch at a time, and keeps nothing on the device, since a replica is a
   second copy to keep right for a tab that cannot edit offline.
   `apps/web/src/library/library-tab.ts`.
-- **The query client is the tab's, and its keys are oRPC's.** One `QueryClient` rides the library
-  routes' `beforeLoad` context, so a loader and a component share one cache, and a socket frame
-  reaches a family by oRPC's key, never one of ours.
+- **The query client is the tab's, and its keys are oRPC's.** One `QueryClient` opens with the
+  tab, so every screen shares one cache, and a socket frame reaches a family by oRPC's key, never
+  one of ours.
   `apps/web/src/library/cloud/library-queries.ts`.
 - **A write is mutation options beside the reads, and says how it went once.** A screen mounts only
   the write it asks, and its refusal is said by the write's options or by the flow that awaits it,
@@ -35,10 +36,10 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   `networkMode: "online"`, so offline it waits under `NEEDS_CONNECTION`, the one sentence every
   device says, and a read's standing is one value, `cellStanding`.
   `apps/web/src/library/cloud/needs-connection.tsx`.
-- **The library is one chunk, and catches up as its connection returns.** A site page preloads none
-  of it, and a loaded tab fetches only calls, files and an import's worker, which needs a connection
-  anyway, since a chunk first asked for offline fails; the socket dials the moment the browser is
-  online and reads every query again. `apps/web/vite.config.ts`.
+- **The library is its own chunks and sheet, and catches up as its connection returns.** A site page
+  loads none of it, since the tab is the root's `next/dynamic` import and the site's stylesheet is
+  its groups' own; the socket dials the moment the browser is online and reads every query again.
+  `apps/web/src/library/library-root.tsx`.
 - **An import is read in the tab, on a module worker, and the cell only lands it.** The worker
   unzips and plans, then asks how each note stands and lands a batch at a time, each id taken from
   the file, so closing the tab stops it and choosing the file again carries on; read in the cell, a
@@ -47,9 +48,10 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The account's socket says what moved, and the tab reads that again.** A frame names what moved
   and never carries it, since a dropped frame must not be a lost write.
   `packages/client/src/library-cache.ts`.
-- **The tab asks before it loses the open item's edit.** One router blocker guards every way off
-  the item, a click, Back, Forward and the tab's close, since the item rides the URL; only typing
-  no connection carried (`OpenNote.unsent`) asks, and a leave waits for the note to say it stored
+- **The tab asks before it loses the open item's edit.** Every move off the item asks the leave
+  gate before it pushes, Back or Forward puts the item's entry back until the person answers, and
+  the tab's close asks the browser's own prompt, since the item rides the URL; only typing no
+  connection carried (`OpenNote.unsent`) asks, and a leave waits for the note to say it stored
   every edit. `apps/web/src/library/item/leave-item.ts`.
 - **A session's end is answered however the tab meets it.** A call's refusal, an upload's, which
   is the same error, and a keeper reading the session on a timer end it one way, to the site's
@@ -89,12 +91,13 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The panel opens through its sidebar's own handle.** A reveal and a toggle ask the provider,
   which holds the window's pref above 768px and a sheet's open below it, since a write of the pref
   alone opens nothing in a narrow window. `apps/web/src/library/workspace-store.ts`.
-- **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
-  the kind and the open item are the route's search, so Back and Forward walk them, a link opens
-  them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside
-  the item as `?find=` until its find bar is on them, and Settings is a layer over the inert
-  workspace, since a view held beside the router is one Back cannot reach and a sibling route
-  unmounts the item. `apps/web/src/library/library-search.ts`.
+- **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope
+  (`?scope=unsorted`, `?folder=<id>`, `?tag=<name>`), the kind and the open item are flat
+  parameters, each move a shallow `pushState` Next renders nothing for, so Back and Forward walk
+  them, a link opens them and a bare `/library` is All items; a kind replaces its entry, a search's
+  words ride beside the item as `?find=` until its find bar is on them, and Settings is a layer over
+  the inert workspace, since a view held beside the address is one Back cannot reach and a page of
+  its own unmounts the item. `apps/web/src/library/library-history.ts`.
 - **What the tab remembers is a field of a persisted store, by whose it is.** The device's (the
   site's theme, the dials, spell check) reach every window, the window's layout opens the next, and
   the account's id goes with the account, each a zod field behind `usePref`, since a pref nothing
@@ -158,7 +161,7 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   a pasted file up first, so the cell never meets a sha it does not hold.
   `apps/web/src/library/item/page-editor-host.ts`.
 - **The editor's host is whole the moment it is installed.** A link, a tag, Ask the agent and a
-  note the editor makes are answered by the router, the query client and the tab's store, handed
+  note the editor makes are answered by the tab's moves, the query client and its store, handed
   over once as the library first renders, since actions bound from a component's effect leave a
   host that does nothing until they are. `apps/web/src/library/item/page-editor-host.ts`.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
@@ -180,6 +183,6 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   missing key or an update outside `act` only there, so a suite that just logs it stays green over
   a defect. `apps/web/src/library/test-support/console-error-gate.ts`.
 - **The tab is a route of the site, and its suites run beside the site's** (owner decision). The
-  Worker serves it and the Mac app's window loads it from there, its suites run under jsdom over a
-  memory router, and `apps/web/tsconfig.json` holds it to the Mac app's WebKit stdlib.
+  app serves it and the Mac app's window loads it from there, its suites run under jsdom at the
+  window's own address, and `apps/web/tsconfig.json` holds it to the Mac app's WebKit stdlib.
   `apps/web/vitest.config.ts`.

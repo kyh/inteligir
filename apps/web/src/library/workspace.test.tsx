@@ -8,14 +8,13 @@ import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { onlineManager } from "@tanstack/react-query";
-import { RouterProvider } from "@tanstack/react-router";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { forgetAccountStorage } from "./cloud/account-storage";
 import { windowLayout } from "./prefs";
-import { createLibraryRouter, openedOver } from "./test-support/library-router";
+import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
 
@@ -29,12 +28,15 @@ const ADDRESS = "The page's address";
 const NOTE = "Field notes";
 
 // the whole page at an address, over the fake cell, unless the suite answers a call itself
-const pageAt = (entry: string, cell: FakeCell, answer?: (call: CellCall) => object | undefined) => {
+const pageAt = async (
+  entry: string,
+  cell: FakeCell,
+  answer?: (call: CellCall) => object | undefined,
+) => {
   forgetAccountStorage();
   const { calls, library } = fakePageLibrary({ answer, cell });
-  const router = createLibraryRouter(entry, openedOver(library));
-  render(<RouterProvider router={router} />);
-  return { calls, router };
+  renderLibraryAt(entry, await openedOver(library));
+  return { calls };
 };
 
 // a key under the platform's modifier
@@ -45,9 +47,9 @@ const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
   calls.filter((call) => call.path === path).map((call) => call.input);
 
 // the whole page with a note open
-const pageOverANote = (): void => {
+const pageOverANote = async (): Promise<void> => {
   const cell = createFakeCell();
-  pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
+  await pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
 };
 
 // the whole page with a note open over its live document, once the note's line has drawn
@@ -61,22 +63,17 @@ const pageOverALiveNote = async (alsoInAddress = "") => {
       section: "note",
     },
   ]);
-  const { router } = pageAt(`/library?item=${id}${alsoInAddress}`, cell);
+  await pageAt(`/library?item=${id}${alsoInAddress}`, cell);
   // read whole, since a find in the address marks its words in the commit that draws them
   await waitFor(() => {
     expect(document.querySelector("[data-slate-editor]")?.textContent).toBe("Typed on the Mac.");
   });
-  return { id, router, server };
+  return { id, server };
 };
-
-type PageRouter = ReturnType<typeof pageAt>["router"];
-
-const openItem = (router: PageRouter): string | null =>
-  new URL(router.history.location.href, "http://page").searchParams.get("item");
 
 // the whole page at the library, with Save a link's dialog open
 const askedToSaveALink = async (answer?: (call: CellCall) => object | undefined) => {
-  const { calls } = pageAt("/library", createFakeCell(), answer);
+  const { calls } = await pageAt("/library", createFakeCell(), answer);
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Save a link…" }));
   await screen.findByRole("textbox", { name: ADDRESS });
@@ -141,8 +138,7 @@ describe("Empty Deleted", () => {
     cell.seed.item({ deletedAt: 1, title: "A deleted note" });
     cell.seed.item({ deletedAt: 1, kind: "pdf", title: "A deleted paper" });
     const said = vi.spyOn(toast, "success");
-    const deleted = encodeURIComponent(JSON.stringify({ kind: "deleted" }));
-    const { calls } = pageAt(`/library?scope=${deleted}&kind=pdf`, cell);
+    const { calls } = await pageAt("/library?scope=deleted&kind=pdf", cell);
 
     // offered once the listing answered
     const empty = await screen.findByRole("button", { name: "Empty Deleted…" });
@@ -172,7 +168,7 @@ describe("⌘A", () => {
       cell.seed.item({ title: `Note ${String(at)}` });
     }
     const said = vi.spyOn(toast, "success");
-    const { calls } = pageAt("/library", cell);
+    const { calls } = await pageAt("/library", cell);
 
     const grid = await screen.findByRole("grid", { name: "Library" });
     fireEvent.keyDown(grid, chord("a"));
@@ -193,7 +189,7 @@ describe("⌘A", () => {
 
 describe("an open item's title", () => {
   it("sets its own spell check off, as the body does", async () => {
-    pageOverANote();
+    await pageOverANote();
 
     const title = await screen.findByRole("textbox", { name: "Title" });
 
@@ -203,7 +199,7 @@ describe("an open item's title", () => {
   it("keeps the keyboard as Enter names it", async () => {
     const cell = createFakeCell();
     const id = cell.seed.item({ title: NOTE });
-    pageAt(`/library?item=${id}`, cell);
+    await pageAt(`/library?item=${id}`, cell);
     const title = await screen.findByRole("textbox", { name: "Title" });
 
     title.focus();
@@ -219,7 +215,7 @@ describe("an open item's title", () => {
 
   it("says why the cell refused a new one, and shows the one it holds", async () => {
     const cell = createFakeCell();
-    pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell, (call) => {
+    await pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell, (call) => {
       if (call.path === "library.items.organize") {
         throw new Error("the cell is down");
       }
@@ -247,7 +243,7 @@ describe("an open link nobody named", () => {
       title: "",
       url: "https://example.com/posts/a-long-read",
     });
-    pageAt(`/library?item=${id}`, cell);
+    await pageAt(`/library?item=${id}`, cell);
 
     const title = await screen.findByRole("textbox", { name: "Title" });
 
@@ -271,13 +267,13 @@ describe("an open item's body", () => {
   });
 
   it("opens with the find bar on the words its address carries, and the address drops them", async () => {
-    const { id, router } = await pageOverALiveNote("&find=Mac");
+    const { id } = await pageOverALiveNote("&find=Mac");
 
     const find = await screen.findByRole("textbox", { name: "Find" });
 
     expect(find).toHaveProperty("value", "Mac");
     await waitFor(() => {
-      expect(router.history.location.search).toBe(`?item=${id}`);
+      expect(window.location.search).toBe(`?item=${id}`);
     });
   });
 });
@@ -294,7 +290,7 @@ describe("an open item holding typing no connection carried", () => {
   };
 
   it("asks before a leave: Stay keeps the item and the grid's scope, Discard edits goes", async () => {
-    const { id, router, server } = await pageOverALiveNote();
+    const { id, server } = await pageOverALiveNote();
     server.answer = "hang";
     await act(async () => {
       server.drop();
@@ -308,12 +304,12 @@ describe("an open item holding typing no connection carried", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
     await answer("Stay");
-    expect(router.history.location.search).toBe(`?item=${id}`);
+    expect(window.location.search).toBe(`?item=${id}`);
 
     fireEvent.click(screen.getByRole("button", { name: "Back to the library" }));
     await answer("Discard edits");
     await waitFor(() => {
-      expect(openItem(router)).toBeNull();
+      expect(addressed("item")).toBeNull();
     });
   });
 });
@@ -321,11 +317,11 @@ describe("an open item holding typing no connection carried", () => {
 // the whole page at the library, with New note chosen from the Add menu and its item open
 const madeANote = async () => {
   const cell = createFakeCell();
-  const { router } = pageAt("/library", cell);
+  await pageAt("/library", cell);
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
   const title = await screen.findByRole("textbox", { name: "Title" });
-  const id = z.string().parse(openItem(router));
+  const id = z.string().parse(addressed("item"));
   return { cell, id, title };
 };
 
@@ -354,7 +350,7 @@ describe("what the editor asks of the page", () => {
   it("makes a note in the open item's folder", async () => {
     const cell = createFakeCell();
     const folderId = cell.seed.folder("Reading");
-    pageAt(`/library?item=${cell.seed.item({ folderId, title: "An article" })}`, cell);
+    await pageAt(`/library?item=${cell.seed.item({ folderId, title: "An article" })}`, cell);
     await screen.findByRole("textbox", { name: "Title" });
 
     const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Extract" });
@@ -363,7 +359,7 @@ describe("what the editor asks of the page", () => {
   });
 
   it("quotes a passage asked about in the agent's composer, which takes the keyboard", async () => {
-    pageOverANote();
+    await pageOverANote();
     await screen.findByRole("textbox", { name: "Title" });
 
     act(() => {
@@ -395,7 +391,7 @@ const readingFolder = () => {
 
 describe("where the tab is", () => {
   it("walks scopes on Back and Forward, All items being the bare address", async () => {
-    const { router } = pageAt("/library", readingFolder().cell);
+    await pageAt("/library", readingFolder().cell);
     await shows("All items");
 
     fireEvent.click(railRow("Folders", /^Reading/u));
@@ -404,30 +400,28 @@ describe("where the tab is", () => {
     await shows("#field");
 
     act(() => {
-      router.history.back();
+      window.history.back();
     });
     await shows("Reading");
     act(() => {
-      router.history.back();
+      window.history.back();
     });
     await shows("All items");
     act(() => {
-      router.history.forward();
+      window.history.forward();
     });
     await shows("Reading");
   });
 
   it("opens the scope its address names", async () => {
     const { cell, folderId } = readingFolder();
-    const scope = JSON.stringify({ folderId, kind: "folder" });
-
-    pageAt(`/library?scope=${encodeURIComponent(scope)}`, cell);
+    await pageAt(`/library?folder=${folderId}`, cell);
 
     await shows("Reading");
   });
 
   it("narrows by kind in place, so Back leaves the scope rather than the kind", async () => {
-    const { router } = pageAt("/library", readingFolder().cell);
+    await pageAt("/library", readingFolder().cell);
     await shows("All items");
     fireEvent.click(railRow("Folders", /^Reading/u));
     await shows("Reading");
@@ -437,20 +431,17 @@ describe("where the tab is", () => {
     );
 
     await waitFor(() => {
-      expect(router.state.location.search).toMatchObject({ kind: "image" });
+      expect(addressed("kind")).toBe("image");
     });
     act(() => {
-      router.history.back();
+      window.history.back();
     });
     await shows("All items");
   });
 
   it("shows a tag a note names in the tag's grid, leaving the note and its kind", async () => {
     const { cell } = readingFolder();
-    const { router } = pageAt(
-      `/library?kind=note&item=${cell.seed.item({ title: "Plans" })}`,
-      cell,
-    );
+    await pageAt(`/library?kind=note&item=${cell.seed.item({ title: "Plans" })}`, cell);
     await screen.findByRole("textbox", { name: "Title" });
 
     act(() => {
@@ -458,7 +449,7 @@ describe("where the tab is", () => {
     });
 
     await shows("#field");
-    expect(router.state.location.search).toEqual({ scope: { kind: "tag", tag: "field" } });
+    expect(window.location.search).toBe("?tag=field");
   });
 
   it("opens every scope with nothing selected, Back's too, though both scopes list the item", async () => {
@@ -471,7 +462,7 @@ describe("where the tab is", () => {
     };
     const cell = createFakeCell();
     cell.seed.item({ tags: ["field"], title: NOTE });
-    const { router } = pageAt("/library", cell);
+    await pageAt("/library", cell);
     await shows("All items");
     await selectAll();
 
@@ -480,7 +471,7 @@ describe("where the tab is", () => {
     await screen.findByText(NOTHING_SELECTED);
     await selectAll();
     act(() => {
-      router.history.back();
+      window.history.back();
     });
 
     await shows("All items");
@@ -496,7 +487,7 @@ const railState = (): string | undefined => {
 describe("the window's layout", () => {
   it("opens the rail as the window last left it, and keeps its toggle for the next", async () => {
     windowLayout.setState({ railOpen: false });
-    pageAt("/library", createFakeCell());
+    await pageAt("/library", createFakeCell());
     await screen.findByRole("button", { name: "Add to the library" });
     expect(railState()).toBe("collapsed");
 
@@ -513,7 +504,7 @@ describe("the window's layout", () => {
     );
     const PANEL = { name: "Panel" };
     windowLayout.setState({ panelOpen: false });
-    pageAt("/library", createFakeCell());
+    await pageAt("/library", createFakeCell());
     await screen.findByRole("button", { name: "Add to the library" });
 
     fireEvent.keyDown(

@@ -11,9 +11,8 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow;
-      // the library's stylesheet waits for the page that loads it, its suites reaching the rest
-      "entry": ["src/library/import/import-worker.ts", "src/library/styles/*.css"],
+      // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow
+      "entry": ["src/library/import/import-worker.ts"],
       "ignoreDependencies": ["tailwindcss"]
     }
   }

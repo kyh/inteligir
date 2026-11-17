@@ -1,14 +1,12 @@
 // Settings, drawn over the workspace it leaves mounted (`library-layout.tsx`): the account and
 // what reaches it, bringing a library in, and how the editor reads. A section
 // the cloud answers waits for a connection and says so; the editor's are this page's own. Its own
-// route, so it deep-links and Back works, and its account rows are asked for as the route loads
-// (`seedReads`), so they draw at once when the cell has answered.
+// address, so it deep-links and Back works.
 
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
-import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { LICENSES_PATH } from "#lib/site-config";
@@ -18,10 +16,9 @@ import {
   EDITOR_MEASURES,
   EDITOR_SIZES,
 } from "../appearance-options";
-import { seedReads } from "../library-tab";
-import type { TabOpening } from "../library-tab";
+import { libraryGoes } from "../library-history";
 import { devicePrefs, usePref } from "../prefs";
-import { AccountSection, accountReads } from "./account-section";
+import { AccountSection } from "./account-section";
 import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
@@ -98,75 +95,56 @@ const EditorSection = () => {
   );
 };
 
-export const seedSettings = async ({
-  context: { opening },
-}: {
-  context: { opening: TabOpening };
-}): Promise<void> => {
-  await seedReads(opening, (seed, { orpc }) => {
-    const { agent, assistants, devices } = accountReads(orpc);
-    return [seed(devices), seed(assistants), seed(agent)];
-  });
-};
-
-export const SettingsPage = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="flex h-full min-h-0">
-      <nav
-        className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-border p-3"
-        aria-label="Settings"
+export const SettingsPage = () => (
+  <div className="flex h-full min-h-0">
+    <nav
+      className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-border p-3"
+      aria-label="Settings"
+    >
+      <Button
+        variant="ghost"
+        size="compact"
+        className="mb-2 justify-start"
+        onClick={() => {
+          libraryGoes.closeSettings();
+        }}
       >
+        <ArrowLeftIcon />
+        Library
+      </Button>
+      {NAV.map((entry) => (
         <Button
+          key={entry.id}
           variant="ghost"
           size="compact"
-          className="mb-2 justify-start"
+          className="justify-start text-muted-foreground"
           onClick={() => {
-            void navigate({ search: true, to: "/library" });
+            document.querySelector(`#${entry.id}`)?.scrollIntoView();
           }}
         >
-          <ArrowLeftIcon />
-          Library
+          {entry.label}
         </Button>
-        {NAV.map((entry) => (
-          <Button
-            key={entry.id}
-            variant="ghost"
-            size="compact"
-            className="justify-start text-muted-foreground"
-            onClick={() => {
-              document.querySelector(`#${entry.id}`)?.scrollIntoView();
-            }}
-          >
-            {entry.label}
-          </Button>
-        ))}
-      </nav>
-      <main className="min-w-0 flex-1 space-y-6 overflow-y-auto px-8 py-6" data-settings>
-        <h1 className="m-0 text-title font-medium">Settings</h1>
-        <AccountSection />
-        <Separator />
-        <ImportSection />
-        <Separator />
-        <EditorSection />
-        <Separator />
-        <section id="about" className="scroll-mt-10 space-y-2 pb-16">
-          <SectionHeading>About</SectionHeading>
-          <dl className="space-y-1.5">
-            <UpdatesRow />
-            <Row label="Licenses">
-              <a
-                href={LICENSES_PATH}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                Open-source software Inteligir is built on
-              </a>
-            </Row>
-          </dl>
-        </section>
-      </main>
-    </div>
-  );
-};
+      ))}
+    </nav>
+    <main className="min-w-0 flex-1 space-y-6 overflow-y-auto px-8 py-6" data-settings>
+      <h1 className="m-0 text-title font-medium">Settings</h1>
+      <AccountSection />
+      <Separator />
+      <ImportSection />
+      <Separator />
+      <EditorSection />
+      <Separator />
+      <section id="about" className="scroll-mt-10 space-y-2 pb-16">
+        <SectionHeading>About</SectionHeading>
+        <dl className="space-y-1.5">
+          <UpdatesRow />
+          <Row label="Licenses">
+            <a href={LICENSES_PATH} target="_blank" rel="noopener noreferrer" className="underline">
+              Open-source software Inteligir is built on
+            </a>
+          </Row>
+        </dl>
+      </section>
+    </main>
+  </div>
+);

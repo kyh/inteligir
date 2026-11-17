@@ -1,11 +1,14 @@
-// Every library route's own `errorComponent`: a route's boundary is its own `errorComponent ??
-// default`, so the layout's alone would leave each child unguarded, and the site's default is no
-// library's. It says what the crash left as it was: whatever reached the library is safe there.
+// The library's crash, which `app/(library)/error.tsx` draws in place of the workspace or Settings:
+// it says what the crash left as it was, since whatever reached the library is safe there.
 
 import { Button } from "@repo/ui/components/button";
-import type { ErrorComponentProps } from "@tanstack/react-router";
 
-export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
+interface RenderCrashProps {
+  readonly error: unknown;
+  readonly retry: () => void;
+}
+
+export const RenderCrash = ({ error, retry }: RenderCrashProps) => (
   <div className="flex min-h-dvh items-center justify-center p-6">
     <div className="max-w-lg space-y-3">
       <h1 className="text-title font-medium">Something went wrong showing your library.</h1>
@@ -16,7 +19,7 @@ export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
         {error instanceof Error ? (error.stack ?? error.message) : String(error)}
       </pre>
       <div className="flex gap-2">
-        <Button type="button" variant="secondary" size="compact" onClick={reset}>
+        <Button type="button" variant="secondary" size="compact" onClick={retry}>
           Try again
         </Button>
         <Button
