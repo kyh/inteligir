@@ -49,6 +49,9 @@ and the suites' databases it ships into.
   row's own, a job's payload by its kind, an op's answer by its op, a change
   set's entry, stays untyped.** A typed column hands those back as a type no
   read proved. `packages/db/src/library-schema.ts`.
+- **A key a link finds an item by, `title_key` and `alias_keys`, is computed in
+  JS and stored.** Postgres's `lower()` folds neither Unicode form nor case as
+  the library's `titleKey` does. `packages/db/src/library-schema.ts`.
 - **What the library counts is a sum of its rows, and a purged item a row of
   `purged_item`.** A counter kept beside the rows it counts can drift, and a
   purged row in `item` makes every column nullable and every query filter it.

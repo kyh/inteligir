@@ -66,11 +66,14 @@ export const libraryState = pgTable.withRLS("library_state", {
 });
 
 // an item, in Deleted or not: its fields one column each, and what its row derives, so a listing
-// reads the row alone. `title_sort` is its card's title as the listing orders it
+// reads the row alone. `title_sort` is its card's title as the listing orders it; `title_key` and
+// `alias_keys` are its title and aliases as a `[[link]]` names it, keyed in JS, since Postgres's
+// lower() folds neither Unicode form nor case as the library's key does
 export const item = pgTable.withRLS(
   "item",
   {
     accountId: accountId(),
+    aliasKeys: text("alias_keys").array().notNull(),
     aliases: jsonb("aliases").$type<LibraryItemFields["aliases"]>().notNull(),
     author: text("author"),
     card: jsonb("card").$type<ItemCard>().notNull(),
@@ -93,6 +96,7 @@ export const item = pgTable.withRLS(
     site: text("site"),
     tags: jsonb("tags").$type<LibraryItemFields["tags"]>().notNull(),
     title: text("title").notNull(),
+    titleKey: text("title_key").notNull(),
     titleSort: text("title_sort").notNull(),
     updatedAt: ms("updated_at").notNull(),
     url: text("url"),
@@ -132,6 +136,12 @@ export const item = pgTable.withRLS(
       .on(table.accountId, table.deletedAt.desc().nullsFirst(), table.id)
       .where(sql`${table.deletedAt} is not null`),
     index("item_seq").on(table.accountId, table.seq),
+    index("item_live_title_key")
+      .on(table.accountId, table.titleKey)
+      .where(sql`${table.deletedAt} is null`),
+    index("item_live_alias_keys")
+      .using("gin", table.aliasKeys)
+      .where(sql`${table.deletedAt} is null`),
   ],
 );
 

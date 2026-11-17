@@ -11,6 +11,7 @@ import type {
   DerivedItem,
   ItemCard,
 } from "@repo/contract/library/derive-item";
+import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import type { itemLink, itemSearch } from "@repo/db/library-schema";
@@ -45,9 +46,14 @@ type ItemRow = typeof item.$inferInsert;
 export const itemRowOf = (accountId: string, stored: StoredItem): ItemRow => ({
   ...stored.fields,
   accountId,
+  // a key no title can name is filed under none
+  aliasKeys: [...new Set(stored.fields.aliases.map((alias) => titleKey(alias)))].filter(
+    (key) => key !== "",
+  ),
   card: stored.card,
   id: stored.id,
   seq: stored.seq,
+  titleKey: titleKey(stored.fields.title),
   // case never orders a listing by title
   titleSort: stored.card.title.toLowerCase(),
   updatedAt: stored.updatedAt,
