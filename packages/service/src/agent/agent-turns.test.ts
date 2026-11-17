@@ -418,15 +418,20 @@ describe("a turn's seal", () => {
       sent.threadId,
     );
     expect(set).toStrictEqual([{ sealed_at: null }]);
-    // the turn stopped and sealed, and the reading sent with the seal's commit
+    // the turn stopped and sealed: the reading is due with the seal's commit, and the alarm sends it
     await asLaptop(
       account,
       async (client) => await client.agent.cancel({ threadId: sent.threadId }),
     );
     await settled(account, sent.threadId);
-    await expect(
-      cellRows(account, "SELECT id FROM jobs WHERE kind = 'fill'"),
-    ).resolves.toStrictEqual([]);
+    await vi.waitFor(
+      async () => {
+        await expect(
+          cellRows(account, "SELECT id FROM jobs WHERE kind = 'fill'"),
+        ).resolves.toStrictEqual([]);
+      },
+      { interval: 50, timeout: 10_000 },
+    );
   });
 });
 
