@@ -22,3 +22,10 @@ and the suites' databases it ships into.
   connection, where a statement prepared on another is missing; drizzle-kit
   alone takes the direct `POSTGRES_URL_NON_POOLING`, since its introspection
   stalls on the pooler. `packages/db/src/drizzle-client.ts`.
+- **The client carries every table's relations, though none relates to
+  another.** Better Auth's drizzle adapter for drizzle 1.0 finds its models in
+  `db._.relations`. `packages/db/src/drizzle-relations.ts`.
+- **An invite code is spent once and never deleted; deleting the account it
+  made forgets only who spent it.** A deleted account's code would otherwise
+  open a second one, and the address is the account's to take with it.
+  `packages/db/src/auth-schema.ts`.

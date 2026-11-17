@@ -52,13 +52,7 @@ pnpm db:push                                    # sql/extensions.sql, then the P
 pnpm --filter @repo/db push:check               # a second push plans nothing, as CI asks
 pnpm --filter @repo/db studio                   # browse local Postgres (Drizzle Studio)
 pnpm --filter @repo/db stop                     # stop it; `status` says whether it runs
-```
-
-D1 and the objects' schemas still run against the local Worker's files:
-
-```bash
-pnpm bootstrap                                  # the D1 schema and the dev account, into a running pnpm dev:web
-pnpm --filter @repo/db ddl                      # each schema's ddl.sql, from its src/<schema>/schema.ts
+pnpm db:seed                                    # the dev account and DEV-INVITE, into the pushed database; safe to run again
 ```
 
 A suite under `dbSuite` (`@repo/db/test-database`) runs only with
@@ -78,8 +72,8 @@ the library tab `pnpm dev:web` serves, as an app of its own
 (`com.inteligir.desktop.dev`). A Worker on another port is one more config for
 Tauri to merge:
 `pnpm --filter @repo/desktop dev --config '{"build":{"devUrl":"http://localhost:<port>/library"}}'`.
-Its first run is the site's sign-in with an account of that Worker (`AGENTS.md`
-§ Seeded login, and `pnpm bootstrap <port>` for a Worker on another port). An
+Its first run is the site's sign-in with an account of that database
+(`AGENTS.md` § Seeded login). An
 edit to the shell's Rust rebuilds and
 relaunches it; an edit to the library tab reaches the window as `pnpm dev:web`
 serves it.
@@ -99,8 +93,8 @@ around the site's URL, and fails without the release's keys;
 device's sign-in, `/v1`, every library cell and the account's socket, each
 conversation with the built-in agent, the fill queue, the connector and the
 library tab at `/library` — over a local D1 file, R2, a queue, KV and
-miniflare's Durable Objects. Sign-up is invite-only, and `pnpm bootstrap` beside
-it lays the D1 schema and signs up the dev account (`AGENTS.md` § Seeded login).
+miniflare's Durable Objects. Sign-up is invite-only, and `pnpm db:seed` makes
+the dev account and its invite (`AGENTS.md` § Seeded login).
 
 From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
 with `-c jar`, then call `/v1` as the phone does, `-b jar -H 'expo-origin:

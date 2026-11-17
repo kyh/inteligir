@@ -57,8 +57,8 @@ apps/desktop           * the Mac app: a Tauri window on the site's /library, its
 apps/mobile            * the iPhone app: native lists, the share sheet, the editor in an Expo DOM component
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
-packages/service       * the cloud's code apps/web serves, its environment's schema first; each area ports from the tag cloudflare-last
-packages/db            * Postgres: the drizzle client, the schema's push, local Supabase and the suites' databases
+packages/service       * the cloud's code apps/web serves: its environment and accounts; each other area ports from the tag cloudflare-last
+packages/db            * Postgres: accounts' tables, the drizzle client, the schema's push, local Supabase and the suites' databases
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over linkedom on every host
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads; a waiting save, the extension's too
@@ -86,10 +86,31 @@ edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which the
 app and `@repo/db`'s scripts read first, and `pnpm db:push` gives it the
 schema. `curl localhost:5174/api/health` answers 200 once the database does.
 
-There is no seeded login until accounts land on the app; the tag
-`cloudflare-last` holds the Worker's. **Never run `pnpm db:push-remote`
-(`@repo/db`'s `push:remote`)**: it pushes the PRODUCTION Postgres. Drive the
-site with agent-browser (`.agents/skills/agent-browser`).
+### Seeded login
+
+```sh
+pnpm db:seed     # after db:start and db:push: the dev account and DEV-INVITE, no server needed, safe to run again
+```
+
+```
+dev@inteligir.local / password
+```
+
+Headless, a session is one curl:
+
+```sh
+curl -s -c jar localhost:5174/api/auth/sign-in/email \
+  -H 'content-type: application/json' -d '{"email":"dev@inteligir.local","password":"password"}'
+```
+
+Sign-up stays invite-only: `DEV-INVITE` opens one more account at
+`/app/sign-up`, and another takes a row in `invite_code`
+(`pnpm --filter @repo/db studio`). Auth allows 10 requests/60s per address, 3
+per 10s on sign-in; a script making several users sets
+`RATE_LIMIT_DISABLED=true` in `.env`. A reset mail lands in `pnpm dev:web`'s
+log. **Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it
+pushes the PRODUCTION Postgres. Drive the site with agent-browser
+(`.agents/skills/agent-browser`).
 
 ## Verify a change
 
