@@ -1,18 +1,28 @@
-// The cell's one alarm runs what the `jobs` table holds: the daily prune of change sets, an upload
-// whose room was held too long, a file nothing may name any more, a stray file to take out of R2,
-// a page's reading to send to the fill queue, and the built-in agent's turns: one to hand to its
-// conversation's object, and one whose object has gone quiet to ask after. A job is a row, so it
-// survives eviction and a missed alarm; the alarm is set to the earliest due one, and only while
-// any is waiting
+// The cell's one alarm runs what the `jobs` table holds (`./cell-alarm`): the daily prune of change
+// sets, an upload whose room was held too long, a file nothing may name any more, a page's reading
+// to send to the fill queue, a stray file to take out of R2, a purged item's note to empty, and the
+// built-in agent's turns: one to hand to its conversation's object, and one whose object has gone
+// quiet to ask after. A job is a row, so it survives eviction and a missed alarm; the alarm is set
+// to the earliest due one, and only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
+//
+// A row's life is its `nextAt` and `attempts`. Asked for (`scheduleJob`, `ensureJob`), it waits
+// until `nextAt`. A run takes it by a lease (`leaseJobs`), which counts the run and puts the row
+// off by its backoff before anything runs, so a run that throws, or one the platform ends while
+// it waits on R2, the queue or another object, where no catch sees it, leaves a row that waits its
+// turn again and never one still due. The run that gets somewhere ends the row in a transaction of
+// its own: dropped (`finishJob`, or the rule that owns it), or asked for again.
 
-import { and, asc, eq, inArray, lte, min, sql } from "drizzle-orm";
+import { and, asc, eq, lte, min } from "drizzle-orm";
 import { z } from "zod";
 
 import { jobs } from "@repo/db/cell/schema";
+import type { JOB_KINDS } from "@repo/db/cell/schema";
 import { excluded } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
+
+export type JobKind = (typeof JOB_KINDS)[number];
 
 const threadSchema = z.object({ threadId: z.string().min(1) });
 const fileSchema = z.object({ sha: z.string() });
@@ -33,24 +43,13 @@ const PAYLOAD_SCHEMAS = {
   stray: fileSchema,
   unnamed: fileSchema,
   upload: fileSchema,
-};
+} satisfies Record<JobKind, z.ZodType>;
 
-export type JobKind = keyof typeof PAYLOAD_SCHEMAS;
 export type JobPayload<K extends JobKind> = z.output<(typeof PAYLOAD_SCHEMAS)[K]>;
 
 // the same table typed by kind, so a kind's schema reads as its own payload's
 type PayloadTable = { readonly [K in JobKind]: z.ZodType<JobPayload<K>> };
 const PAYLOADS: PayloadTable = PAYLOAD_SCHEMAS;
-
-// a union over its kinds, so a run that switches on `kind` reads that kind's payload
-export type DueJob<K extends JobKind = JobKind> = {
-  readonly [P in K]: {
-    readonly id: string;
-    readonly kind: P;
-    readonly payload: JobPayload<P>;
-    readonly attempts: number;
-  };
-}[K];
 
 export interface JobRequest<K extends JobKind> {
   readonly id: string;
@@ -58,9 +57,12 @@ export interface JobRequest<K extends JobKind> {
   readonly payload: JobPayload<K>;
 }
 
-// the payload as its row stores it
-export const payloadText = <K extends JobKind>(kind: K, payload: JobPayload<K>): string =>
-  JSON.stringify(PAYLOADS[kind].parse(payload));
+// A job a run has taken. `attempts` counts this run, and `nextAt` is when the row comes due again
+// unless the run ends it; together they tell this lease from any later ask for the job
+export interface Lease<K extends JobKind = JobKind> extends JobRequest<K> {
+  readonly attempts: number;
+  readonly nextAt: number;
+}
 
 const readPayload = <K extends JobKind>(kind: K, text: string): JobPayload<K> | null => {
   const json = jsonTextSchema.safeParse(text);
@@ -73,11 +75,11 @@ const rowOf = <K extends JobKind>(job: JobRequest<K>, nextAt: number) => ({
   id: job.id,
   kind: job.kind,
   nextAt,
-  payload: payloadText(job.kind, job.payload),
+  payload: JSON.stringify(PAYLOADS[job.kind].parse(job.payload)),
 });
 
-// a job asked for at `nextAt`; one already waiting is asked for again, its count of failed runs
-// started over
+// a job asked for at `nextAt`; one already waiting is asked for again, its count of runs started
+// over, which also takes it back from a run that holds it
 export const scheduleJob = <K extends JobKind>(
   db: CellDb,
   job: JobRequest<K>,
@@ -105,54 +107,46 @@ export const dropJob = (db: CellDb, id: string): void => {
   db.delete(jobs).where(eq(jobs.id, id)).run();
 };
 
-// a job's next run moved, its attempts counted
-export const deferJob = (db: CellDb, id: string, nextAt: number): void => {
-  db.update(jobs)
-    .set({ attempts: sql`${jobs.attempts} + 1`, nextAt })
-    .where(eq(jobs.id, id))
-    .run();
-};
-
-// a failed run waits longer each time, at most an hour
+// a run that never ends its job leaves it this long, doubled with each run before, at most an hour
 const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 60 * 60_000;
 
-// a failed run counted, and the next put off. A job whose run the platform may end (past its CPU,
-// its memory), which no catch would see, counts its run so before it starts, and the run that gets
-// somewhere asks for its next itself (`scheduleJob`), starting the count over
-export const retryJob = (db: CellDb, job: DueJob, now: number): void => {
-  deferJob(db, job.id, now + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** job.attempts));
-};
+// what one alarm run takes on of each kind, the longest waiting first
+const LOT = 50;
 
-// what one alarm run takes on of each lot, the longest waiting first
-const DUE_PER_RUN = 50;
-
-// the due jobs of `kinds`, each payload read as its kind's. A row whose payload its kind no longer
-// reads is dropped, since no run could take it and its due time would hold the alarm on it
-export const dueJobs = <K extends JobKind>(
-  db: CellDb,
-  now: number,
-  kinds: readonly [K, ...K[]],
-): DueJob<K>[] => {
-  const kindSchema = z.enum(kinds);
-  return db
-    .select({ attempts: jobs.attempts, id: jobs.id, kind: jobs.kind, payload: jobs.payload })
+// The due jobs of `kind`, each taken: its run counted and its next put off by its backoff, in the
+// transaction that reads it. A row whose payload its kind no longer reads is dropped, since no run
+// could take it
+export const leaseJobs = <K extends JobKind>(db: CellDb, now: number, kind: K): Lease<K>[] =>
+  db
+    .select({ attempts: jobs.attempts, id: jobs.id, payload: jobs.payload })
     .from(jobs)
-    .where(and(lte(jobs.nextAt, now), inArray(jobs.kind, kinds)))
+    .where(and(eq(jobs.kind, kind), lte(jobs.nextAt, now)))
     .orderBy(asc(jobs.nextAt), asc(jobs.id))
-    .limit(DUE_PER_RUN)
+    .limit(LOT)
     .all()
     .flatMap((row) => {
-      const kind = kindSchema.parse(row.kind);
       const payload = readPayload(kind, row.payload);
       if (payload === null) {
         console.error({ event: "job-unreadable", id: row.id, kind });
         dropJob(db, row.id);
         return [];
       }
-      const job: DueJob<K> = { attempts: row.attempts, id: row.id, kind, payload };
-      return [job];
+      const attempts = row.attempts + 1;
+      const nextAt = now + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** row.attempts);
+      db.update(jobs).set({ attempts, nextAt }).where(eq(jobs.id, row.id)).run();
+      const lease: Lease<K> = { attempts, id: row.id, kind, nextAt, payload };
+      return [lease];
     });
+
+// a leased job done: its row goes, unless the job was asked for again since the lease, which waits
+// for a run of its own
+export const finishJob = (db: CellDb, lease: Pick<Lease, "attempts" | "id" | "nextAt">): void => {
+  db.delete(jobs)
+    .where(
+      and(eq(jobs.id, lease.id), eq(jobs.attempts, lease.attempts), eq(jobs.nextAt, lease.nextAt)),
+    )
+    .run();
 };
 
 // the payload of every job of `kind`, due or not, but one its kind no longer reads

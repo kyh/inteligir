@@ -1,52 +1,34 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
-// its derived rows and `meta`, through drizzle's builders. A write binds every value and cuts every
-// many-row statement under a Durable Object's limits (`insertChunks`). A row is applied only over
-// an older one, so a write stamped with a sequence the row has passed lands nothing.
+// its derived rows and the cell's one row, through drizzle's builders. A write binds every value and
+// cuts every many-row statement under a Durable Object's limits (`insertChunks`).
 
 import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { z } from "zod";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
+import type { BODY_HOMES } from "@repo/db/cell/schema";
 import {
-  BODY_HOMES,
   bodyTexts,
+  cellState,
   items,
   itemTags,
   links,
-  meta,
+  purgedItems,
   seedBlocks,
 } from "@repo/db/cell/schema";
-import { canonicalJson } from "@repo/contract/library/canonical-json";
-import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
 import type {
   BodyDigest,
   DerivedLink,
   DerivedTag,
   ItemCard,
 } from "@repo/contract/library/derive-item";
-import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { ListingRow } from "@repo/contract/library/library-index";
-import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { dropSearchRow } from "../search/search-index";
 import { LibraryRowError } from "./library-sql";
 
 import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
-
-const parseJsonColumn = <T>(text: string, schema: z.ZodType<T>, what: string): T => {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch (error) {
-    throw new LibraryRowError(`${what} is not JSON`, { cause: error });
-  }
-  const parsed = schema.safeParse(value);
-  if (!parsed.success) {
-    throw new LibraryRowError(`${what} is not what this build writes`, { cause: parsed.error });
-  }
-  return parsed.data;
-};
 
 // ---- items ----
 
@@ -60,9 +42,10 @@ export interface ItemBody {
   readonly bytes: number;
 }
 
-// an item's row: its fields, and what its body says that the row carries (its card) beside the
-// url key its fields give, so a listing reads the row alone
-export interface ItemRowWrite {
+// an item as the library holds it, in Deleted or not: its fields, its body, and what its body says
+// that the row carries (its card) beside the url key its fields give, so a listing reads the row
+// alone
+export interface StoredItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
   readonly body: ItemBody;
@@ -73,197 +56,99 @@ export interface ItemRowWrite {
 }
 
 // every column a write replaces: all but the row's own ids
-const REPLACED = Object.entries(getColumns(items)).filter(([key]) => key !== "rid" && key !== "id");
-
-const ITEM_UPSERT = Object.fromEntries(REPLACED.map(([key, column]) => [key, excluded(column)]));
-
-// an upsert whose update is skipped returns no row (https://www.sqlite.org/lang_returning.html)
-const newerThanHeld = sql`${excluded(items.seq)} > ${items.seq}`;
-
-// an item's row, over the one it replaces when that one is older: whether it landed
-export const storeItemRow = (db: CellDb, write: ItemRowWrite): boolean => {
-  const { fields } = write;
-  const landed = db
-    .insert(items)
-    .values({
-      aliases: JSON.stringify(fields.aliases),
-      author: fields.author,
-      bodyBytes: write.body.bytes,
-      bodyDigest: JSON.stringify(write.body.digest),
-      bodyHome: write.body.home,
-      bodyVersion: write.body.version,
-      card: JSON.stringify(write.card),
-      coverSha: fields.coverSha,
-      deletedAt: fields.deletedAt,
-      description: fields.description,
-      fetchError: fields.fetchError,
-      fetchState: fields.fetchState,
-      fetchedAt: fields.fetchedAt,
-      folderId: fields.folderId,
-      id: write.id,
-      kind: fields.kind,
-      lang: fields.lang,
-      originalName: fields.originalName,
-      originalSha: fields.originalSha,
-      pinnedAt: fields.pinnedAt,
-      properties: canonicalJson(fields.properties),
-      published: fields.published,
-      purged: 0,
-      savedAt: fields.savedAt,
-      seq: write.seq,
-      site: fields.site,
-      tags: JSON.stringify(fields.tags),
-      title: fields.title,
-      updatedAt: write.updatedAt,
-      url: fields.url,
-      urlKey: write.urlKey,
-    })
-    .onConflictDoUpdate({ set: ITEM_UPSERT, setWhere: newerThanHeld, target: items.id })
-    .returning({ seq: items.seq })
-    .all();
-  return landed.length > 0;
-};
-
-// a tombstone takes its deletion, time and sequence, and nulls every other column it replaces
-const TOMBSTONE_TAKES: ReadonlySet<string> = new Set(["purged", "deletedAt", "updatedAt", "seq"]);
-const TOMBSTONE_UPSERT = Object.fromEntries(
-  REPLACED.map(([key, column]) => [key, TOMBSTONE_TAKES.has(key) ? excluded(column) : sql`NULL`]),
+const ITEM_UPSERT = Object.fromEntries(
+  Object.entries(getColumns(items))
+    .filter(([key]) => key !== "rid" && key !== "id")
+    .map(([key, column]) => [key, excluded(column)]),
 );
 
-export interface TombstoneWrite {
-  readonly id: string;
-  readonly deletedAt: number;
-  readonly updatedAt: number;
-  readonly seq: number;
-}
-
-// a purged item: its id, sequence and deletion stay forever, and everything it held goes but the
-// files it named, which the cell counts for itself, and its note, which a job empties; whether it landed, since a row newer than the
-// tombstone keeps everything it holds
-export const storeTombstone = (db: CellDb, write: TombstoneWrite): boolean => {
-  const [landed] = db
-    .insert(items)
+// an item's row, over the one it held
+export const storeItemRow = (db: CellDb, item: StoredItem): void => {
+  const { body } = item;
+  db.insert(items)
     .values({
-      deletedAt: write.deletedAt,
-      id: write.id,
-      purged: 1,
-      seq: write.seq,
-      updatedAt: write.updatedAt,
+      ...item.fields,
+      bodyBytes: body.bytes,
+      bodyDigest: body.digest,
+      bodyHome: body.home,
+      bodyVersion: body.version,
+      card: item.card,
+      id: item.id,
+      seq: item.seq,
+      updatedAt: item.updatedAt,
+      urlKey: item.urlKey,
     })
-    .onConflictDoUpdate({ set: TOMBSTONE_UPSERT, setWhere: newerThanHeld, target: items.id })
+    .onConflictDoUpdate({ set: ITEM_UPSERT, target: items.id })
+    .run();
+};
+
+// an item emptied from Deleted: its row and everything derived from it go but the files it named,
+// which the cell lets go for itself, and its note, which a job empties; its id stays, purged at
+// the purge's sequence
+export const purgeItem = (db: CellDb, id: string, seq: number): void => {
+  for (const { rid } of db
+    .delete(items)
+    .where(eq(items.id, id))
     .returning({ rid: items.rid })
-    .all();
-  if (landed === undefined) {
-    return false;
+    .all()) {
+    dropSearchRow(db, rid);
   }
-  dropSearchRow(db, landed.rid);
-  db.delete(seedBlocks).where(eq(seedBlocks.itemId, write.id)).run();
-  db.delete(bodyTexts).where(eq(bodyTexts.itemId, write.id)).run();
-  db.delete(links).where(eq(links.sourceId, write.id)).run();
-  db.delete(itemTags).where(eq(itemTags.itemId, write.id)).run();
-  return true;
+  db.delete(seedBlocks).where(eq(seedBlocks.itemId, id)).run();
+  db.delete(bodyTexts).where(eq(bodyTexts.itemId, id)).run();
+  db.delete(links).where(eq(links.sourceId, id)).run();
+  db.delete(itemTags).where(eq(itemTags.itemId, id)).run();
+  db.insert(purgedItems).values({ id, seq }).run();
 };
 
-export interface LiveStoredItem {
-  readonly kind: "live";
-  readonly id: string;
-  readonly fields: LibraryItemFields;
-  readonly body: ItemBody;
-  readonly card: ItemCard;
-  readonly urlKey: string | null;
-  readonly updatedAt: number;
-  readonly seq: number;
-}
+// an item's fields, one column each
+const FIELD_COLUMNS = {
+  aliases: items.aliases,
+  author: items.author,
+  coverSha: items.coverSha,
+  deletedAt: items.deletedAt,
+  description: items.description,
+  fetchError: items.fetchError,
+  fetchState: items.fetchState,
+  fetchedAt: items.fetchedAt,
+  folderId: items.folderId,
+  kind: items.kind,
+  lang: items.lang,
+  originalName: items.originalName,
+  originalSha: items.originalSha,
+  pinnedAt: items.pinnedAt,
+  properties: items.properties,
+  published: items.published,
+  savedAt: items.savedAt,
+  site: items.site,
+  tags: items.tags,
+  title: items.title,
+  url: items.url,
+} satisfies Record<keyof LibraryItemFields, AnySQLiteColumn>;
 
-export type StoredItem =
-  | LiveStoredItem
-  | {
-      readonly kind: "purged";
-      readonly id: string;
-      readonly deletedAt: number | null;
-      readonly updatedAt: number;
-      readonly seq: number;
-    };
-
-const stringList = z.array(z.string());
-
-type ItemRow = typeof items.$inferSelect;
-
-const liveItemOf = (row: ItemRow): LiveStoredItem => {
-  const fields = libraryItemFieldsSchema.safeParse({
-    aliases: parseJsonColumn(row.aliases ?? "", stringList, "an item's aliases"),
-    author: row.author,
-    coverSha: row.coverSha,
-    deletedAt: row.deletedAt,
-    description: row.description,
-    fetchError: row.fetchError,
-    fetchState: row.fetchState,
-    fetchedAt: row.fetchedAt,
-    folderId: row.folderId,
-    kind: row.kind,
-    lang: row.lang,
-    originalName: row.originalName,
-    originalSha: row.originalSha,
-    pinnedAt: row.pinnedAt,
-    properties: parseJsonColumn(
-      row.properties ?? "",
-      z.record(z.string(), z.json()),
-      "an item's properties",
-    ),
-    published: row.published,
-    savedAt: row.savedAt,
-    site: row.site,
-    tags: parseJsonColumn(row.tags ?? "", stringList, "an item's tags"),
-    title: row.title,
-    url: row.url,
-  });
-  if (!fields.success) {
-    throw new LibraryRowError("an item's fields are not what this build writes", {
-      cause: fields.error,
-    });
-  }
-  const home = BODY_HOMES.find((one) => one === row.bodyHome);
-  if (home === undefined || row.bodyVersion === null || row.bodyBytes === null) {
-    throw new LibraryRowError(`the item ${row.id} keeps no body`);
-  }
-  return {
-    body: {
-      bytes: row.bodyBytes,
-      digest: parseJsonColumn(row.bodyDigest ?? "", bodyDigestSchema, "an item's body digest"),
-      home,
-      version: row.bodyVersion,
-    },
-    card: parseJsonColumn(row.card ?? "", itemCardSchema, "an item's card"),
-    fields: fields.data,
-    id: row.id,
-    kind: "live",
-    seq: row.seq,
-    updatedAt: row.updatedAt,
-    urlKey: row.urlKey,
-  };
+const STORED_COLUMNS = {
+  body: {
+    bytes: items.bodyBytes,
+    digest: items.bodyDigest,
+    home: items.bodyHome,
+    version: items.bodyVersion,
+  },
+  card: items.card,
+  fields: FIELD_COLUMNS,
+  id: items.id,
+  seq: items.seq,
+  updatedAt: items.updatedAt,
+  urlKey: items.urlKey,
 };
 
-const storedItemOf = (row: ItemRow): StoredItem =>
-  row.purged === 1
-    ? {
-        deletedAt: row.deletedAt,
-        id: row.id,
-        kind: "purged",
-        seq: row.seq,
-        updatedAt: row.updatedAt,
-      }
-    : liveItemOf(row);
+// the item, in Deleted or not; null for an id no item holds, a purged one's included
+export const readItem = (db: CellDb, id: string): StoredItem | null =>
+  db.select(STORED_COLUMNS).from(items).where(eq(items.id, id)).get() ?? null;
 
-export const readItem = (db: CellDb, id: string): StoredItem | null => {
-  const row = db.select().from(items).where(eq(items.id, id)).get();
-  return row === undefined ? null : storedItemOf(row);
-};
-
-// the item while it is not purged, in Deleted or not
-export const readLiveItem = (db: CellDb, id: string): LiveStoredItem | null => {
-  const item = readItem(db, id);
-  return item?.kind === "live" ? item : null;
-};
+// whether the library made the id already: an item holds it, or a purged one kept it
+export const idTaken = (db: CellDb, id: string): boolean =>
+  db.select({ id: items.id }).from(items).where(eq(items.id, id)).get() !== undefined ||
+  db.select({ id: purgedItems.id }).from(purgedItems).where(eq(purgedItems.id, id)).get() !==
+    undefined;
 
 // what the cell's listing reads of an item's row: the facts it filters and orders by, the card's
 // title taken out in SQL, since parsing every row whole was most of a listing's cost
@@ -281,44 +166,26 @@ const LISTING_COLUMNS = {
   url: items.url,
 };
 
-type ListingColumns = Omit<ListingFacts, "kind" | "savedAt"> & {
-  readonly kind: ItemKind | null;
-  readonly savedAt: number | null;
-};
-
-const factsOf = ({ kind, savedAt, ...facts }: ListingColumns): ListingFacts => {
-  if (kind === null || savedAt === null) {
-    throw new LibraryRowError(`the item ${facts.id} is not what this build writes`);
-  }
-  return { ...facts, kind, savedAt };
-};
-
-// every item that is not purged, by id: what the cell's listing is built from
+// every item, by id: what the cell's listing is built from
 export const readListingRows = (db: CellDb): ListingFacts[] =>
-  db
+  db.select(LISTING_COLUMNS).from(items).orderBy(asc(items.id)).all();
+
+// what the writes stamped past `since` moved of the listing: the items they wrote, by id, and the
+// ids they purged
+export const readListingSince = (db: CellDb, since: number) => ({
+  items: db
     .select(LISTING_COLUMNS)
-    .from(items)
-    .where(eq(items.purged, 0))
-    .orderBy(asc(items.id))
-    .all()
-    .map(factsOf);
-
-// what a write moved of the listing: an item's facts, or its id once it is purged
-export type ListingChange =
-  | { readonly kind: "live"; readonly facts: ListingFacts }
-  | { readonly kind: "purged"; readonly id: string };
-
-// every item a write stamped past `since`, by id: what a listing held since then is caught up from
-export const readListingSince = (db: CellDb, since: number): ListingChange[] =>
-  db
-    .select({ ...LISTING_COLUMNS, purged: items.purged })
     .from(items)
     .where(gt(items.seq, since))
     .orderBy(asc(items.id))
+    .all(),
+  purged: db
+    .select({ id: purgedItems.id })
+    .from(purgedItems)
+    .where(gt(purgedItems.seq, since))
     .all()
-    .map(({ purged, ...row }) =>
-      purged === 1 ? { id: row.id, kind: "purged" } : { facts: factsOf(row), kind: "live" },
-    );
+    .map((row) => row.id),
+});
 
 // ---- derived rows: links and tags ----
 
@@ -349,7 +216,7 @@ const liveSourcesWhere = (db: CellDb, where: SQL): string[] =>
     .selectDistinct({ sourceId: links.sourceId })
     .from(links)
     .innerJoin(items, eq(items.id, links.sourceId))
-    .where(and(isNull(items.deletedAt), eq(items.purged, 0), where))
+    .where(and(isNull(items.deletedAt), where))
     .orderBy(asc(links.sourceId))
     .all()
     .map((row) => row.sourceId);
@@ -362,41 +229,32 @@ export const linksTo = (db: CellDb, targetId: string): string[] =>
 export const linksToUrl = (db: CellDb, key: string): string[] =>
   liveSourcesWhere(db, eq(links.targetKey, key));
 
-// ---- meta ----
+// ---- the cell's one row ----
 
-export const readMeta = (db: CellDb, key: string): string | number | null =>
-  db.select({ v: meta.v }).from(meta).where(eq(meta.k, key)).get()?.v ?? null;
+// what the cell holds once; undefined before its first write, when each is as its column defaults
+export const readCellState = (db: CellDb) =>
+  db.select().from(cellState).where(eq(cellState.slot, 1)).get();
 
-const instantSchema = z.number().int().nonnegative();
-
-// a meta key holding a time or a count, null before its first write
-export const readInstant = (db: CellDb, key: string): number | null => {
-  const held = readMeta(db, key);
-  return held === null ? null : instantSchema.parse(held);
-};
-
-// a meta key holding a count, 0 before its first write
-export const readCount = (db: CellDb, key: string): number => readInstant(db, key) ?? 0;
-
-export const writeMeta = (db: CellDb, key: string, value: string | number): void => {
-  db.insert(meta)
-    .values({ k: key, v: value })
-    .onConflictDoUpdate({ set: { v: excluded(meta.v) }, target: meta.k })
+export const writeCellState = (
+  db: CellDb,
+  facts: Partial<Pick<typeof cellState.$inferInsert, "blobRemovals" | "deletedAt" | "rules">>,
+): void => {
+  db.insert(cellState)
+    .values({ ...facts, slot: 1 })
+    .onConflictDoUpdate({ set: facts, target: cellState.slot })
     .run();
 };
-
-const headSchema = z.number().int().positive();
 
 // the library's next sequence number: one per write, every row it touches stamped with it
 export const nextHead = (db: CellDb): number => {
   const [row] = db
-    .insert(meta)
-    .values({ k: "head", v: 1 })
-    .onConflictDoUpdate({ set: { v: sql`${meta.v} + 1` }, target: meta.k })
-    .returning({ v: meta.v })
+    .insert(cellState)
+    .values({ head: 1, slot: 1 })
+    .onConflictDoUpdate({ set: { head: sql`${cellState.head} + 1` }, target: cellState.slot })
+    .returning({ head: cellState.head })
     .all();
   if (row === undefined) {
     throw new LibraryRowError("the head did not come back from its own write");
   }
-  return headSchema.parse(row.v);
+  return row.head;
 };

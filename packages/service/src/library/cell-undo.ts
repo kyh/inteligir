@@ -19,12 +19,12 @@ import type { CellDb } from "./cell-db";
 import { listChunks } from "./cell-db";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
-import type { LandingScope } from "./cell-landing";
+import type { ItemScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
 import { ENTRY_COLUMNS, entryOf } from "./change-sets";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 import { revertChangeSets } from "./revert-change";
 import type { ItemNow, SetEntry } from "./revert-change";
 
@@ -87,7 +87,7 @@ export interface NoteToUndo {
 export const planUndo = (db: CellDb, changeSetIds: readonly string[]): NoteToUndo[] =>
   undoableSets(db, changeSetIds).flatMap((set) =>
     setItems(db, set.id).flatMap(({ itemId }) => {
-      const item = readLiveItem(db, itemId);
+      const item = readItem(db, itemId);
       return item !== null && bodyWriter(item.body.home) === "note"
         ? [{ itemId, setId: set.id }]
         : [];
@@ -112,7 +112,7 @@ export const mergeTurnUndos = (
 };
 
 export const undoChangeSets = (
-  scope: LandingScope,
+  scope: ItemScope,
   changeSetIds: readonly string[],
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {
@@ -125,7 +125,7 @@ export const undoChangeSets = (
   for (const set of ordered) {
     for (const itemId of set.items.keys()) {
       if (!items.has(itemId)) {
-        const item = readLiveItem(db, itemId);
+        const item = readItem(db, itemId);
         items.set(
           itemId,
           item === null
@@ -148,7 +148,7 @@ export const undoChangeSets = (
     }
   }
   for (const [itemId, undo] of verdict.items) {
-    const before = readLiveItem(db, itemId);
+    const before = readItem(db, itemId);
     if (before === null) {
       kept.add(itemId);
       continue;

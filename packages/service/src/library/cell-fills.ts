@@ -2,13 +2,14 @@
 // its page queues the reading in the same transaction, as a `fill` row of the jobs table, so a
 // reading is never asked for a write that did not land and never lost by one that did. The row is
 // due at once, so the write's commit sets the alarm for now, and the alarm alone sends it to the
-// fill queue (`packages/service/fill-queues.ts`), again a minute on while the row still waits: a
-// send that failed, or a cell evicted before the queue took it. The consumer reads the page and
-// hands it back (`../fill/fill-consumer`), and it lands here: only the article and the facts a fill
-// owns, so the person's note and fields are never touched, and only on an item still waiting for
-// that reading at that address, so a message met twice lands once. A page whose redirects end at
-// another address is read into the item that waited for it, which keeps the address it was saved
-// at. An item whose note writes its body takes the article there (`./article-landing`).
+// fill queue (`packages/service/fill-queues.ts`), again while the row still waits, later each
+// time: a send that failed, or a cell evicted before the queue took it. The consumer reads the
+// page and hands it back (`../fill/fill-consumer`), and it lands here: only the article and the
+// facts a fill owns, so the person's note and fields are never touched, and only on an item still
+// waiting for that reading at that address, so a message met twice lands once. A page whose
+// redirects end at another address is read into the item that waited for it, which keeps the
+// address it was saved at. An item whose note writes its body takes the article there
+// (`./article-landing`).
 
 import { and, eq, sql } from "drizzle-orm";
 
@@ -16,27 +17,28 @@ import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readLiveItem } from "./library-queries";
-import type { LiveStoredItem } from "./library-queries";
+import { readItem } from "./library-queries";
+import type { StoredItem } from "./library-queries";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import { openTurnOf } from "../agent/turn-rows";
+import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
+import type { NoteProjection } from "../note/note-wire";
 import type { CellActor, TurnActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
-import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
-import type { DueJob } from "./cell-jobs";
-import type { LandingScope, LiveItemRow } from "./cell-landing";
+import { scheduleJob } from "./cell-jobs";
+import type { Lease } from "./cell-jobs";
+import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
+import { landProjection } from "./cell-notes";
+import type { CellResult } from "./cell-refusal";
 import { changes, landRead, pageFieldOps } from "./cell-saves";
 import { foldReading } from "./change-sets";
 import { landWrite } from "./cell-writes";
+import type { LibraryEngine } from "./library-engine";
 
 export const FILL_ACTOR: CellActor = { kind: "fill" };
-
-// how long a sent reading's row waits before the alarm sends it again: long enough for the send
-// that just went to have landed in the queue, which then holds it
-const RESEND_AFTER_MS = 60_000;
 
 interface FillRequest {
   readonly itemId: string;
@@ -83,7 +85,7 @@ const waitsForFill = (
 // one an import brought, one back from Deleted. A deleted item asks nothing, since the queue would
 // let the reading go, and its way back asks again
 export const askFill = (
-  scope: LandingScope,
+  scope: WriteScope,
   item: LiveItemRow,
   coverHint: string | null = null,
 ): void => {
@@ -99,7 +101,7 @@ export const askFill = (
 // the reading of a link the built-in agent saved, held until its turn seals (owner decision):
 // within the turn the agent could otherwise save a page, read what it says and act on it, a web
 // reader it was never given. The row names the turn, whose seal re-times it
-export const askFillAfterTurn = (scope: LandingScope, item: LiveItemRow, turn: HeldBy): void => {
+export const askFillAfterTurn = (scope: WriteScope, item: LiveItemRow, turn: HeldBy): void => {
   if (waitsForFill(item)) {
     queueFill(
       scope.db,
@@ -131,41 +133,22 @@ export const releaseHeldFills = (db: CellDb, turn: HeldBy, now: number): void =>
 const turnOpen = (db: CellDb, turn: HeldBy): boolean =>
   openTurnOf(db, turn.threadId)?.turn === turn.turn;
 
-export interface ClaimedFill {
-  readonly job: DueJob<"fill">;
+// a leased reading to send: its job, and its ask as the queue's message carries it
+interface FillSend {
+  readonly job: Lease<"fill">;
   readonly request: FillRequest;
-  // the time the row now waits for, which only this claim set
-  readonly resendAt: number;
 }
 
-// the readings waiting to be sent, each put off a minute, so a send that never answers is sent
-// again by the alarm's next run
-export const claimFills = (db: CellDb, now: number): ClaimedFill[] =>
-  dueJobs(db, now, ["fill"]).flatMap((job) => {
+// of the readings the alarm leased, those to send now; one its turn still holds waits a day more
+export const fillsToSend = (db: CellDb, now: number, lot: readonly Lease<"fill">[]): FillSend[] =>
+  lot.flatMap((job) => {
     const { heldBy, ...request } = job.payload;
     if (heldBy !== null && turnOpen(db, heldBy)) {
-      deferJob(db, job.id, now + HELD_MS);
+      scheduleJob(db, job, now + HELD_MS);
       return [];
     }
-    const resendAt = now + RESEND_AFTER_MS;
-    deferJob(db, job.id, resendAt);
-    return [{ job, request, resendAt }];
+    return [{ job, request }];
   });
-
-// the readings the queue took; a row asked for again since its claim stays for its own send
-export const sentFills = (db: CellDb, claimed: readonly ClaimedFill[]): void => {
-  for (const fill of claimed) {
-    db.delete(jobs)
-      .where(
-        and(
-          eq(jobs.id, fill.job.id),
-          eq(jobs.nextAt, fill.resendAt),
-          eq(jobs.payload, payloadText("fill", fill.job.payload)),
-        ),
-      )
-      .run();
-  }
-};
 
 const pageOf = (landing: Extract<FillLanding, { kind: "read" }>) => ({
   article: landing.article,
@@ -194,7 +177,7 @@ const readFieldOps = (
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
-const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredItem => {
+const waiting = (item: StoredItem | null, url: string): item is StoredItem => {
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
@@ -206,10 +189,10 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
 
 // whether an item still waits for a reading of `url`, so a consumer reads no page nobody waits for
 export const fillWaits = (db: CellDb, itemId: string, url: string): boolean =>
-  waiting(readLiveItem(db, itemId), url);
+  waiting(readItem(db, itemId), url);
 
 // the files a reading kept in the library on its way (`../fill/store-file`)
-export const readingFiles = (landing: FillLanding): string[] => {
+const readingFiles = (landing: FillLanding): string[] => {
   switch (landing.kind) {
     case "read": {
       return landing.coverSha === null ? [] : [landing.coverSha];
@@ -226,8 +209,8 @@ export const readingFiles = (landing: FillLanding): string[] => {
 
 // the reading landed on the item that waited for it
 const landOn = (
-  scope: LandingScope,
-  item: LiveStoredItem,
+  scope: ItemScope,
+  item: StoredItem,
   landing: FillLanding,
   articleInNote: boolean,
 ): LiveItemRow => {
@@ -269,12 +252,8 @@ const landOn = (
   }
 };
 
-export const landFill = (
-  scope: LandingScope,
-  landing: FillLanding,
-  articleInNote: boolean,
-): FillLanded => {
-  const item = readLiveItem(scope.db, landing.itemId);
+const landFill = (scope: ItemScope, landing: FillLanding, articleInNote: boolean): FillLanded => {
+  const item = readItem(scope.db, landing.itemId);
   if (!waiting(item, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
     hurryUnnamed(scope.db, readingFiles(landing), scope.now);
@@ -283,4 +262,31 @@ export const landFill = (
   const landed = landOn(scope, item, landing, articleInNote);
   foldReading(scope.db, { after: landed.fields, before: item.fields, itemId: item.id });
   return { kind: landing.kind === "failed" ? "failed" : "filled" };
+};
+
+// A page the cloud read, folded into the change set that made its item; an article its note
+// already took lands as the note's projection. When the library would not take it, the alarm lets
+// go at once what it kept that no item names; a reading its note is yet to take lands again.
+export const landReading = (
+  library: LibraryEngine,
+  landing: FillLanding,
+  inNote: NoteProjection | null,
+): CellResult<FillLanded> => {
+  const landed = library.land(
+    FILL_ACTOR,
+    { answer: fillLandedSchema, opId: undefined },
+    (scope) => {
+      const filled = landFill(scope, landing, inNote !== null);
+      if (inNote !== null) {
+        landProjection(scope, landing.itemId, inNote);
+      }
+      return filled;
+    },
+  );
+  if (!landed.ok && landed.refusal.kind !== "gone" && landed.refusal.kind !== "note-opened") {
+    library.rows((db, now) => {
+      hurryUnnamed(db, readingFiles(landing), now);
+    });
+  }
+  return landed;
 };

@@ -9,17 +9,25 @@ describe("an item's properties as the panel's rows", () => {
         due: "2026-11-09",
         never: "2026-13-45",
         done: false,
+        count: 3.5,
         owner: "Ana",
         meta: { a: 1 },
+        mixed: [1, "two"],
+        empty: null,
         tags: ["x"],
+        none: [],
       }),
     ).toStrictEqual([
       { key: "due", type: "date", value: "2026-11-09" },
       { key: "never", type: "text", value: "2026-13-45" },
       { key: "done", type: "checkbox", value: false },
+      { key: "count", type: "number", value: 3.5 },
       { key: "owner", type: "text", value: "Ana" },
       { key: "meta", raw: '{"a":1}', type: "unsupported" },
+      { key: "mixed", raw: '[1,"two"]', type: "unsupported" },
+      { key: "empty", raw: "null", type: "unsupported" },
       { key: "tags", type: "tags", value: ["x"] },
+      { key: "none", type: "tags", value: [] },
     ]);
   });
 

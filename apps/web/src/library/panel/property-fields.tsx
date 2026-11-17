@@ -1,4 +1,3 @@
-import type { PropertyType, TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -7,7 +6,9 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { XIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
-export type PropertyKind = Exclude<PropertyType, "unsupported">;
+import type { TypedProperty } from "./item-properties";
+
+export type PropertyKind = Exclude<TypedProperty["type"], "unsupported">;
 type Held<K extends PropertyKind> = Extract<TypedProperty, { type: K }>["value"];
 type HeldByKind = {
   readonly [K in PropertyKind]: (control: HTMLInputElement) => Held<K> | null;

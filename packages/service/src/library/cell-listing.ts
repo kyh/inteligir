@@ -13,8 +13,8 @@ import {
 import type { ListingPageInput, ListingRow } from "@repo/contract/library/library-index";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { searchHits } from "../search/search-hits";
-import { readItem, readListingRows, readListingSince, readLiveItem } from "./library-queries";
-import type { LiveStoredItem } from "./library-queries";
+import { readItem, readListingRows, readListingSince } from "./library-queries";
+import type { StoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import { asc, gt, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -27,14 +27,13 @@ import { refuse } from "./cell-refusal";
 // an item's row as the apps read it; one emptied from Deleted is no item
 export const itemRow = (db: CellDb, id: string) => {
   const item = readItem(db, id);
-  if (item?.kind !== "live") {
+  if (item === null) {
     return refuse({ kind: "not-found" });
   }
   return {
     card: answerCard(item.card),
     fields: item.fields,
     id,
-    kind: item.kind,
     seq: item.seq,
     updatedAt: item.updatedAt,
   };
@@ -64,7 +63,7 @@ const tagsOf = (db: CellDb, where?: SQL): Map<string, string[]> => {
   return tags;
 };
 
-// every item the library holds (none purged), with the folders a listing files them under
+// every item the library holds, with the folders a listing files them under
 const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
   const tags = tagsOf(db);
   const index = new LibraryIndex<ListingRow>();
@@ -79,12 +78,12 @@ const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
 const catchUp = (db: CellDb, index: LibraryIndex<ListingRow>, since: number): void => {
   const stamped = db.select({ id: items.id }).from(items).where(gt(items.seq, since));
   const tags = tagsOf(db, inArray(itemTags.itemId, stamped));
-  for (const change of readListingSince(db, since)) {
-    if (change.kind === "purged") {
-      index.remove(change.id);
-    } else {
-      index.upsert({ ...change.facts, tags: tags.get(change.facts.id) ?? [] });
-    }
+  const moved = readListingSince(db, since);
+  for (const facts of moved.items) {
+    index.upsert({ ...facts, tags: tags.get(facts.id) ?? [] });
+  }
+  for (const id of moved.purged) {
+    index.remove(id);
   }
   index.setFolders(liveFolders(db));
 };
@@ -110,8 +109,8 @@ export const holdListing = (): ListingHold => {
 };
 
 // an item the listing names, read whole from its row in the same read
-export const listedWhole = (db: CellDb, id: string): LiveStoredItem => {
-  const item = readLiveItem(db, id);
+export const listedWhole = (db: CellDb, id: string): StoredItem => {
+  const item = readItem(db, id);
   if (item === null) {
     throw new LibraryRowError(`the listing names the item ${id}, which the library does not hold`);
   }

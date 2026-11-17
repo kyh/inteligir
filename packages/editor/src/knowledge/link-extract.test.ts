@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { frontmatterAliases, mdLinkTarget, mdLinkUrl } from "./link-extract";
-import { parseProperties } from "../markdown/frontmatter";
+import { mdLinkTarget, mdLinkUrl } from "./link-extract";
 
 describe(mdLinkUrl, () => {
   it("writes a path `mdLinkTarget` reads back as itself", () => {
@@ -38,38 +37,5 @@ describe(mdLinkTarget, () => {
     ]) {
       expect(mdLinkTarget(url), url).toBeNull();
     }
-  });
-});
-
-const aliasesOf = (yaml: string): string[] => frontmatterAliases(parseProperties(yaml));
-
-describe(frontmatterAliases, () => {
-  it("reads the canonical string-array form in declaration order", () => {
-    expect(aliasesOf("aliases:\n  - Retro\n  - Post-mortem\n")).toStrictEqual([
-      "Retro",
-      "Post-mortem",
-    ]);
-  });
-
-  it("accepts the single-string scalar and the legacy alias: key (Obsidian interop)", () => {
-    expect(aliasesOf("aliases: Retro\n")).toStrictEqual(["Retro"]);
-    expect(aliasesOf("alias: Retro\n")).toStrictEqual(["Retro"]);
-    expect(aliasesOf("aliases: [A]\nalias: B\n")).toStrictEqual(["A"]);
-    expect(aliasesOf("aliases: 2026-07-15\n")).toStrictEqual(["2026-07-15"]);
-  });
-
-  it("trims, drops empties, and dedupes case-insensitively keeping first display case", () => {
-    expect(aliasesOf("aliases:\n  - ' Padded '\n  - ''\n  - padded\n  - Other\n")).toStrictEqual([
-      "Padded",
-      "Other",
-    ]);
-  });
-
-  it("degrades malformed or non-string values to []", () => {
-    expect(aliasesOf("aliases: 42\n")).toStrictEqual([]);
-    expect(aliasesOf("aliases:\n  - 1\n  - 2\n")).toStrictEqual([]);
-    expect(aliasesOf("aliases: {a: b}\n")).toStrictEqual([]);
-    expect(aliasesOf(": bad yaml [\n")).toStrictEqual([]);
-    expect(frontmatterAliases(null)).toStrictEqual([]);
   });
 });

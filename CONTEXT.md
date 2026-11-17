@@ -186,7 +186,7 @@ chip). A saved page, a picture or a PDF is an item, never a note.
 edit one property op (`apps/web/src/library/panel/item-properties.ts`): the
 fields stand where a file's frontmatter would. Not an imported file's
 frontmatter, which an import reads into the item's fields once
-(`@repo/editor/items/item-frontmatter`): an item has no frontmatter of its own.
+(`@repo/editor/codec/item-fields`): an item has no frontmatter of its own.
 
 **dialect** — the markdown the library reads and writes: stock CommonMark and
 GFM with directives, item links, pills, alerts and **fence blocks**

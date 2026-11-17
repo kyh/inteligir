@@ -11,29 +11,19 @@ import type { LibraryLookup } from "@repo/editor/codec/library-links";
 import type { BodyPorts } from "@repo/editor/codec/read-body";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
-import { itemCardSchema, titleKey } from "@repo/contract/library/derive-item";
-import { jsonTextSchema } from "./sql-value";
-import { and, eq, isNull } from "drizzle-orm";
-import { z } from "zod";
+import { titleKey } from "@repo/contract/library/derive-item";
+import { eq, isNull } from "drizzle-orm";
 
 import { blobs, items } from "@repo/db/cell/schema";
 import { errorFields } from "../log";
 import type { CellDb } from "./cell-db";
 import type { CellIds } from "./cell-ids";
 
-// a live item's row holds every field; only a purged one's are null
-const titleRowSchema = z.object({ aliases: z.string(), id: z.string(), title: z.string() });
-const namesSchema = z.array(z.string());
-
 // an item's name as a link to it is written: its card's title, which falls back to its first
 // heading or line; null for an id no item holds
 const titleOf = (db: CellDb, itemId: string): string | null => {
-  const row = db
-    .select({ card: items.card })
-    .from(items)
-    .where(and(eq(items.id, itemId), eq(items.purged, 0)))
-    .get();
-  return row === undefined ? null : jsonTextSchema.pipe(itemCardSchema).parse(row.card).title;
+  const row = db.select({ card: items.card }).from(items).where(eq(items.id, itemId)).get();
+  return row?.card.title ?? null;
 };
 
 const fileKindOf = (db: CellDb, sha: string): FileKind | null => {
@@ -53,14 +43,13 @@ const titleIndex = (db: CellDb): Map<string, string | null> => {
     const held = index.get(key);
     index.set(key, held === undefined || held === id ? id : null);
   };
-  for (const held of db
+  for (const row of db
     .select({ aliases: items.aliases, id: items.id, title: items.title })
     .from(items)
-    .where(and(eq(items.purged, 0), isNull(items.deletedAt)))
+    .where(isNull(items.deletedAt))
     .all()) {
-    const row = titleRowSchema.parse(held);
     file(row.title, row.id);
-    for (const alias of jsonTextSchema.pipe(namesSchema).parse(row.aliases)) {
+    for (const alias of row.aliases) {
       file(alias, row.id);
     }
   }

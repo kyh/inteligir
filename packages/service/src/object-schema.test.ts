@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
-import { meta } from "@repo/db/cell/schema";
+import { cellState } from "@repo/db/cell/schema";
 import { cellOf, inCell } from "./test-support/library-cell";
 import { CELL_SCHEMA, cellDbOf } from "./library/cell-db";
 import { applyObjectSchema, SCHEMA_HASH_KEY } from "./object-schema";
@@ -14,11 +13,11 @@ const tables = (storage: DurableObjectStorage): string[] =>
 
 // a row the cell holds until it starts over
 const holdProbe = (storage: DurableObjectStorage): void => {
-  cellDbOf(storage).insert(meta).values({ k: "probe", v: 1 }).run();
+  cellDbOf(storage).insert(cellState).values({ slot: 1 }).run();
 };
 
 const holdsProbe = (storage: DurableObjectStorage): boolean =>
-  cellDbOf(storage).select().from(meta).where(eq(meta.k, "probe")).get() !== undefined;
+  cellDbOf(storage).select().from(cellState).get() !== undefined;
 
 // a fresh cell, its schema applied by its own constructor, handed to `work` to rearrange
 const inOpenedCell = async (
@@ -68,7 +67,7 @@ describe(applyObjectSchema, () => {
       storage.kv.put(SCHEMA_HASH_KEY, "another");
       await expectStartsOver(storage, {
         hash: "another",
-        tables: expect.arrayContaining(["items", "meta"]),
+        tables: expect.arrayContaining(["items", "cell_state"]),
       });
     });
   });
@@ -79,7 +78,7 @@ describe(applyObjectSchema, () => {
       storage.kv.delete(SCHEMA_HASH_KEY);
       await expectStartsOver(storage, {
         hash: null,
-        tables: expect.arrayContaining(["items", "meta"]),
+        tables: expect.arrayContaining(["items", "cell_state"]),
       });
     });
   });

@@ -17,3 +17,13 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
   migrations). A migration history serves no user; the cell's search index is
   the one hand-written statement, and no table is STRICT, WITHOUT ROWID or
   triggered, which the export cannot spell. `packages/db/scripts/object-ddl.ts`.
+- **A cell column whose rows share one schema says it: JSON through
+  `json(schema)`, a flag a boolean, a vocabulary an enum under its CHECK.** A
+  bare `text` leaves each reader to pick a parser and prove the row again; a
+  fields part stays text, being what its hash is of. `packages/db/src/cell/schema.ts`.
+- **A purged item is a row of `purged_items`, never an `items` row emptied.**
+  Both in one table make every column nullable and every query remember a
+  filter. `packages/db/src/cell/schema.ts`.
+- **What the cell holds once is a column of its one row, and what it counts is a
+  sum of its rows.** A key-value table hands each fact back untyped, and a
+  counter kept beside the rows it counts can drift. `packages/db/src/cell/schema.ts`.

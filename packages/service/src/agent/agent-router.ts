@@ -3,9 +3,9 @@
 
 import { z } from "zod";
 
-import { listThreads, threadEvents } from "../library/cell-threads";
 import { answer, os, PAGE_DEFAULT } from "../library/library-orpc";
 import { readLibraryRules, writeLibraryRules } from "../library/library-rules";
+import { readThreadEvents } from "./agent-events";
 import { setAgentEnabled } from "./agent-switch";
 import {
   agentStatus,
@@ -14,6 +14,7 @@ import {
   respondToAgent,
   sendToAgent,
 } from "./agent-turns";
+import { listThreads } from "./turn-rows";
 
 const rulesAnswer = z.object({ rules: z.string() });
 
@@ -25,7 +26,7 @@ export const agentRouter = {
     answer(await deleteAgentThread(context.agent, input)),
   ),
   events: os.agent.events.handler(({ context, input }) =>
-    context.read((db) => threadEvents(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
+    context.read((db) => readThreadEvents(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
   ),
   list: os.agent.list.handler(({ context, input }) =>
     context.read((db) =>
@@ -44,7 +45,7 @@ export const agentRouter = {
   setEnabled: os.agent.setEnabled.handler(({ context, input }) =>
     answer(setAgentEnabled(context.agent, input)),
   ),
-  // a meta row of the library's, joining no change set: rules are no item's
+  // a fact of the cell's own, joining no change set: rules are no item's
   setRules: os.agent.setRules.handler(({ context, input }) =>
     context.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
       writeLibraryRules(scope.db, input.rules);

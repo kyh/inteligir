@@ -79,6 +79,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   alarm in the turn it commits.** A follow-up each caller owes is one a new
   write forgets, and an alarm set after an await is lost with the isolate.
   `packages/service/src/library/library-engine.ts`.
+- **The engine guards a transaction and holds no rule: an op is its `cell-*`
+  module's, landed through `land`, `landApart` or `rows`.** A method per op is a
+  catalogue every new op grows, and only `land`'s scope has a change set, so a
+  write that joins none cannot ask for one.
+  `packages/service/src/library/library-engine.ts`.
 - **An alarm's run tells the sockets once, its writes' frames merged on a cell
   of its own.** Each job commits alone, so a frame a commit would wake every
   device once a job, and a flag on the wake's cell would hold a call's frame for
@@ -132,9 +137,9 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   batches, each item whole or not at all.** An alarm has 30 s of CPU and a zip
   in R2 is a second copy, so the device that holds the file reads it.
   `packages/service/src/library/cell-imports.ts`.
-- **A file is let go once nothing names it.** An item or a change set keeps it,
-  so releasing by `refs` alone drops a file only a change set holds.
-  `packages/service/src/library/change-set-prune.ts`.
+- **A file is let go once nothing names it, asked of the rows that name it.** An
+  item or a change set keeps it, and a count kept beside those rows is a second
+  spelling that can drift from them. `packages/service/src/library/cell-blobs.ts`.
 - **Filing rules are the person's own words, and only the person writes them.**
   They reach the agent above anything a saved page says, so an import reads an
   `AGENTS.md` as a note. `packages/service/src/library/library-rules.ts`.
@@ -162,6 +167,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
   it again. `packages/service/src/library/cell-jobs.ts`.
+- **Every job is taken by one lease and run from one table: a due row is counted
+  and put off before anything runs, and a kind is the schema's enum, held to a
+  run by the table's type.** A claim per kind left a row its run neither dropped
+  nor put off setting the alarm in the past, and a run the platform ended went
+  uncounted. `packages/service/src/library/cell-alarm.ts`.
 - **The cell keeps its listing in memory, caught up by sequence, and builds it
   again as it wakes.** A build on every read costs about 245 ms at 10,000 items,
   measured. `packages/service/src/library/cell-listing.ts`.

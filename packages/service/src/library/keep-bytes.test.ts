@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { Settlement } from "./cell-blobs";
 import { keepBytes } from "./keep-bytes";
 import type { KeepPort } from "./keep-bytes";
 
@@ -14,13 +15,13 @@ const FILE = {
 };
 
 // a cell that gives room unless the file is `held`, and settles as `settled` says
-const cellPort = (room: { readonly held: boolean }, settled: boolean) => {
+const cellPort = (room: { readonly held: boolean }, settled: Settlement) => {
   const settles: string[] = [];
   const port: KeepPort = {
     reserve: () => ({ ok: true, value: room }),
     settle: async (sha) => {
       settles.push(sha);
-      return await Promise.resolve({ ok: true, value: { settled } });
+      return await Promise.resolve({ ok: true, value: settled });
     },
   };
   return { port, settles };
@@ -44,7 +45,7 @@ const putting = (failure: Error | null) => {
 
 describe("a file kept in the library", () => {
   it("sends nothing the library holds already", async () => {
-    const { port, settles } = cellPort({ held: true }, true);
+    const { port, settles } = cellPort({ held: true }, "held");
     const { bucket, puts } = putting(null);
     await expect(keepBytes(bucket, port, FILE)).resolves.toStrictEqual({ kind: "held" });
     expect([puts, settles]).toStrictEqual([[], []]);
@@ -56,7 +57,7 @@ describe("a file kept in the library", () => {
       [digest, true],
       [new Error("put: internal error (10001)"), false],
     ] as const) {
-      const { port, settles } = cellPort({ held: false }, false);
+      const { port, settles } = cellPort({ held: false }, "absent");
       const { bucket } = putting(failure);
       await expect(keepBytes(bucket, port, FILE)).resolves.toMatchObject({
         badDigest,
@@ -66,22 +67,24 @@ describe("a file kept in the library", () => {
     }
   });
 
-  it("is kept once settled, and raced when a removal took the row meanwhile", async () => {
-    const kept = cellPort({ held: false }, true);
+  it("is kept once settled, and raced whichever way a removal took what it put", async () => {
+    const kept = cellPort({ held: false }, "held");
     await expect(keepBytes(putting(null).bucket, kept.port, FILE)).resolves.toStrictEqual({
       kind: "kept",
     });
-    const raced = cellPort({ held: false }, false);
-    await expect(keepBytes(putting(null).bucket, raced.port, FILE)).resolves.toStrictEqual({
-      kind: "raced",
-    });
+    for (const settled of ["absent", "removing", "stale"] as const) {
+      const raced = cellPort({ held: false }, settled);
+      await expect(keepBytes(putting(null).bucket, raced.port, FILE)).resolves.toStrictEqual({
+        kind: "raced",
+      });
+    }
   });
 
   it("puts nothing the cell gives no room for", async () => {
     const { bucket, puts } = putting(null);
     const full: KeepPort = {
       reserve: () => ({ ok: false, refusal: { kind: "quota" } }),
-      settle: async () => await Promise.resolve({ ok: true, value: { settled: true } }),
+      settle: async () => await Promise.resolve({ ok: true, value: "held" }),
     };
     await expect(keepBytes(bucket, full, FILE)).resolves.toStrictEqual({
       kind: "refused",

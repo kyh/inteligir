@@ -6,13 +6,12 @@
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
-import { itemNameFromUrl } from "@repo/contract/items/item-name";
-import { cleanUrl, isWebUrl, kindForUrl, urlKey } from "@repo/contract/items/item-url";
+import { cleanUrl, isWebUrl, urlKey } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
-import { readingFields } from "@repo/contract/library/item-reading";
+import { importedFields, stubFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import type { ImportedFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { ImportedFields } from "@repo/editor/codec/item-markdown";
 import { parseItemTime } from "@repo/editor/items/item-time";
 import Papa from "papaparse";
 
@@ -303,22 +302,15 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
 };
 
 // a bookmark as an unread link, its page read by the cloud once it lands
-export const bookmarkFields = (item: PlannedItem): ImportedFields => ({
-  aliases: [],
-  author: null,
-  coverSha: null,
-  description: item.description,
-  ...readingFields({ at: null, state: "pending" }),
-  kind: kindForUrl(item.url),
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: item.pinned ? item.savedMs : null,
-  properties: {},
-  published: null,
-  savedAt: item.savedMs,
-  site: null,
-  tags: item.tags,
-  title: (item.title ?? itemNameFromUrl(item.url)).slice(0, ITEM_FIELD_CAPS.line),
-  url: item.url,
-});
+export const bookmarkFields = (item: PlannedItem): ImportedFields =>
+  importedFields({
+    ...stubFields({
+      folderId: null,
+      savedAt: item.savedMs,
+      tags: item.tags,
+      title: item.title?.slice(0, ITEM_FIELD_CAPS.line),
+      url: item.url,
+    }),
+    description: item.description,
+    pinnedAt: item.pinned ? item.savedMs : null,
+  });

@@ -1,253 +1,268 @@
-// An item's fields as the frontmatter of an exported file: the keys an item's file carries
-// (`@repo/contract/items/item-kind`'s ITEM_KEYS beside `id`, `tags`, `aliases` and `pinned`), the
-// cloud's own `title` (only where a file name cannot carry it) and `lang`, and every other key as a
-// typed property. What of a key's value no field reads stays a property under its own name, so a
-// `published: true`, a `kind: book` or a `pinned: yes` round-trips, and so do the entries of
-// `tags` the tag grammar refuses, which an export writes back into the one list beside the tags.
-// `id` and `saved` are the item's own, its identity and its instant, so an export writes the
-// item's and keeps no other. A block that is not YAML at all is no field's, and the import keeps
-// it as the note's first code block.
+// A markdown file's frontmatter as what it says of its item. The YAML is parsed once, and each key
+// the library knows is one row of `readKeys`, its reader taking what its field holds: `id`,
+// `title`, `kind`, `url`, `site`, `author`, `published`, `saved`, `fetched`, `fetch-error`,
+// `description`, `lang`, `tags`, `aliases` and `pinned`. What of a value its reader does not take
+// stays a property under the key's own name, as every other key does whole, so a
+// `published: true`, a `kind: book`, a `pinned: yes` and the entries of `tags` the tag grammar
+// refuses are kept. `id` and `saved` are the item's own, its identity and its instant, so neither
+// is ever a property. A block that is not YAML is no field's, and the import keeps it as the
+// note's first code block.
 
-import { parseDocument } from "yaml";
+import { isMap, isScalar, parseDocument } from "yaml";
+import type { Document, ParsedNode } from "yaml";
 import { z } from "zod";
 
 import { isItemKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import { readItemFacts } from "@repo/editor/items/item-frontmatter";
-import { frontmatterAliases, frontmatterTags } from "@repo/editor/knowledge/link-extract";
+import { isWebUrl } from "@repo/contract/items/item-url";
+import { isTagName } from "@repo/contract/knowledge/tag-grammar";
+import { blankItemFields } from "@repo/contract/library/item-makes";
+import { readingFields } from "@repo/contract/library/item-reading";
+import type { Reading } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
-import { noteIdOfProperties, parseProperties } from "@repo/editor/markdown/frontmatter";
-import type { ParsedProperties, TypedProperty } from "@repo/editor/markdown/frontmatter";
+import { parseItemTime } from "@repo/editor/items/item-time";
 
-// the fields a file says: all but where the item sits, which files it holds and whether it is
-// deleted, which the import sets from the folder and the body
-export type FileFields = Omit<
-  LibraryItemFields,
-  "coverSha" | "deletedAt" | "folderId" | "originalName" | "originalSha"
->;
+type KeyValues = ReadonlyMap<string, PropertyValue>;
 
-export interface FrontmatterRead {
+export interface FileFacts {
   // the `id:` the file carries, which a page link this app's export wrote keys by
   readonly id: string | null;
-  readonly fields: FileFields;
-  // a block that is not YAML, as written
-  readonly invalidYaml: string | null;
+  // null where the file's own name is the title
+  readonly title: string | null;
+  // null where the import's own instant is
+  readonly savedAt: number | null;
+  readonly pinned: boolean;
+  readonly reading: Reading;
+  // the fields a key holds as the item does
+  readonly fields: Pick<
+    LibraryItemFields,
+    "aliases" | "author" | "description" | "kind" | "lang" | "published" | "site" | "tags" | "url"
+  >;
+  // every value no field took
+  readonly properties: LibraryItemFields["properties"];
 }
 
-const cut = (text: string | null, max: number): string | null => {
-  if (text === null) {
+export type Frontmatter =
+  | { readonly kind: "none" }
+  // a block that is not YAML, as written
+  | { readonly kind: "invalid"; readonly yaml: string }
+  | { readonly kind: "fields"; readonly facts: FileFacts };
+
+// a text, the spaces around it left off, cut between characters to the `max` UTF-16 units a field
+// counts; null for none left
+const cut = (text: string, max: number): string | null => {
+  const whole = text.trim();
+  let end = 0;
+  for (const char of whole) {
+    if (end + char.length > max) {
+      break;
+    }
+    end += char.length;
+  }
+  const kept = whole.slice(0, end).trimEnd();
+  return kept === "" ? null : kept;
+};
+
+const textValue = z.string();
+const textList = z.array(textValue);
+const numberValue = z.number();
+const flagValue = z.boolean();
+
+// a key's text, the spaces around it left off, "" among it
+const written = (value: PropertyValue): string | null =>
+  textValue.validate(value) ? value.trim() : null;
+
+const line = (value: PropertyValue): string | null =>
+  textValue.validate(value) ? cut(value, ITEM_FIELD_CAPS.line) : null;
+
+const instant = (value: PropertyValue): number | null =>
+  textValue.validate(value) ? parseItemTime(value) : null;
+
+const kindOf = (value: PropertyValue): ItemKind | null => {
+  const kind = written(value)?.toLowerCase() ?? "";
+  return isItemKind(kind) ? kind : null;
+};
+
+const urlOf = (value: PropertyValue): string | null => {
+  const url = written(value);
+  return url !== null && url.length <= ITEM_FIELD_CAPS.url && isWebUrl(url) ? url : null;
+};
+
+// `[[Steph Ango]]` and `[[people/steph|Steph Ango]]` read as the name they show
+const WIKI_NAME = /^\[\[(?:[^|\]]*\|)?(?<name>[^\]]*)\]\]$/u;
+
+const shownName = (text: string): string =>
+  (WIKI_NAME.exec(text.trim())?.groups?.name ?? text).trim();
+
+// one name or a list of them, as Obsidian writes either
+const authorOf = (value: PropertyValue): string | null => {
+  const names = textList.safeParse(Array.isArray(value) ? value : [value]);
+  return names.success
+    ? line(
+        names.data
+          .map(shownName)
+          .filter((name) => name !== "")
+          .join(", "),
+      )
+    : null;
+};
+
+// a date or a number is kept as written: `published` is whatever the page said
+const publishedOf = (value: PropertyValue): string | null =>
+  line(numberValue.validate(value) ? String(value) : value);
+
+// a tag as Obsidian writes one, a `#` before it left off; one outside the tag grammar
+// (`reading list`, a quoted `2026`) is no tag, since no inline `#` could spell it
+const tagOf = (entry: string): string | null => {
+  const tag = (entry.startsWith("#") ? entry.slice(1) : entry).trim();
+  return isTagName(tag) ? tag : null;
+};
+
+// where the page of a file with an address stands: failed where the file says why, read where it
+// says when, and waiting where a url kind says neither
+const pageReading = (kind: ItemKind, at: number | null, error: string | null): Reading => {
+  if (error !== null) {
+    return { at, error, state: "failed" };
+  }
+  if (at !== null) {
+    return { at, state: "read" };
+  }
+  return URL_ITEM_KINDS.some((urlKind) => urlKind === kind)
+    ? { at, state: "pending" }
+    : { state: "none" };
+};
+
+const readKeys = (file: KeyValues): FileFacts => {
+  // what no field took of each key, which stays a property under it
+  const left = new Map(file);
+  // a key its field takes whole or not at all
+  const whole = <T>(key: string, read: (value: PropertyValue) => T | null): T | null => {
+    const value = file.get(key);
+    const took = value === undefined ? null : read(value);
+    if (took !== null) {
+      left.delete(key);
+    }
+    return took;
+  };
+  // a key of the item's own, which no property keeps where it does not read
+  const own = <T>(key: string, read: (value: PropertyValue) => T | null): T | null => {
+    const took = whole(key, read);
+    left.delete(key);
+    return took;
+  };
+  // a list or one bare string, as Obsidian accepts: each entry as `spell` writes it, the first of
+  // a spelling kept, and what the field did not take left; a key left empty leaves nothing
+  const list = (key: string, spell: (entry: string) => string | null): string[] => {
+    const value = file.get(key) ?? null;
+    const entries = Array.isArray(value) ? value : [value];
+    const took = new Map<string, string>();
+    const refused: PropertyValue[] = [];
+    for (const entry of value === null ? [] : entries) {
+      const spelled = textValue.validate(entry) ? spell(entry) : null;
+      const held = spelled !== null && took.has(spelled.toLowerCase());
+      if (spelled !== null && !held && took.size < ITEM_FIELD_CAPS.listEntries) {
+        took.set(spelled.toLowerCase(), spelled);
+      } else if (!held) {
+        refused.push(entry);
+      }
+    }
+    if (refused.length === 0) {
+      left.delete(key);
+    } else {
+      left.set(key, Array.isArray(value) ? refused : value);
+    }
+    return [...took.values()];
+  };
+  const url = whole("url", urlOf);
+  const kind = whole("kind", kindOf) ?? "note";
+  const facts: Omit<FileFacts, "properties"> = {
+    fields: {
+      // `alias`, Obsidian's older spelling, is read only where no `aliases` is
+      aliases: list(file.has("aliases") ? "aliases" : "alias", line),
+      author: whole("author", authorOf),
+      description: whole("description", (value) =>
+        textValue.validate(value) ? cut(value, ITEM_FIELD_CAPS.description) : null,
+      ),
+      kind,
+      lang: whole("lang", line),
+      published: whole("published", publishedOf),
+      site: whole("site", line),
+      tags: list("tags", tagOf),
+      url,
+    },
+    id: own("id", line),
+    pinned: whole("pinned", (value) => (flagValue.validate(value) ? value : null)) ?? false,
+    // a file with no address has no page, so what it says of a reading stays a property
+    reading:
+      url === null
+        ? { state: "none" }
+        : pageReading(kind, whole("fetched", instant), whole("fetch-error", line)),
+    savedAt: own("saved", instant),
+    title: whole("title", written),
+  };
+  return { ...facts, properties: Object.fromEntries(left) };
+};
+
+const jsonValue = z.json();
+
+// a value as JSON; one JSON cannot spell (`.nan`, a `!!binary`) keeps its source text
+const valueOf = (node: ParsedNode | null, doc: Document.Parsed, yaml: string): PropertyValue => {
+  if (node === null) {
     return null;
   }
-  const clipped = [...text].slice(0, max).join("").trim();
-  return clipped === "" ? null : clipped.slice(0, max);
+  const json = jsonValue.safeParse(node.toJS(doc));
+  return json.success ? json.data : yaml.slice(node.range[0], node.range[1]).trimEnd();
 };
 
-const propOf = (parsed: ParsedProperties, key: string): TypedProperty | undefined =>
-  parsed.kind === "valid" ? parsed.properties.find((prop) => prop.key === key) : undefined;
-
-// what a key holds, "" among it: an export writes `title: ""` for an item with no title of its
-// own, whose card follows its body, so the file's name must not stand in for it
-const writtenText = (parsed: ParsedProperties, key: string): string | null => {
-  const prop = propOf(parsed, key);
-  return prop?.type === "text" || prop?.type === "date" ? prop.value.trim() : null;
+// each top-level key and its value, in the file's order; null for a block that is no YAML mapping:
+// one that does not parse, one that names a key twice, or one whose root is a list or a line
+const keyValues = (yaml: string): KeyValues | null => {
+  const doc = parseDocument(yaml);
+  if (doc.errors.length > 0 || !isMap(doc.contents)) {
+    return null;
+  }
+  try {
+    return new Map(
+      doc.contents.items.map(({ key, value }): [string, PropertyValue] => [
+        isScalar(key) ? String(key.value) : String(key),
+        valueOf(value, doc, yaml),
+      ]),
+    );
+  } catch {
+    // an alias to an anchor the block never set, or more aliases than the parser follows, throws
+    // only as its value is read
+    return null;
+  }
 };
 
-const textProp = (parsed: ParsedProperties, key: string): string | null => {
-  const text = writtenText(parsed, key);
-  return text === "" ? null : text;
+// a file's frontmatter (its YAML, null for none), read once
+export const readFrontmatter = (yaml: string | null): Frontmatter => {
+  if (yaml === null || yaml.trim() === "") {
+    return { kind: "none" };
+  }
+  const file = keyValues(yaml);
+  return file === null ? { kind: "invalid", yaml } : { facts: readKeys(file), kind: "fields" };
 };
 
-const isPinned = (parsed: ParsedProperties): boolean => {
-  const prop = propOf(parsed, "pinned");
-  return prop?.type === "checkbox" && prop.value;
-};
+// what a file says of its item: nothing, where it has no frontmatter that reads
+export const factsOf = (front: Frontmatter): FileFacts =>
+  front.kind === "fields" ? front.facts : readKeys(new Map());
 
-const uniqueTags = (yaml: string): string[] => {
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const tag of frontmatterTags(yaml)) {
-    if (!seen.has(tag.toLowerCase())) {
-      seen.add(tag.toLowerCase());
-      tags.push(tag);
-    }
-  }
-  return tags.slice(0, ITEM_FIELD_CAPS.listEntries);
-};
+// the title a file's item takes: its `title:`, an empty one among them, else the file's own name
+export const titleOf = (facts: FileFacts, name: string): string =>
+  cut(facts.title ?? name, ITEM_FIELD_CAPS.line) ?? "";
 
-const propertyValue = z.json();
-const topLevel = z.record(z.string(), z.unknown());
-
-// each top-level key's value as JSON, in the file's order; one YAML cannot spell as JSON (`.nan`)
-// keeps its source text
-const valuesOf = (yaml: string, parsed: ParsedProperties): Map<string, PropertyValue> => {
-  const values = new Map<string, PropertyValue>();
-  const doc = topLevel.safeParse(parseDocument(yaml).toJS());
-  if (parsed.kind !== "valid" || !doc.success) {
-    return values;
-  }
-  for (const prop of parsed.properties) {
-    const json = propertyValue.safeParse(doc.data[prop.key]);
-    if (json.success) {
-      values.set(prop.key, json.data);
-    } else if (prop.type === "unsupported") {
-      values.set(prop.key, prop.raw);
-    }
-  }
-  return values;
-};
-
-const fetchStateOf = (
-  kind: ItemKind,
-  url: string | null,
-  fetchedAt: number | null,
-  fetchError: string | null,
-): FileFields["fetchState"] => {
-  if (url === null) {
-    return "none";
-  }
-  if (fetchError !== null) {
-    return "failed";
-  }
-  if (fetchedAt !== null) {
-    return "filled";
-  }
-  return URL_ITEM_KINDS.some((urlKind) => urlKind === kind) ? "pending" : "none";
-};
-
-const noteFields = (title: string, now: number): FileFields => ({
-  aliases: [],
-  author: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  kind: "note",
-  lang: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt: now,
-  site: null,
-  tags: [],
-  title: cut(title, ITEM_FIELD_CAPS.line) ?? "",
-  url: null,
-});
-
-// an entry of a list, as a field reads one
-const textEntry = z.string();
-
-// what of a list key's value its field did not take: the entries it could not read, or the whole
-// of a value that is no list; nothing for a value it took whole, or for none at all
-const listRest = (
-  value: PropertyValue,
-  read: readonly string[],
-  spelledAs: (entry: string) => string,
-): PropertyValue | undefined => {
-  if (value === null) {
-    return undefined;
-  }
-  const held = new Set(read.map((entry) => entry.toLowerCase()));
-  const taken = (entry: PropertyValue): boolean =>
-    textEntry.validate(entry) && held.has(spelledAs(entry).toLowerCase());
-  if (!Array.isArray(value)) {
-    return taken(value) ? undefined : value;
-  }
-  const rest = value.filter((entry) => !taken(entry));
-  return rest.length === 0 ? undefined : rest;
-};
-
-// a tag as `frontmatterTags` reads one: a `#` before it and the spaces around it left off
-const tagSpelling = (entry: string): string =>
-  (entry.startsWith("#") ? entry.slice(1) : entry).trim();
-
-// every key's value no field took, as the property it stays: a key no field names, one its field
-// could not read whole, and of `tags` and `aliases` the entries they refused (`alias`, Obsidian's
-// older spelling, is read only where no `aliases` is)
-const unreadValues = (
-  parsed: ParsedProperties,
-  values: ReadonlyMap<string, PropertyValue>,
-  fields: FileFields,
-): Map<string, PropertyValue> => {
-  const aliasKey = propOf(parsed, "aliases") === undefined ? "alias" : "aliases";
-  // each key a field reads, and whether it read the key's value whole; a key no field reads, or
-  // one its field could not, stays a property
-  const readWhole = new Map([
-    ["author", fields.author !== null],
-    ["description", fields.description !== null],
-    ["fetch-error", fields.fetchError !== null],
-    ["fetched", fields.fetchedAt !== null],
-    ["id", true],
-    ["kind", isItemKind(textProp(parsed, "kind")?.toLowerCase() ?? "")],
-    ["lang", fields.lang !== null],
-    ["pinned", propOf(parsed, "pinned")?.type === "checkbox"],
-    ["published", fields.published !== null],
-    ["saved", true],
-    ["site", fields.site !== null],
-    ["title", writtenText(parsed, "title") !== null],
-    ["url", fields.url !== null],
-  ]);
-  const restOf = (key: string, value: PropertyValue): PropertyValue | undefined => {
-    if (key === "tags") {
-      return listRest(value, fields.tags, tagSpelling);
-    }
-    if (key === aliasKey) {
-      return listRest(value, fields.aliases, (entry) => entry.trim());
-    }
-    return readWhole.get(key) === true ? undefined : value;
-  };
-  const unread = new Map<string, PropertyValue>();
-  for (const [key, value] of values) {
-    const rest = restOf(key, value);
-    if (rest !== undefined) {
-      unread.set(key, rest);
-    }
-  }
-  return unread;
-};
-
-// a file's frontmatter (its YAML, null for none) as its item's fields; `name` is the file's own
-// name, the title unless a `title:` names another
-export const readFrontmatter = (
-  yaml: string | null,
-  name: string,
-  now: number,
-): FrontmatterRead => {
-  const parsed = parseProperties(yaml ?? "");
-  if (yaml === null || parsed.kind === "none") {
-    return { fields: noteFields(name, now), id: null, invalidYaml: null };
-  }
-  if (parsed.kind === "invalid") {
-    return { fields: noteFields(name, now), id: null, invalidYaml: yaml };
-  }
-  const facts = readItemFacts(parsed);
-  const values = valuesOf(yaml, parsed);
-  const url = facts.url !== null && facts.url.length <= ITEM_FIELD_CAPS.url ? facts.url : null;
-  const fields: FileFields = {
-    aliases: frontmatterAliases(parsed).slice(0, ITEM_FIELD_CAPS.listEntries),
-    author: cut(facts.author, ITEM_FIELD_CAPS.line),
-    description: cut(facts.description, ITEM_FIELD_CAPS.description),
-    fetchError: cut(facts.fetchError, ITEM_FIELD_CAPS.line),
-    fetchState: fetchStateOf(facts.kind, url, facts.fetchedMs, facts.fetchError),
-    fetchedAt: facts.fetchedMs,
-    kind: facts.kind,
-    lang: cut(textProp(parsed, "lang"), ITEM_FIELD_CAPS.line),
-    pinnedAt: isPinned(parsed) ? (facts.savedMs ?? now) : null,
-    properties: {},
-    published: cut(facts.published, ITEM_FIELD_CAPS.line),
-    savedAt: facts.savedMs ?? now,
-    site: cut(facts.site, ITEM_FIELD_CAPS.line),
-    tags: uniqueTags(yaml),
-    title: cut(writtenText(parsed, "title") ?? name, ITEM_FIELD_CAPS.line) ?? "",
-    url,
-  };
-  const properties: Record<string, PropertyValue> = {};
-  for (const [key, value] of unreadValues(parsed, values, fields)) {
-    properties[key] = value;
-  }
+// a file's item: what its keys say over a blank item, saved at the import's instant unless a
+// `saved:` says when, and pinned as of then
+export const itemFields = (facts: FileFacts, name: string, now: number): LibraryItemFields => {
+  const savedAt = facts.savedAt ?? now;
   return {
-    fields: { ...fields, properties },
-    id: noteIdOfProperties(parsed),
-    invalidYaml: null,
+    ...blankItemFields(savedAt),
+    ...facts.fields,
+    ...readingFields(facts.reading),
+    pinnedAt: facts.pinned ? savedAt : null,
+    properties: facts.properties,
+    title: titleOf(facts, name),
   };
 };

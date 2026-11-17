@@ -6,14 +6,15 @@ import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { describe, expect, it } from "vitest";
 
 import { cellIn, cellOf, clockAt, inCell, openTurn } from "../test-support/library-cell";
+import { runJobs } from "./cell-alarm";
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
-// the cell's router as a laptop calls it, beside the engine and the clock it runs on
+// the cell's router as a laptop calls it, beside the cell and the clock it runs on
 const laptopIn = (state: DurableObjectState) => {
   const clock = clockAt();
-  const { client, library } = cellIn(state, { clock });
-  return { clock, engine: library, library: client };
+  const cell = cellIn(state, { clock });
+  return { cell, clock, library: cell.client };
 };
 
 const codeOf = async (call: Promise<unknown>): Promise<string> => {
@@ -131,10 +132,10 @@ describe("what the apps read of the library", () => {
 
   it("searches the side its query lists, ranked, each item with the passage that matched", async () => {
     await inCell(cellOf(), async (state) => {
-      const { clock, engine, library } = laptopIn(state);
+      const { cell, clock, library } = laptopIn(state);
       const gone = await library.items.createNote({ markdown: "A fox long gone." });
       clock.now += 60_000;
-      engine.runDueJobs(() => {});
+      await runJobs(cell);
       await library.items.delete({ ids: [gone.item.id] });
       // typed a moment ago, so the index has not taken it in: its exact text finds it
       const kept = await library.items.createNote({ markdown: "The fox naps in the sun." });

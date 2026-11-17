@@ -1,6 +1,7 @@
 // The account's library cell: one SQLite Durable Object per account, the only writer of its
 // library and the source every client reads. It holds the library's tables, its change sets
-// and jobs, and the account's live sockets; its rules are the engine's (`./library-engine`). The
+// and jobs, and the account's live sockets; its rules are each `cell-*` module's, and every
+// transaction over them the engine's (`./library-engine`). The
 // Worker reaches it by `ctx.exports.LibraryDO`, under a name a verified credential or the cell
 // itself gave (`./library-cell`); fetch carries what stays a request and its response, a client's
 // library call and the socket upgrade, and every other call is RPC. Nothing a later event needs is
@@ -15,7 +16,7 @@ import { CONNECTOR_PATH } from "@repo/contract/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
-import { landPush, runAgentJobs, runTurnTool, showPreview } from "../agent/agent-turns";
+import { landPush, runTurnTool, showPreview } from "../agent/agent-turns";
 import type {
   CellAnswer,
   PreviewRequest,
@@ -28,11 +29,15 @@ import { authInfoOf, createConnectorHandler } from "../connector/connector-serve
 import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
+import { projectAnswerSchema } from "../note/note-wire";
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
 import { landArticle } from "./article-landing";
-import type { UploadRequest, UploadRoom } from "./cell-blobs";
-import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
+import { reserve, settleStored } from "./cell-blobs";
+import type { Settlement, UploadRequest, UploadRoom } from "./cell-blobs";
+import { runJobs } from "./cell-alarm";
+import { fillWaits, landReading } from "./cell-fills";
+import { landProjection, openNote, readSeed, takeSessionNotes } from "./cell-notes";
 import type { CellResult } from "./cell-refusal";
 import { collectMoved } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
@@ -55,25 +60,11 @@ import {
 } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
-import type { UploadSettlement } from "./library-engine";
 import { openCell } from "./open-cell";
 import type { Cell } from "./open-cell";
 
-// an alarm whose run failed outright tries again after this; a job's own failure waits longer
+// an alarm whose run failed outright tries again after this; a job's own failure waits by its lease
 const ALARM_RETRY_MS = 60_000;
-
-// the purged items' notes, emptied between two transactions; one that fails waits its turn again
-const purgeNotes = async ({ library, notes }: Cell): Promise<void> => {
-  for (const purge of library.claimNotePurges()) {
-    try {
-      await notes(purge.itemId).purge();
-      library.notePurged(purge, true);
-    } catch (error) {
-      logJobFailure(purge.job, error);
-      library.notePurged(purge, false);
-    }
-  }
-};
 
 export class LibraryDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -168,20 +159,15 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends:
-  // each job lands in a transaction of its own, and a call landing meanwhile tells its own at once,
-  // on the wake's cell. The storage's jobs first, then the readings to send, then what waits on R2
-  // or another object. Every commit sets the alarm again, so the run leaves it at the earliest job
-  // still waiting
+  // The jobs due (`./cell-alarm`), on a cell of the run's own, whose writes' frames are told as
+  // one when it ends: each job lands in a transaction of its own, and a call landing meanwhile
+  // tells its own at once, on the wake's cell. Every commit sets the alarm again, so the run
+  // leaves it at the earliest job still waiting
   override async alarm(): Promise<void> {
     const moved = collectMoved();
     const cell = openCell(this.ctx, this.env, { moved: moved.add });
     try {
-      cell.library.runDueJobs(logJobFailure);
-      await sendFills(this.ctx, this.env, cell.library);
-      await removeStrays(this.env, cell.accountId, cell.library);
-      await purgeNotes(cell);
-      await runAgentJobs(cell);
+      await runJobs(cell);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
       await this.ctx.storage.setAlarm(Date.now() + ALARM_RETRY_MS);
@@ -197,7 +183,8 @@ export class LibraryDO extends DurableObject<Env> {
   async sever(holder: SocketHolder): Promise<void> {
     const { library, notes } = this.#cell;
     severHolder(this.ctx, holder);
-    for (const itemId of library.sessionNotes(holder.id)) {
+    const opened = library.rows((db) => takeSessionNotes(db, holder.id));
+    for (const itemId of opened.ok ? opened.value : []) {
       try {
         await notes(itemId).sever(holder.id);
       } catch (error) {
@@ -210,17 +197,23 @@ export class LibraryDO extends DurableObject<Env> {
 
   // how a session's socket on an item's note opens, asked by the note's door
   openNote(sessionId: string, itemId: string): NoteOpening {
-    return this.#cell.library.noteOpening(sessionId, itemId);
+    const opening = this.#cell.library.rows((db) => openNote(db, sessionId, itemId));
+    return opening.ok ? opening.value : "missing";
   }
 
   readSeed(itemId: string): SeedAnswer {
-    return this.#cell.library.seedFor(itemId);
+    const seed = this.#cell.library.rows((db) => readSeed(db, itemId));
+    return seed.ok ? seed.value : { kind: "missing" };
   }
 
-  // a note's save; `gone` once the account's deletion began, so the note stops pushing
+  // a note's save, joining no change set, since typing is no change Undo takes back; `gone` once
+  // the account's deletion began, so the note stops pushing
   projectNote(itemId: string, projection: NoteProjection): ProjectAnswer {
-    const result = this.#cell.library.projectNote(itemId, projection);
-    return result.ok ? result.value : "gone";
+    const landed = this.#cell.library.landApart(
+      { answer: projectAnswerSchema, opId: undefined },
+      (scope) => landProjection(scope, itemId, projection),
+    );
+    return landed.ok ? landed.value : "gone";
   }
 
   // the account's deletion, every step in order (`./account-purge`)
@@ -247,18 +240,18 @@ export class LibraryDO extends DurableObject<Env> {
 
   // room for a file a device is about to upload to `/v1/blobs/<sha>`
   reserveBlob(request: UploadRequest): CellResult<UploadRoom> {
-    return this.#cell.library.reserve(request);
+    return reserve(this.#cell.library, request);
   }
 
   // the file's row once its upload is in R2, at the size R2 holds (`settleStored`)
-  async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
+  async settleBlob(sha: string): Promise<CellResult<Settlement>> {
     const { accountId, library } = this.#cell;
     return await settleStored(this.env, accountId, library, sha);
   }
 
   // whether the item still waits for the cloud's reading of `url`, asked before the page is read
   fillWanted(itemId: string, url: string): CellResult<boolean> {
-    return this.#cell.library.fillWanted(itemId, url);
+    return this.#cell.library.read((db) => fillWaits(db, itemId, url));
   }
 
   // a page the fill queue's consumer read (`../fill/fill-consumer`), parsed again at this door,
@@ -272,7 +265,7 @@ export class LibraryDO extends DurableObject<Env> {
     const { library, notes } = this.#cell;
     const reading = parsed.data;
     return await landArticle(notes, reading.kind === "read" ? reading.article : [], (inNote) =>
-      library.landReading(reading, inNote?.projection ?? null),
+      landReading(library, reading, inNote?.projection ?? null),
     );
   }
 }

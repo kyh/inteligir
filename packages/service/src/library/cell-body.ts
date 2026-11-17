@@ -6,14 +6,12 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
-import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { libraryBlockSchema } from "@repo/contract/library/library-nodes";
 import { BODY_HOMES, bodyTexts, items, seedBlocks } from "@repo/db/cell/schema";
 
 import { insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
-import { LibraryRowError } from "./library-sql";
 
 // a part sits well inside a Durable Object's 2 MB row
 const TEXT_PART_BYTES = 512 * 1024;
@@ -90,29 +88,13 @@ export const storeSeed = (db: CellDb, itemId: string, blocks: readonly BodyBlock
   const rows = blocks.map(({ block, section }, pos) => ({
     blockId: block.id,
     itemId,
-    json: canonicalJson(block),
+    json: block,
     pos,
     section,
   }));
   for (const chunk of insertChunks(seedBlocks, rows)) {
     db.insert(seedBlocks).values(chunk).run();
   }
-};
-
-const parseBlock = (json: string, itemId: string) => {
-  let value: unknown;
-  try {
-    value = JSON.parse(json);
-  } catch (error) {
-    throw new LibraryRowError(`a seed block of ${itemId} is not JSON`, { cause: error });
-  }
-  const parsed = libraryBlockSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new LibraryRowError(`a seed block of ${itemId} is not what this build writes`, {
-      cause: parsed.error,
-    });
-  }
-  return parsed.data;
 };
 
 export const readSeedBlocks = (db: CellDb, itemId: string): BodyBlock[] =>
@@ -122,22 +104,17 @@ export const readSeedBlocks = (db: CellDb, itemId: string): BodyBlock[] =>
     .where(eq(seedBlocks.itemId, itemId))
     .orderBy(asc(seedBlocks.pos))
     .all()
-    .map((row) => ({ block: parseBlock(row.json, itemId), section: row.section }));
+    .map((row) => ({ block: row.json, section: row.section }));
 
 // where an item's body is to be read: the seed the cell keeps, or the item's note; null for no item
-// that is not purged
 export type HeldBody =
   | { readonly kind: "seed"; readonly blocks: BodyBlock[] }
   | { readonly kind: "note" }
   | null;
 
 export const heldBody = (db: CellDb, itemId: string): HeldBody => {
-  const row = db
-    .select({ home: items.bodyHome })
-    .from(items)
-    .where(and(eq(items.id, itemId), eq(items.purged, 0)))
-    .get();
-  if (row === undefined || row.home === null) {
+  const row = db.select({ home: items.bodyHome }).from(items).where(eq(items.id, itemId)).get();
+  if (row === undefined) {
     return null;
   }
   return bodyWriter(row.home) === "cell"
@@ -154,5 +131,5 @@ export const noteBytes = (db: CellDb): number =>
   db
     .select({ bytes: sql`coalesce(sum(${items.bodyBytes}), 0)`.mapWith(Number) })
     .from(items)
-    .where(and(writtenByNote, eq(items.purged, 0)))
+    .where(writtenByNote)
     .get()?.bytes ?? 0;

@@ -1,12 +1,12 @@
-// What a make's fields are, spelled once: the cell lands an item by them, and a device lays the
-// same fields over its screens before the cell answers, so a card reads alike on both sides of its
-// landing.
+// What a make's fields are, spelled once: the cell lands an item by them, a device lays the same
+// fields over its screens before the cell answers, so a card reads alike on both sides of its
+// landing, and an import builds each item it read from them.
 
 import { fileKindOf, fileKindOfMime } from "../items/item-kind";
 import { itemNameFromUrl } from "../items/item-name";
 import { cleanUrl, kindForUrl } from "../items/item-url";
 import { readingFields } from "./item-reading";
-import type { LibraryItemFields } from "./library-item";
+import type { ImportedFields, LibraryItemFields } from "./library-item";
 
 // where a make files what it makes
 interface Filing {
@@ -102,3 +102,10 @@ export const fileFields = (
     title: input.title ?? (stem === "" ? input.name : stem),
   };
 };
+
+// a make as an import sends it, its place left to the folder the import names
+export const importedFields = ({
+  deletedAt: _deletedAt,
+  folderId: _folderId,
+  ...fields
+}: LibraryItemFields): ImportedFields => fields;

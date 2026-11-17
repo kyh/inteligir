@@ -2,13 +2,16 @@
 // and its row settled, and the cell's alarm run until what it waits for is done.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
-import { blobKey } from "../library/cell-blobs";
-import { settleStored } from "../library/cell-library";
+import { blobs } from "@repo/db/cell/schema";
+import { blobKey, blobRemovals, reserve, settleStored } from "../library/cell-blobs";
+import { cellDbOf } from "../library/cell-db";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
+import { landedValue } from "./library-cell";
 
 // what a put can meet that says nothing of its bytes, as the runtime throws it
 // (https://developers.cloudflare.com/r2/api/error-codes/), each with the name a test reads
@@ -29,7 +32,7 @@ export const uploadedFile = async (
   file: { readonly bytes: Uint8Array; readonly mime: string },
 ): Promise<string> => {
   const sha = await shaOf(file.bytes);
-  const room = library.reserve({ bytes: file.bytes.length, mime: file.mime, sha });
+  const room = reserve(library, { bytes: file.bytes.length, mime: file.mime, sha });
   if (!room.ok) {
     throw new Error(`the library refused the file: ${room.refusal.kind}`);
   }
@@ -38,10 +41,22 @@ export const uploadedFile = async (
     sha256: sha,
   });
   const settled = await settleStored(env, accountId, library, sha);
-  if (!settled.ok || !settled.value.settled) {
+  if (!settled.ok || settled.value !== "held") {
     throw new Error("the library did not settle the file");
   }
   return sha;
+};
+
+// the stray removals the cell has finished, as a settle reads them before it looks in R2
+export const removalsOf = (library: LibraryEngine): number =>
+  landedValue(library.read(blobRemovals));
+
+// a file's row of `bytes` that no upload made: what fills a library to its cap for a test
+export const holdFileOf = (storage: DurableObjectStorage, bytes: number): void => {
+  cellDbOf(storage)
+    .insert(blobs)
+    .values({ bytes, mime: UNKNOWN_FILE_TYPE, sha256: "f".repeat(64) })
+    .run();
 };
 
 // the cell's alarm run until `done` holds, at most `limit` times: the platform also runs an alarm

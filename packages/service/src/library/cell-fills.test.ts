@@ -5,9 +5,8 @@
 
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { FillJob } from "../fill/fill-job";
 import type { FillLanding } from "../fill/fill-landing";
 import { pngOf } from "../fill/test-support/fill-cell";
 import { paragraph } from "@repo/contract/test-support/library-items";
@@ -20,13 +19,15 @@ import {
   newAccountId,
   openTurn,
   PERSON,
+  writeItem,
 } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
+import { runJobs, runKind } from "./cell-alarm";
 import { readBlobRow } from "./cell-blobs";
-import { sendFills } from "./cell-library";
+import { landReading } from "./cell-fills";
 import { heldBody } from "./cell-body";
 import { cellDbOf } from "./cell-db";
-import { readLiveItem } from "./library-queries";
+import { readItem } from "./library-queries";
 
 const read = (
   landing: Pick<FillLanding, "itemId" | "url">,
@@ -54,7 +55,7 @@ const read = (
 // a live item's fields and the body its cell keeps
 const stateOf = (state: DurableObjectState, itemId: string) => {
   const db = cellDbOf(state.storage);
-  const item = readLiveItem(db, itemId);
+  const item = readItem(db, itemId);
   const body = heldBody(db, itemId);
   return item === null
     ? null
@@ -81,7 +82,8 @@ describe("a page's reading, landed", () => {
       });
       const { id } = saved.item;
       const note = sectionOf(state, id, "note");
-      const landed = engine.landReading(
+      const landed = landReading(
+        engine,
         read({ itemId: id, url: "https://pages.example/a" }, [paragraph("p1", "The article.")]),
         null,
       );
@@ -109,14 +111,15 @@ describe("a page's reading, landed", () => {
         url: "https://pages.example/b",
       });
       const { id } = saved.item;
-      const edited = engine.write(PERSON, {
+      const edited = writeItem(engine, PERSON, {
         itemId: id,
         ops: [
           { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
         ],
       });
       expect(edited.ok).toBe(true);
-      engine.landReading(
+      landReading(
+        engine,
         read({ itemId: id, url: "https://pages.example/b" }, [paragraph("p1", "The article.")]),
         null,
       );
@@ -135,9 +138,10 @@ describe("a page's reading, landed", () => {
       const url = "https://pages.example/c";
       const saved = await library.items.saveLink({ url });
       const { id } = saved.item;
-      engine.landReading(read({ itemId: id, url }, [paragraph("old", "Alpha beta gamma.")]), null);
+      landReading(engine, read({ itemId: id, url }, [paragraph("old", "Alpha beta gamma.")]), null);
       await library.items.refresh({ id });
-      engine.landReading(
+      landReading(
+        engine,
         read({ itemId: id, url }, [paragraph("new", "Alpha beta gamma, read again.")]),
         null,
       );
@@ -152,13 +156,15 @@ describe("a page's reading, landed", () => {
       const { client: library, library: engine } = cellIn(state);
       const final = "https://pages.example/final";
       const holder = await library.items.saveLink({ url: final });
-      engine.landReading(
+      landReading(
+        engine,
         read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]),
         null,
       );
       const short = "https://short.example/x";
       const stub = await library.items.saveLink({ tags: ["later"], url: short });
-      const landed = engine.landReading(
+      const landed = landReading(
+        engine,
         read({ itemId: stub.item.id, url: short }, [paragraph("r", "Read.")], { finalUrl: final }),
         null,
       );
@@ -179,10 +185,11 @@ describe("a page's reading, landed", () => {
   it("asks for the reading again when a link still waiting comes back from Deleted", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library } = cell;
       const url = "https://pages.example/restored";
       const saved = await library.items.saveLink({ url });
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [saved.item.id] });
       expect(fillJobs(state)).toStrictEqual([]);
       // the queue's message met a deleted item, so it was acked with nothing landed
@@ -197,9 +204,9 @@ describe("a page's reading, landed", () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const cell = cellIn(state, { clock: clockAt(Date.now()) });
-      const { client: library, library: engine } = cell;
+      const { client: library } = cell;
       const saved = await library.items.saveLink({ url: "https://pages.example/undone" });
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       const turn = openTurn(cell);
       await turn.client.items.delete({ ids: [saved.item.id] });
       turn.end();
@@ -218,22 +225,24 @@ describe("a page's reading, landed", () => {
   it("asks nothing for a link that stays in Deleted, or one already read", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/read";
       const saved = await library.items.saveLink({ url });
-      engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]), null);
-      await sendFills(state, env, engine);
+      landReading(engine, read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]), null);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [saved.item.id] });
       await library.items.refresh({ id: saved.item.id });
       expect(fillJobs(state)).toStrictEqual([]);
       const other = await library.items.saveLink({ url: "https://pages.example/other-read" });
-      engine.landReading(
+      landReading(
+        engine,
         read({ itemId: other.item.id, url: "https://pages.example/other-read" }, [
           paragraph("q", "Read too."),
         ]),
         null,
       );
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [other.item.id] });
       await library.items.restore({ ids: [other.item.id] });
       expect(fillJobs(state)).toStrictEqual([]);
@@ -249,7 +258,7 @@ describe("a page's reading, landed", () => {
       await library.items.delete({ ids: [saved.item.id] });
       const head = headOf(engine);
       expect(
-        engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "x")]), null),
+        landReading(engine, read({ itemId: saved.item.id, url }, [paragraph("p", "x")]), null),
       ).toMatchObject({
         ok: true,
         value: { kind: "stale" },
@@ -257,7 +266,8 @@ describe("a page's reading, landed", () => {
       // another address than the one the reading was asked at
       const moved = await library.items.saveLink({ url: "https://pages.example/e" });
       expect(
-        engine.landReading(
+        landReading(
+          engine,
           read({ itemId: moved.item.id, url: "https://pages.example/other" }, []),
           null,
         ),
@@ -269,13 +279,15 @@ describe("a page's reading, landed", () => {
   it("lets go at the alarm's next run the cover it kept, once it lands nowhere", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const db = cellDbOf(state.storage);
       const png = { mime: "image/png" };
       const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
       const stray = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(900, 600) });
       const kept = await library.items.saveLink({ url: "https://pages.example/kept" });
-      engine.landReading(
+      landReading(
+        engine,
         read({ itemId: kept.item.id, url: "https://pages.example/kept" }, [], { coverSha: named }),
         null,
       );
@@ -284,14 +296,12 @@ describe("a page's reading, landed", () => {
       const asked = { itemId: gone.item.id, url: "https://pages.example/gone" };
       // two readings for an item deleted meanwhile: one kept a cover another item names
       for (const coverSha of [stray, named]) {
-        expect(engine.landReading(read(asked, [], { coverSha }), null)).toMatchObject({
+        expect(landReading(engine, read(asked, [], { coverSha }), null)).toMatchObject({
           value: { kind: "stale" },
         });
       }
       expect(readBlobRow(db, stray)).not.toBeNull();
-      engine.runDueJobs(() => {
-        throw new Error("no job fails here");
-      });
+      await runJobs(cell);
       expect(readBlobRow(db, stray)).toBeNull();
       expect(readBlobRow(db, named)).not.toBeNull();
     });
@@ -303,7 +313,8 @@ describe("a page's reading, landed", () => {
       const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/f";
       const saved = await library.items.saveLink({ url });
-      engine.landReading(
+      landReading(
+        engine,
         {
           itemId: saved.item.id,
           kind: "failed",
@@ -397,7 +408,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/named";
       const item = await savedByTurn(cell, url);
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
+      landReading(engine, read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       expect(stateOf(state, item.id)?.fields.title).toBe("The page's own title");
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [],
@@ -415,7 +426,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const url = "https://pages.example/early";
       const turn = openTurn(cell);
       const { item } = await turn.client.items.saveLink({ url });
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
+      landReading(engine, read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       turn.end();
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [],
@@ -435,7 +446,8 @@ describe("Undo of a link the agent saved, once its page is read", () => {
         mime: "image/png",
       });
       const item = await savedByTurn(cell, url);
-      engine.landReading(
+      landReading(
+        engine,
         {
           fileKind: "image",
           itemId: item.id,
@@ -462,8 +474,8 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/renamed";
       const item = await savedByTurn(cell, url);
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
-      const renamed = engine.write(PERSON, {
+      landReading(engine, read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
+      const renamed = writeItem(engine, PERSON, {
         itemId: item.id,
         ops: [{ base: "The page's own title", field: "title", op: "set", value: "Mine" }],
       });
@@ -483,12 +495,12 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/waited";
       const item = await savedByTurn(cell, url);
-      const renamed = engine.write(PERSON, {
+      const renamed = writeItem(engine, PERSON, {
         itemId: item.id,
         ops: [{ base: item.fields.title, field: "title", op: "set", value: "Mine" }],
       });
       expect(renamed.ok).toBe(true);
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
+      landReading(engine, read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [item.id],
         reverted: [],
@@ -518,7 +530,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
         const { client: library, library: engine } = cell;
         const url = "https://pages.example/final";
         const holder = await savedByTurn(cell, url);
-        engine.landReading(read({ itemId: holder.id, url }, [paragraph("h", "Held.")]), null);
+        landReading(engine, read({ itemId: holder.id, url }, [paragraph("h", "Held.")]), null);
         clock.now += HOUR;
         const again = await library.items.saveLink({ ...carried, url });
         expect(again).toMatchObject({ created: false, item: { id: holder.id } });
@@ -533,62 +545,56 @@ describe("Undo of a link the agent saved, once its page is read", () => {
 });
 
 describe("a reading's ask", () => {
-  it("is a job row the write lands, claimed a minute at a time until the queue takes it", async () => {
+  it("is a job row the write lands, which the alarm sends to the fill queue, again later while the send fails", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const clock = clockAt();
-      const { client: library, library: engine } = cellIn(state, { clock });
-      const saved = await library.items.saveLink({ url: "https://pages.example/h" });
+      const cell = cellIn(state, { clock });
+      const { client: library } = cell;
+      const url = "https://pages.example/h";
+      const saved = await library.items.saveLink({ url });
       expect(fillJobs(state)).toStrictEqual([
         { id: `fill:${saved.item.id}`, payload: expect.any(String) },
       ]);
-      const claimed = engine.claimDueFills();
-      expect(claimed.map((fill) => fill.request)).toStrictEqual([
-        { coverHint: null, itemId: saved.item.id, url: "https://pages.example/h" },
+      const queue = vi
+        .spyOn(env.FILLS, "sendBatch")
+        .mockRejectedValueOnce(new Error("the queue is down"));
+      await runKind(cell, "fill");
+      expect(fillJobs(state)).toHaveLength(1);
+      // the failed send keeps its lease, so the alarm's next run does not send it again at once
+      await runKind(cell, "fill");
+      expect(queue).toHaveBeenCalledTimes(1);
+      clock.now += 30_000;
+      await runKind(cell, "fill");
+      expect(queue).toHaveBeenLastCalledWith([
+        { body: { accountId, coverHint: null, itemId: saved.item.id, url }, contentType: "json" },
       ]);
-      // claimed, so the alarm's next run does not send it again at once
-      expect(engine.claimDueFills()).toStrictEqual([]);
-      clock.now += 60_000;
-      const again = engine.claimDueFills();
-      expect(again).toHaveLength(1);
-      engine.fillsSent(again);
+      queue.mockRestore();
       expect(fillJobs(state)).toStrictEqual([]);
       // a refresh asks again; a save of a held address asks nothing
       await library.items.refresh({ id: saved.item.id });
-      await library.items.saveLink({ url: "https://pages.example/h" });
+      await library.items.saveLink({ url });
       expect(fillJobs(state)).toHaveLength(1);
     });
   });
 
-  it("is sent to the fill queue by the alarm, and kept for its next run when the send fails", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const { client, library } = cellIn(state);
-      await client.items.saveLink({ url: "https://pages.example/i" });
-      const sent: FillJob[] = [];
-      const refusing: Queue<FillJob> = {
-        metrics: async () => await Promise.reject(new Error("the queue is down")),
-        send: async () => await Promise.reject(new Error("the queue is down")),
-        sendBatch: async () => await Promise.reject(new Error("the queue is down")),
-      };
-      await sendFills(state, { ...env, FILLS: refusing }, library);
-      expect(fillJobs(state)).toHaveLength(1);
-      const taking: Queue<FillJob> = {
-        ...refusing,
-        sendBatch: async (messages) => {
-          for (const message of messages) {
-            sent.push(message.body);
-          }
-          return await env.FILLS.sendBatch(messages);
-        },
-      };
-      // the failed send's claim holds the row a minute; the alarm then sends it again
-      state.storage.sql.exec("UPDATE jobs SET next_at = 0 WHERE kind = 'fill'");
-      await sendFills(state, { ...env, FILLS: taking }, library);
+  it("stays for a send of its own when it is asked again while the queue takes the first", async () => {
+    await inCell(cellOf(), async (state) => {
+      const cell = cellIn(state);
+      const { client: library } = cell;
+      const saved = await library.items.saveLink({ url: "https://pages.example/i" });
+      const queue = vi.spyOn(env.FILLS, "sendBatch").mockImplementationOnce(async (messages) => {
+        await library.items.refresh({ id: saved.item.id });
+        return await env.FILLS.sendBatch(messages);
+      });
+      await runKind(cell, "fill");
+      // the first send's end left the row the refresh asked for, its runs counted from none
+      expect(
+        state.storage.sql.exec("SELECT attempts FROM jobs WHERE kind = 'fill'").toArray(),
+      ).toStrictEqual([{ attempts: 0 }]);
+      await runKind(cell, "fill");
+      queue.mockRestore();
       expect(fillJobs(state)).toStrictEqual([]);
-      expect(sent).toStrictEqual([
-        { accountId, coverHint: null, itemId: expect.any(String), url: "https://pages.example/i" },
-      ]);
     });
   });
 });

@@ -117,7 +117,6 @@ export const searchLibrary = (
         and(
           sql`${searchFts} MATCH ${renderFtsMatch(plan)}`,
           side === "deleted" ? isNotNull(items.deletedAt) : isNull(items.deletedAt),
-          eq(items.purged, 0),
         ),
       )
       .orderBy(RANK, asc(items.id))

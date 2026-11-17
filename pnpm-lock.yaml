@@ -946,6 +946,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@libsql/client@0.18.0)(@opentelemetry/api@1.10.0)(expo-sqlite@57.0.4(expo@57.0.27)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(zod@4.6.7)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@kyh/tsconfig':
         specifier: 'catalog:'

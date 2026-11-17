@@ -18,10 +18,10 @@ import {
   openTurn,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
+import { holdFileOf } from "../test-support/library-files";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { FILL_ACTOR } from "./cell-fills";
-import { addFileBytes } from "./cell-quota";
-import { cellDbOf } from "./cell-db";
+import { readSeed } from "./cell-notes";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 const SHA = "a".repeat(64);
@@ -168,7 +168,9 @@ describe("the library's procedures", () => {
       const url = "https://example.com/opening";
       const stub = await library.items.saveLink({ note: "For Tuesday.", url });
       // the note read its seed and went no further
-      expect(engine.seedFor(stub.item.id)).toMatchObject({ kind: "seed" });
+      expect(landedValue(engine.rows((db) => readSeed(db, stub.item.id)))).toMatchObject({
+        kind: "seed",
+      });
       const landed = await library.items.save(pageSave(url));
       expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
       const read = await library.items.read({ id: stub.item.id });
@@ -679,7 +681,7 @@ describe("the library's procedures", () => {
       ).resolves.toStrictEqual({ code: "CONFLICT", data: undefined, defined: true });
 
       // a full library still takes words in an item it holds, and refuses only a new one
-      addFileBytes(cellDbOf(state.storage), GiB);
+      holdFileOf(state.storage, GiB);
       await library.items.edit({
         edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
         id: item.id,

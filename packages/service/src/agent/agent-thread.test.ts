@@ -226,7 +226,7 @@ const turnStartsOf = async (account: AgentAccount, threadId: string): Promise<nu
 const rulesIn = async (account: AgentAccount, rules: string): Promise<void> => {
   await cellRows(
     account,
-    "INSERT INTO meta (k, v) VALUES ('library_rules', ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+    "INSERT INTO cell_state (slot, rules) VALUES (1, ?) ON CONFLICT (slot) DO UPDATE SET rules = excluded.rules",
     rules,
   );
 };

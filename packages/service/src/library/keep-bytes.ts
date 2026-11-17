@@ -8,10 +8,9 @@
 import { z } from "zod";
 
 import { blobKey } from "./cell-blobs";
-import type { UploadRequest, UploadRoom } from "./cell-blobs";
+import type { Settlement, UploadRequest, UploadRoom } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
 import type { LibraryDO } from "./library-do";
-import type { UploadSettlement } from "./library-engine";
 
 // a cell's answer as far as a keep reads it, which its stub's serialized answer is too
 type Answer<T> =
@@ -22,7 +21,7 @@ type Refusal = Pick<CellRefusal, "kind">;
 
 export interface KeepPort {
   readonly reserve: (request: UploadRequest) => Answer<UploadRoom> | Promise<Answer<UploadRoom>>;
-  readonly settle: (sha: string) => Promise<Answer<UploadSettlement>>;
+  readonly settle: (sha: string) => Promise<Answer<Settlement>>;
 }
 
 // the cell reached from the Worker, by its stub
@@ -40,7 +39,7 @@ export type KeepOutcome =
   // R2 kept nothing: `badDigest` when the bytes did not hash to the sha, which a send again would
   // not change
   | { readonly kind: "unput"; readonly badDigest: boolean; readonly error: unknown }
-  // a removal of these bytes raced the put, and the room still stands
+  // a removal of these bytes raced the put, so the device sends them again
   | { readonly kind: "raced" };
 
 // R2's BadDigest (https://developers.cloudflare.com/r2/api/error-codes/), bytes that do not hash to
@@ -85,7 +84,7 @@ export const keepBytes = async (
   if (!settled.ok) {
     return unput ?? { kind: "refused", refusal: settled.refusal };
   }
-  if (settled.value.settled) {
+  if (settled.value === "held") {
     return { kind: "kept" };
   }
   return unput ?? { kind: "raced" };

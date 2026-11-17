@@ -15,9 +15,14 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+import { z } from "zod";
+
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
-import { FETCH_STATES } from "@repo/contract/library/library-item";
-import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
+import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
+import type { BodyDigest, ItemCard } from "@repo/contract/library/derive-item";
+import { FETCH_STATES, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { LIBRARY_SECTIONS, libraryBlockSchema } from "@repo/contract/library/library-nodes";
+import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
@@ -30,33 +35,45 @@ export const BODY_HOMES = ["seed", "opening", "note"] as const;
 const oneOf = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(", "));
 
-// a column with no declared type takes BLOB affinity and keeps what it is handed; `ANY` outside a
-// STRICT table takes NUMERIC affinity, which would hand the person's rules "42" back as 42
-const untyped = customType<{ data: string | number; driverData: string | number }>({
-  dataType: () => "",
-});
+// JSON a column holds, read back through its schema, so a row is the type it was written as or no
+// row at all
+const json = <T>(schema: z.ZodType<T>) =>
+  customType<{ data: T; driverData: string }>({
+    dataType: () => "text",
+    fromDriver: (stored) => schema.parse(JSON.parse(stored)),
+    toDriver: (value) => JSON.stringify(value),
+  });
 
-export const meta = sqliteTable("meta", {
-  k: text().primaryKey(),
-  v: untyped(),
-});
+const FIELDS = libraryItemFieldsSchema.shape;
 
-// a purged item keeps its id, sequence and deletion as a tombstone forever and nulls the rest, so
-// no id is ever made again, an import's or a late save's included; every other row holds its
-// whole record. `rid` is the search index's row id, so a write replaces its index row in place.
-// Of its body the row keeps where it lives, the digest its card and index derive from, and for a
-// live note the version of the projection landed and the bytes its object holds
+// what the cell holds once, in its one row: the sequence its last write took, when the account's
+// deletion began, the stray removals R2 has finished, and the person's filing rules
+export const cellState = sqliteTable(
+  "cell_state",
+  {
+    slot: integer().primaryKey(),
+    head: integer().notNull().default(0),
+    deletedAt: integer("deleted_at"),
+    blobRemovals: integer("blob_removals").notNull().default(0),
+    rules: text(),
+  },
+  (t) => [check("cell_state_slot", sql`${t.slot} = 1`)],
+);
+
+// an item, in Deleted or not, whole: its fields, and of its body where it lives, the digest its card
+// and index derive from, and for a note the version of the projection landed and the bytes its
+// object holds. `rid` is the search index's row id, so a write replaces its index row in place
 export const items = sqliteTable(
   "items",
   {
     rid: integer().primaryKey(),
     id: text().notNull(),
-    kind: text({ enum: ITEM_KINDS }),
-    title: text(),
+    kind: text({ enum: ITEM_KINDS }).notNull(),
+    title: text().notNull(),
     folderId: text("folder_id"),
-    aliases: text(),
-    tags: text(),
-    properties: text(),
+    aliases: json(FIELDS.aliases)().notNull(),
+    tags: json(FIELDS.tags)().notNull(),
+    properties: json(FIELDS.properties)().notNull(),
     url: text(),
     urlKey: text("url_key"),
     site: text(),
@@ -67,19 +84,18 @@ export const items = sqliteTable(
     coverSha: text("cover_sha"),
     originalSha: text("original_sha"),
     originalName: text("original_name"),
-    fetchState: text("fetch_state", { enum: FETCH_STATES }),
+    fetchState: text("fetch_state", { enum: FETCH_STATES }).notNull(),
     fetchedAt: integer("fetched_at"),
     fetchError: text("fetch_error"),
-    savedAt: integer("saved_at"),
+    savedAt: integer("saved_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     pinnedAt: integer("pinned_at"),
     deletedAt: integer("deleted_at"),
-    purged: integer().notNull().default(0),
-    card: text(),
-    bodyHome: text("body_home", { enum: BODY_HOMES }),
-    bodyDigest: text("body_digest"),
-    bodyVersion: integer("body_version"),
-    bodyBytes: integer("body_bytes"),
+    card: json<ItemCard>(itemCardSchema)().notNull(),
+    bodyHome: text("body_home", { enum: BODY_HOMES }).notNull(),
+    bodyDigest: json<BodyDigest>(bodyDigestSchema)("body_digest").notNull(),
+    bodyVersion: integer("body_version").notNull(),
+    bodyBytes: integer("body_bytes").notNull(),
     seq: integer().notNull(),
   },
   (t) => [
@@ -91,17 +107,20 @@ export const items = sqliteTable(
     index("items_seq").on(t.seq),
     check("items_kind", sql`${t.kind} IN (${oneOf(ITEM_KINDS)})`),
     check("items_fetch_state", sql`${t.fetchState} IN (${oneOf(FETCH_STATES)})`),
-    check("items_purged", sql`${t.purged} IN (0, 1)`),
     check("items_body_home", sql`${t.bodyHome} IN (${oneOf(BODY_HOMES)})`),
-    check(
-      "items_whole",
-      sql`${t.purged} = 1 OR (${t.kind} IS NOT NULL AND ${t.title} IS NOT NULL
-        AND ${t.aliases} IS NOT NULL AND ${t.tags} IS NOT NULL AND ${t.properties} IS NOT NULL
-        AND ${t.fetchState} IS NOT NULL AND ${t.savedAt} IS NOT NULL AND ${t.card} IS NOT NULL
-        AND ${t.bodyHome} IS NOT NULL AND ${t.bodyDigest} IS NOT NULL
-        AND ${t.bodyVersion} IS NOT NULL AND ${t.bodyBytes} IS NOT NULL)`,
-    ),
   ],
+);
+
+// an item emptied from Deleted: its id, kept forever so no id is ever made again, an import's or a
+// late save's included, and the sequence of the write that purged it, which a listing catches up
+// by. An id is an item's or a purged one's, never both
+export const purgedItems = sqliteTable(
+  "purged_items",
+  {
+    id: text().primaryKey(),
+    seq: integer().notNull(),
+  },
+  (t) => [index("purged_items_seq").on(t.seq)],
 );
 
 // a body the cell keeps until its note first opens, a top-level block a row in reading order; the
@@ -113,7 +132,7 @@ export const seedBlocks = sqliteTable(
     pos: integer().notNull(),
     blockId: text("block_id").notNull(),
     section: text({ enum: LIBRARY_SECTIONS }).notNull(),
-    json: text().notNull(),
+    json: json(libraryBlockSchema)().notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.itemId, t.pos] }),
@@ -182,13 +201,17 @@ export const links = sqliteTable(
   ],
 );
 
-export const threads = sqliteTable("threads", {
-  id: text().primaryKey(),
-  title: text().notNull(),
-  status: text().notNull(),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-});
+export const threads = sqliteTable(
+  "threads",
+  {
+    id: text().primaryKey(),
+    title: text().notNull(),
+    status: text({ enum: THREAD_STATUSES }).notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [check("threads_status", sql`${t.status} IN (${oneOf(THREAD_STATUSES)})`)],
+);
 
 export const threadEvents = sqliteTable(
   "thread_events",
@@ -197,7 +220,7 @@ export const threadEvents = sqliteTable(
     threadId: text("thread_id").notNull(),
     idx: integer().notNull(),
     type: text().notNull(),
-    json: text().notNull(),
+    json: json(z.json())().notNull(),
     at: integer().notNull(),
   },
   (t) => [index("thread_events_thread").on(t.threadId, t.idx)],
@@ -209,7 +232,6 @@ export const blobs = sqliteTable("blobs", {
   sha256: text().primaryKey(),
   bytes: integer().notNull(),
   mime: text().notNull(),
-  refs: integer().notNull(),
 });
 
 export const itemBlobs = sqliteTable(
@@ -218,7 +240,7 @@ export const itemBlobs = sqliteTable(
     itemId: text("item_id").notNull(),
     sha256: text().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
+  (t) => [primaryKey({ columns: [t.itemId, t.sha256] }), index("item_blobs_sha").on(t.sha256)],
 );
 
 // One built-in agent turn's change set, which its Undo takes back; no other writer keeps one
@@ -293,13 +315,19 @@ export const agentSwitch = sqliteTable(
   "agent_switch",
   {
     slot: integer().primaryKey(),
-    enabled: integer().notNull(),
+    enabled: integer({ mode: "boolean" }).notNull(),
   },
   (t) => [
     check("agent_switch_slot", sql`${t.slot} = 1`),
     check("agent_switch_enabled", sql`${t.enabled} IN (0, 1)`),
   ],
 );
+
+// what a send carries into its turn: the person's words, and the screen they wrote from
+const turnMessageSchema = z.object({
+  text: z.string().min(1),
+  viewContext: agentViewContextSchema.nullable(),
+});
 
 // each thread's open turn, at most one: its number in the thread, which keys the change set its
 // writes open, what the person sent, how many of its calls wait on the person, whether the person
@@ -310,9 +338,9 @@ export const agentTurns = sqliteTable(
   {
     threadId: text("thread_id").primaryKey(),
     turn: integer().notNull(),
-    message: text().notNull(),
+    message: json(turnMessageSchema)().notNull(),
     waiting: integer().notNull().default(0),
-    cancel: integer().notNull().default(0),
+    cancel: integer({ mode: "boolean" }).notNull().default(false),
     startedAt: integer("started_at").notNull(),
     heardAt: integer("heard_at").notNull(),
   },
@@ -335,7 +363,7 @@ export const agentQueue = sqliteTable(
   {
     id: text().primaryKey(),
     threadId: text("thread_id").notNull(),
-    message: text().notNull(),
+    message: json(turnMessageSchema)().notNull(),
     queuedAt: integer("queued_at").notNull(),
   },
   (t) => [index("agent_queue_order").on(t.queuedAt, t.id)],
@@ -347,14 +375,31 @@ export const agentUsage = sqliteTable("agent_usage", {
   turns: integer().notNull(),
 });
 
+// what the cell's alarm runs, in the order a run takes the kinds: the storage's own first, so a
+// file one of them lets go is a stray the same run takes out of R2
+export const JOB_KINDS = [
+  "prune",
+  "upload",
+  "unnamed",
+  "fill",
+  "stray",
+  "note-purge",
+  "agent-deliver",
+  "agent-watch",
+] as const;
+
+// a job waits until `next_at`; `attempts` counts the runs that took it since it was last asked for
 export const jobs = sqliteTable(
   "jobs",
   {
     id: text().primaryKey(),
-    kind: text().notNull(),
+    kind: text({ enum: JOB_KINDS }).notNull(),
     payload: text().notNull(),
     attempts: integer().notNull(),
-    nextAt: integer("next_at"),
+    nextAt: integer("next_at").notNull(),
   },
-  (t) => [index("jobs_next").on(t.nextAt)],
+  (t) => [
+    index("jobs_next").on(t.nextAt),
+    check("jobs_kind", sql`${t.kind} IN (${oneOf(JOB_KINDS)})`),
+  ],
 );

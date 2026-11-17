@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { ACCOUNT_PURGE_STEPS } from "../library/account-purge";
+import { runKind } from "../library/cell-alarm";
 import { SCHEMA_HASH_KEY } from "../object-schema";
 import {
   agentAccount,
@@ -34,7 +35,7 @@ import { cellIn, inCell } from "../test-support/library-cell";
 import { openTurnInCell } from "../test-support/thread-host";
 import { nextDayAt } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
-import { landPush, runAgentJobs, showPreview } from "./agent-turns";
+import { landPush, showPreview } from "./agent-turns";
 import type { PushRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
@@ -114,7 +115,7 @@ const startsOver = async (account: AgentAccount, threadId: string): Promise<void
 const watchedLater = async (account: AgentAccount): Promise<void> => {
   await inCell(account.cell, async (state) => {
     const later = { now: Date.now() + 6 * 60_000 };
-    await runAgentJobs(cellIn(state, { clock: later }));
+    await runKind(cellIn(state, { clock: later }), "agent-watch");
   });
 };
 

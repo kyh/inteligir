@@ -1,20 +1,13 @@
-// The person's filing rules: one meta row of their own prose, which every turn of the built-in
+// The person's filing rules: their own prose in the cell's one row, which every turn of the built-in
 // agent is sent under, after its prompt (`../agent/thread-request.ts`). Only the person writes
 // it, from Settings (`library.agent.setRules`); an export writes it out, and an import passes
 // over that file while it says what the row says, and reads it as a note otherwise.
 
-import { z } from "zod";
-
-import { readMeta, writeMeta } from "./library-queries";
+import { readCellState, writeCellState } from "./library-queries";
 import type { CellDb } from "./cell-db";
 
-const LIBRARY_RULES_META = "library_rules";
-
-const rulesSchema = z.string().nullable();
-
 // the page as the person left it, blank or not, null before they wrote one
-export const readLibraryRules = (db: CellDb): string | null =>
-  rulesSchema.parse(readMeta(db, LIBRARY_RULES_META));
+export const readLibraryRules = (db: CellDb): string | null => readCellState(db)?.rules ?? null;
 
 // the rules the library holds the agent to, null while the page is missing or blank
 export const filingRules = (db: CellDb): string | null => {
@@ -23,5 +16,5 @@ export const filingRules = (db: CellDb): string | null => {
 };
 
 export const writeLibraryRules = (db: CellDb, rules: string): void => {
-  writeMeta(db, LIBRARY_RULES_META, rules);
+  writeCellState(db, { rules });
 };

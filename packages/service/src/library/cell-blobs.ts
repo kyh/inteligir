@@ -8,18 +8,22 @@
 // last change set naming it went, and by the alarm a day after it landed or an item stopped naming
 // it otherwise.
 
-import { and, eq, exists, inArray, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, notExists, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readCount, writeMeta } from "./library-queries";
+import { readCellState, writeCellState } from "./library-queries";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
-import { addFileBytes, holdRoomFor } from "./cell-quota";
+import { holdRoomFor } from "./cell-quota";
+import type { CellResult } from "./cell-refusal";
+import type { LibraryEngine } from "./library-engine";
 
 export const blobKey = (accountId: string, sha: string): string => `acct/${accountId}/b/${sha}`;
 
@@ -62,16 +66,6 @@ export const missingBlobs = (db: CellDb, shas: readonly string[]): string[] => {
   const unique = [...new Set(shas)];
   const held = heldShas(db, unique);
   return unique.filter((sha) => !held.has(sha)).toSorted();
-};
-
-// how many items name each file, recounted for the files a write touched
-const recountRefs = (db: CellDb, shas: readonly string[]): void => {
-  for (const chunk of listChunks([...new Set(shas)])) {
-    db.update(blobs)
-      .set({ refs: db.$count(itemBlobs, eq(itemBlobs.sha256, blobs.sha256)) })
-      .where(inArray(blobs.sha256, chunk))
-      .run();
-  }
 };
 
 // ---- files nothing names ----
@@ -164,7 +158,6 @@ export const storeItemBlobs = (
   )) {
     db.insert(itemBlobs).values(chunk).run();
   }
-  recountRefs(db, [...before, ...shas]);
   for (const sha of before) {
     if (!shas.includes(sha)) {
       awaitName(db, sha, now);
@@ -181,7 +174,6 @@ export const dropItemBlobs = (db: CellDb, itemId: string, now: number): void => 
     .returning({ sha256: changeSetBlobs.sha256 })
     .all()
     .map((row) => row.sha256);
-  recountRefs(db, shas);
   for (const sha of new Set([...shas, ...kept])) {
     awaitNameAgain(db, sha, now);
   }
@@ -219,8 +211,7 @@ export interface UploadRoom {
   readonly held: boolean;
 }
 
-// room for a file a device is about to upload
-export const reserveUpload = (
+const reserveUpload = (
   db: CellDb,
   bytesCap: number,
   request: UploadRequest,
@@ -239,7 +230,6 @@ export const reserveUpload = (
       target: blobUploads.sha256,
     })
     .run();
-  addFileBytes(db, growth);
   scheduleJob(
     db,
     { id: uploadJobId(request.sha), kind: "upload", payload: { sha: request.sha } },
@@ -248,9 +238,8 @@ export const reserveUpload = (
   return { held: false };
 };
 
-const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
+const releaseHeld = (db: CellDb, sha: string): void => {
   db.delete(blobUploads).where(eq(blobUploads.sha256, sha)).run();
-  addFileBytes(db, -bytes);
   dropJob(db, uploadJobId(sha));
 };
 
@@ -258,11 +247,10 @@ const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
 
 // A stray is what R2 may hold under a sha no file row names: an upload the cell refused, or one
 // whose room was let go before it settled. Its removal is a job the alarm runs between two
-// transactions, since it waits on R2. While the job waits a settle of that sha lands nothing, and
-// a settle whose look in R2 began before a removal ended lands nothing either, by the count of
-// removals it read first, so no file row ever names an object a removal took.
-
-const BLOB_REMOVALS = "blob_removals";
+// transactions (`./cell-alarm`), since it waits on R2. While the job waits a settle of that sha
+// lands nothing, and a settle whose look in R2 began before a removal ended lands nothing either,
+// by the count of removals it read first, and looks again, so no file row ever names an object a
+// removal took.
 
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
@@ -273,7 +261,7 @@ const strayJob = (sha: string): JobRequest<"stray"> => ({
 });
 
 // the removals the cell has finished, which a settle reads before it looks in R2
-export const blobRemovals = (db: CellDb): number => readCount(db, BLOB_REMOVALS);
+export const blobRemovals = (db: CellDb): number => readCellState(db)?.blobRemovals ?? 0;
 
 const strayPending = (db: CellDb, sha: string): boolean =>
   db
@@ -290,19 +278,15 @@ const strand = (db: CellDb, sha: string, now: number): void => {
 
 // room nobody used: the upload never settled, and whatever it put in R2 goes
 export const releaseUpload = (db: CellDb, sha: string, now: number): void => {
-  const held = heldUpload(db, sha);
-  if (held !== null) {
-    releaseHeld(db, sha, held.bytes);
+  if (heldUpload(db, sha) !== null) {
+    releaseHeld(db, sha);
     strand(db, sha, now);
   }
 };
 
 // an upload the cell would not take: its room goes, and so do its bytes in R2
-export const refuseUpload = (db: CellDb, sha: string, now: number): void => {
-  const held = heldUpload(db, sha);
-  if (held !== null) {
-    releaseHeld(db, sha, held.bytes);
-  }
+const refuseUpload = (db: CellDb, sha: string, now: number): void => {
+  releaseHeld(db, sha);
   strand(db, sha, now);
 };
 
@@ -310,9 +294,8 @@ export const refuseUpload = (db: CellDb, sha: string, now: number): void => {
 // holds of it is a stray the alarm takes out; a file an item or any change set names stays
 export const releaseUnnamed = (db: CellDb, shas: readonly string[], now: number): void => {
   for (const sha of new Set(shas)) {
-    const row = db
-      .select({ bytes: blobs.bytes, refs: blobs.refs })
-      .from(blobs)
+    const [unnamed] = db
+      .delete(blobs)
       .where(
         and(
           eq(blobs.sha256, sha),
@@ -322,14 +305,24 @@ export const releaseUnnamed = (db: CellDb, shas: readonly string[], now: number)
               .from(jobs)
               .where(eq(jobs.id, unnamedJobId(sha))),
           ),
-          sql`NOT EXISTS (SELECT 1 FROM change_set_blobs WHERE sha256 = ${sha})`,
+          notExists(
+            db
+              .select({ sha256: itemBlobs.sha256 })
+              .from(itemBlobs)
+              .where(eq(itemBlobs.sha256, sha)),
+          ),
+          notExists(
+            db
+              .select({ sha256: changeSetBlobs.sha256 })
+              .from(changeSetBlobs)
+              .where(eq(changeSetBlobs.sha256, sha)),
+          ),
         ),
       )
-      .get();
+      .returning({ sha256: blobs.sha256 })
+      .all();
     dropJob(db, unnamedJobId(sha));
-    if (row?.refs === 0) {
-      db.delete(blobs).where(eq(blobs.sha256, sha)).run();
-      addFileBytes(db, -row.bytes);
+    if (unnamed !== undefined) {
       ensureJob(db, strayJob(sha), now);
     }
   }
@@ -347,8 +340,18 @@ export const beginRemoval = (db: CellDb, sha: string): boolean => {
 
 // R2 holds nothing under the sha now
 export const endRemoval = (db: CellDb, sha: string): void => {
-  writeMeta(db, BLOB_REMOVALS, blobRemovals(db) + 1);
+  writeCellState(db, { blobRemovals: blobRemovals(db) + 1 });
   dropJob(db, strayJobId(sha));
+};
+
+// R2 failed the removal, which keeps its lease and waits its turn again, unless an upload's room
+// took the sha while it ran: that upload's settle or release decides what stays, as when a removal
+// is about to begin, and what a settle read of R2 meanwhile it reads again, since a removal that
+// failed may have removed
+export const failRemoval = (db: CellDb, sha: string): void => {
+  if (heldUpload(db, sha) !== null) {
+    endRemoval(db, sha);
+  }
 };
 
 // what R2 holds under the file's key, read before the transaction: null when nothing landed
@@ -357,11 +360,15 @@ export interface StoredObject {
   readonly mime: string;
 }
 
+// What a settle found. `held`: a file row holds the sha. Nothing landed otherwise: `absent`, R2
+// held nothing, so the upload's room went back; `removing`, a stray's removal of the sha waits;
+// `stale`, a removal ended after R2 was read, so what R2 showed may be gone and a fresh look says
+const SETTLEMENTS = ["held", "absent", "removing", "stale"] as const;
+export type Settlement = (typeof SETTLEMENTS)[number];
+
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
-// in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read: a
-// stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
-// uploads again into the room it holds. False when no file row holds the sha
-export const settleUpload = (
+// in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read
+const settleUpload = (
   db: CellDb,
   bytesCap: number,
   upload: {
@@ -370,30 +377,92 @@ export const settleUpload = (
     readonly removalsSeen: number;
   },
   now: number,
-): boolean => {
+): Settlement => {
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(db, [sha]).size > 0) {
-    return true;
+    return "held";
   }
-  if (strayPending(db, sha) || blobRemovals(db) !== removalsSeen) {
-    return false;
+  if (strayPending(db, sha)) {
+    return "removing";
+  }
+  if (blobRemovals(db) !== removalsSeen) {
+    return "stale";
   }
   const held = heldUpload(db, sha);
   if (stored === null) {
-    if (held !== null) {
-      releaseHeld(db, sha, held.bytes);
-    }
-    return false;
+    releaseHeld(db, sha);
+    return "absent";
   }
-  const reserved = held?.bytes ?? 0;
-  holdRoomFor(db, bytesCap, stored.bytes - reserved);
-  if (held !== null) {
-    releaseHeld(db, sha, reserved);
-  }
+  holdRoomFor(db, bytesCap, stored.bytes - (held?.bytes ?? 0));
+  releaseHeld(db, sha);
   db.insert(blobs)
-    .values({ bytes: stored.bytes, mime: held?.mime ?? stored.mime, refs: 0, sha256: sha })
+    .values({ bytes: stored.bytes, mime: held?.mime ?? stored.mime, sha256: sha })
     .run();
-  addFileBytes(db, stored.bytes);
   awaitName(db, sha, now);
-  return true;
+  return "held";
+};
+
+// ---- an upload, through the engine ----
+
+const roomSchema = z.object({ held: z.boolean() });
+
+// room for a file a device is about to upload
+export const reserve = (library: LibraryEngine, request: UploadRequest): CellResult<UploadRoom> =>
+  library.landApart({ answer: roomSchema, opId: undefined }, (scope) =>
+    reserveUpload(scope.db, scope.bytesCap, request, scope.now),
+  );
+
+// the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
+// bytes past the quota go from R2 again
+export const settle = (
+  library: LibraryEngine,
+  sha: string,
+  stored: StoredObject | null,
+  removalsSeen: number,
+): CellResult<Settlement> => {
+  const settled = library.landApart({ answer: z.enum(SETTLEMENTS), opId: undefined }, (scope) =>
+    settleUpload(scope.db, scope.bytesCap, { removalsSeen, sha, stored }, scope.now),
+  );
+  if (!settled.ok && settled.refusal.kind === "quota") {
+    library.rows((db, now) => {
+      refuseUpload(db, sha, now);
+    });
+  }
+  return settled;
+};
+
+// a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's
+// record after this await, so nothing read before it is trusted but the count of stray removals,
+// which tells it whether one ran meanwhile. One that did is most often another file's, so R2 is
+// read once more before the device is asked to send again. Every writer settles here, a device's
+// upload and a page's file the fill kept, so this is where bytes that took their room before the
+// account's tombstone and reached R2 after its files went are taken out again: nothing under a
+// deleted account's prefix stays (`./account-purge`)
+export const settleStored = async (
+  env: Env,
+  accountId: string,
+  library: LibraryEngine,
+  sha: string,
+): Promise<CellResult<Settlement>> => {
+  const key = blobKey(accountId, sha);
+  const look = async (): Promise<CellResult<Settlement>> => {
+    const removalsSeen = library.read(blobRemovals);
+    if (!removalsSeen.ok) {
+      return removalsSeen;
+    }
+    const object = await env.BLOBS.head(key);
+    const stored =
+      object === null
+        ? null
+        : { bytes: object.size, mime: object.httpMetadata?.contentType ?? UNKNOWN_FILE_TYPE };
+    return settle(library, sha, stored, removalsSeen.value);
+  };
+  let settled = await look();
+  if (settled.ok && settled.value === "stale") {
+    settled = await look();
+  }
+  if (!settled.ok && settled.refusal.kind === "gone") {
+    await env.BLOBS.delete(key);
+  }
+  return settled;
 };

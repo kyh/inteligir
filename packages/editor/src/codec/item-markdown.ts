@@ -8,7 +8,8 @@ import type { TElement } from "platejs";
 import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { importedFields } from "@repo/contract/library/item-makes";
+import type { ImportedFields, LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
@@ -19,8 +20,7 @@ import type { MarkdownRead } from "@repo/editor/markdown/md-read";
 import { yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
 
-import { readFrontmatter } from "./item-fields";
-import type { FileFields } from "./item-fields";
+import { factsOf, itemFields, readFrontmatter } from "./item-fields";
 import { readBody, storedBlocks } from "./read-body";
 import type { BodyPorts } from "./read-body";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
@@ -47,8 +47,6 @@ export interface ItemSource {
   // the file's name, less its extension: the item's title unless its frontmatter names one
   readonly name: string;
 }
-
-export type ImportedFields = Omit<LibraryItemFields, "deletedAt" | "folderId">;
 
 export interface ImportedItem {
   readonly fields: ImportedFields;
@@ -113,12 +111,13 @@ const takeHeldFiles = (
 const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): BodyBlock[] =>
   blocks.map((block) => ({ block, section }));
 
-const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
-  ...fields,
-  coverSha: held.cover ?? (fields.kind === "image" ? (held.original?.sha ?? null) : null),
-  originalName: held.original?.name ?? null,
-  originalSha: held.original?.sha ?? null,
-});
+const fieldsWith = (fields: LibraryItemFields, held: HeldFiles): ImportedFields =>
+  importedFields({
+    ...fields,
+    coverSha: held.cover ?? (fields.kind === "image" ? (held.original?.sha ?? null) : null),
+    originalName: held.original?.name ?? null,
+    originalSha: held.original?.sha ?? null,
+  });
 
 // one markdown file as its item: its frontmatter split off before the read, so a `---` its body
 // opens with is the body's own; the note is what stands outside its top-level `:::article`
@@ -130,16 +129,17 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   if (!read.ok) {
     return read;
   }
-  const front = readFrontmatter(yaml, source.name, ports.now);
+  const front = readFrontmatter(yaml);
+  const facts = factsOf(front);
   const note = [...read.sections.note];
   const article = [...(read.sections.article ?? [])];
   const held = takeHeldFiles(
     { all: [note, article], first: note.length > 0 ? note : article },
-    front.fields.kind,
+    facts.fields.kind,
     ports,
   );
-  if (front.invalidYaml !== null) {
-    note.unshift(yamlCodeBlock(front.invalidYaml));
+  if (front.kind === "invalid") {
+    note.unshift(yamlCodeBlock(front.yaml));
   }
   const reading: BodyPorts = {
     links: { image: ports.file, item: ports.item },
@@ -150,7 +150,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   return {
     item: {
       blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
-      fields: fieldsWith(front.fields, held),
+      fields: fieldsWith(itemFields(facts, source.name, ports.now), held),
       leftOut: noteBlocks.refused + pageBlocks.refused,
     },
     ok: true,

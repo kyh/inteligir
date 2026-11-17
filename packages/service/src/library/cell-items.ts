@@ -1,8 +1,8 @@
 // The library's item writes beyond a device's own ops, each landed inside one write's transaction
 // by the rules every write meets (`./cell-landing`): a note or a file made whole, a bulk organize,
-// Deleted and back, and a url item's page asked for again. The markdown an agent writes goes through
-// the codec (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's
-// body is the note's (`./cell-edits`).
+// Deleted and back, Deleted emptied, and a url item's page asked for again. The markdown an agent
+// writes goes through the codec (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`);
+// its edit of a note's body is the note's (`./cell-edits`).
 
 import { readBody } from "@repo/editor/codec/read-body";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
@@ -11,15 +11,20 @@ import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-ru
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readItem, readLiveItem } from "./library-queries";
+import { changeSetItems } from "@repo/db/cell/schema";
+import { eq } from "drizzle-orm";
+import { idTaken, purgeItem, readItem } from "./library-queries";
 
-import { readBlobRow } from "./cell-blobs";
+import { dropItemBlobs, readBlobRow } from "./cell-blobs";
+import { bodyWriter } from "./cell-body";
 import { logReadFailure } from "./cell-codec";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
+import { scheduleJob } from "./cell-jobs";
 import { landItem } from "./cell-landing";
-import type { LandingScope, LiveItemRow } from "./cell-landing";
+import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
+import { forgetNoteSockets } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
 
@@ -31,8 +36,8 @@ export interface NewItem {
 }
 
 // an item the write makes, with its body; an id the library holds already is a conflict
-export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
-  if (readItem(scope.db, item.id) !== null) {
+export const landNew = (scope: ItemScope, item: NewItem): LiveItemRow => {
+  if (idTaken(scope.db, item.id)) {
     refuse({ kind: "conflict" });
   }
   return landItem(scope, { before: null, fields: item.fields, itemId: item.id, seed: item.blocks });
@@ -60,7 +65,7 @@ export interface CreateNoteInput {
 // a note from an agent's markdown, titled, tagged and filed as the request asks: its text names
 // no field, so a `---` block opening it is a code block, as in an edit
 export const createNote = (
-  scope: LandingScope,
+  scope: ItemScope,
   codec: CellCodec,
   ids: CellIds,
   input: CreateNoteInput,
@@ -89,7 +94,7 @@ export interface CreateFileInput {
 }
 
 // a file whose bytes the library holds
-export const createFile = (scope: LandingScope, input: CreateFileInput): LiveItemRow => {
+export const createFile = (scope: ItemScope, input: CreateFileInput): LiveItemRow => {
   const blob = readBlobRow(scope.db, input.sha);
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
@@ -104,13 +109,13 @@ export const createFile = (scope: LandingScope, input: CreateFileInput): LiveIte
 // tags, folder, pin and title for each item, in the one set the write joins; an id that names
 // no live item refuses the whole change
 export const organizeItems = (
-  scope: LandingScope,
+  scope: ItemScope,
   ids: CellIds,
   input: OrganizeInput,
 ): LiveItemRow[] => {
   const folderId = folderOfTarget(scope, input.folder, ids.item);
   return [...new Set(input.ids)].map((itemId) => {
-    const item = readLiveItem(scope.db, itemId);
+    const item = readItem(scope.db, itemId);
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
@@ -129,7 +134,7 @@ export interface BulkAnswer {
 // to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
 // no live item as missing
 export const setDeleted = (
-  scope: LandingScope,
+  scope: ItemScope,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
 ): BulkAnswer & { readonly landed: readonly LiveItemRow[] } => {
   const changed: string[] = [];
@@ -137,7 +142,7 @@ export const setDeleted = (
   const landed: LiveItemRow[] = [];
   const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
-    const item = readLiveItem(scope.db, itemId);
+    const item = readItem(scope.db, itemId);
     if (item === null) {
       missing.push(itemId);
       continue;
@@ -166,10 +171,37 @@ export const setDeleted = (
   return { addressHeld, changed, landed, missing };
 };
 
+// Deleted emptied of `ids`: each item, its body and every change set's hold on it go, its id kept
+// purged, and the alarm lets go the files nothing else names and empties its note. It joins no
+// set, since nothing can take it back; an id naming no item in Deleted is missing
+export const purgeItems = (scope: WriteScope, ids: readonly string[]) => {
+  const { db, now } = scope;
+  const purged: string[] = [];
+  const missing: string[] = [];
+  for (const id of new Set(ids)) {
+    const item = readItem(db, id);
+    if (item === null || item.fields.deletedAt === null) {
+      missing.push(id);
+      continue;
+    }
+    const seq = scope.seq();
+    purgeItem(db, id, seq);
+    db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
+    dropItemBlobs(db, id, now);
+    forgetNoteSockets(db, id);
+    if (bodyWriter(item.body.home) === "note") {
+      scheduleJob(db, { id: `note-purge:${id}`, kind: "note-purge", payload: { itemId: id } }, now);
+    }
+    scope.moved.item(id, seq);
+    purged.push(id);
+  }
+  return { missing, purged };
+};
+
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no
 // address has no page to read
-export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const item = readLiveItem(scope.db, itemId);
+export const refreshItem = (scope: ItemScope, itemId: string): LiveItemRow => {
+  const item = readItem(scope.db, itemId);
   if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }

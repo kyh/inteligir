@@ -22,7 +22,7 @@ import type { CellResult } from "./cell-refusal";
 import { recordLanding } from "./change-sets";
 import { storeSearchRow } from "../search/search-index";
 import { storeItemRow, storeLinks, storeTags } from "./library-queries";
-import type { ItemBody, LiveStoredItem } from "./library-queries";
+import type { ItemBody, StoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 
 // an item's text, all its blocks' together; a block's own is the vocabulary's
@@ -48,24 +48,28 @@ export type Landing =
     }
   | {
       readonly itemId: string;
-      readonly before: LiveStoredItem;
+      readonly before: StoredItem;
       readonly fields: LibraryItemFields;
       readonly seed: readonly BodyBlock[] | null;
     };
 
-// what a write lands under: its one sequence number and time, and the change set of the agent's
-// turn it is by, null for any other writer, each taken on the first landing so a write that lands
-// nothing moves nothing; and what it moved, for the sockets
-export interface LandingScope {
+// what a write lands under: its time and its one sequence number, taken on the first landing so a
+// write that lands nothing moves nothing; and what it moved, for the sockets
+export interface WriteScope {
   readonly db: CellDb;
   readonly bytesCap: number;
   readonly now: number;
   readonly seq: () => number;
-  readonly set: () => string | null;
   readonly moved: MovedCollector;
   // a part of the write that lands whole or not at all while the write goes on: what it wrote is
   // taken back when a rule refuses it, and the refusal answered
   readonly attempt: <T>(part: () => T) => CellResult<T>;
+}
+
+// a write that changes items: the change set of the agent's turn it is by, taken on the first
+// landing too, null for any other writer
+export interface ItemScope extends WriteScope {
+  readonly set: () => string | null;
 }
 
 // the words a field holds, which grow the library as a block does. A stamp, a state, a place, a sha
@@ -113,7 +117,6 @@ export const urlHolder = (
       and(
         eq(items.urlKey, urlKey),
         isNull(items.deletedAt),
-        eq(items.purged, 0),
         itemId === null ? undefined : ne(items.id, itemId),
       ),
     )
@@ -167,7 +170,7 @@ interface Checked {
 }
 
 // every rule a landing meets, before anything is written: a refusal leaves nothing to roll back
-const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
+const checkLanding = (scope: ItemScope, landing: Landing): Checked => {
   const { db } = scope;
   const { before, fields, itemId } = landing;
   if (!libraryItemFieldsSchema.validate(fields)) {
@@ -198,7 +201,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
 };
 
 // the row the item lands as; refuses a change no rule admits, before anything is written
-export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => {
+export const landItem = (scope: ItemScope, landing: Landing): LiveItemRow => {
   const { db } = scope;
   const { before, fields, itemId } = landing;
   const { derived, landed, priorShas, shas } = checkLanding(scope, landing);
@@ -208,7 +211,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     { after: fields, before: before?.fields ?? null, itemId, setId: scope.set() },
     scope.now,
   );
-  const stored = storeItemRow(db, {
+  storeItemRow(db, {
     body: landed.body,
     card: derived.card,
     fields,
@@ -217,9 +220,6 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     updatedAt: scope.now,
     urlKey: derived.urlKey,
   });
-  if (!stored) {
-    throw new LibraryRowError(`the item ${itemId} holds a row newer than the library's head`);
-  }
   if (landed.seed !== null) {
     storeSeed(db, itemId, landed.seed.blocks);
     storeBodyText(db, itemId, landed.seed.text);
