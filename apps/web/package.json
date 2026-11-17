@@ -27,6 +27,7 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/editor": "workspace:*",
+    "@repo/service": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

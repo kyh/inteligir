@@ -51,6 +51,10 @@ export const authPageSearchSchema = z.object({
 // its own
 export const signedInLanding = (next?: string): string => internalNextPath(next) ?? SIGNED_IN_HOME;
 
+// another account page, carrying on the way back this one was opened with
+export const authPageHref = (pathname: string, next?: string): string =>
+  next === undefined ? pathname : `${pathname}?${new URLSearchParams({ next }).toString()}`;
+
 // the sign-in, which loads `here` again once it signs the browser in
 export const signInHref = (here: Pick<URL, "pathname" | "search">): string =>
   `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;

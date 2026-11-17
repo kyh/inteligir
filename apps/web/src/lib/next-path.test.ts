@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
-import { authPageSearchSchema, internalNextPath, resetLanding, signedInLanding } from "./next-path";
+import {
+  authPageHref,
+  authPageSearchSchema,
+  internalNextPath,
+  resetLanding,
+  signedInLanding,
+} from "./next-path";
 
 describe("the sign-in return path", () => {
   it("carries a same-document path's query through unchanged", () => {
@@ -81,4 +87,13 @@ describe("a reset's landing", () => {
       expect(resetLanding(stranger)).toBe("/app/reset-password");
     },
   );
+});
+
+describe("a link between account pages", () => {
+  it("carries the way back whole, or none", () => {
+    const way = "/connect/authorize?client_id=c1&state=s1";
+    const href = authPageHref("/app/sign-up", way);
+    expect(new URL(href, "http://x.test").searchParams.get("next")).toBe(way);
+    expect(authPageHref("/app/sign-up")).toBe("/app/sign-up");
+  });
 });
