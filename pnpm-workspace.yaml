@@ -224,6 +224,9 @@ patchedDependencies:
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
+  # the react-dom patch's change, in the react-dom Next bundles into every page it serves, which the
+  # npm package's patch never reaches
+  next@16.4.6: patches/next@16.4.6.patch
   # a pooled client on a lost or closed socket: postgres.js writes a query to the missing socket and
   # waits forever, sends a transaction's late COMMIT down a connection already serving another
   # caller, and reconnects a pool already ended; the patch fails each instead, as dataembed's does,

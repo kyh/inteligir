@@ -54,7 +54,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   or dropped. `patches/` (micromark:
   `packages/editor/src/headless/markdown/parse-cost.test.ts`;
   @platejs/core: `packages/editor/src/typing-budget.test.tsx`; react-dom:
-  `packages/editor/src/commit-selection-walk.test.tsx`; slate-react:
+  `packages/editor/src/commit-selection-walk.test.tsx`; next, its react-dom:
+  `apps/web/src/library/commit-selection-walk.test.ts`; slate-react:
   `tools/e2e/src/editor.spec.ts`).
 - **No type assertion, and no escape comment** (owner decision):
   `assertionStyle: "never"`, tests included. Why: a cast is a claim nothing
