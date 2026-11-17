@@ -5,9 +5,10 @@ import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { describe, expect, it } from "vitest";
 
-// the docs the legal pages render, read as those routes read them
-import privacy from "../../../../docs/privacy.md?raw";
-import terms from "../../../../docs/terms.md?raw";
+import { LEGAL_DOCS } from "./legal-docs";
+
+// the docs the legal pages render
+const { privacy, terms } = LEGAL_DOCS;
 
 // the pipeline MarkdownPage runs, without the page chrome that needs a router
 const render = (markdown: string): string =>

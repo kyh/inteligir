@@ -365,6 +365,12 @@ The unpacked store build, against production, with no dev build loaded.
   reset or sign-up started from the consent page lands back there.
 - **Share cards** for /about and /privacy in a chat app; `apps/web/public/og.jpg`
   and the store listing's pitch are current.
+- **The two policies on Vercel**, which serves a route rendered per request from
+  its shell before any of the app runs: signed in, every `<script>` of
+  `curl -s <deployment>/library` carries the nonce its `content-security-policy`
+  names, or is the theme script its hash names; `curl -sI <deployment>/` shows
+  `script-src 'self' 'unsafe-inline'`, and `curl -sI <deployment>/v1/blobs/<sha>`
+  only the file's own policy.
 
 ### The library in a browser tab
 

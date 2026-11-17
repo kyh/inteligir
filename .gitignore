@@ -13,6 +13,8 @@ playwright-report/
 # next.js
 .next/
 next-env.d.ts
+# the licences page, written at prebuild (apps/web/scripts/write-licenses.ts)
+apps/web/public/licenses.md
 
 # vercel
 .vercel

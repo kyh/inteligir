@@ -15,6 +15,7 @@
   "scripts": {
     "build": "pnpm with-env next build",
     "dev": "pnpm with-env next dev -p 5174",
+    "prebuild": "node scripts/write-licenses.ts",
     "start": "pnpm with-env next start -p 5174",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
@@ -43,6 +44,7 @@
     "react-markdown": "^10.1.0",
     "rehype-slug": "^6.0.0",
     "remark-gfm": "catalog:",
+    "three": "^0.186.1",
     "zod": "catalog:",
     "zustand": "catalog:"
   },
@@ -59,6 +61,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "dotenv-cli": "catalog:",

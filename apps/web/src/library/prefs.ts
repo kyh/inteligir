@@ -11,6 +11,7 @@ import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
 import { appearanceSchema } from "./appearance-options";
+import { DEVICE_PREFS } from "./no-flash-theme";
 
 const quietly = (touch: (storage: Storage) => void): void => {
   try {
@@ -68,8 +69,6 @@ const paneWidth = z
 // the orders the grid offers; a search ranks, so it takes none of them
 export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
 export type LibrarySort = (typeof LIBRARY_SORTS)[number];
-
-const DEVICE_PREFS = "inteligir.prefs";
 
 // the device's, so a change in one window reaches every other
 export const devicePrefs = persisted(

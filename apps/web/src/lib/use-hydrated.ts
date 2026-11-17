@@ -5,7 +5,7 @@ const subscribe = () => () => {
   // no listener was added
 };
 
-// false in the server's render and in hydration, true once React runs in the browser
+// false on the server and through hydration, true from the first render after it
 export const useHydrated = (): boolean =>
   useSyncExternalStore(
     subscribe,

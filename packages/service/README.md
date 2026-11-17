@@ -8,7 +8,7 @@ Its decisions are this package's [`CLAUDE.md`](CLAUDE.md).
 
 ```
 src/env.ts              every key the cloud reads, parsed once
-src/app-url.ts          the deployment's one origin, Better Auth's baseURL
+src/app-url.ts          the deployment's one origin: Better Auth's baseURL, llms.txt's connector
 src/rate-limit.ts       the app's own windows on Better Auth's rate_limit table
 src/auth/auth.ts        the two Better Auth instances, the session reads, the token strip
 src/auth/auth-route.ts  /api/auth/*: the six routes a client calls, a 404 to the rest

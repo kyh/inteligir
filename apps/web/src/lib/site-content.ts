@@ -1,5 +1,7 @@
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { LEGAL_DOCS } from "#lib/legal-docs";
 import { PAGES } from "#lib/page-meta";
 import { LICENSES_PATH, siteConfig } from "#lib/site-config";
 
@@ -134,7 +136,8 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
   cloud holds for it; the [privacy policy](${url}/privacy) explains exactly what that covers.
 `;
 
-export const llmsTxt = `# ${name}
+// the connector it names is the answering deployment's (`appUrl`), never the canonical site's
+export const llmsTxt = (appUrl: string): string => `# ${name}
 
 > ${name} is a library of everything a person saves and writes (links, articles, videos, images,
 > PDFs, files and their own notes), kept in their account and shown on their Mac, their iPhone
@@ -149,7 +152,7 @@ Arc, Brave and Edge through its browser extension, by pasting or dragging onto t
 the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the page it saves when
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
 in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
-own Claude or ChatGPT can reach the same library through the connector at ${url}/connector. It imports
+own Claude or ChatGPT can reach the same library through the connector at ${appUrl}${CONNECTOR_PATH}. It imports
 Raindrop backups and zips of notes such as an Obsidian folder. It is open source (MIT), and shared with a small invited group; the
 Mac app is for Apple silicon.
 
@@ -195,6 +198,17 @@ Nothing is served at \`${path}\` on ${url}.
 - [llms.txt](${url}/llms.txt): a summary of ${name} for agents
 - [Sitemap](${url}/sitemap.xml): every page on this site
 `;
+
+const PAGE_MARKDOWN: ReadonlyMap<string, string> = new Map([
+  [PAGES.home.path, homeMarkdown],
+  [PAGES.about.path, aboutMarkdown],
+  [PAGES.contact.path, contactMarkdown],
+  [PAGES.privacy.path, LEGAL_DOCS.privacy],
+  [PAGES.terms.path, LEGAL_DOCS.terms],
+]);
+
+// what the page at `path` answers an agent asking for text/markdown, or undefined where no page is
+export const pageMarkdown = (path: string): string | undefined => PAGE_MARKDOWN.get(path);
 
 export const SITEMAP_PATHS = [
   PAGES.home,
