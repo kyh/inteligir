@@ -271,11 +271,12 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       await forgetAccount(null);
     }
     let library: PhoneLibrary | null = null;
-    const client = v1Client(transport, (end) => {
+    const onSessionEnd = (end: SessionEnd): void => {
       if (library !== null) {
         sessionEnded(library, end);
       }
-    });
+    };
+    const client = v1Client(transport, onSessionEnd);
     const queries = createTanstackQueryUtils(client);
     const saves = createPhoneSaves({
       client,
@@ -285,11 +286,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       now: Date.now,
       sha256Hex: args.sha256Hex,
       upload: async (file) => {
-        const sent = await uploadBlob(transport, file);
-        if (sent.kind === "failed" && sent.failure.kind === "session" && library !== null) {
-          sessionEnded(library, sent.failure.end);
-        }
-        return sent;
+        await uploadBlob(transport, file, onSessionEnd);
       },
     });
     const shares = createShareOutbox({

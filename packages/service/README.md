@@ -22,8 +22,8 @@ generates from the suites' Worker (`cloudflare.config.ts`, never deployed).
                 the suites' scripted Messages API, and the suites' Worker
 src/            the doors, their routes and the build floor, the rate limits, the object DDL applied on wake
   auth/         Better Auth per request, the invite gate, the reset mail, sessions as devices, deletion
-  wire/         /v1's one wire: the principal a session verifies to, the account's rows, the library's
-                forwarded to its cell, and what a refused call answers
+  wire/         /v1's one wire: a request's admission, the account's rows, the library's forwarded to
+                its cell, and what a refused call answers
   library/      the account's library cell: its engine, change sets and undo, files, listing, sockets,
                 jobs, fills, imports, the agent's turns as it lands them, and the account's purge
   note/         each item's note object, its door, what it owes the cell and its turn log
@@ -54,11 +54,12 @@ src/            the doors, their routes and the build floor, the rate limits, th
 
 ## The doors
 
-`src/wire/v1-principal.ts` says which session each door reads (the tab's
-cookie, the phone's under `expo-origin`, the extension's bearer);
-`src/wire/rpc-refusal.ts` how `/v1/rpc` answers every refusal before a
-procedure runs; `src/client-floor.ts` the build floor; `src/wire/v1-rpc.ts`
-the principal a library call carries into its cell;
+`src/wire/v1-principal.ts` admits a `/v1` request: the build floor
+(`src/client-floor.ts`), the session its door reads (the tab's cookie, the
+phone's under `expo-origin`, the extension's bearer) and that session's
+budget; `src/wire/rpc-refusal.ts` how a refusal outside a procedure is
+answered; `src/wire/v1-rpc.ts` the principal a library call carries into its
+cell;
 `src/library/blob-routes.ts` a file's bytes; `src/library/cell-fills.ts` and
 `src/fill/` a link's reading off the queue; and
 `src/connector/connector-route.ts` the connector, an assistant's door alone.

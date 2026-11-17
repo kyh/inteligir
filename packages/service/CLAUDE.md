@@ -44,13 +44,21 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   the floor** (owner decision). The session stays live, so the next build
   resumes signed in; a page the Worker served ships in its deploy and needs
   none. `packages/service/src/client-floor.ts`.
-- **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once.** REST beside
-  RPC is two serializers and two error vocabularies; only a file's bytes and the
-  sockets stay plain HTTP. `packages/service/src/wire/rpc-refusal.ts`.
-- **A library call reaches its cell with the principal the Worker verified, and
-  nothing the caller sent in its place.** The Worker drops the caller's
-  principal, `authorization` and `cookie` headers, so the cell verifies no
-  session. `packages/service/src/wire/v1-rpc.ts`.
+- **A `/v1` call or file is admitted once, by one function: the floor, the
+  door, its session, then the session's budget.** A check per handler is an
+  order each spells again and a new route forgets, and a call is refused as
+  unsigned before anything reads what it asks.
+  `packages/service/src/wire/v1-principal.ts`.
+- **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once, and a file's
+  upload is refused in them too.** REST beside RPC is two serializers and two
+  error vocabularies, and a status each client maps back to a code is a third;
+  only a file's bytes and the sockets stay plain HTTP.
+  `packages/service/src/wire/rpc-refusal.ts`.
+- **A library call reaches its cell with the principal the Worker verified, an
+  argument of the cell's own method beside the request.** A principal on a
+  header rides beside headers the caller controls, so each must be dropped
+  first; the request crosses without its `authorization` and `cookie`, and the
+  cell verifies no session. `packages/service/src/library/library-do.ts`.
 - **Every page that calls `/v1` is one the Worker served, so it answers no
   CORS.** The extension reaches the site under its host permission, and an
   origin allowed to send `expo-origin` would hold the phone's door.
@@ -62,7 +70,7 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 
 ## The library cell
 
-- **The account's sockets are its library cell's, each tagged with the holder
+- **The account's sockets are its library cell's, each tagged with the session
   the Worker verified.** A `moved` frame is a hint and never rows, since a
   dropped frame would be a lost write, and a socket opens on a minute's ticket,
   never a bearer in the URL. `packages/service/src/library/cell-sockets.ts`.

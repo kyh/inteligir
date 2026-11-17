@@ -88,6 +88,10 @@ describe("the client build floor", () => {
     await expect(
       refusalOfList({ ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" }),
     ).resolves.toMatchObject(OUTDATED);
+    // a bearer is the extension's door wherever it was sent from, and an install names its build
+    await expect(
+      refusalOfList({ ...sessionHeaders(cookie), authorization: "Bearer any" }),
+    ).resolves.toMatchObject(OUTDATED);
   });
 
   it("leaves what is outside /v1 alone", async () => {

@@ -5,7 +5,7 @@ import { mintSocketTicket, readSocketTicket, SOCKET_TICKET_TTL_MS } from "./sock
 
 const SECRET = "a secret only the Worker holds";
 const NOW = Date.UTC(2026, 9, 1);
-const CLAIM = { accountId: "account-1", holder: { id: "session-1", kind: "session" } } as const;
+const CLAIM = { accountId: "account-1", sessionId: "session-1" };
 
 const base64Url = (text: string): string =>
   base64FromBytes(new TextEncoder().encode(text))
@@ -14,13 +14,10 @@ const base64Url = (text: string): string =>
     .replace(/[=]+$/u, "");
 
 describe("the socket's ticket", () => {
-  it("names the account and the credential that asked, for a minute", async () => {
+  it("names the account and the session that asked, for a minute", async () => {
     const { expiresAt, ticket } = await mintSocketTicket(SECRET, CLAIM, NOW);
     expect(expiresAt).toBe(NOW + SOCKET_TICKET_TTL_MS);
-    await expect(readSocketTicket(SECRET, ticket, NOW + 59_999)).resolves.toStrictEqual({
-      ...CLAIM,
-      expiresAt,
-    });
+    await expect(readSocketTicket(SECRET, ticket, NOW + 59_999)).resolves.toStrictEqual(CLAIM);
     await expect(readSocketTicket(SECRET, ticket, expiresAt)).resolves.toBeNull();
   });
 

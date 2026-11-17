@@ -9,7 +9,7 @@ import type { ImportAsk, ImportCounts, ImportNews, ImportSource } from "./import
 import { readMarkdownZip } from "./markdown-import";
 import { readRaindropCsv } from "./raindrop-import";
 
-export const IMPORT_INTERRUPTED =
+const IMPORT_INTERRUPTED =
   "The import stopped before it finished. Choose the file again to carry on; what it added stays.";
 
 type Reader = (

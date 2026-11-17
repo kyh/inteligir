@@ -49,7 +49,7 @@ const allowInWindow = async (
   return settled === undefined || settled.count <= window.max;
 };
 
-// what `holderIdOf` keys; the table has no foreign key, so a session's window waits for Better
+// keyed on the session's id; the table has no foreign key, so a session's window waits for Better
 // Auth's prune: a session also ends by lapsing, which nothing announces
 export const holderRateKey = (holderId: string): string => `account-delete:${holderId}`;
 

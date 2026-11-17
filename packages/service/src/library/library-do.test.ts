@@ -1,4 +1,3 @@
-import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -34,8 +33,12 @@ import { scheduleJob } from "./cell-jobs";
 import type { CellRefusal } from "./cell-refusal";
 import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
-import { PRINCIPAL_HEADER, principalFromHeader, principalHeaderValue } from "./library-principal";
-import type { NamedPrincipal } from "./library-principal";
+import {
+  appPrincipalSchema,
+  connectorPrincipalSchema,
+  withoutCredentials,
+} from "./library-principal";
+import type { AppPrincipal, ConnectorPrincipal } from "./library-principal";
 import { V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
 const SHA = "d".repeat(64);
@@ -45,8 +48,8 @@ const files = async (prefix: string): Promise<number> => {
   return listing.objects.length;
 };
 
-// a tab's call as the Worker stamps it, for the account named
-const principal = (accountId: string): NamedPrincipal => ({
+// a tab's session as the Worker verifies it, for the account named
+const principal = (accountId: string): AppPrincipal => ({
   accountId,
   actor: { door: "page", kind: "session", sessionId: "laptop-1" },
 });
@@ -93,35 +96,48 @@ describe("the library cell", () => {
     await expect(inCell(theirs, itemCount)).resolves.toBe(0);
   });
 
-  it("takes a library call only with a principal of its own account", async () => {
+  it("takes a library call only under a principal of its own account", async () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
-    const call = async (headers: Record<string, string>): Promise<number> => {
-      const answer = await stub.fetch(`https://cell.test${V1_LIBRARY_RPC_PATH}/items/createNote`, {
-        body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
-        headers: { "content-type": "application/json", ...headers },
-        method: "POST",
-      });
+    const call = async (as: AppPrincipal): Promise<number> => {
+      const answer = await stub.serveLibrary(
+        new Request(`https://cell.test${V1_LIBRARY_RPC_PATH}/items/createNote`, {
+          body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+        as,
+      );
       await answer.arrayBuffer();
       return answer.status;
     };
-    await expect(
-      call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(newAccountId())) }),
-    ).resolves.toBe(403);
-    await expect(call({})).resolves.toBe(403);
+    await expect(call(principal(newAccountId()))).rejects.toThrow(
+      "a library cell serves its own account alone",
+    );
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
     // the same call, under its own account's principal, lands
-    await expect(
-      call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(accountId)) }),
-    ).resolves.toBe(200);
+    await expect(call(principal(accountId))).resolves.toBe(200);
     await expect(inCell(stub, itemCount)).resolves.toBe(1);
   });
 
-  it("takes an app's call only on the wire, and an assistant's only on the connector", async () => {
-    const accountId = newAccountId();
-    const stub = cellOf(accountId);
-    const assistant: NamedPrincipal = {
-      accountId,
+  it("is handed a call without the credentials it came by", () => {
+    const { headers } = withoutCredentials(
+      new Request("https://cell.test/v1/rpc/library/items/list", {
+        headers: {
+          authorization: "Bearer a-session",
+          "content-type": "application/json",
+          cookie: "session_token=a-session",
+        },
+        method: "POST",
+      }),
+    );
+    expect([...headers.keys()]).toStrictEqual(["content-type"]);
+  });
+
+  it("takes each door's own kind of principal, and leaves a limit to an assistant's grant", () => {
+    const laptop = principal(newAccountId());
+    const assistant: ConnectorPrincipal = {
+      accountId: laptop.accountId,
       actor: {
         clientId: "client-1",
         clientName: "Claude",
@@ -130,33 +146,17 @@ describe("the library cell", () => {
         scopes: ["library"],
       },
     };
-    const status = async (path: string, as: NamedPrincipal): Promise<number> => {
-      const answer = await stub.fetch(`https://cell.test${path}`, {
-        body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
-        headers: {
-          accept: "application/json, text/event-stream",
-          "content-type": "application/json",
-          [PRINCIPAL_HEADER]: principalHeaderValue(as),
-        },
-        method: "POST",
-      });
-      await answer.arrayBuffer();
-      return answer.status;
-    };
-    await expect(status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).resolves.toBe(403);
-    await expect(status(CONNECTOR_PATH, principal(accountId))).resolves.toBe(403);
-    await expect(inCell(stub, itemCount)).resolves.toBe(0);
-  });
-
-  it("leaves a limit to an assistant's grant, so no device reads as read-only", () => {
-    const laptop = principal(newAccountId());
-    expect(principalFromHeader(principalHeaderValue(laptop))).toStrictEqual(laptop);
+    expect(appPrincipalSchema.parse(laptop)).toStrictEqual(laptop);
+    expect(connectorPrincipalSchema.parse(assistant)).toStrictEqual(assistant);
+    expect(appPrincipalSchema.safeParse(assistant).success).toBe(false);
+    expect(connectorPrincipalSchema.safeParse(laptop).success).toBe(false);
+    // no device reads as read-only
     const scopes = ["library:read"];
     for (const claim of [
       { ...laptop, scopes },
       { ...laptop, actor: { ...laptop.actor, scopes } },
     ]) {
-      expect(principalFromHeader(encodeURIComponent(JSON.stringify(claim)))).toBeNull();
+      expect(appPrincipalSchema.safeParse(claim).success).toBe(false);
     }
   });
 

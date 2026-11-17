@@ -1,34 +1,15 @@
-// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/v1`): the build floor first, before anything
-// reads the request; then `account.*` on the Worker's own handler (`./account-router`), and
-// `library.*` forwarded whole to the account's library cell, which serves it
-// (`../library/library-rpc`). A forwarded call carries the principal its credential verified, and
-// only that: any identity header the request brought is dropped, and so are its credentials,
-// which the cell never reads.
+// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/v1`): every call is admitted first
+// (`./v1-principal`), before anything reads it; then `account.*` runs on the Worker's own handler
+// (`./account-router`), and `library.*` is handed whole to the account's library cell, which
+// serves it (`../library/library-rpc`), with the principal it was admitted under as an argument
+// beside it and without its credentials, which the cell never reads.
 
-import { forwardAsPrincipal } from "../library/library-principal";
-import type { AppPrincipal } from "../library/library-principal";
+import { libraryCell } from "../library/library-cell";
+import { withoutCredentials } from "../library/library-principal";
 import { V1_LIBRARY_RPC_PATH } from "../library/library-rpc";
-import { isBelowFloor } from "../client-floor";
-import { spendCallBudget } from "../rate-limit";
 import { serveAccountRpc } from "./account-router";
 import { rpcRefusal } from "./rpc-refusal";
-import { holderIdOf, lazyPrincipal } from "./v1-principal";
-
-const forwardLibraryCall = async (
-  request: Request,
-  env: Env,
-  ctx: ExecutionContext,
-  principal: () => Promise<AppPrincipal | null>,
-): Promise<Response> => {
-  const verified = await principal();
-  if (verified === null) {
-    return await rpcRefusal("UNAUTHORIZED");
-  }
-  if (!(await spendCallBudget(env, env.RPC_LIMIT, holderIdOf(verified)))) {
-    return await rpcRefusal("TOO_MANY_REQUESTS");
-  }
-  return await forwardAsPrincipal(ctx.exports, request, verified);
-};
+import { admit } from "./v1-principal";
 
 export const handleV1Rpc = async (
   request: Request,
@@ -36,13 +17,17 @@ export const handleV1Rpc = async (
   ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
-  if (isBelowFloor(request, env)) {
-    return await rpcRefusal("CLIENT_OUTDATED");
+  const admission = await admit(request, env, ctx, env.RPC_LIMIT);
+  if (admission.kind === "refused") {
+    return await rpcRefusal(admission.refusal);
   }
-  const principal = lazyPrincipal(request, env, ctx);
+  const { principal } = admission;
   if (url.pathname.startsWith(`${V1_LIBRARY_RPC_PATH}/`)) {
-    return await forwardLibraryCall(request, env, ctx, principal);
+    return await libraryCell(ctx.exports, principal.accountId).serveLibrary(
+      withoutCredentials(request),
+      principal,
+    );
   }
-  const answered = await serveAccountRpc(request, { ctx, env, principal, request });
+  const answered = await serveAccountRpc(request, env, ctx, principal);
   return answered ?? new Response("not found", { status: 404 });
 };

@@ -2,24 +2,30 @@
 // Worker's own credential check (https://developers.cloudflare.com/r2/api/workers/workers-api-reference/).
 // A PUT asks the account's cell for room at the length it declares, streams the body into R2,
 // which refuses bytes that do not hash to the sha, and has the cell settle the file's row at the
-// size R2 holds. A GET or HEAD hands the request's own headers to R2, which answers the range and
-// the preconditions they name; the Worker spells the status, a stranger's html file is served
-// under a script-less sandbox, and every other file under a sandbox too, but a PDF, whose viewer
-// a sandbox blanks.
+// size R2 holds; a file it refuses is answered as the wire answers a call
+// (`../wire/rpc-refusal`). A GET or HEAD hands the request's own headers to R2, which answers the
+// range and the preconditions they name; the Worker spells the status, a stranger's html file is
+// served under a script-less sandbox, and every other file under a sandbox too, but a PDF, whose
+// viewer a sandbox blanks.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { SHA256_HEX_RE } from "@repo/contract/library/library-item";
+import {
+  AccountGoneError,
+  BlobMismatchError,
+  PayloadTooLargeError,
+  QuotaError,
+} from "@repo/contract/v1/errors";
 import { z } from "zod";
 
-import { isBelowFloor } from "../client-floor";
 import { errorFields } from "../log";
 import { declaredLength, plainText } from "../plain-http";
-import { spendCallBudget } from "../rate-limit";
-import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
+import { rpcRefusal } from "../wire/rpc-refusal";
+import { admit } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
-import type { CellRefusal } from "./cell-refusal";
 import { keepBytes, stubPort } from "./keep-bytes";
+import type { KeepRefusal } from "./keep-bytes";
 import { libraryCell } from "./library-cell";
 import type { AppPrincipal } from "./library-principal";
 
@@ -181,13 +187,14 @@ const mediaTypeOf = (header: string | null): string => {
   return MEDIA_TYPE.test(type) ? type : UNKNOWN_FILE_TYPE;
 };
 
-const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
+const refusalAnswer = async (refusal: KeepRefusal): Promise<Response> => {
   switch (refusal.kind) {
     case "gone": {
-      return plainText(410, "This account was deleted.");
+      return await rpcRefusal(new AccountGoneError());
     }
     case "quota": {
-      return plainText(507, "Your library is full.");
+      const { bytesCap, bytesUsed } = refusal;
+      return await rpcRefusal(new QuotaError({ data: { bytesCap, bytesUsed } }));
     }
     case "not-found":
     case "conflict":
@@ -216,7 +223,9 @@ const writeBlob = async (
     return plainText(411, "Send the file with its Content-Length.");
   }
   if (bytes > BLOB_MAX_BYTES) {
-    return plainText(413, "This file is larger than the library keeps.");
+    return await rpcRefusal(
+      new PayloadTooLargeError({ message: "This file is larger than your library keeps." }),
+    );
   }
   const { accountId, sha } = upload;
   const { body } = request;
@@ -229,7 +238,7 @@ const writeBlob = async (
   });
   switch (kept.kind) {
     case "refused": {
-      return refusalAnswer(kept.refusal);
+      return await refusalAnswer(kept.refusal);
     }
     case "held": {
       await body.cancel();
@@ -242,7 +251,7 @@ const writeBlob = async (
       });
       // a device parks a refusal for good and sends a fault again, on its doubling wait
       return kept.badDigest
-        ? plainText(400, "The file's bytes don't match the address they were sent to.")
+        ? await rpcRefusal(new BlobMismatchError())
         : plainText(500, "This file couldn't be stored just now. Try again.");
     }
     case "raced": {
@@ -261,9 +270,6 @@ export const handleBlobRoute = async (
   ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
-  if (isBelowFloor(request, env)) {
-    return plainText(426, "This version of the app is too old. Update it to keep going.");
-  }
   const sha = BLOB_PATH.exec(url.pathname)?.groups?.sha ?? "";
   if (!SHA256_HEX_RE.test(sha)) {
     return plainText(404, "A file is named by its SHA-256.");
@@ -271,13 +277,11 @@ export const handleBlobRoute = async (
   if (!["GET", "HEAD", "PUT"].includes(request.method)) {
     return plainText(405, "A file is read or written.", { allow: "GET, HEAD, PUT" });
   }
-  const principal = await lazyPrincipal(request, env, ctx)();
-  if (principal === null) {
-    return plainText(401, "You're signed out. Sign in again.");
+  const admission = await admit(request, env, ctx, env.BLOBS_LIMIT);
+  if (admission.kind === "refused") {
+    return await rpcRefusal(admission.refusal);
   }
-  if (!(await spendCallBudget(env, env.BLOBS_LIMIT, holderIdOf(principal)))) {
-    return plainText(429, "Too many requests. Try again in a minute.");
-  }
+  const { principal } = admission;
   return request.method === "PUT"
     ? await writeBlob(request, env, ctx, { accountId: principal.accountId, sha })
     : await readObject(request, env.BLOBS, blobKey(principal.accountId, sha), principal);

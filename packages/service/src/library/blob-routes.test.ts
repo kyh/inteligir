@@ -3,6 +3,7 @@
 // account's reach.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { uploadBlob } from "@repo/contract/library/call-outcome";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
@@ -26,7 +27,7 @@ const sha256Hex = async (bytes: Uint8Array): Promise<string> =>
   bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 
 const fileOf = async (text: string) => {
-  const bytes = new TextEncoder().encode(text);
+  const bytes = Uint8Array.from(new TextEncoder().encode(text));
   return { bytes, sha: await sha256Hex(bytes) };
 };
 
@@ -54,6 +55,19 @@ const put = async (
     }),
   );
   return response.status;
+};
+
+// an upload as a client's own code sends one, which throws what the Worker refused it with
+const send = async (
+  auth: Record<string, string>,
+  sha: string,
+  bytes: Uint8Array<ArrayBuffer>,
+): Promise<void> => {
+  const fetch = async (request: Request): Promise<Response> =>
+    await exports.default.fetch(
+      new Request(request, { headers: { ...auth, "content-type": "image/png" } }),
+    );
+  await uploadBlob({ fetch, origin: ORIGIN }, { bytes, mime: "image/png", sha });
 };
 
 const statusOf = async (url: string, init: RequestInit): Promise<number> => {
@@ -128,19 +142,49 @@ describe("a file's bytes", () => {
     );
     expect(unsized.status).toBe(411);
 
-    const huge = await drained(
-      exports.default.fetch(urlOf(sha), {
-        body: bytes,
-        headers: { ...auth, "content-length": String(BLOB_MAX_BYTES + 1) },
-        method: "PUT",
-      }),
-    );
+    const huge = await exports.default.fetch(urlOf(sha), {
+      body: bytes,
+      headers: { ...auth, "content-length": String(BLOB_MAX_BYTES + 1) },
+      method: "PUT",
+    });
     expect(huge.status).toBe(413);
+    await expect(huge.json()).resolves.toMatchObject({
+      json: {
+        code: "PAYLOAD_TOO_LARGE",
+        defined: true,
+        message: "This file is larger than your library keeps.",
+      },
+    });
 
     await inCell(cellOf(accountId), (state) => {
       holdFileOf(state.storage, Number(env.LIBRARY_STORAGE_CAP_BYTES));
     });
     await expect(put(auth, sha, bytes)).resolves.toBe(507);
+  });
+
+  it("refuses an upload in the wire's own errors, which a client reads as a call's", async () => {
+    const { accountId, auth } = await signedIn("blob-refusal-errors@example.test");
+    const { bytes, sha } = await fileOf(TEN);
+    const other = await fileOf("other bytes entirely");
+    await expect(send(auth, sha, other.bytes)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      defined: true,
+      message: "This file changed on this device before it was sent.",
+    });
+    await expect(send(buildHeaders(), sha, bytes)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      defined: true,
+    });
+    const cap = Number(env.LIBRARY_STORAGE_CAP_BYTES);
+    await inCell(cellOf(accountId), (state) => {
+      holdFileOf(state.storage, cap);
+    });
+    await expect(send(auth, sha, bytes)).rejects.toMatchObject({
+      code: "QUOTA",
+      data: { bytesCap: cap, bytesUsed: expect.any(Number) },
+      defined: true,
+      message: "Your library is full.",
+    });
   });
 
   it("answers a single range, a suffix, a range past the end and a multi-part ask", async () => {

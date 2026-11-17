@@ -26,11 +26,7 @@ import { z } from "zod";
 
 import type { CellContext } from "../library/library-orpc";
 import { libraryRouter } from "../library/library-router";
-import {
-  changesLibrary,
-  isConnectorPrincipal,
-  principalSchema,
-} from "../library/library-principal";
+import { changesLibrary, connectorPrincipalSchema } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
 import { logRpcFailure } from "../wire/rpc-log";
 import { isLibraryTool } from "./library-tools";
@@ -76,16 +72,11 @@ const CONNECTOR_MAX_BODY_BYTES = 16 * 1024 * 1024;
 // what the cell hands the handler for the request in hand, the principal aside
 export type ConnectorCell = (principal: ConnectorPrincipal) => CellContext;
 
-const handedInSchema = z.object({ principal: principalSchema });
+const handedInSchema = z.object({ principal: connectorPrincipalSchema });
 
 // the principal the cell handed in, parsed again here, where the factory receives it
-const connectorPrincipalOf = (authInfo: AuthInfo | undefined): ConnectorPrincipal => {
-  const { principal } = handedInSchema.parse(authInfo?.extra);
-  if (!isConnectorPrincipal(principal)) {
-    throw new Error("the connector serves an assistant's grant alone");
-  }
-  return principal;
-};
+const connectorPrincipalOf = (authInfo: AuthInfo | undefined): ConnectorPrincipal =>
+  handedInSchema.parse(authInfo?.extra).principal;
 
 // the request's grant as the MCP handler takes it: the Worker keeps the bearer, which never
 // crosses into a cell, so `token` is empty and the grant rides `extra`

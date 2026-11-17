@@ -219,7 +219,7 @@ test("each mount hands its request to the service, which answers in its door's p
   // page, a 200 of HTML
   for (const { headers = {}, method, route, status } of [
     { method: "PUT", route: "/api/auth/get-session", status: 404 },
-    { headers: build, method: "GET", route: DEVICES, status: 404 },
+    { headers: build, method: "GET", route: DEVICES, status: 401 },
     { method: "GET", route: "/oauth/token", status: 405 },
     { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
     { method: "DELETE", route: CONNECTOR_PATH, status: 401 },

@@ -25,32 +25,14 @@ export const readFile = async (cloud: V1Transport, sha: string): Promise<Blob> =
   return await response.blob();
 };
 
-// the store's refusal of a file, in the person's words
-export class FileRefusedError extends Error {
-  override name = "FileRefusedError";
-}
-
-// the bytes in the library's files, answering the sha a block or an import names them by
+// the bytes in the library's files, answering the sha a block or an import names them by; a file
+// the cloud refused throws as a refused call does
 export const uploadFile = async (
   cloud: FileCloud,
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
 ): Promise<string> => {
   const sha = fileSha(bytes);
-  const outcome = await uploadBlob(cloud, { bytes, mime, sha });
-  switch (outcome.kind) {
-    case "stored": {
-      return sha;
-    }
-    case "refused": {
-      throw new FileRefusedError(outcome.reason);
-    }
-    case "failed": {
-      if (outcome.failure.kind === "session") {
-        cloud.onSessionEnd(outcome.failure.end);
-      }
-      throw new Error(`the file was not sent: ${outcome.failure.kind}`);
-    }
-    // no default
-  }
+  await uploadBlob(cloud, { bytes, mime, sha }, cloud.onSessionEnd);
+  return sha;
 };

@@ -1,6 +1,6 @@
 // `/v1/rpc` end to end, as an app's link calls it: the Worker's floor and the door each device's
-// session comes through, the principal it stamps on what it forwards, one account's cell out of
-// another's reach, and the status every refusal answers under.
+// session comes through, one account's cell out of another's reach, and the status every refusal
+// answers under.
 
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "@repo/db/d1/client";
 import { session } from "@repo/db/d1/schema";
-import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
 import {
   buildHeaders,
   drained,
@@ -90,6 +89,20 @@ describe("the one wire's door", () => {
     }
   });
 
+  it("refuses a call with no session before it reads what the call asks, on the library and the account alike", async () => {
+    for (const row of ["library/items/read", "account/devices/revoke", "account/no-such-row"]) {
+      const answer = await exports.default.fetch(`${ORIGIN}${V1_RPC_PATH}/${row}`, {
+        body: JSON.stringify({ json: { id: 7 } }),
+        headers: { ...buildHeaders(), "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(answer.status, row).toBe(401);
+      await expect(answer.json(), row).resolves.toMatchObject({
+        json: { code: "UNAUTHORIZED", defined: true },
+      });
+    }
+  });
+
   it("reaches the account's own library on the phone's cookie under its app scheme, and no cookie another caller sends", async () => {
     const { phone, phoneCookie } = await signedUp("rpc-phone@example.test");
     const { item } = await phone.library.items.createNote({ markdown: "From the phone." });
@@ -129,7 +142,11 @@ describe("the one wire's door", () => {
       token,
       `${token}.${signature.split("").toReversed().join("")}`,
     ]) {
-      const forged = v1Link({ ...sessionHeaders(cookie), authorization: `Bearer ${bearer}` });
+      const forged = v1Link({
+        ...sessionHeaders(cookie),
+        ...buildHeaders(),
+        authorization: `Bearer ${bearer}`,
+      });
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
         async () => await forged.library.items.list({}),
@@ -187,29 +204,6 @@ describe("the one wire's door", () => {
     );
     expect(read.headers.getSetCookie().join("\n")).toContain("session_token");
     await expect(expiresAt()).resolves.toBeGreaterThan(due.getTime());
-  });
-
-  it("forwards the principal its credential verified and drops the one a request brought", async () => {
-    const mine = await signedUp("rpc-stamp-a@example.test");
-    const theirs = await signedUp("rpc-stamp-b@example.test");
-    const claim = principalHeaderValue({
-      accountId: theirs.accountId,
-      actor: { door: "page", kind: "session", sessionId: "stolen" },
-    });
-    const stamped = v1Link({ ...phoneHeaders(mine.phoneCookie), [PRINCIPAL_HEADER]: claim });
-    const { item } = await stamped.library.items.createNote({ markdown: "Whose is this?" });
-
-    const listed = await mine.phone.library.items.list({});
-    expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
-    const elsewhere = await theirs.phone.library.items.list({});
-    expect(elsewhere.items).toStrictEqual([]);
-
-    // the claim alone, with no session, reaches nobody's cell
-    const bare = v1Link({ ...buildHeaders(), [PRINCIPAL_HEADER]: claim });
-    await expect(bare.refusalOf(bare.library.items.list({}))).resolves.toMatchObject({
-      code: "UNAUTHORIZED",
-      status: 401,
-    });
   });
 
   it("keeps one account's items out of another's reach", async () => {

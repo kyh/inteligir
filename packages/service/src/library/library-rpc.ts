@@ -2,8 +2,8 @@
 // `/v1/rpc/library` (`@repo/contract/v1`): oRPC's RPC handler over the cell's router, with
 // its default methods (no GET, so nothing a call carries rides a URL), a body cap, every code the
 // wire declares mapped to its status, and any failure no row declares logged by its severity
-// (`../wire/rpc-log`).
-// The Worker forwards each call here whole, its principal stamped (`../wire/v1-rpc`).
+// (`../wire/rpc-log`). The Worker hands each call here whole, its principal beside it
+// (`../wire/v1-rpc`).
 
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import { V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";

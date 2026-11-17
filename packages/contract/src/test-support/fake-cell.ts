@@ -22,6 +22,7 @@ import { folderRowSchema, itemSummarySchema, liveItemRowSchema } from "../librar
 import { v1Contract, V1_RPC_PATH } from "../v1-contract";
 import type { V1Client } from "../v1-contract";
 import {
+  BlobMismatchError,
   BlobMissingError,
   ConflictError,
   NotFoundError,
@@ -42,6 +43,7 @@ import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
+import { refusalResponse } from "./refusal-response";
 import {
   blankItemFields,
   fileFields,
@@ -551,7 +553,7 @@ export const createFakeCell = (): FakeCell => {
   const upload = async (request: Request, sha: string): Promise<Response> => {
     const bytes = new Uint8Array(await request.arrayBuffer());
     if (fileSha(bytes) !== sha) {
-      return new Response(null, { status: 400 });
+      return refusalResponse(new BlobMismatchError());
     }
     uploads.push(sha);
     blobs.set(sha, { bytes, mime: request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE });

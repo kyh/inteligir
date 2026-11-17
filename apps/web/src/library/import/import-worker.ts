@@ -3,7 +3,7 @@
 // large zip never holds the page. Closing the tab ends it, and choosing the file again carries on,
 // since what landed answers as held.
 
-import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
+import { sharedFailure, uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { isOrpcError, QuotaError } from "@repo/contract/v1/errors";
@@ -14,7 +14,7 @@ import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";
 import type { ImportCell } from "./import-landing";
 import { importAskSchema } from "./import-news";
 import type { ImportNews } from "./import-news";
-import { IMPORT_INTERRUPTED, readImport } from "./import-reading";
+import { readImport } from "./import-reading";
 
 // zip.js would start codec workers of its own from a script the build does not ship; this thread
 // is already off the page
@@ -32,25 +32,19 @@ const sessionEnded = (end: SessionEnd): void => {
 const cellOver = (client: V1Client, transport: V1Transport): ImportCell => ({
   keep: async (bytes, mime) => {
     const sha = fileSha(bytes);
-    const outcome = await uploadBlob(transport, { bytes, mime, sha });
-    switch (outcome.kind) {
-      case "stored": {
-        return sha;
+    try {
+      await uploadBlob(transport, { bytes, mime, sha }, sessionEnded);
+    } catch (error) {
+      if (isOrpcError(error) && error.code === QuotaError.code) {
+        throw new ImportStoppedError(LIBRARY_FULL);
       }
-      case "refused": {
-        if (outcome.code === QuotaError.code) {
-          throw new ImportStoppedError(LIBRARY_FULL);
-        }
+      // a refusal of this file alone leaves it out, and the import goes on
+      if (error instanceof Error && sharedFailure(error) === null) {
         return null;
       }
-      case "failed": {
-        if (outcome.failure.kind === "session") {
-          sessionEnded(outcome.failure.end);
-        }
-        throw new ImportStoppedError(IMPORT_INTERRUPTED);
-      }
-      // no default
+      throw error;
     }
+    return sha;
   },
   land: async (items) => {
     try {
