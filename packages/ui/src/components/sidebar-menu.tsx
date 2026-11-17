@@ -1,62 +1,29 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { Fragment, createContext, useContext, useRef, useState } from "react";
-import type {
-  ButtonHTMLAttributes,
-  LiHTMLAttributes,
-  ReactNode,
-  RefAttributes,
-  RefObject,
-} from "react";
+import { Fragment, createContext, useContext, useId, useState } from "react";
+import type { ButtonHTMLAttributes, LiHTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
-import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
-import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
-import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
-import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
+import { RowPills } from "@repo/ui/components/row-pills";
+import { useLayoutReading } from "@repo/ui/hooks/use-layout-reading";
 import type { IconComponent } from "@repo/ui/lib/icon";
-import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { rowBox } from "@repo/ui/lib/row-box";
+import type { ItemRect, RowBox } from "@repo/ui/lib/row-box";
 import { splitLeadingText } from "@repo/ui/lib/text-children";
 
-interface MenuHighlight {
-  hovered: HTMLElement | null;
-  active: HTMLElement | null;
-  first: HTMLElement | null;
-}
-
-// Stable for the list's lifetime: what moves travels through the store, so the traveling pill
-// re-renders the two rows it left and reached rather than every row.
-interface MenuScopeValue {
-  registerRow: (el: HTMLElement) => () => void;
-  setRowActive: (row: HTMLElement, active: boolean) => void;
-  highlight: HighlightStore<MenuHighlight>;
-}
-
-const MenuScopeContext = createContext<MenuScopeValue | null>(null);
-
-interface MenuItemContextValue {
-  // state, not a ref: the row's highlight reading compares it, and a ref read there is not reactive
-  rowEl: HTMLLIElement | null;
-  setRow: (el: HTMLLIElement | null) => void;
-  isHovered: boolean;
-  setActive: (active: boolean) => void;
-}
-
-const MenuItemContext = createContext<MenuItemContextValue | null>(null);
+// the row id of the button Tab lands on: the current row's, else the list's first
+const TabStopContext = createContext<string | null>(null);
 
 const MENU_ITEM = '[data-sidebar="menu-item"]';
-
-// the rail's own panel: a popup anchored anywhere in it
-const RAIL = '[data-sidebar="sidebar"]';
+const MENU_BUTTON = '[data-sidebar="menu-button"]';
 
 // A row's box spans the whole <li>, so it is clamped to the button's; 32px is the tallest row,
 // for a row whose button is not its direct child.
 const measureRow = (row: HTMLElement): ItemRect => {
-  const button = row.querySelector<HTMLElement>(':scope > [data-sidebar="menu-button"]');
+  const button = row.querySelector<HTMLElement>(`:scope > ${MENU_BUTTON}`);
   return {
     height: Math.min(row.offsetHeight, button?.offsetHeight ?? 32),
     left: row.offsetLeft,
@@ -67,8 +34,47 @@ const measureRow = (row: HTMLElement): ItemRect => {
 
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]);
 
+// What the list reads off its rows: where each pill sits, and which button Tab lands on.
+interface MenuReading {
+  active: RowBox | null;
+  focus: RowBox | null;
+  hover: RowBox | null;
+  tabStop: string | null;
+}
+
+const UNREAD: MenuReading = { active: null, focus: null, hover: null, tabStop: null };
+
+// a row that turns current with no render of its list says so by this attribute alone
+const MARKS = ["aria-current"];
+
+const onKeyDown = (e: React.KeyboardEvent) => {
+  // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
+  if (!NAV_KEYS.has(e.key) || e.defaultPrevented || !(e.target instanceof HTMLElement)) {
+    return;
+  }
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>(MENU_BUTTON)];
+  const currentIdx = items.indexOf(e.target);
+  if (currentIdx === -1) {
+    return;
+  }
+  e.preventDefault();
+  // keep handled arrows from the shell's window-level key bindings
+  e.stopPropagation();
+  if (e.key === "Home") {
+    items[0]?.focus();
+  } else if (e.key === "End") {
+    items.at(-1)?.focus();
+  } else {
+    const forward = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const next = forward
+      ? (currentIdx + 1) % items.length
+      : (currentIdx - 1 + items.length) % items.length;
+    items[next]?.focus();
+  }
+};
+
 interface MenuScope {
-  value: MenuScopeValue;
+  tabStop: string | null;
   containerProps: {
     onMouseEnter: () => void;
     onMouseMove: (e: React.MouseEvent) => void;
@@ -78,267 +84,169 @@ interface MenuScope {
     onPointerDown: () => void;
     onKeyDown: (e: React.KeyboardEvent) => void;
   };
-  overlays: ReactNode;
+  pills: ReactNode;
 }
 
-const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope => {
-  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, setItems } =
-    useProximityHover(containerRef, { measure: measureRow });
+// A row is a plain element: the list finds the lit one from where the pointer and focus are, and
+// the current one by its aria-current.
+const useMenuScope = (list: HTMLElement | null): MenuScope => {
+  // the row under the hover pill: the pointer's, or the one focus reached since
+  const [lit, setLit] = useState<HTMLElement | null>(null);
+  const [focused, setFocused] = useState<HTMLElement | null>(null);
+  const [session, setSession] = useState(0);
 
-  // the rows whose button is current; the first of them in document order carries the active pill
-  const activeRowsRef = useRef<Set<HTMLElement>>(new Set());
-  const [activeRowEl, setActiveRowEl] = useState<HTMLElement | null>(null);
-  const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
+  const reading = useLayoutReading(
+    list,
+    UNREAD,
+    (container, last) => {
+      // the first current button in document order carries the active pill
+      const current = container.querySelector<HTMLElement>(`${MENU_BUTTON}[aria-current="page"]`);
+      const stop = current ?? container.querySelector<HTMLElement>(MENU_BUTTON);
+      const next: MenuReading = {
+        active: rowBox(current?.closest<HTMLElement>(MENU_ITEM) ?? null, last.active, measureRow),
+        focus: rowBox(focused, last.focus, measureRow),
+        hover: rowBox(lit, last.hover, measureRow),
+        tabStop: stop?.dataset.row ?? null,
+      };
+      return next.active === last.active &&
+        next.focus === last.focus &&
+        next.hover === last.hover &&
+        next.tabStop === last.tabStop
+        ? last
+        : next;
+    },
+    MARKS,
+  );
 
-  const onRows = (rows: readonly HTMLElement[]) => {
-    setItems(rows);
-    setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
-  };
-  const {
-    rows: orderedRows,
-    registerRow,
-    requestSync,
-  } = useRowOrder(containerRef, MENU_ITEM, onRows);
-
-  const setRowActive = (row: HTMLElement, active: boolean) => {
-    const activeRows = activeRowsRef.current;
-    if (activeRows.has(row) === active) {
-      return;
-    }
-    if (active) {
-      activeRows.add(row);
-    } else {
-      activeRows.delete(row);
-    }
-    requestSync();
-  };
-
-  const overlayRect = (row: HTMLElement | null): ItemRect | null => {
-    const idx = row === null ? -1 : orderedRows.indexOf(row);
-    return idx === -1 ? null : (itemRects[idx] ?? null);
-  };
-
-  // hover tracking freezes while a popup anchored in the rail is open, or a non-modal popup lets
-  // rows underneath keep highlighting; the rail, not the whole window, since this runs per move
-  const popupOpen = () => {
-    const container = containerRef.current;
-    if (!container) {
-      return false;
-    }
-    const root = container.closest(RAIL) ?? container;
-    return root.querySelector('[data-sidebar^="menu-"][data-popup-open]') !== null;
-  };
-
+  // found from the event's own target, so a move inside a popup a row opened lights no row
   const onMouseMove = (e: React.MouseEvent) => {
-    if (popupOpen()) {
-      return;
+    const row = e.target instanceof Element ? e.target.closest<HTMLElement>(MENU_ITEM) : null;
+    if (row !== null) {
+      setLit(row);
     }
-    handlers.onMouseMove(e);
   };
 
   const onFocus = (e: React.FocusEvent) => {
-    const { target } = e;
-    if (!(target instanceof HTMLElement)) {
-      setFocusedRowEl(null);
-      setActiveIndex(null);
+    // a row's action button takes focus without lighting its row
+    const row = e.target.closest(MENU_BUTTON)?.closest<HTMLElement>(MENU_ITEM) ?? null;
+    if (row === null) {
       return;
     }
-    if (!target.closest('[data-sidebar="menu-button"]')) {
-      return;
-    }
-    const rowEl = target.closest('[data-sidebar="menu-item"]');
-    const row = rowEl instanceof HTMLElement ? rowEl : null;
-    if (!row) {
-      return;
-    }
-    const idx = orderedRows.indexOf(row);
-    if (idx === -1) {
-      return;
-    }
-    setActiveIndex(idx);
-    setFocusedRowEl(target.matches(":focus-visible") ? row : null);
-  };
-
-  const onPointerDown = () => {
-    setFocusedRowEl(null);
+    setLit(row);
+    setFocused(e.target.matches(":focus-visible") ? row : null);
   };
 
   const onBlur = (e: React.FocusEvent) => {
-    if (
-      e.relatedTarget instanceof Node &&
-      containerRef.current?.contains(e.relatedTarget) === true
-    ) {
+    if (e.currentTarget.contains(e.relatedTarget)) {
       return;
     }
-    setFocusedRowEl(null);
-    setActiveIndex(null);
+    setFocused(null);
+    // a row's menu takes focus as it opens with the pointer still on the row
+    setLit(e.currentTarget.querySelector<HTMLElement>(`${MENU_ITEM}:hover`));
   };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
-    if (!NAV_KEYS.has(e.key) || e.defaultPrevented) {
-      return;
-    }
-    const container = containerRef.current;
-    if (!container || !(e.target instanceof HTMLElement)) {
-      return;
-    }
-    const items = [...container.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]')];
-    const currentIdx = items.indexOf(e.target);
-    if (currentIdx === -1) {
-      return;
-    }
-    e.preventDefault();
-    // keep handled arrows from the shell's window-level key bindings
-    e.stopPropagation();
-    if (e.key === "Home") {
-      items[0]?.focus();
-    } else if (e.key === "End") {
-      items.at(-1)?.focus();
-    } else {
-      const forward = e.key === "ArrowDown" || e.key === "ArrowRight";
-      const next = forward
-        ? (currentIdx + 1) % items.length
-        : (currentIdx - 1 + items.length) % items.length;
-      items[next]?.focus();
-    }
-  };
-
-  const hoveredRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
-  const firstRowEl = orderedRows[0] ?? null;
-  const highlight = useHighlightStore<MenuHighlight>({
-    active: activeRowEl,
-    first: firstRowEl,
-    hovered: hoveredRowEl,
-  });
-
-  const value: MenuScopeValue = { highlight, registerRow, setRowActive };
-
-  const overlays = isMeasured ? (
-    <ProximityOverlays
-      activeRect={overlayRect(activeRowEl)}
-      hoverRect={overlayRect(hoveredRowEl)}
-      focusRect={overlayRect(focusedRowEl)}
-      session={session}
-    />
-  ) : null;
 
   return {
     containerProps: {
       onBlur,
       onFocus,
       onKeyDown,
-      onMouseEnter: handlers.onMouseEnter,
-      onMouseLeave: handlers.onMouseLeave,
+      onMouseEnter: () => {
+        setSession((entered) => entered + 1);
+      },
+      onMouseLeave: () => {
+        setLit(null);
+      },
       onMouseMove,
       // clicking the already-focused row never re-fires focus, so without this the keyboard ring
       // would stick until focus left the menu
-      onPointerDown,
+      onPointerDown: () => {
+        setFocused(null);
+      },
     },
-    overlays,
-    value,
+    pills: (
+      <RowPills
+        active={reading.active}
+        hover={reading.hover}
+        focus={reading.focus}
+        session={session}
+      />
+    ),
+    tabStop: reading.tabStop,
   };
 };
 
 type SidebarMenuProps = LiHTMLAttributes<HTMLUListElement>;
 
-// One scope per list: a single traveling hover, active and focus overlay over every row.
+// One scope per list: a single traveling hover, active and focus pill over every row.
 const SidebarMenu = ({
   className,
   children,
   ref,
   ...props
 }: SidebarMenuProps & RefAttributes<HTMLUListElement>) => {
-  const containerRef = useRef<HTMLUListElement>(null);
-  const { value, containerProps, overlays } = useMenuScope(containerRef);
+  const [list, setList] = useState<HTMLUListElement | null>(null);
+  const { tabStop, containerProps, pills } = useMenuScope(list);
 
   return (
-    <MenuScopeContext value={value}>
+    <TabStopContext value={tabStop}>
       <ul
-        ref={composeRefs(containerRef, ref)}
+        ref={composeRefs(setList, ref)}
         data-sidebar="menu"
         className={cn("relative flex w-full min-w-0 flex-col gap-0.5 select-none", className)}
         {...containerProps}
         {...props}
       >
-        {overlays}
+        {pills}
         {children}
       </ul>
-    </MenuScopeContext>
+    </TabStopContext>
   );
 };
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
-const useMenuRow = (): MenuItemContextValue => {
-  const scope = useContext(MenuScopeContext);
-  const registerRow = scope?.registerRow;
-  const setRowActive = scope?.setRowActive;
-
-  const [rowEl, setRowEl] = useState<HTMLLIElement | null>(null);
-
-  useIsoLayoutEffect(() => {
-    if (!rowEl || !registerRow) {
-      return;
-    }
-    return registerRow(rowEl);
-  }, [registerRow, rowEl]);
-
-  const setActive = (active: boolean) => {
-    if (rowEl && setRowActive) {
-      setRowActive(rowEl, active);
-    }
-  };
-
-  const isHovered = useHighlighted(
-    scope?.highlight ?? null,
-    (highlight) => rowEl !== null && highlight.hovered === rowEl,
-  );
-
-  return { isHovered, rowEl, setActive, setRow: setRowEl };
-};
-
+// The pseudo-element closes the 2px gap to the next row, so the pointer leaves one row's hover
+// straight into its neighbour's.
 const SidebarMenuItem = ({
   className,
-  children,
   ref,
   ...props
-}: SidebarMenuItemProps & RefAttributes<HTMLLIElement>) => {
-  const item = useMenuRow();
-  return (
-    <MenuItemContext value={item}>
-      <li
-        ref={composeRefs(item.setRow, ref)}
-        data-sidebar="menu-item"
-        className={cn("group/menu-item relative", className)}
-        {...props}
-      >
-        {children}
-      </li>
-    </MenuItemContext>
-  );
-};
+}: SidebarMenuItemProps & RefAttributes<HTMLLIElement>) => (
+  <li
+    ref={ref}
+    data-sidebar="menu-item"
+    className={cn(
+      "group/menu-item relative before:absolute before:inset-x-0 before:-inset-y-px",
+      className,
+    )}
+    {...props}
+  />
+);
+
+// A row reads lit under the pointer and under keyboard focus; the current row is lit for good.
+const LIT_TONE =
+  "text-muted-foreground group-hover/menu-item:text-foreground group-has-focus-visible/menu-item:text-foreground";
+const LIT_STROKE = "group-hover/menu-item:stroke-2 group-has-focus-visible/menu-item:stroke-2";
 
 // element children render outside the text-box-trimmed span, which would clip an inline SVG
 const MenuRowLabel = ({
   content,
-  lit,
   emphasized,
   textClass,
 }: {
   content: ReactNode;
-  lit: boolean;
   emphasized: boolean;
   textClass: string;
 }) => {
   const { text, rest } = splitLeadingText(content);
+  const tone = emphasized ? "text-foreground" : LIT_TONE;
 
   if (!text) {
     return (
       <span
         className={cn(
           "flex min-w-0 flex-1 items-center gap-2 transition-colors duration-80",
-          lit ? "text-foreground" : "text-muted-foreground",
+          tone,
           textClass,
         )}
       >
@@ -363,7 +271,7 @@ const MenuRowLabel = ({
         <span
           className={cn(
             "col-start-1 row-start-1 -mt-[0.25em] -mb-[0.25em] truncate pt-[0.25em] pb-[0.25em] transition-[color,font-variation-settings] duration-80 [text-box:trim-both_cap_alphabetic]",
-            lit ? "text-foreground" : "text-muted-foreground",
+            tone,
           )}
           style={{
             fontVariationSettings: emphasized ? fontWeights.semibold : fontWeights.normal,
@@ -394,32 +302,18 @@ const SidebarMenuButton = ({
   ref,
   ...props
 }: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
-  const scope = useContext(MenuScopeContext);
-  const item = useContext(MenuItemContext);
-
-  const setActive = item?.setActive;
-  useIsoLayoutEffect(() => {
-    setActive?.(isActive);
-    return () => setActive?.(false);
-  }, [isActive, setActive]);
-
-  const lit = isActive || (item?.isHovered ?? false);
-
-  // roving tabindex: the active row is the list's tab stop, else its first row
-  const row = item?.rowEl ?? null;
-  const isFirstStop = useHighlighted(
-    scope?.highlight ?? null,
-    (highlight) => highlight.active === null && row !== null && highlight.first === row,
-  );
+  const rowId = useId();
+  const tabStop = useContext(TabStopContext);
 
   return (
     <button
       ref={ref}
       type="button"
       data-sidebar="menu-button"
+      data-row={rowId}
       data-active={isActive ? "true" : undefined}
       aria-current={isActive ? "page" : undefined}
-      tabIndex={isActive || isFirstStop ? 0 : -1}
+      tabIndex={isActive || tabStop === rowId ? 0 : -1}
       className={cn(
         "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
         radius.item,
@@ -430,14 +324,14 @@ const SidebarMenuButton = ({
       {Icon ? (
         <Icon
           size={14}
-          strokeWidth={lit ? 2 : 1.5}
+          strokeWidth={1.5}
           className={cn(
             "shrink-0 transition-[color,stroke-width] duration-80",
-            lit ? "text-foreground" : "text-muted-foreground",
+            isActive ? "stroke-2 text-foreground" : `${LIT_STROKE} ${LIT_TONE}`,
           )}
         />
       ) : null}
-      <MenuRowLabel content={children} lit={lit} emphasized={isActive} textClass="text-body" />
+      <MenuRowLabel content={children} emphasized={isActive} textClass="text-body" />
     </button>
   );
 };

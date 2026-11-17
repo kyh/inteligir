@@ -38,9 +38,10 @@ The shared component vocabulary, its type roles and its motion.
 - **A picker is Base UI's Autocomplete or Combobox, never a hand-rolled listbox.** Base UI owns the
   popup, its arrows and an IME-safe Enter, which a listbox of our own kept right under five lint
   suppressions. `packages/ui/src/components/command.tsx`.
-- **A row does not answer for its own position; its container does.** The list reads document order
-  once a commit through `useRowOrder`, since a row reading its index from the DOM needs an effect
-  that makes the compiler skip it. `packages/ui/src/hooks/use-row-order.ts`.
+- **A list's lit row is an element, and the list reads its box.** A dropdown takes the row Base UI
+  marks `data-highlighted`, the sidebar the row under the pointer and the one marked `aria-current`,
+  and a row registers nothing, since a row named by its index needs an order registry and a measure
+  of every row to find one. `packages/ui/src/hooks/use-layout-reading.ts`.
 - **The card grid is virtualized by uniform rows, and its one component is the React Compiler's one
   exception.** Every cell is `cellHeight(cellWidth)` tall, so nothing is measured, and
   `useVirtualizer` is read in render, so the compiler skips that component alone.
