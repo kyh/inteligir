@@ -37,8 +37,8 @@ export const shrinkToThumbnail = async (
   try {
     source.write(bytes);
     const original = await ImageManipulator.manipulate(source.uri).renderAsync();
-    // the system's own measure, for what no header reader here knows (an AVIF, a HEIC): an upright
-    // picture is not decoded until the resize below draws it
+    // the system's own measure, for a header no reader here parses: an upright picture is not
+    // decoded until the resize below draws it
     if (!decodable(original)) {
       return null;
     }

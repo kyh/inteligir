@@ -11,16 +11,7 @@ import {
   isPage,
   preferredText,
 } from "./link-fill";
-
-// a PNG's signature and IHDR, which is all its size is read from
-const pngOf = (width: number, height: number): Uint8Array => {
-  const head = new Uint8Array(24);
-  head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  const view = new DataView(head.buffer);
-  view.setUint32(16, width);
-  view.setUint32(20, height);
-  return head;
-};
+import { heifOf, pngOf } from "../test-support/picture-heads";
 
 describe("a cover candidate", () => {
   it("is a cover when its bytes are a picture of a cover's size, by the type they are", () => {
@@ -34,6 +25,12 @@ describe("a cover candidate", () => {
     expect(coverPicture(pngOf(edge, edge))).toStrictEqual({ mime: "image/png" });
     expect(coverPicture(pngOf(edge + 1, edge + 1))).toBeNull();
     expect(coverPicture(pngOf(30_000, 30_000))).toBeNull();
+  });
+
+  it("holds an AVIF and a HEIC to a cover's size as it holds any picture", () => {
+    expect(coverPicture(heifOf("avif", [[1200, 630]]))).toStrictEqual({ mime: "image/avif" });
+    expect(coverPicture(heifOf("avif", [[1, 1]])), "a tracking pixel").toBeNull();
+    expect(coverPicture(heifOf("heic", [[30_000, 30_000]]))).toBeNull();
   });
 });
 

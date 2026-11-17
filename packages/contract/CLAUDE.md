@@ -49,6 +49,10 @@ random bytes and fresh ids are injected.
 - **A device keeps a reading only for its article; the fill, the last reader, keeps a page that
   named itself.** An item saved read is never filled, so a device hands the fill what it could not
   read, and nothing reads after the fill. `packages/contract/src/items/link-fill.ts`.
+- **A picture's type is `sniffMedia`'s list and its size a bounded header read, a HEIF's by
+  image-size's one handler over the file's head.** That library's detector takes twenty formats and
+  a page holding an `<svg>` for a picture, and its handlers walk hostile bytes without a bound.
+  `packages/contract/src/items/sniff-media.ts`.
 - **No reader decides what a doc is on its own.** A private `.md` rule leaves
   out every `.txt` note and disagrees on a name's case.
   `packages/contract/src/knowledge/doc-file.ts`.

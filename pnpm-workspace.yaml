@@ -113,6 +113,9 @@ catalog:
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
+  # only `image-size/types/heif` is imported, an AVIF's or a HEIC's size from its header: the root
+  # entry reads twenty formats, and `sniffMedia` alone says what a file is
+  image-size: ^2.1.0
   jsdom: ^30.1.3
   # a note's sync frames are read and written with yjs's own coder at both ends; one copy, the one
   # yjs resolves
