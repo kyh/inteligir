@@ -142,6 +142,10 @@ arrive as `unknown` and become domain values there alone.
   its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
   changes, since `@platejs/yjs` takes no custom provider without a type assertion.
   `packages/editor/src/item/yjs-binding.ts`.
+- **A body saved over a newer one merges by block id, and lands nothing when a block changed on
+  both sides apart.** A block one side changed takes that side's, an edit beats a drop, and the
+  order is theirs unless only this side moved blocks, since a whole-body overwrite loses someone's
+  words. `packages/editor/src/headless/body/merge-blocks.ts`.
 - **The editor, `@repo/ui` and the live socket reach no oRPC module.** Expo's DOM bundle compiles
   classes to functions and oRPC's builder dies under that at boot while typecheck stays green, so
   lint refuses `@orpc/*` and `@repo/contract/rpc/`, the contract's one folder that reaches it.

@@ -27,6 +27,7 @@
     "./heading-collapse": "./src/heading-collapse.tsx",
     "./headless/body/body-change": "./src/headless/body/body-change.ts",
     "./headless/body/element-block": "./src/headless/body/element-block.ts",
+    "./headless/body/merge-blocks": "./src/headless/body/merge-blocks.ts",
     "./headless/body/note-blocks": "./src/headless/body/note-blocks.ts",
     "./headless/body/note-section": "./src/headless/body/note-section.ts",
     "./headless/body/own-edit": "./src/headless/body/own-edit.ts",
