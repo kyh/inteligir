@@ -168,9 +168,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   since a refresh replaces the article; the blocks read again keep their ids by content.
   `packages/editor/src/codec/item-edit.ts`.
 - **Markdown written into a body is read by `readBody` at every door, and an edit's new text as
-  part of one.** A new note, a save's note, an edit's text and a fill's page read the same text as
-  the same blocks, but for a pill's display, which only a whole body can settle, and only a file's
-  import reads frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
+  part of one.** A new note, a save's note, an imported bookmark's note and an edit's text read the
+  same text as the same blocks, but for a pill's display, which only a whole body can settle; a
+  saved page's tree is stored by the same rules, and only a file's import reads frontmatter,
+  sections and held files. `packages/editor/src/codec/read-body.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
   and its landing both read through `readFrontmatter`, each key one row and the filename the title,
   since a second reader plans a title or an address the landing reads otherwise.

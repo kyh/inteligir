@@ -19,8 +19,10 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
   triggered, which the export cannot spell. `packages/db/scripts/object-ddl.ts`.
 - **A cell column whose rows share one schema says it: JSON through
   `json(schema)`, a flag a boolean, a vocabulary an enum under its CHECK.** A
-  bare `text` leaves each reader to pick a parser and prove the row again; a
-  fields part stays text, being what its hash is of. `packages/db/src/cell/schema.ts`.
+  bare `text` leaves each reader to pick a parser and prove the row again; only
+  a column its row's own schema reads, or one matched as its text, stays text: a
+  job's payload by its kind, an op's answer by its op, a change set's entry.
+  `packages/db/src/cell/schema.ts`.
 - **A purged item is a row of `purged_items`, never an `items` row emptied.**
   Both in one table make every column nullable and every query remember a
   filter. `packages/db/src/cell/schema.ts`.
