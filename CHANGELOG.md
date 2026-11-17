@@ -59,6 +59,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too.
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
 - **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier, and a long page is read in about two thirds of the time.
+- **A link's AVIF or HEIC cover is held to the same limits as any picture**: one under 200 pixels, a tracking pixel or an icon, or over 50 megapixels isn't kept as its cover.
 - **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
 - **A saved link you haven't named keeps an empty title**: its card and the title box go by its address until its page names it, and a title you type is never replaced by the page's.
 - **A link saved as a numeric address is turned down at once, with why**: `http://192.168.1.20/`, `http://93.184.216.34/` or `http://[::1]/` reads "The cloud opens pages by name, so an address written as numbers isn't read." Save the page by its name, or from the browser extension, which reads the page itself.
@@ -101,6 +102,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Resetting your password signs you out everywhere.**
 - **Signing out in a browser or the Mac app empties the site's cache**, files you opened included.
 - **Your iPhone asks for no device name.**
+- **On your iPhone, a GIF shows a placeholder for its cover in the list**: open the item to see it.
 - **Back on your iPhone leaves a note at once** unless you typed in it or added a file this visit, and the edge swipe goes back the same way.
 - **On your iPhone, Send, Approve, Cancel and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.
 - **A conversation on your iPhone loads only what is new** while the agent works, and Ask the agent lists every conversation at once.
