@@ -1,6 +1,7 @@
-// Accounts and items put straight into Postgres for the library's suites, past every write and its
-// rules: an item lands with the rows a write would derive for it, through the same mappers
-// (`../library/library-rows`), so a read's suite needs no write path to stand on.
+// Accounts, items and files put straight into Postgres for the library's suites, past every write
+// and its rules: an item lands with the rows a write would derive for it, through the same mappers
+// (`../library/library-rows`), so a read's suite needs no write path to stand on. And the library's
+// rows called in process as a principal calls them, each input and output through the contract.
 
 import { randomUUID } from "node:crypto";
 
@@ -9,10 +10,13 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
-import { item, itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-schema";
+import { file, item, itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-schema";
+import { createRouterClient } from "@orpc/server";
 
+import type { LibraryPrincipal } from "../library/library-principal";
 import { bodyRowOf, itemRowOf, linkRowsOf, searchRowOf, tagRowsOf } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
+import { libraryRouter } from "../rpc/library-router";
 
 // a user of its own, whose id is the account's library
 export const makeAccount = async (): Promise<string> => {
@@ -60,4 +64,39 @@ export const seedItem = async (accountId: string, seed: ItemSeed): Promise<Store
     }
   });
   return stored;
+};
+
+// a file the library holds, as a settled upload leaves it
+export const seedFile = async (
+  accountId: string,
+  sha: string,
+  {
+    mime = "image/png",
+    touchedAt = 1,
+  }: { readonly mime?: string; readonly touchedAt?: number } = {},
+): Promise<void> => {
+  await db.insert(file).values({
+    accountId,
+    bytes: 10,
+    createdAt: touchedAt,
+    mime,
+    pathname: `files/${accountId}/${sha}/${randomUUID()}`,
+    sha256: sha,
+    touchedAt,
+  });
+};
+
+// one of the person's sessions on `/v1`, as admission resolves it (`../rpc/admit`)
+export const sessionPrincipal = (accountId: string): LibraryPrincipal => ({
+  accountId,
+  actor: { door: "page", kind: "session", sessionId: randomUUID() },
+});
+
+export const libraryAs = (principal: LibraryPrincipal) =>
+  createRouterClient(libraryRouter, { context: { principal } });
+
+// a fresh account, and the person's own calls on its library
+export const personalLibrary = async () => {
+  const accountId = await makeAccount();
+  return { accountId, library: libraryAs(sessionPrincipal(accountId)) };
 };

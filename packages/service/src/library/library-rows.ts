@@ -13,9 +13,9 @@ import type {
 } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
-import type { itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-schema";
-import { item } from "@repo/db/library-schema";
-import { and, eq } from "drizzle-orm";
+import type { itemLink, itemSearch } from "@repo/db/library-schema";
+import { item, itemBody, itemTag, libraryState, purgedItem } from "@repo/db/library-schema";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 import { searchVectorOf } from "../search/search-vector";
@@ -96,6 +96,87 @@ export const readItem = async (
     .from(item)
     .where(and(eq(item.accountId, accountId), eq(item.id, id)));
   return row ?? null;
+};
+
+// whether the library made the id already: an item holds it, or a purged one kept it
+export const idTaken = async (db: DbExecutor, accountId: string, id: string): Promise<boolean> => {
+  const [held, purged] = await Promise.all([
+    db
+      .select({ id: item.id })
+      .from(item)
+      .where(and(eq(item.accountId, accountId), eq(item.id, id))),
+    db
+      .select({ id: purgedItem.id })
+      .from(purgedItem)
+      .where(and(eq(purgedItem.accountId, accountId), eq(purgedItem.id, id))),
+  ]);
+  return held.length > 0 || purged.length > 0;
+};
+
+// the body's version and digest, without its blocks: what a write of the fields alone derives from
+export const readBodyFacts = async (
+  db: DbExecutor,
+  accountId: string,
+  itemId: string,
+): Promise<Omit<StoredBody, "blocks"> | null> => {
+  const [row] = await db
+    .select({ digest: itemBody.digest, version: itemBody.version })
+    .from(itemBody)
+    .where(and(eq(itemBody.accountId, accountId), eq(itemBody.itemId, itemId)));
+  return row ?? null;
+};
+
+// the item and its blocks in reading order, read in one statement so no write splits the two; null
+// for an id the account holds no item under
+export const readItemWhole = async (
+  db: DbExecutor,
+  accountId: string,
+  id: string,
+): Promise<{ readonly item: StoredItem; readonly blocks: readonly BodyBlock[] } | null> => {
+  const [row] = await db
+    .select({ ...STORED_ITEM_COLUMNS, blocks: itemBody.blocks })
+    .from(item)
+    .innerJoin(itemBody, and(eq(itemBody.accountId, item.accountId), eq(itemBody.itemId, item.id)))
+    .where(and(eq(item.accountId, accountId), eq(item.id, id)));
+  if (row === undefined) {
+    return null;
+  }
+  const { blocks, ...stored } = row;
+  return { blocks, item: stored };
+};
+
+// each tag the items carry, their field's and their body's, each spelling once, in byte order, as
+// a list names them
+export const tagsOf = async (
+  db: DbExecutor,
+  accountId: string,
+  itemIds: readonly string[],
+): Promise<Map<string, string[]>> => {
+  const tags = new Map<string, string[]>();
+  if (itemIds.length === 0) {
+    return tags;
+  }
+  const rows = await db
+    .select({ itemId: itemTag.itemId, tag: itemTag.tag })
+    .from(itemTag)
+    .where(and(eq(itemTag.accountId, accountId), inArray(itemTag.itemId, [...itemIds])))
+    .orderBy(asc(itemTag.itemId), asc(sql`${itemTag.tag} collate "C"`));
+  for (const { itemId, tag } of rows) {
+    const held = tags.get(itemId) ?? [];
+    if (held.at(-1) !== tag) {
+      tags.set(itemId, [...held, tag]);
+    }
+  }
+  return tags;
+};
+
+// the sequence the library's last write took, 0 before its first
+export const libraryHead = async (db: DbExecutor, accountId: string): Promise<number> => {
+  const [row] = await db
+    .select({ head: libraryState.head })
+    .from(libraryState)
+    .where(eq(libraryState.accountId, accountId));
+  return row?.head ?? 0;
 };
 
 // its blocks as JSON in UTF-8, which the quota counts and the body's cap is measured in
