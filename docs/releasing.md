@@ -232,11 +232,22 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
 5. **The Worker's secrets.** `pnpm --filter @repo/web exec cf workers secrets
    list --worker inteligir-web` names `BETTER_AUTH_SECRET`,
-   `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`, which
-   `apps/web/README.md` § Build & deploy sets; Deploy is refused while the
-   Worker lacks one. `secrets update` refuses a name the Worker still binds as
-   a plain variable: change that variable's type to Secret in the dashboard,
-   under the Worker's Settings › Variables and Secrets.
+   `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`. Deploy binds each as the Worker
+   already holds it and is refused while the Worker holds none, so a name the
+   list lacks is a plain variable there. Set one the Worker has never held as
+   `apps/web/README.md` § Build & deploy does, the gateway's address being its
+   Anthropic route:
+
+   ```sh
+   pnpm --filter @repo/web exec cf workers secrets update AGENT_GATEWAY_URL --worker inteligir-web \
+     --text 'https://gateway.ai.cloudflare.com/v1/<account id>/inteligir/anthropic'
+   ```
+
+   `secrets update` refuses a name the Worker binds as a plain variable (error
+   10053). In the dashboard, under the Worker's Settings › Variables and
+   Secrets, edit that variable, set its type to Secret with the value it
+   shows, and deploy. Until then every Deploy carries the variable over as it
+   is, so the agent keeps its gateway.
 
 ## 4. The phone's internal build
 
