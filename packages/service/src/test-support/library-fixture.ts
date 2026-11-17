@@ -81,13 +81,14 @@ export const seedFile = async (
   accountId: string,
   sha: string,
   {
+    bytes = 10,
     mime = "image/png",
     touchedAt = 1,
-  }: { readonly mime?: string; readonly touchedAt?: number } = {},
+  }: { readonly bytes?: number; readonly mime?: string; readonly touchedAt?: number } = {},
 ): Promise<void> => {
   await db.insert(file).values({
     accountId,
-    bytes: 10,
+    bytes,
     createdAt: touchedAt,
     mime,
     pathname: `files/${accountId}/${sha}/${randomUUID()}`,

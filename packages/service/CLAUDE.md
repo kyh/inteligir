@@ -141,6 +141,10 @@ decisions port with its code from the tag `cloudflare-last`.
   reading is never asked by a write that rolled back nor lost by one that
   landed, a save calls no model, and the built-in agent reads the web itself, so
   its turn holds nothing back. `packages/service/src/library/library-fills.ts`.
+- **Only a new item is refused past the account's cap, which counts the sum of
+  its files' and bodies' rows.** A person never loses a word mid-note and a full
+  library can still be tidied; fields and the search rows are small beside them.
+  `packages/service/src/library/library-quota.ts`.
 - **Markdown written into a body reads its links in one round of three queries
   inside its write.** A query per link is a round trip each, and a title index
   of the whole library reads every item to name a few.

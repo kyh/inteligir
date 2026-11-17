@@ -1,8 +1,9 @@
 // Landing one item's change inside a write's transaction: every rule a write meets (its fields
 // within their caps, its body within a body's, one live item per url, only files the library
-// holds), then its rows, stamped with the write's one sequence number. Only what changed is
-// written: the body and its links when the write brings one (`landBody`), the tags and the search
-// row when the body or the fields moved, the item's files when it names others.
+// holds, a new item only within the library's room), then its rows, stamped with the write's one
+// sequence number. Only what changed is written: the body and its links when the write brings one
+// (`landBody`), the tags and the search row when the body or the fields moved, the item's files
+// when it names others.
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
@@ -19,6 +20,7 @@ import { item, itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-
 import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { itemFilesOf, missingFiles, nameItemFiles } from "../files/file-names";
+import { holdRoomFor } from "./library-quota";
 import { refuse } from "./library-refusal";
 import {
   bodyRowOf,
@@ -155,6 +157,9 @@ const checkLanding = async (scope: WriteScope, landing: Landing) => {
   );
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
+  }
+  if (landing.before === null) {
+    await holdRoomFor(scope, landed.written?.row.bytes ?? 0);
   }
   return { derived, files, landed, priorFiles };
 };

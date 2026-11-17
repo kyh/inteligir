@@ -1,7 +1,8 @@
 // Saving a web address over Postgres: a link to read later lands unread and asks for its reading
 // in the same write, a page a device read lands read or onto the item that waited for it, the
-// words saved with either read as a note whose `[[links]]` name the library's own items, called in
-// process as a principal calls them and once over `/v1/rpc` as the extension does.
+// words saved with either read as a note whose `[[links]]` name the library's own items, and a new
+// item past the library's room is refused, called in process as a principal calls them and once
+// over `/v1/rpc` as the extension does.
 
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
@@ -11,6 +12,7 @@ import { dbSuite } from "@repo/db/test-database";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
+import { env } from "../env";
 import { signUpUser, userIdOf } from "../test-support/auth-requests";
 import { personalLibrary, seedFile, seedItem } from "../test-support/library-fixture";
 import { extensionHeaders, v1Link } from "../test-support/v1-link";
@@ -260,6 +262,46 @@ dbSuite("saving a web address", () => {
       [{ text: "" }],
     ]);
     expect(blocks[2]?.block).toMatchObject({ name: "report.pdf", sha: PDF_SHA, type: "file" });
+  });
+
+  describe("the library's room", () => {
+    it("refuses only a new item past the cap, saying what its files and bodies hold, and lets a full library tidy", async () => {
+      const { accountId, library } = await personalLibrary();
+      const { item: held } = await library.items.saveLink({ url: "https://example.com/kept" });
+      const bytesCap = env.LIBRARY_STORAGE_CAP_BYTES;
+      await seedFile(accountId, PDF_SHA, { bytes: bytesCap - 4, mime: "application/pdf" });
+      // an empty body is `[]`, two bytes: the stub's and one more fill the library to the byte
+      await library.items.saveLink({ url: "https://example.com/the-last-one" });
+      for (const refused of [
+        async () => await library.items.saveLink({ url: "https://example.com/one-more" }),
+        async () => await library.items.save(pageSave("https://example.com/a-page-more")),
+        async () =>
+          await library.items.create({
+            blocks: [],
+            folderId: null,
+            id: newId(),
+            savedAt: SAVED_AT,
+            tags: [],
+            title: "One more",
+          }),
+      ]) {
+        await expect(refusalOf(refused())).resolves.toStrictEqual({
+          code: "QUOTA",
+          data: { bytesCap, bytesUsed: bytesCap },
+          defined: true,
+        });
+      }
+      await library.items.organize({ addTags: ["kept"], ids: [held.id], pinned: true });
+      await library.write({
+        itemId: held.id,
+        ops: [{ key: "notes", op: "property", value: "y".repeat(8 * 1024) }],
+      });
+      await library.items.delete({ ids: [held.id] });
+      await library.items.restore({ ids: [held.id] });
+      await expect(
+        library.items.saveLink({ url: "https://example.com/kept" }),
+      ).resolves.toMatchObject({ created: false, item: { id: held.id } });
+    });
   });
 
   it("saves a link through /v1/rpc as the extension sends it", async () => {
