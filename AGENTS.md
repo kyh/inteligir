@@ -52,72 +52,50 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
 ## Map
 
 ```
-apps/web               * the one Worker: site, accounts, /v1, connector, fills, Durable Objects; the library tab (src/library *)
+apps/web               * the one Next.js app: the site, the cloud's routes and health check; the library tab (src/library *)
 apps/desktop           * the Mac app: a Tauri window on the site's /library, its origin pin, menu and updater
 apps/mobile            * the iPhone app: native lists, the share sheet, the editor in an Expo DOM component
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
-packages/service       * the cloud's code: auth, /v1, connector, fills, each cell, note and conversation
-packages/db            * drizzle's schemas for D1 and each object's SQLite, with each one's DDL
+packages/service       * the cloud's code apps/web serves, its environment's schema first; each area ports from the tag cloudflare-last
+packages/db            * Postgres: the drizzle client, the schema's push, local Supabase and the suites' databases
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over linkedom on every host
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads; a waiting save, the extension's too
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * the fitness test over the repo's product words
 tools/e2e                the Playwright flows `pnpm e2e` runs
-tools/messages-fake      a scripted Claude the local Worker, the e2e and the suites run the agent on
+tools/messages-fake      a scripted Claude the e2e's Worker fixture runs the agent on
 ```
 
 `*` marks a `CLAUDE.md` holding the workspace's decisions. There is no local
-server or command line: drive the site in a browser, the Worker with curl.
+server or command line: drive the site in a browser, the app with curl.
 
 ## Quickstart
 
 ```sh
 pnpm install
 cp .env.example .env   # runs unedited
-pnpm dev:web           # the Worker on miniflare at http://localhost:5174 (pinned), /library included
+pnpm dev:web           # next dev at http://localhost:5174 (pinned)
 pnpm dev               # the Mac app's window on it
 ```
 
-Node 24 and pnpm 12 (`corepack enable`), no Cloudflare or Anthropic account.
+Node 24 and pnpm 12 (`corepack enable`), no Vercel or Anthropic account.
 The root `.env` is the one env file you edit (restart `pnpm dev:web` after an
-edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which
-`@repo/db`'s scripts read first. Do not reintroduce `apps/web/.dev.vars`, which
-wrangler reads alone. Its
-`ANTHROPIC_FAKE_URL` runs the agent on a scripted Claude (`tools/messages-fake`);
-a real agent needs `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` naming your own gateway.
+edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which the
+app and `@repo/db`'s scripts read first, and `pnpm db:push` gives it the
+schema. `curl localhost:5174/api/health` answers 200 once the database does.
 
-### Seeded login
-
-```sh
-pnpm dev:web     # leave it running
-pnpm bootstrap   # beside it: the D1 schema and the dev account, safe to run again
-```
-
-```
-dev@inteligir.local / password
-```
-
-Headless, a session is one curl, and `docs/development.md` § Running has `/v1`'s headers:
-
-```sh
-curl -s -c jar localhost:5174/api/auth/sign-in/email \
-  -H 'content-type: application/json' -d '{"email":"dev@inteligir.local","password":"password"}'
-```
-
-Sign-up stays invite-only: another account takes a row in `invite_code`
-(`pnpm --filter @repo/db exec drizzle-kit studio --config drizzle.config.local.ts`),
-its `code` typed at `/app/sign-up` or on the phone. Auth allows 10 requests/60s
-per IP; a script making several users sets `RATE_LIMIT_DISABLED=true` in `.env`.
-**Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it pushes the
-PRODUCTION Postgres. Drive the site with agent-browser (`.agents/skills/agent-browser`).
+There is no seeded login until accounts land on the app; the tag
+`cloudflare-last` holds the Worker's. **Never run `pnpm db:push-remote`
+(`@repo/db`'s `push:remote`)**: it pushes the PRODUCTION Postgres. Drive the
+site with agent-browser (`.agents/skills/agent-browser`).
 
 ## Verify a change
 
 ```sh
 pnpm format:fix && pnpm verify          # typecheck, lint, knip, format, test, build; check-only
-pnpm e2e                                # Playwright over the built Worker; `pnpm e2e -- <file>` runs one
+pnpm e2e                                # Playwright; every flow waits in its config's PENDING until its area lands
 TURBO_SCM_BASE=<base> pnpm verify:affected   # a work stream: only what it reaches
 ```
 
