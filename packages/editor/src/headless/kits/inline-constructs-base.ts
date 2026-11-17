@@ -12,7 +12,7 @@ import {
   pillEntries,
   unsettledPills,
 } from "@repo/editor/headless/formulas/pill-nodes";
-import { appliesOwnEdit } from "@repo/editor/headless/live/yjs-binding";
+import { appliesOwnEdit } from "@repo/editor/headless/body/own-edit";
 
 // whether the op can change what a pill shows: one set, added or removed, or moved, since the
 // first pill to hold a name is the one read

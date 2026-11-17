@@ -12,7 +12,7 @@ import type { EditPorts } from "./item-edit";
 import { importItem } from "./item-markdown";
 import { libraryLinks } from "./library-links";
 import { itemView, viewPage } from "./item-view";
-import type { BodyChange } from "../live/body-change";
+import type { BodyChange } from "../body/body-change";
 
 const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
 

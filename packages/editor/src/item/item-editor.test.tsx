@@ -18,11 +18,10 @@ import { deferred } from "@repo/contract/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { openFindBar } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { readBlocks, seedDoc } from "@repo/editor/headless/live/note-blocks";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { NOTES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { docNodes, liveEditor } from "../test-support/live-notes";
+import { docNodes, liveEditor, readBlocks, seedDoc } from "../test-support/live-notes";
 import { noteServer } from "../test-support/note-server";
 import type { NoteServer } from "../test-support/note-server";
 import { HELD_BACK, ItemEditor, MISSING_ITEM, REFUSED_EDIT } from "./item-editor";

@@ -15,10 +15,16 @@ import {
 } from "@repo/editor/headless/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { seedDoc } from "@repo/editor/headless/live/note-blocks";
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 
-import { docNodes, liveEditor, relay, settle, syncedCopy } from "./test-support/live-notes";
+import {
+  docNodes,
+  liveEditor,
+  relay,
+  seedDoc,
+  settle,
+  syncedCopy,
+} from "./test-support/live-notes";
 
 const makeEditor = (text: string) =>
   createSlateEditor({

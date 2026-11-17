@@ -130,7 +130,7 @@ arrive as `unknown` and become domain values there alone.
 - **A note that takes no edit refuses one in the model.** Offline, held or refused, it drops every
   local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
   Plate's `readOnly` gates handlers and drawing, never a transform.
-  `packages/editor/src/headless/live/edit-guard.ts`.
+  `packages/editor/src/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
   `tools/e2e/src/editor.spec.ts`.
@@ -141,7 +141,7 @@ arrive as `unknown` and become domain values there alone.
 - **A note's body is one live document, every editor of it bound innermost, and every kit fixes
   its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
   changes, since `@platejs/yjs` takes no custom provider without a type assertion.
-  `packages/editor/src/headless/live/yjs-binding.ts`.
+  `packages/editor/src/item/yjs-binding.ts`.
 - **The editor, `@repo/ui` and the live socket reach no oRPC module.** Expo's DOM bundle compiles
   classes to functions and oRPC's builder dies under that at boot while typecheck stays green, so
   lint refuses `@orpc/*` and `@repo/contract/rpc/`, the contract's one folder that reaches it.

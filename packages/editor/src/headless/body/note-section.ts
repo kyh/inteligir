@@ -7,7 +7,7 @@ import type { Descendant, Path, SlateEditor, SplitNodeOperation, TElement } from
 import { librarySectionSchema } from "@repo/contract/library/library-nodes";
 import type { LibrarySection } from "@repo/contract/library/library-nodes";
 
-import { appliesOwnEdit } from "./yjs-binding";
+import { appliesOwnEdit } from "./own-edit";
 
 const SECTION_KEY = "section";
 

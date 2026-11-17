@@ -6,7 +6,7 @@
 import { createSlatePlugin } from "platejs";
 import type { Operation, SlateEditor } from "platejs";
 
-import { appliesRemoteChange, editsReachNote } from "./yjs-binding";
+import { appliesRemoteChange, editsReachNote } from "./item/yjs-binding";
 
 export const editGuard = <K extends string>(
   key: K,

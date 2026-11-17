@@ -10,7 +10,7 @@ import { vi } from "vitest";
 
 import { importItem } from "../headless/codec/item-markdown";
 import { ItemEditor } from "../item/item-editor";
-import { seedDoc } from "../headless/live/note-blocks";
+import { seedDoc } from "./live-notes";
 import { getLiveEditor } from "../live-editor";
 import { pretendLibrary } from "./codec-ports";
 import { noteServer } from "./note-server";

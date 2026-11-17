@@ -1,4 +1,4 @@
-// A top-level element as the block the library stores: what a note's document is read as, an edit
+// A top-level element as the block the library stores: what an editor's value is read as, an edit
 // checks its base against and a note extracted from it is made of.
 
 import { ElementApi } from "platejs";
@@ -24,8 +24,8 @@ const withoutPickers = (element: TElement): TElement => ({
 
 // The element's block in the one spelling a block is stored in, or null for one no block stores: a
 // picker open in it is read around (its query is nobody's writing yet), and the ids Plate gives the
-// elements inside and the section are the document's, never the block's, so every editor reads
-// one block.
+// elements inside and the section are the editor's, never the block's, so every editor reads one
+// block.
 export const blockOfElement = (element: TElement): LibraryBlock | null => {
   const id = blockId(element);
   if (id === undefined) {

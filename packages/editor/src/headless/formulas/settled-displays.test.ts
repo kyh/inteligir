@@ -13,11 +13,10 @@ import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { pillNode } from "@repo/editor/formulas/formula-entry";
 import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
-import { seedDoc } from "@repo/editor/headless/live/note-blocks";
-import { undoStackSizes } from "@repo/editor/headless/live/yjs-binding";
+import { undoStackSizes } from "@repo/editor/item/yjs-binding";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-import { liveEditor, relay, settle, syncedCopy } from "../../test-support/live-notes";
+import { liveEditor, relay, seedDoc, settle, syncedCopy } from "../../test-support/live-notes";
 
 // a paragraph holding one pill, showing `display`
 const line = (id: string, pill: Pill, display: string): LibraryBlock =>

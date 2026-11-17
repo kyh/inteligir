@@ -18,7 +18,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { editsReachNote } from "@repo/editor/headless/live/yjs-binding";
+import { editsReachNote } from "@repo/editor/item/yjs-binding";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 

@@ -38,7 +38,7 @@ import {
   flushEdits,
   noteRoot,
   yjsBindingPlugin,
-} from "@repo/editor/headless/live/yjs-binding";
+} from "@repo/editor/item/yjs-binding";
 import { getLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 

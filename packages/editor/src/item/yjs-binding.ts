@@ -22,11 +22,6 @@ const INNERMOST = 1000;
 export const appliesRemoteChange = (editor: SlateEditor): boolean =>
   YjsEditor.isYjsEditor(editor) && YjsEditor.connected(editor) && !YjsEditor.isLocal(editor);
 
-// Applying the edit of the person at this editor: not the document's own change, which an undo is
-// too, and not a write kept out of undo.
-export const appliesOwnEdit = (editor: SlateEditor): boolean =>
-  !appliesRemoteChange(editor) && editor.api.isSaving() !== false;
-
 // `localOrigin` names this editor's writes in the document, which its undo tracks and every other
 // editor reads as remote. The host connects it (`YjsEditor.connect`) once the document has synced,
 // so an editor never seeds a document it has yet to read.
@@ -56,7 +51,13 @@ export const yjsBindingPlugin = ({
     },
     key: "yjsBinding",
     priority: INNERMOST,
-  });
+  }).overrideEditor(({ editor, api: { isSaving } }) => ({
+    api: {
+      // the document's own change is never this editor's to save, so it is no own edit
+      // (`appliesOwnEdit`), and Plate's history rebases over it as it does over a write kept out
+      isSaving: () => (appliesRemoteChange(editor) ? false : isSaving()),
+    },
+  }));
 
 // Whether an edit made now reaches the note: an editor shown read-only takes none, and a bound one
 // that is not connected writes nothing to its document.

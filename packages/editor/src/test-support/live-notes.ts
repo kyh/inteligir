@@ -1,14 +1,17 @@
 // Live documents over no socket: each relays its updates to the others as a note's object relays a
 // socket's, held until delivered, so two editors can write at once and meet afterwards.
 
-import { createSlateEditor } from "platejs";
+import { ElementApi, createSlateEditor } from "platejs";
 import type { AnyPluginConfig, SlateEditor } from "platejs";
-import { YjsEditor, yTextToSlateElement } from "@slate-yjs/core";
+import { YjsEditor, slateNodesToInsertDelta, yTextToSlateElement } from "@slate-yjs/core";
 import type { Descendant } from "slate";
 import * as Y from "yjs";
 
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+
+import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
-import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/headless/live/yjs-binding";
+import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/item/yjs-binding";
 
 // the origin a relayed update lands under, which no editor writes as
 const RELAYED = Symbol("relayed");
@@ -88,6 +91,23 @@ export const liveEditor = (
 
 // what the document holds, as Slate nodes
 export const docNodes = (doc: Y.Doc): Descendant[] => yTextToSlateElement(noteRoot(doc)).children;
+
+// Seeds an empty document with a note's blocks as an editor opens them, so no editor connecting to
+// it has a fix to write; an editor never connects to an empty root, where two at once would each
+// write the empty paragraph.
+export const seedDoc = (doc: Y.Doc, blocks: readonly BodyBlock[]): void => {
+  const root = noteRoot(doc);
+  if (root.length > 0) {
+    throw new Error("seedDoc seeds an empty document");
+  }
+  doc.transact(() => {
+    root.applyDelta(slateNodesToInsertDelta(editorValueOf(blocks)));
+  });
+};
+
+// the document's blocks in order, as the library reads an editor's value
+export const readBlocks = (doc: Y.Doc): BodyBlock[] =>
+  blocksOfValue(docNodes(doc).filter((node) => ElementApi.isElement(node)));
 
 // writes what each editor holds unsent, then delivers, until nothing moves
 export const settle = (net: Relay, editors: readonly LiveEditor[]): void => {

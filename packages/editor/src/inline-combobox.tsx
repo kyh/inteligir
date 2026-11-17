@@ -26,7 +26,7 @@ import {
 } from "@repo/editor/headless/combobox-input";
 import type { ComboboxCancelCause } from "@repo/editor/headless/combobox-input";
 import { matchesHotkey } from "@repo/editor/editor-shortcuts";
-import { undoStackSizes } from "@repo/editor/headless/live/yjs-binding";
+import { undoStackSizes } from "@repo/editor/item/yjs-binding";
 
 // a row a picker lists, unique in it by `value`, and what picking it writes
 export interface PickerRow {

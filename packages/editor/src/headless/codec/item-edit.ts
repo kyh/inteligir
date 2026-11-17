@@ -1,5 +1,5 @@
 // An agent's edit to an item, made on its view (`item-view.ts`) and landed as changes to its live
-// body by block id (`../live/body-change`), each naming the block as the view read it. An edit
+// body by block id (`../body/body-change`), each naming the block as the view read it. An edit
 // writes in the note alone: the article is the page as it was read, which no edit changes. Each
 // `old_text` must stand exactly once in the note as the edits before it left it, and an empty one
 // adds its new text after the note; the groups the edited text touches are read again from the new
@@ -19,7 +19,7 @@ import { libraryLinks } from "./library-links";
 import type { LibraryLinks, LibraryLookup } from "./library-links";
 import { readBodyPart } from "./read-body";
 import type { ReadPorts } from "./read-blocks";
-import type { BodyChange } from "@repo/editor/headless/live/body-change";
+import type { BodyChange } from "@repo/editor/headless/body/body-change";
 
 export interface ViewEdit {
   // empty to add `newText` after the note

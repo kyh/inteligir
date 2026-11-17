@@ -27,8 +27,8 @@ import { SlashKit } from "@repo/editor/slash-menu";
 import { TocKit } from "@repo/editor/toc";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { PickerRaceKit } from "@repo/editor/headless/combobox-input";
-import { ReadOnlyGuardPlugin } from "@repo/editor/headless/live/edit-guard";
-import { NoteSectionPlugin } from "@repo/editor/headless/live/note-section";
+import { ReadOnlyGuardPlugin } from "@repo/editor/edit-guard";
+import { NoteSectionPlugin } from "@repo/editor/headless/body/note-section";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations and the
 // markdown wiring. Every surface composes this whole, so a note reads

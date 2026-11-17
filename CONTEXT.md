@@ -54,7 +54,7 @@ id and its **section**. The agent edits a body by block id, and a change to a
 block that moved since its writer read it is refused with the block as it is.
 A list item is a block, since lists are flat indent lists. Not a Plate node at
 any depth: a block's children are inside it
-(`packages/editor/src/headless/live/element-block.ts`).
+(`packages/editor/src/headless/body/element-block.ts`).
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a **fill** wrote. A fill
@@ -65,7 +65,7 @@ note, and not a folder.
 
 **live document** — a note's body as one Yjs document, each top-level
 **block** carrying its **section**, which every device's editor and the agent
-edit at once (`packages/editor/src/headless/live/yjs-binding.ts`). An
+edit at once (`packages/editor/src/item/yjs-binding.ts`). An
 editor's ⌘Z takes back its own changes alone. Not an offline copy: a device
 holds it only while the note's socket is open, and no presence crosses it.
 

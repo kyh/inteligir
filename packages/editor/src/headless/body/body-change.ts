@@ -1,10 +1,9 @@
-// An edit of a note's body by block id, applied through the editor so its binding carries it into
-// the live document. Each change names its base, the block as the writer read it; a base that no
-// longer holds lands nothing, so the writer reads again rather than overwrite what moved since.
+// An edit of a note's body by block id, applied through an editor holding the body, so its kit
+// normalizes what lands. Each change names its base, the block as the writer read it; a base that
+// no longer holds lands nothing, so the writer reads again rather than overwrite what moved since.
 
 import { ElementApi, KEYS } from "platejs";
 import type { Descendant, Path, SlateEditor, TElement, TText } from "platejs";
-import { YjsEditor } from "@slate-yjs/core";
 
 import { sameJson } from "@repo/contract/library/canonical-json";
 import type { JsonValue } from "@repo/contract/library/canonical-json";
@@ -52,14 +51,14 @@ const indexOfBlock = (editor: SlateEditor, id: string): number =>
 
 // Every base is the block as it stood before these changes, checked before any lands, so a batch
 // lands whole or not at all. A base holds when the block reads the same as the library stores it,
-// the ids inside it and its section aside: those are the document's, and a block renamed inside
-// by another editor is the same block.
+// the ids inside it and its section aside: those are the editor's, and a block renamed inside by
+// another editor is the same block.
 const movedBlocks = (editor: SlateEditor, changes: readonly BodyChange[]): string[] => {
   const before = new Map<string, TElement | null>();
   for (const node of editor.children) {
     const id = blockId(node);
     if (id !== undefined) {
-      // an id the document holds twice names no one block
+      // an id the body holds twice names no one block
       before.set(id, before.has(id) ? null : node);
     }
   }
@@ -316,10 +315,9 @@ const move = (editor: SlateEditor, id: string, afterId: string | null): void => 
 // A put that keeps the block's shape (each element and run of text where it was, its type, or one
 // text block's type for another) edits it in place, text by the fewest characters and props one by
 // one, so what a person types elsewhere in the block meanwhile stays, and an undo of it takes back
-// only what it changed; one that reshapes it replaces it whole under its id. What lands is
-// in the document when this returns, rather than at the editor's next change.
+// only what it changed; one that reshapes it replaces it whole under its id.
 export const applyBodyChanges = (
-  editor: SlateEditor & YjsEditor,
+  editor: SlateEditor,
   changes: readonly BodyChange[],
 ): BodyChangeOutcome => {
   const blockIds = movedBlocks(editor, changes);
@@ -349,6 +347,5 @@ export const applyBodyChanges = (
       }
     }
   });
-  YjsEditor.flushLocalChanges(editor);
   return { kind: "applied" };
 };

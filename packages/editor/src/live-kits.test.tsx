@@ -12,12 +12,18 @@ import * as Y from "yjs";
 import { pillEntries } from "@repo/editor/headless/formulas/pill-nodes";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { blockOfElement } from "@repo/editor/headless/live/element-block";
-import { readBlocks, seedDoc } from "@repo/editor/headless/live/note-blocks";
-import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/headless/live/yjs-binding";
+import { blockOfElement } from "@repo/editor/headless/body/element-block";
+import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/item/yjs-binding";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { liveEditor, relay, settle, syncedCopy } from "./test-support/live-notes";
+import {
+  liveEditor,
+  readBlocks,
+  relay,
+  seedDoc,
+  settle,
+  syncedCopy,
+} from "./test-support/live-notes";
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {

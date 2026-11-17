@@ -4,7 +4,7 @@
 // with it, and nothing it reaches imports React, a stylesheet or a node built-in.
 
 import { MarkdownKit } from "@repo/editor/headless/kits/markdown-kit";
-import { NoteSectionPlugin } from "@repo/editor/headless/live/note-section";
+import { NoteSectionPlugin } from "@repo/editor/headless/body/note-section";
 
 import { BasicBlocksBaseKit } from "./basic-blocks-base";
 import { BasicMarksBaseKit } from "./basic-marks-base";

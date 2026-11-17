@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, TrailingBlockPlugin } from "platejs";
 import type { AnyPluginConfig, TElement } from "platejs";
+import { YHistoryEditor, slateNodesToInsertDelta } from "@slate-yjs/core";
 import * as Y from "yjs";
 
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
+import { applyBodyChanges } from "@repo/editor/headless/body/body-change";
+import { blockOfElement } from "@repo/editor/headless/body/element-block";
+import { sectioned } from "@repo/editor/headless/body/note-section";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
+import { noteRoot } from "@repo/editor/item/yjs-binding";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { readBlocks, seedDoc } from "@repo/editor/headless/live/note-blocks";
-import { docNodes, liveEditor, relay, settle, syncedCopy } from "../../test-support/live-notes";
-import type { LiveEditor } from "../../test-support/live-notes";
+import {
+  docNodes,
+  liveEditor,
+  readBlocks,
+  relay,
+  seedDoc,
+  settle,
+  syncedCopy,
+} from "../test-support/live-notes";
+import type { LiveEditor } from "../test-support/live-notes";
+import { SECTIONED } from "../test-support/stored-corpus";
 
 const stored = (element: TElement & { readonly id: string }): LibraryBlock =>
   storableBlockSchema.parse(element);
@@ -222,5 +236,93 @@ describe("an editor bound to a note's live document", () => {
     settle(net, [a, b]);
     expect(b.api.string([0])).toBe("most leftright");
     expect(b.children).toStrictEqual(docNodes(docB));
+  });
+});
+
+const seeded = (blocks: readonly BodyBlock[]): Y.Doc => {
+  const doc = new Y.Doc();
+  seedDoc(doc, blocks);
+  return doc;
+};
+
+describe("a note's live document", () => {
+  // the encoding alone, before any normalizer: every block the library stores lands and reads back
+  it("encodes every node, mark and prop the library persists, in order and section", () => {
+    const doc = new Y.Doc();
+    noteRoot(doc).applyDelta(
+      slateNodesToInsertDelta(SECTIONED.map(({ block, section }) => sectioned(block, section))),
+    );
+    expect(readBlocks(doc)).toStrictEqual(SECTIONED);
+  });
+
+  it("connects an editor that reads every block as it was seeded and writes nothing", () => {
+    const doc = seeded(SECTIONED);
+    const net = relay([doc]);
+    const editor = liveEditor(doc);
+    settle(net, [editor]);
+    expect(net.sent(doc)).toBe(0);
+    expect(editor.children.flatMap((element) => blockOfElement(element) ?? [])).toStrictEqual(
+      readBlocks(doc).map(({ block }) => block),
+    );
+  });
+
+  it("seeds only an empty document", () => {
+    const doc = seeded([]);
+    expect(() => {
+      seedDoc(doc, SECTIONED);
+    }).toThrow("seedDoc seeds an empty document");
+  });
+});
+
+const sectionsOf = (doc: Y.Doc): [string, LibrarySection][] =>
+  readBlocks(doc).map(({ block, section }) => [block.id, section]);
+
+// a person's device on a note whose page a fill read, beside an editor with Plate's own undo
+const clipped = () => {
+  const note = seeded([
+    { block: p("mine", "my words"), section: "note" },
+    { block: p("page", "the page"), section: "article" },
+  ]);
+  const deviceDoc = syncedCopy(note);
+  const otherDoc = syncedCopy(note);
+  const net = relay([deviceDoc, otherDoc]);
+  const device = liveEditor(deviceDoc);
+  const other = liveEditor(otherDoc, { history: false });
+  return { device, deviceDoc, net, other, otherDoc };
+};
+
+describe("a block's section on a note's live document", () => {
+  it("puts an article's block back in the article on undo, the document's and Plate's", () => {
+    const { device, deviceDoc, net, other, otherDoc } = clipped();
+    device.tf.removeNodes({ at: [1] });
+    settle(net, [device, other]);
+    expect(YHistoryEditor.isYHistoryEditor(device)).toBe(true);
+    device.undo();
+    settle(net, [device, other]);
+    expect(sectionsOf(deviceDoc)).toStrictEqual([
+      ["mine", "note"],
+      ["page", "article"],
+    ]);
+    other.tf.removeNodes({ at: [1] });
+    settle(net, [device, other]);
+    other.tf.undo();
+    settle(net, [device, other]);
+    expect(sectionsOf(otherDoc)).toStrictEqual([
+      ["mine", "note"],
+      ["page", "article"],
+    ]);
+  });
+
+  it("lands a block another editor placed in the article there", () => {
+    const { device, deviceDoc, net, other, otherDoc } = clipped();
+    expect(
+      applyBodyChanges(other, [
+        { afterId: "page", block: p("more", "more page"), kind: "insertAfter", section: "article" },
+      ]),
+    ).toStrictEqual({ kind: "applied" });
+    settle(net, [device, other]);
+    expect(sectionsOf(deviceDoc)).toStrictEqual(sectionsOf(otherDoc));
+    expect(sectionsOf(deviceDoc).at(-1)).toStrictEqual(["more", "article"]);
+    expect(device.children).toStrictEqual(docNodes(deviceDoc));
   });
 });
