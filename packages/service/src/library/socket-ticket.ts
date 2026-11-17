@@ -1,6 +1,6 @@
 // The ticket the account's socket opens with: a browser's WebSocket carries no header, so an
 // authenticated `/v1` call (`account.socketTicket`) mints one and the socket's query string brings
-// it back. It names the account and the credential that asked, expires in a minute, and is signed
+// it back. It names the account and the session that asked, expires in a minute, and is signed
 // with HMAC-SHA-256 under a key derived from the Worker's secret by HKDF, all Web Crypto
 // (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/); its signature is checked by
 // `crypto.subtle.verify`, which takes the same time whatever was presented.
@@ -8,8 +8,7 @@
 import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { z } from "zod";
 
-import { holderSchema } from "./cell-sockets";
-import type { SocketHolder } from "./cell-sockets";
+import { credentialIdSchema } from "./library-principal";
 
 export const SOCKET_TICKET_TTL_MS = 60_000;
 
@@ -17,13 +16,15 @@ const KEY_INFO = "inteligir library socket ticket";
 
 const encoder = new TextEncoder();
 
+// the account, and the session a socket opened with the ticket answers to
 const claimSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
-  expiresAt: z.number().int().nonnegative(),
-  holder: holderSchema,
+  sessionId: credentialIdSchema,
 });
 
 export type SocketClaim = z.infer<typeof claimSchema>;
+
+const signedSchema = claimSchema.extend({ expiresAt: z.number().int().nonnegative() });
 
 const BASE64_URL = /^[A-Za-z0-9_-]+$/u;
 
@@ -56,12 +57,12 @@ const signatureOf = async (key: CryptoKey, payload: string): Promise<Uint8Array>
 
 export const mintSocketTicket = async (
   secret: string,
-  claim: { readonly accountId: string; readonly holder: SocketHolder },
+  { accountId, sessionId }: SocketClaim,
   now: number,
 ): Promise<{ readonly ticket: string; readonly expiresAt: number }> => {
   const expiresAt = now + SOCKET_TICKET_TTL_MS;
   const payload = base64UrlFromBytes(
-    encoder.encode(JSON.stringify({ accountId: claim.accountId, expiresAt, holder: claim.holder })),
+    encoder.encode(JSON.stringify({ accountId, expiresAt, sessionId })),
   );
   const signature = await signatureOf(await ticketKey(secret), payload);
   return { expiresAt, ticket: `${payload}.${base64UrlFromBytes(signature)}` };
@@ -92,6 +93,10 @@ export const readSocketTicket = async (
   } catch {
     return null;
   }
-  const claim = claimSchema.safeParse(raw);
-  return claim.success && claim.data.expiresAt > now ? claim.data : null;
+  const signed = signedSchema.safeParse(raw);
+  if (!signed.success || signed.data.expiresAt <= now) {
+    return null;
+  }
+  const { accountId, sessionId } = signed.data;
+  return { accountId, sessionId };
 };

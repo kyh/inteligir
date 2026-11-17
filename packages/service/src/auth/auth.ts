@@ -74,7 +74,7 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
         // at their upgrade (../library/socket-routes.ts)
         delete: {
           after: async (ended) => {
-            await severSockets(ctx.exports, ended.userId, { id: ended.id, kind: "session" });
+            await severSockets(ctx.exports, { accountId: ended.userId, sessionId: ended.id });
           },
         },
       },

@@ -70,7 +70,7 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 
 ## The library cell
 
-- **The account's sockets are its library cell's, each tagged with the holder
+- **The account's sockets are its library cell's, each tagged with the session
   the Worker verified.** A `moved` frame is a hint and never rows, since a
   dropped frame would be a lost write, and a socket opens on a minute's ticket,
   never a bearer in the URL. `packages/service/src/library/cell-sockets.ts`.

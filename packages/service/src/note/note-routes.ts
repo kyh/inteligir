@@ -2,9 +2,9 @@
 // opens on the account socket's ticket, since a browser's socket carries no header; the account's
 // cell says how the session's socket opens (writable, read-only for an item in Deleted, or not at
 // all), and the Worker forwards a fresh upgrade carrying only what it verified, so nothing the client
-// sent names a session or a mode. The holder's standing is checked before the cell is asked and again
-// after the upgrade, as the account's socket checks it, so a session's end closes its note sockets
-// too (`../library/library-do`'s `sever`).
+// sent names a session or a mode. The session's standing is checked before the cell is asked and
+// again after the upgrade, as the account's socket checks it, so a session's end closes its note
+// sockets too (`../library/library-do`'s `sever`).
 
 import { idSchema } from "@repo/contract/library/library-wire";
 import { NOTE_SOCKET, notePath, V1_NOTES_PATH } from "@repo/contract/library/library-socket";
@@ -34,15 +34,15 @@ const closedAsMissing = (): Response => {
   return new Response(null, { status: 101, webSocket: client });
 };
 
-// the note opened as the cell says the holder's session may open it, forwarded with only the
-// holder and mode verified
+// the note opened as the cell says the ticket's session may open it, forwarded with only the
+// session and mode verified
 const openNote = async (
   ctx: ExecutionContext,
   url: URL,
   itemId: string,
-  { accountId, holder }: SocketClaim,
+  { accountId, sessionId }: SocketClaim,
 ): Promise<Response> => {
-  const opening = await libraryCell(ctx.exports, accountId).openNote(holder.id, itemId);
+  const opening = await libraryCell(ctx.exports, accountId).openNote(sessionId, itemId);
   if (opening === "missing") {
     return closedAsMissing();
   }
@@ -52,7 +52,7 @@ const openNote = async (
     forward.searchParams.set(CONNECTION_PARAM, connection);
   }
   const headers = new Headers({ upgrade: "websocket" });
-  headers.set(NOTE_HOLDER_HEADER, holder.id);
+  headers.set(NOTE_HOLDER_HEADER, sessionId);
   headers.set(NOTE_MODE_HEADER, opening);
   return await noteStub(ctx.exports, { accountId, itemId }).fetch(
     new Request(forward, { headers }),

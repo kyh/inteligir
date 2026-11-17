@@ -109,7 +109,7 @@ const accountRouter = os.router({
     const { accountId, actor } = context.principal;
     return await mintSocketTicket(
       context.env.BETTER_AUTH_SECRET,
-      { accountId, holder: { id: actor.sessionId, kind: "session" } },
+      { accountId, sessionId: actor.sessionId },
       Date.now(),
     );
   }),

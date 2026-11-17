@@ -39,16 +39,12 @@ import type { CellResult } from "./cell-refusal";
 import { collectMoved } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
 import { CELL_SCHEMA } from "./cell-db";
+import { acceptSocket, severHolder, SOCKET_HOLDER_HEADER, tellSockets } from "./cell-sockets";
 import {
-  acceptSocket,
-  holderFromHeader,
-  severHolder,
-  SOCKET_HOLDER_HEADER,
-  socketHolder,
-  tellSockets,
-} from "./cell-sockets";
-import type { SocketHolder } from "./cell-sockets";
-import { appPrincipalSchema, connectorPrincipalSchema } from "./library-principal";
+  appPrincipalSchema,
+  connectorPrincipalSchema,
+  credentialIdSchema,
+} from "./library-principal";
 import type { AppPrincipal, ConnectorPrincipal, NamedPrincipal } from "./library-principal";
 import { serveLibraryRpc } from "./library-rpc";
 import type { UploadSettlement } from "./library-engine";
@@ -123,16 +119,16 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // the one request that stays HTTP, since a socket crosses no RPC: the account socket's upgrade,
-  // its holder stamped by the Worker that verified it (`./socket-routes`)
+  // its session named by the Worker that verified it (`./socket-routes`)
   override fetch(request: Request): Response {
-    const holder = holderFromHeader(request.headers.get(SOCKET_HOLDER_HEADER));
-    if (holder === null || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+    const sessionId = credentialIdSchema.safeParse(request.headers.get(SOCKET_HOLDER_HEADER));
+    if (!sessionId.success || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return plainText(400, "The cell takes only a verified socket upgrade.");
     }
     if (this.#cell.library.deletedAt() !== null) {
       return plainRefusal(new AccountGoneError());
     }
-    return acceptSocket(this.ctx, holder);
+    return acceptSocket(this.ctx, sessionId.data);
   }
 
   // oxlint-disable-next-line eslint/class-methods-use-this -- DurableObject declares this hook as an instance method
@@ -140,12 +136,9 @@ export class LibraryDO extends DurableObject<Env> {
     // a frame is no request: a newer app must not lose its socket over one this build predates
   }
 
-  override webSocketError(socket: WebSocket, cause: unknown): void {
-    console.warn({
-      event: "library-socket-error",
-      holder: socketHolder(this.ctx, socket)?.kind ?? null,
-      ...errorFields(cause),
-    });
+  // oxlint-disable-next-line eslint/class-methods-use-this -- DurableObject declares this hook as an instance method
+  override webSocketError(_socket: WebSocket, cause: unknown): void {
+    console.warn({ event: "library-socket-error", ...errorFields(cause) });
   }
 
   // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends:
@@ -172,14 +165,14 @@ export class LibraryDO extends DurableObject<Env> {
     }
   }
 
-  // the sockets of a holder whose session ended after its upgrade, the account's and each note's
-  // it opened; its next request meets the end itself (`./socket-routes`)
-  async sever(holder: SocketHolder): Promise<void> {
+  // the sockets of a session that ended after their upgrade, the account's and each note's it
+  // opened; its next request meets the end itself (`./socket-routes`)
+  async sever(sessionId: string): Promise<void> {
     const { library, notes } = this.#cell;
-    severHolder(this.ctx, holder);
-    for (const itemId of library.sessionNotes(holder.id)) {
+    severHolder(this.ctx, sessionId);
+    for (const itemId of library.sessionNotes(sessionId)) {
       try {
-        await notes(itemId).sever(holder.id);
+        await notes(itemId).sever(sessionId);
       } catch (error) {
         console.warn({ event: "note-sever-failed", ...errorFields(error) });
       }

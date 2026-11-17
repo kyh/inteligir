@@ -108,7 +108,7 @@ const signedInPhone = async (email: string) => {
   const sessionId = await sessionIdOf(phone);
   const { ticket } = await mintSocketTicket(
     env.BETTER_AUTH_SECRET,
-    { accountId, holder: { id: sessionId, kind: "session" } },
+    { accountId, sessionId },
     Date.now(),
   );
   return { accountId, cookie, phone, sessionId, ticket };
@@ -188,12 +188,12 @@ describe("the account's socket", () => {
     const victim = crypto.randomUUID();
     const forged = await mintSocketTicket(
       "not the Worker's secret",
-      { accountId: victim, holder: { id: sessionId, kind: "session" } },
+      { accountId: victim, sessionId },
       Date.now(),
     );
     const expired = await mintSocketTicket(
       env.BETTER_AUTH_SECRET,
-      { accountId, holder: { id: sessionId, kind: "session" } },
+      { accountId, sessionId },
       Date.now() - 120_000,
     );
     const victimCell = exports.LibraryDO.idFromName(libraryCellName(victim));
@@ -229,7 +229,7 @@ describe("the account's socket", () => {
     }
   });
 
-  it("stamps the holder the ticket verified over one the request names", async () => {
+  it("answers to the session the ticket verified, whichever the request names", async () => {
     const email = "socket-stamped@example.test";
     const { cookie } = await signUpUser(email);
     const accountId = await userIdOf(cookie);
@@ -238,7 +238,7 @@ describe("the account's socket", () => {
     const { ticket } = await v1Link(sessionHeaders(cookie)).account.socketTicket();
     // the tab's ticket, claiming to be the phone's socket
     const response = await upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`, {
-      [SOCKET_HOLDER_HEADER]: `session:${phoneId}`,
+      [SOCKET_HOLDER_HEADER]: phoneId,
     });
     expect(response.status).toBe(101);
     const socket = response.webSocket;
@@ -247,9 +247,9 @@ describe("the account's socket", () => {
     }
     const opened = listen(socket);
     // the phone's end leaves the socket the tab opened, whatever it claimed
-    await cellOf(accountId).sever({ id: phoneId, kind: "session" });
+    await cellOf(accountId).sever(phoneId);
     await expect(closedWithin(opened, 300)).resolves.toBe("open");
-    await cellOf(accountId).sever({ id: tabId, kind: "session" });
+    await cellOf(accountId).sever(tabId);
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
@@ -269,14 +269,14 @@ describe("the account's socket", () => {
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
-  it("opens for no assistant's token, on any path under the connector, under any holder", async () => {
+  it("opens for no assistant's token, on any path under the connector, whatever session it names", async () => {
     const { cookie } = await signUpUser("socket-connector@example.test");
     const accountId = await userIdOf(cookie);
     const assistant = await connectAssistant(cookie, { readOnly: true });
     const response = await workerFetch(`${CONNECTOR_URL}/anything`, {
       headers: {
         authorization: `Bearer ${assistant.access_token}`,
-        [SOCKET_HOLDER_HEADER]: `session:${await sessionIdOf(cookie)}`,
+        [SOCKET_HOLDER_HEADER]: await sessionIdOf(cookie),
         upgrade: "websocket",
       },
     });
@@ -288,11 +288,12 @@ describe("the account's socket", () => {
     );
   });
 
-  it("is taken by the cell only as an upgrade that names its holder", async () => {
+  it("is taken by the cell only as an upgrade that names its session", async () => {
     const accountId = crypto.randomUUID();
     const upgrades: Record<string, string>[] = [
       { upgrade: "websocket" },
-      { [SOCKET_HOLDER_HEADER]: "session:laptop-1" },
+      { [SOCKET_HOLDER_HEADER]: "laptop-1" },
+      { [SOCKET_HOLDER_HEADER]: "no session's id", upgrade: "websocket" },
     ];
     for (const headers of upgrades) {
       const answer = await drained(
