@@ -18,8 +18,23 @@ jobs:
     runs-on: ubuntu-latest
     # a backstop: verify and the flows run about 25 minutes on a four-core runner
     timeout-minutes: 45
+    # the major production runs: the schema's push and the database suites need a real Postgres
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+        ports:
+          - 5432:5432
     env:
       TURBO_TELEMETRY_DISABLED: 1
+      # the server the database suites make their run's databases on (@repo/db/test-database)
+      TEST_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/suites
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -42,10 +57,18 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
+      # a second push must plan nothing: drizzle-kit can misread what it created and fail halfway
+      # through the next push (packages/db/scripts/check-push.ts)
+      - name: Schema push
+        env:
+          POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: pnpm --filter @repo/db push && pnpm --filter @repo/db push:check
+
       # the static gate a developer runs, less the shell's, which the macOS job checks, so a local
       # green predicts this step; turbo continues past a failure, so one run reports every red task.
       # Every step after it is what verify cannot do
       - name: Verify
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm verify --filter='!@repo/desktop'
 
       # the full Chromium, which loads an extension, at the lockfile's Playwright's version
