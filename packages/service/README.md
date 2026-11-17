@@ -22,8 +22,15 @@ src/rpc/orpc.ts         the contract's implementer, its context the admitted pri
 src/rpc/account-router.ts account.devices.* and account.delete
 src/rpc/rpc-refusal.ts  a refusal or fault outside every row, in the RPC protocol
 src/rpc/library-router.ts the library's rows: library/library-read-rows.ts and library-write-rows.ts
+src/library/library-access.ts  reading and writing: the caller, the read-only grant, each refusal's error
+src/library/library-principal.ts who a call is by: a session, a connector grant, an agent turn
 src/library/library-store.ts every library write: the account's lock, the sequence, the op ledger, attempts
+src/library/library-landing.ts one item's change: every rule, then its rows
+src/library/library-items.ts   notes and files made, organize, Deleted and back, Deleted emptied
+src/library/library-writes.ts  an item's fields landed, a device's property ops
+src/library/library-folders.ts the folder tree's writes, a path filed into
 src/library/library-rows.ts  an item's rows to and from the library model
+src/files/file-names.ts      the files the library's rows name, and touched_at
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 ```
 

@@ -119,6 +119,27 @@ decisions port with its code from the tag `cloudflare-last`.
   by the router where both route under `items`.** Reads and writes land apart,
   and neither side edits the other's file.
   `packages/service/src/rpc/library-router.ts`.
+- **Every library row is built on `reading` or `writing`, whose middleware
+  resolves the caller from its door's principal before the row reads its
+  input, and refuses every write to a grant that only reads.** A check per
+  handler is one a new row forgets, and a call never names its own account.
+  `packages/service/src/library/library-access.ts`.
+- **A write's refusal is thrown inside it, kept as a value at the
+  transaction's edge, and thrown again by `answer` as the error its row
+  declares.** One mapping holds every refusal's wire spelling, and a refusal
+  that escaped the store would reach the client as a fault.
+  `packages/service/src/library/library-access.ts`.
+- **A landing checks every rule before it writes a row: fields and body within
+  their caps, one live item per url, only files the library holds.** A refusal
+  then has nothing of the item to roll back, so a bulk write can leave one item
+  and land the rest. `packages/service/src/library/library-landing.ts`.
+- **A write reads the account's folders once and lands its ops on that copy.**
+  The contract's folder rules read synchronously, and a tree of names is small
+  beside the item rows a write reads. `packages/service/src/library/library-folders.ts`.
+- **A file is let go a day after its last name went, asked of the rows that
+  name it: an item's `item_file`, a change set's `change_set_file`.** Every
+  name added or dropped moves `touched_at`; a count kept beside those rows is a
+  second spelling that drifts from them. `packages/service/src/files/file-names.ts`.
 
 ## Search
 
