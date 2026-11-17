@@ -20,11 +20,6 @@ import { sendResetEmail } from "./reset-email";
 import { EMAIL_MODE, emailModeWarning } from "./send-email";
 import { capSessions } from "./session-devices";
 
-const emailWarning = emailModeWarning(EMAIL_MODE, process.env.NODE_ENV === "production");
-if (emailWarning !== null) {
-  console.warn(`[auth] ${emailWarning}`);
-}
-
 // Off, Better Auth is handed no sender, so it refuses a reset up front rather than promise a link.
 const sendsEmail = EMAIL_MODE.kind !== "off";
 
@@ -137,9 +132,16 @@ type Auth = ReturnType<typeof createAuth>;
 let made: Auth | null = null;
 let gate: Auth | null = null;
 
-// Made on first use, so a build, which loads every route's modules, opens no database connection.
+// Made on first use, so a build, which loads every route's modules, opens no database connection
+// and logs nothing meant for whoever runs the deployment.
 export const getAuth = (): Auth => {
-  made ??= createAuth(true);
+  if (made === null) {
+    const emailWarning = emailModeWarning(EMAIL_MODE, process.env.NODE_ENV === "production");
+    if (emailWarning !== null) {
+      console.warn(`[auth] ${emailWarning}`);
+    }
+    made = createAuth(true);
+  }
   return made;
 };
 
