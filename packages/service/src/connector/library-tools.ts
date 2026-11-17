@@ -10,7 +10,7 @@ import type { AnyProcedureContract } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
-import { libraryContract } from "@repo/contract/library/library-contract";
+import { libraryContract } from "@repo/contract/rpc/library-contract";
 
 const { guide, items, organize, search } = libraryContract;
 

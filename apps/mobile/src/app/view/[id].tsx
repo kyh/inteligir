@@ -4,7 +4,7 @@
 // so.
 
 import { shownTitle } from "@repo/contract/items/item-name";
-import { UNREACHABLE } from "@repo/contract/library/call-outcome";
+import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
 import { Stack, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,

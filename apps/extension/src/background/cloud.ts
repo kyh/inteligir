@@ -6,9 +6,9 @@
 
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
-import { outcomeOf, uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
-import type { CallOutcome, V1Transport } from "@repo/contract/library/call-outcome";
-import type { V1Client } from "@repo/contract/v1";
+import { outcomeOf, uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
+import type { CallOutcome, V1Transport } from "@repo/contract/rpc/call-outcome";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import type { Session } from "./sign-in";
 

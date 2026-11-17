@@ -3,11 +3,11 @@
 // large zip never holds the page. Closing the tab ends it, and choosing the file again carries on,
 // since what landed answers as held.
 
-import { sharedFailure, uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
-import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
+import { sharedFailure, uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
 import { fileSha } from "@repo/contract/library/file-sha";
-import { isOrpcError, QuotaError } from "@repo/contract/v1/errors";
-import type { V1Client } from "@repo/contract/v1";
+import { isOrpcError, QuotaError } from "@repo/contract/rpc/v1-errors";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { configure } from "@zip.js/zip.js/lib/zip-core-native.js";
 
 import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";

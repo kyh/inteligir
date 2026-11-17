@@ -8,8 +8,8 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
-import type { V1Client } from "@repo/contract/v1";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import type { PhoneLibrary } from "../lib/compose-runtime";
 import type { LibraryActions } from "./page/library-actions";
 

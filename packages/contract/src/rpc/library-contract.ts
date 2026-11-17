@@ -8,9 +8,9 @@
 
 import { z } from "zod";
 
-import { propertyOpSchema } from "./field-ops";
-import { importedFieldsSchema, libraryItemFieldsSchema } from "./library-item";
-import { storableBlockSchema } from "./library-nodes";
+import { propertyOpSchema } from "../library/field-ops";
+import { importedFieldsSchema, libraryItemFieldsSchema } from "../library/library-item";
+import { storableBlockSchema } from "../library/library-nodes";
 
 import {
   AgentBudgetError,
@@ -22,7 +22,7 @@ import {
   PayloadTooLargeError,
   QuotaError,
   signedBase,
-} from "../v1-errors";
+} from "./v1-errors";
 import {
   agentViewContextSchema,
   BULK_ITEMS_MAX,
@@ -62,7 +62,7 @@ import {
   threadEventRowSchema,
   threadRowSchema,
   WRITE_OPS_MAX,
-} from "./library-wire";
+} from "../library/library-wire";
 
 const FIELDS = libraryItemFieldsSchema.shape;
 const opId = opIdSchema.optional();

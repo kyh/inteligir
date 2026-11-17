@@ -1,4 +1,4 @@
-// What `account.*` (`./account-contract.ts`) reads and answers, and the sign-up form the site and
+// What `account.*` (`../rpc/account-contract.ts`) reads and answers, and the sign-up form the site and
 // the phone post, the invite gate in front of Better Auth's sign-up: the password bounds every
 // sign-in and sign-up form keeps, the account's devices, each one of its signed-in sessions, and
 // its deletion.

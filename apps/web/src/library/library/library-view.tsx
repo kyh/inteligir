@@ -4,7 +4,7 @@
 
 import { saveFolderOf } from "@repo/client/library-labels";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";

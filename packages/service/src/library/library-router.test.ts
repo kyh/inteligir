@@ -23,7 +23,7 @@ import { runKind } from "./cell-alarm";
 import { SWEEP_LOT } from "./cell-sweeps";
 import { FILL_ACTOR } from "./cell-fills";
 import { readSeed } from "./cell-notes";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 const GiB = 1024 * 1024 * 1024;
 

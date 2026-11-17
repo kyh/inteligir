@@ -38,7 +38,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";

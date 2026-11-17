@@ -9,10 +9,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, use, useSyncExternalStore } from "react";
 import { Alert } from "react-native";
 import { threadQueries } from "@repo/client/thread-queries";
-import { UNREACHABLE } from "@repo/contract/library/call-outcome";
-import { refusalText } from "@repo/contract/refusal-text";
-import type { V1Client } from "@repo/contract/v1";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { online } from "../ui/needs-connection";
 import type { PhoneLibrary } from "./compose-runtime";
 

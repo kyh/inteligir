@@ -8,7 +8,7 @@ import {
   QuotaError,
   TooManyRequestsError,
   UnauthorizedError,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";

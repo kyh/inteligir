@@ -7,8 +7,8 @@
 import type { InferClientInputs } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { ordBetween } from "@repo/contract/library/order-key";
-import { refusalText } from "@repo/contract/refusal-text";
-import type { V1Client } from "@repo/contract/v1";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

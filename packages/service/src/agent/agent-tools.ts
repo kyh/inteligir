@@ -19,14 +19,14 @@ import { sha256Hex } from "@repo/contract/bytes";
 import type { ApprovalAsk } from "@repo/contract/library/agent-events";
 import { isLibraryToolName } from "@repo/contract/library/agent-tools";
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
-import { deleteInputSchema, saveLinkInputSchema } from "@repo/contract/library/library-contract";
+import { deleteInputSchema, saveLinkInputSchema } from "@repo/contract/rpc/library-contract";
 import { PAGE_MAX } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import { isLibraryTool, libraryTools } from "../connector/library-tools";
 import { AGENT_TOOL_POLICIES } from "./library-agent";
 import type { ToolAnswer, ToolRequest } from "./thread-wire";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 // what one result may carry: its JSON as the tool_result's text
 export const AGENT_RESULT_MAX_CHARS = 40_000;

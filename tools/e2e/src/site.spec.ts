@@ -12,7 +12,7 @@ import {
   V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
-import { V1_RPC_PATH } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { z } from "zod";
 import { test } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";

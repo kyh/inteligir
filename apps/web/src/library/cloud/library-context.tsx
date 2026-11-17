@@ -4,7 +4,7 @@
 // and what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the router's routes,
 // so Settings and back keeps the one socket.
 
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { createContext, useContext, useEffect } from "react";
 
 import type { FileCloud } from "./library-files";

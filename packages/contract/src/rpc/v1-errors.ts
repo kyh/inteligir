@@ -8,7 +8,7 @@ import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
-import { editRefusalSchema, shaSchema } from "./library/library-wire";
+import { editRefusalSchema, shaSchema } from "../library/library-wire";
 
 // a refusal an oRPC client threw, its code and data typed as the wire carries them, where
 // `instanceof` alone types both `any`

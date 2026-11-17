@@ -142,7 +142,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   `packages/editor/src/live/yjs-binding.ts`.
 - **The editor, `@repo/ui` and the live socket reach no oRPC module.** Expo's DOM bundle compiles
   classes to functions and oRPC's builder dies under that at boot while typecheck stays green, so
-  lint refuses `@orpc/*` and every `@repo/contract` module that reaches it. `oxlint.config.ts`.
+  lint refuses `@orpc/*` and `@repo/contract/rpc/`, the contract's one folder that reaches it.
+  `oxlint.config.ts`.
 
 ## The grammar, links and a file's facts
 

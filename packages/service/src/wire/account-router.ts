@@ -4,11 +4,11 @@
 // call was admitted under (`./v1-principal`). Their cores are `../auth/session-devices` and
 // `../auth/delete-account`; signing in and out is Better Auth's own.
 
-import { V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
+import { V1_ERROR_STATUS_MAP } from "@repo/contract/rpc/v1-errors";
 import { implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
-import { V1_RPC_PATH, v1Contract } from "@repo/contract/v1";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/rpc/v1-contract";
 
 import { createAuth } from "../auth/auth";
 import { deleteAccountUnderSession } from "../auth/delete-account";

@@ -10,8 +10,8 @@ import {
   V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { V1_RPC_PATH } from "@repo/contract/v1";
-import type { V1Client } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { applySetCookies } from "better-auth/cookies";
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
@@ -19,7 +19,7 @@ import { z } from "zod";
 import { createDb } from "@repo/db/d1/client";
 import { inviteCode } from "@repo/db/d1/schema";
 import { ORIGIN } from "./test-origin";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 export { ORIGIN } from "./test-origin";
 export const PASSWORD = "test-password-1234";

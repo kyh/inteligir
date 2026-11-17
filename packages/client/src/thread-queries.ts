@@ -2,7 +2,7 @@
 // socket reads them again by the keys it invalidates (`./library-cache`).
 
 import { PAGE_MAX } from "@repo/contract/library/library-wire";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import type { V1Queries } from "./library-cache";
 

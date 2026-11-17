@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import {
   Uint8ArrayReader,
   Uint8ArrayWriter,

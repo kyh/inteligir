@@ -19,8 +19,8 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
 import type { folderOpSchema, listedItemSchema } from "../library/library-wire";
 import { folderRowSchema, itemSummarySchema, liveItemRowSchema } from "../library/library-wire";
-import { v1Contract, V1_RPC_PATH } from "../v1-contract";
-import type { V1Client } from "../v1-contract";
+import { v1Contract, V1_RPC_PATH } from "../rpc/v1-contract";
+import type { V1Client } from "../rpc/v1-contract";
 import {
   BlobMismatchError,
   BlobMissingError,
@@ -29,7 +29,7 @@ import {
   PayloadTooLargeError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
-} from "../v1-errors";
+} from "../rpc/v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
 import { canonicalJson } from "../library/canonical-json";
@@ -67,7 +67,7 @@ import { uuidV7 } from "../library/uuid-v7";
 import { mulberry32 } from "./seeded-random";
 import { z } from "zod";
 
-import type { V1Transport } from "../library/call-outcome";
+import type { V1Transport } from "../rpc/call-outcome";
 
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ListedItem = z.infer<typeof listedItemSchema>;

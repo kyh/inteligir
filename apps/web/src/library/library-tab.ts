@@ -5,7 +5,7 @@
 // run: there is nothing to choose before it. Where the tab's session stands after that is one
 // value, moved by one step (`tabAfter`) whichever way the page meets its end.
 
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createLibrarySocket } from "@repo/client/library-cache";
 import { onlineManager } from "@tanstack/react-query";

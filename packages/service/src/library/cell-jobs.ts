@@ -16,7 +16,7 @@
 import { and, asc, eq, lte, min } from "drizzle-orm";
 import { z } from "zod";
 
-import { sweepVerbSchema } from "@repo/contract/library/library-contract";
+import { sweepVerbSchema } from "@repo/contract/rpc/library-contract";
 import { jobs } from "@repo/db/cell/schema";
 import type { JOB_KINDS } from "@repo/db/cell/schema";
 import { excluded } from "./cell-db";

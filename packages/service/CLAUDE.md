@@ -39,7 +39,7 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   what it declares, and the wire breaks only behind the client build floor**
   (owner decision). Per-row versions keep every old shape; requests stay
   `z.strictObject`, since only the newest Worker reads them.
-  `packages/contract/src/library/call-outcome.ts`.
+  `packages/contract/src/rpc/call-outcome.ts`.
 - **Every install's request names its build, and the Worker refuses one below
   the floor** (owner decision). The session stays live, so the next build
   resumes signed in; a page the Worker served ships in its deploy and needs

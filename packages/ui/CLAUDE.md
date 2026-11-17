@@ -8,7 +8,7 @@ The shared component vocabulary, its type roles and its motion.
   draws is deleted, not held for a coming surface, since git keeps it; knip finds one.
   `knip.json`.
 - **`@repo/ui` reaches no oRPC module, as the editor does not.** The phone's DOM bundle loads both,
-  so lint refuses `@orpc/*` and the oRPC-reaching `@repo/contract` modules here too.
+  so lint refuses `@orpc/*` and `@repo/contract/rpc/` here too.
   `oxlint.config.ts`.
 - **An icon beside a label is a sibling of the label, never inside it.** `Button` trims its text
   with `text-box`, which only a block container honours, so `labelChildren` lifts every element

@@ -3,8 +3,8 @@
 // sent up there by their SHA-256 before anything names them.
 
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
-import { uploadBlob } from "@repo/contract/library/call-outcome";
-import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
+import { uploadBlob } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
 import { fileSha } from "@repo/contract/library/file-sha";
 
 // `/v1` for the bytes the wire does not carry, and the page's answer to a session's end met there,

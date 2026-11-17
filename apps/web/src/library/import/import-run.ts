@@ -3,7 +3,7 @@
 // which Stop and every end close; it lives as long as the tab, so Settings can close and open again
 // on it, and closing the tab ends it.
 
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { useSyncExternalStore } from "react";
 
 import { importNewsSchema } from "./import-news";

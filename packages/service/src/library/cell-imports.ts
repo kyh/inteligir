@@ -4,7 +4,7 @@
 // refuses leaves the rest.
 
 import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
-import type { importedItemSchema } from "@repo/contract/library/library-contract";
+import type { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import { urlKey } from "@repo/contract/items/item-url";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { z } from "zod";

@@ -5,7 +5,7 @@
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import { V1_RPC_PATH } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

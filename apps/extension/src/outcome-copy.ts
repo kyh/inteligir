@@ -2,7 +2,7 @@
 // extension's own says what the person can do about it, and links where that is done; one the
 // library made is said in the library's words.
 
-import type { WaitsFor } from "@repo/contract/library/call-outcome";
+import type { WaitsFor } from "@repo/contract/rpc/call-outcome";
 
 import type { Outcome, OutcomeReason } from "./messages";
 

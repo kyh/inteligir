@@ -4,7 +4,7 @@ import { QueryClient } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import { threadQueries } from "./thread-queries";
 

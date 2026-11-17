@@ -11,10 +11,10 @@ import type { AgentEvent, ApprovalAsk, TurnEndReason } from "@repo/contract/libr
 import { isLibraryToolName, LIBRARY_TOOLS } from "@repo/contract/library/agent-tools";
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { cleanUrl, urlHost } from "@repo/contract/items/item-url";
 import { z } from "zod";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];

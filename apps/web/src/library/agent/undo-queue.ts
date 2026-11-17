@@ -2,7 +2,7 @@
 // the cell takes back so many turns a call; and the one queue every press waits in.
 
 import type { InferClientInputs, InferClientOutputs } from "@orpc/client";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { useIsMutating } from "@tanstack/react-query";
 
 type UndoPress = InferClientInputs<V1Client>["library"]["agent"]["undo"];

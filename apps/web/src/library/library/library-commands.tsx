@@ -6,7 +6,7 @@
 
 import { saveFolderOf } from "@repo/client/library-labels";
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";

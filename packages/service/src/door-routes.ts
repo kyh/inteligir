@@ -6,7 +6,7 @@ import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { V1_NOTES_PATH, V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
-import { V1_RPC_PATH } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 
 const SPLAT = "$";
 

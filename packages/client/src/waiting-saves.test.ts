@@ -1,4 +1,4 @@
-import type { CallOutcome } from "@repo/contract/library/call-outcome";
+import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { deferred } from "@repo/contract/deferred";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";

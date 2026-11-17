@@ -1,7 +1,7 @@
 // What the page and an import's thread (`./import-worker`) say to each other, parsed where each is
 // heard, since a message crosses as a structured clone and carries no type.
 
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { IMPORT_SOURCES } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 

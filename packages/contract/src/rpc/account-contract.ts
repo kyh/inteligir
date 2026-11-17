@@ -5,14 +5,14 @@
 
 import { z } from "zod";
 
-import { InvalidCredentialsError, NotFoundError, signedBase } from "../v1-errors";
+import { InvalidCredentialsError, NotFoundError, signedBase } from "./v1-errors";
 import {
   deleteAccountRequestSchema,
   deleteAccountResponseSchema,
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
   revokeDeviceResponseSchema,
-} from "./account-schema";
+} from "../account/account-schema";
 
 // an assistant the person let into their library through the connector's consent page
 const assistantSchema = z.object({

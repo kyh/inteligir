@@ -1,5 +1,5 @@
-import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";

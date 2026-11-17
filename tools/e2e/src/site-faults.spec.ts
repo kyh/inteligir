@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
-import { V1_RPC_PATH } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { test } from "./fixtures";
 
 // a floor that is no version throws in each door that reads it, before any procedure runs

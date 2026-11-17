@@ -7,7 +7,7 @@ import type {
   listInputSchema,
   readInputSchema,
   searchInputSchema,
-} from "@repo/contract/library/library-contract";
+} from "@repo/contract/rpc/library-contract";
 import type {
   itemReadSchema,
   itemSummarySchema,

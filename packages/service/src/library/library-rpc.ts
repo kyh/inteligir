@@ -1,12 +1,12 @@
 // The library's procedures served in the account's cell, on the one `/v1` wire under
-// `/v1/rpc/library` (`@repo/contract/v1`): oRPC's RPC handler over the cell's router, with
-// its default methods (no GET, so nothing a call carries rides a URL), a body cap, every code the
-// wire declares mapped to its status, and any failure no row declares logged by its severity
+// `/v1/rpc/library` (`@repo/contract/rpc/v1-contract`): oRPC's RPC handler over the cell's router,
+// with its default methods (no GET, so nothing a call carries rides a URL), a body cap, every code
+// the wire declares mapped to its status, and any failure no row declares logged by its severity
 // (`../wire/rpc-log`). The Worker hands each call here whole, its principal beside it
 // (`../wire/v1-rpc`).
 
-import { V1_RPC_PATH } from "@repo/contract/v1";
-import { V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
+import { V1_ERROR_STATUS_MAP } from "@repo/contract/rpc/v1-errors";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";

@@ -3,7 +3,7 @@
 // cell refuses a whole batch over one malformed item, and a batch carries at most the row's hundred
 // items and BATCH_MAX_BYTES of them, so one call never carries a whole library.
 
-import { importedItemSchema } from "@repo/contract/library/library-contract";
+import { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
 import {
   BULK_ITEMS_MAX,

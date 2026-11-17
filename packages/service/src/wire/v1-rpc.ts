@@ -1,4 +1,4 @@
-// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/v1`): every call is admitted first
+// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/rpc/v1-contract`): every call is admitted first
 // (`./v1-principal`), before anything reads it; then `account.*` runs on the Worker's own handler
 // (`./account-router`), and `library.*` is handed whole to the account's library cell, which
 // serves it (`../library/library-rpc`), with the principal it was admitted under as an argument

@@ -11,7 +11,7 @@ import { createThreadPreviews } from "@repo/client/library-cache";
 import type { ItemsMoved, ThreadPreviews } from "@repo/client/library-cache";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, renderHook } from "@testing-library/react";

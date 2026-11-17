@@ -17,10 +17,10 @@ import { namesPrivateSpace } from "@repo/contract/items/host-names";
 import { originalFileName } from "@repo/contract/items/item-name";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { sniffMedia } from "@repo/contract/items/sniff-media";
-import { outcomeOf } from "@repo/contract/library/call-outcome";
-import type { CallOutcome, WaitsFor } from "@repo/contract/library/call-outcome";
+import { outcomeOf } from "@repo/contract/rpc/call-outcome";
+import type { CallOutcome, WaitsFor } from "@repo/contract/rpc/call-outcome";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
-import { QuotaError } from "@repo/contract/v1/errors";
+import { QuotaError } from "@repo/contract/rpc/v1-errors";
 import { readHtml } from "@repo/page-reader/read-html";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 

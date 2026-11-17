@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { openLibrary, phoneSession, signInOnSite, test } from "./fixtures";
 import type { Cloud } from "./fixtures";
 

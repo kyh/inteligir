@@ -7,9 +7,9 @@
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { retryUnlessRefused } from "@repo/client/library-cache";
 import type { V1Queries } from "@repo/client/library-cache";
-import { v1Client } from "@repo/contract/library/call-outcome";
-import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
-import type { V1Client } from "@repo/contract/v1";
+import { v1Client } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { QueryClient } from "@tanstack/react-query";
 
 export interface CloudWire {

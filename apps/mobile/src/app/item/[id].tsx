@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { UNREACHABLE } from "@repo/contract/library/call-outcome";
+import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
 import { shownTitle } from "@repo/contract/items/item-name";
 import NotePage from "@/editor/page/note-page";
 import { useNotePage } from "@/editor/use-note-page";

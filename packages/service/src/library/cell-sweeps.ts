@@ -9,7 +9,7 @@
 // workerd, so 50,000 items take 27 to 100 s, past an invocation's 30, every other call of the
 // account held behind them.
 
-import type { sweepVerbSchema } from "@repo/contract/library/library-contract";
+import type { sweepVerbSchema } from "@repo/contract/rpc/library-contract";
 import { z } from "zod";
 
 import type { CellActor } from "./cell-actor";

@@ -10,7 +10,7 @@
 // answers.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
-import { isOrpcError, NotFoundError } from "@repo/contract/v1/errors";
+import { isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { MutationObserver, onlineManager, QueryObserver } from "@tanstack/react-query";

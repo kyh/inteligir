@@ -22,10 +22,12 @@ fresh id.
 
 ```
 src/
-  v1-contract.ts, v1-errors.ts   /v1's one wire and every refusal it answers, declared once
-  account/       the account's rows: the password's bounds, its devices, its deletion, sign-up
-  library/       the library's rows, the socket's frames, what a failed call means, and the model:
-                 the node set, an item's fields and ops, a folder's order, the listing, the cell's rules
+  rpc/           every module that reaches oRPC: /v1's one wire, the account's and the library's
+                 rows, every refusal it answers and its sentence, and what a failed call means
+  account/       what the account's rows read and answer: the password's bounds, its devices, its
+                 deletion, sign-up
+  library/       the socket's frames and the model: the node set, an item's fields and ops, a
+                 folder's order, the listing, the cell's rules
   items/         what an item is on every device: its kinds, a url's one key, a read page's facts
   knowledge/     what a markdown file is, a tag's name, the folder tree's paths
   extension/     the extension's key, id and origin
@@ -40,7 +42,7 @@ src/
 connector's tools; `packages/db` holds the cell's columns to the model's
 vocabularies; `packages/editor` reads and writes the model's blocks; the
 library tab, the phone and the extension reach the library through `v1`, each
-over the one `v1Client` (`library/call-outcome.ts`); and every app's suites
+over the one `v1Client` (`rpc/call-outcome.ts`); and every app's suites
 drive the fake cell in `test-support/`.
 
 ## Testing
@@ -51,7 +53,7 @@ pnpm --filter @repo/contract typecheck
 ```
 
 `/v1`'s rows and refusals run over a real `RPCHandler` and `RPCLink`
-(`v1-contract.test.ts`), and the model's properties draw from the one seeded
+(`rpc/v1-contract.test.ts`), and the model's properties draw from the one seeded
 generator (`test-support/seeded-random.ts`). The fake cell runs the cases in
 `test-support/cell-conformance.ts`, which the service runs over the real cell,
 so a case added there holds both. A change to a row reaches every

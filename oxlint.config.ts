@@ -67,8 +67,18 @@ const NOTE_STUB_CALLERS = [
 // Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
 const NO_ORPC_IN_PAGE = {
   message: "the editor, @repo/ui, the live socket and the phone's note page reach no oRPC module",
-  regex:
-    "^(?:@orpc/|@repo/contract/(?:v1(?:/|$)|refusal-text$|library/(?:library-contract|call-outcome)$))",
+  regex: "^(?:@orpc/|@repo/contract/rpc/)",
+};
+// a page loads the rest of the contract, so a module that reaches oRPC, itself or through
+// another, sits in rpc/
+const RPC_FOLDER = "packages/contract/src/rpc/**";
+const ORPC_IN_RPC_FOLDER = {
+  message: "only packages/contract/src/rpc/ reaches oRPC: a page loads the rest of the contract",
+  regex: "^@orpc/|(?:^|/)rpc/",
+};
+const CONTRACT_PLATFORM = {
+  message: "@repo/contract loads on every client and the Worker",
+  regex: NODE_OR_REACT,
 };
 // the phone's note page runs in its web view and reaches the phone only through its props
 const NOTE_PAGE_PLATFORM = {
@@ -179,11 +189,18 @@ export default defineConfig({
         "typescript/no-unsafe-return": "off",
       },
     },
-    platformPurity(
-      "packages/contract",
-      NODE_OR_REACT,
-      "@repo/contract loads on every client and the Worker",
-    ),
+    {
+      excludeFiles: [...tests, RPC_FOLDER],
+      files: ["packages/contract/src/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([CONTRACT_PLATFORM, ORPC_IN_RPC_FOLDER]),
+      },
+    },
+    {
+      excludeFiles: tests,
+      files: [RPC_FOLDER],
+      rules: { "no-restricted-imports": restrictedImports([CONTRACT_PLATFORM]) },
+    },
     platformPurity(
       "packages/editor",
       NODE,

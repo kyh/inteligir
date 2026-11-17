@@ -14,7 +14,7 @@ import {
   SOCKET_KEEPALIVE_PONG,
 } from "@repo/contract/library/library-socket";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
-import { AccountGoneError } from "@repo/contract/v1/errors";
+import { AccountGoneError } from "@repo/contract/rpc/v1-errors";
 import { DurableObject } from "cloudflare:workers";
 
 import { landPush, runTurnTool, showPreview } from "../agent/agent-turns";

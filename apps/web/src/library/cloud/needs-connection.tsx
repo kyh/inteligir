@@ -6,8 +6,8 @@
 // any waits.
 
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
-import { isOrpcError, NotFoundError } from "@repo/contract/v1/errors";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
+import { isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager, useIsMutating } from "@tanstack/react-query";

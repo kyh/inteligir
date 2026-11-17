@@ -7,9 +7,9 @@
 // of it. Platform-free: its suites run it under node.
 
 import type { SaveStamp } from "@repo/client/waiting-saves";
-import { outcomeOf } from "@repo/contract/library/call-outcome";
-import type { CallOutcome } from "@repo/contract/library/call-outcome";
-import type { V1Client } from "@repo/contract/v1";
+import { outcomeOf } from "@repo/contract/rpc/call-outcome";
+import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import type { FileCache, HeldFile } from "../files/file-cache";

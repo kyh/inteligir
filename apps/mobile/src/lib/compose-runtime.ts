@@ -21,9 +21,9 @@ import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/lib
 import type { KvStorage } from "@repo/client/waiting-saves";
 import { clientBuildValue } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
-import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
-import type { V1Client } from "@repo/contract/v1";
+import { uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import type { PhoneAuth } from "../auth/phone-auth";
 import { createFileCache } from "../files/file-cache";
 import type { FileCache, FileCachePorts, FileFolder } from "../files/file-cache";

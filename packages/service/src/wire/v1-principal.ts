@@ -17,7 +17,7 @@ import {
   ClientOutdatedError,
   TooManyRequestsError,
   UnauthorizedError,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 
 import { readSession } from "../auth/auth";
 import { buildFloor, isBelowFloor } from "../client-floor";

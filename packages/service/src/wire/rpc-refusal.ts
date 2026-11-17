@@ -2,7 +2,7 @@
 // window, a file it will not keep), spelled as the RPC protocol answers an error
 // (https://orpc.dev/docs/advanced/rpc-protocol): the status `V1_ERROR_STATUS_MAP` gives its code,
 // and its serialized error, marked as declared, so a client narrows it as it narrows a procedure's
-// own, an RPCLink's call and an upload alike (`@repo/contract/library/call-outcome`).
+// own, an RPCLink's call and an upload alike (`@repo/contract/rpc/call-outcome`).
 
 import {
   AccountGoneError,
@@ -13,7 +13,7 @@ import {
   TooManyRequestsError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 import { ORPCError, reconcileORPCError, RPCSerializer } from "@orpc/server";
 
 import { plainText } from "../plain-http";

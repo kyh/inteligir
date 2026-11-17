@@ -1,6 +1,6 @@
 import { fileSha } from "@repo/contract/library/file-sha";
 import { refusalResponse } from "@repo/contract/test-support/refusal-response";
-import { QuotaError } from "@repo/contract/v1/errors";
+import { QuotaError } from "@repo/contract/rpc/v1-errors";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { cloudOf, sendFile } from "./cloud";

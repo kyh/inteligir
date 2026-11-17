@@ -1,11 +1,11 @@
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { refusalResponse } from "@repo/contract/test-support/refusal-response";
 import {
   AccountGoneError,
   ClientOutdatedError,
   QuotaError,
   UnauthorizedError,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 import { describe, expect, it } from "vitest";
 
 import { uploadFile } from "./library-files";

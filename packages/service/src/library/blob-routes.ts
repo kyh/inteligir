@@ -16,7 +16,7 @@ import {
   BlobMismatchError,
   PayloadTooLargeError,
   QuotaError,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 import { z } from "zod";
 
 import { errorFields } from "../log";

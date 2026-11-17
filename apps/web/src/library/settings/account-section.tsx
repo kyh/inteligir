@@ -16,7 +16,7 @@ import { useState } from "react";
 
 import { authClient } from "#lib/auth-client";
 import { usePageLibrary } from "../cloud/library-context";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
 import { relativeTimeLabel, useNow } from "../relative-time";

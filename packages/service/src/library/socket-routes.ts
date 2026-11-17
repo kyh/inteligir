@@ -7,7 +7,7 @@
 // (`severSockets`).
 
 import { SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
-import { UnauthorizedError } from "@repo/contract/v1/errors";
+import { UnauthorizedError } from "@repo/contract/rpc/v1-errors";
 import { and, eq, gt } from "drizzle-orm";
 
 import { createDb } from "@repo/db/d1/client";

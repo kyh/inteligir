@@ -1,4 +1,4 @@
-import { V1_RPC_PATH, v1Contract } from "@repo/contract/v1";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/rpc/v1-contract";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RouterProvider } from "@tanstack/react-router";

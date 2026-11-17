@@ -13,11 +13,11 @@ import {
 } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
-import { refusalText } from "../refusal-text";
-import { V1_RPC_PATH } from "../v1-contract";
-import type { V1Client } from "../v1-contract";
-import { isOrpcError } from "../v1-errors";
-import { V1_BLOBS_PATH } from "./library-blobs";
+import { refusalText } from "./refusal-text";
+import { V1_RPC_PATH } from "./v1-contract";
+import type { V1Client } from "./v1-contract";
+import { isOrpcError } from "./v1-errors";
+import { V1_BLOBS_PATH } from "../library/library-blobs";
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the session through the
 // host's door and its build, or in the browser nothing past the session's own cookie

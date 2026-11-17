@@ -2,7 +2,7 @@
 // pages send these (the worker refuses every other sender), but a message crosses as an untyped
 // value, so both ends parse it.
 
-import { WAITS } from "@repo/contract/library/call-outcome";
+import { WAITS } from "@repo/contract/rpc/call-outcome";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 

@@ -35,9 +35,9 @@ import {
   scopeTitle,
 } from "@repo/client/library-labels";
 import { listingView } from "@repo/client/listing-view";
-import { UNREACHABLE } from "@repo/contract/library/call-outcome";
+import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { ItemKind } from "@repo/contract/items/item-kind";

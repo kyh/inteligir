@@ -37,7 +37,7 @@ import { nextDayAt } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
 import { landPush, showPreview } from "./agent-turns";
 import type { PushRequest } from "./thread-wire";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;

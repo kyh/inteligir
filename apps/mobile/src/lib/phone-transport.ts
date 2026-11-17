@@ -7,7 +7,7 @@
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import type { V1Transport } from "@repo/contract/library/call-outcome";
+import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { keptFileType } from "@repo/contract/items/item-kind";
 import type { HeldFile } from "../files/file-cache";

@@ -10,8 +10,8 @@ import { describe, expect, it } from "vitest";
 import type { BodyBlock } from "../library/derive-item";
 import { newIdSchema } from "../library/library-wire";
 import type { LibraryBlock } from "../library/library-nodes";
-import type { V1Client } from "../v1-contract";
-import { isOrpcError } from "../v1-errors";
+import type { V1Client } from "../rpc/v1-contract";
+import { isOrpcError } from "../rpc/v1-errors";
 import { paragraph } from "./library-items";
 
 type Library = V1Client["library"];

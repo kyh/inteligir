@@ -10,8 +10,8 @@
 
 import { oneAtATime, waitingSaves } from "@repo/client/waiting-saves";
 import type { KvStorage, WaitingSave } from "@repo/client/waiting-saves";
-import { outcomeOf } from "@repo/contract/library/call-outcome";
-import type { CallOutcome } from "@repo/contract/library/call-outcome";
+import { outcomeOf } from "@repo/contract/rpc/call-outcome";
+import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 

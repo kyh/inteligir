@@ -5,7 +5,7 @@
 // of the agent's turn that made it, tells the sockets and sets the alarm; every refusal answers as the error its row
 // declares (`./library-orpc`). The built-in agent's rows are `../agent/agent-router`'s.
 
-import { NotFoundError } from "@repo/contract/v1/errors";
+import { NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { sweptIds } from "@repo/contract/library/library-index";
 import {
   folderRowSchema,

@@ -4,7 +4,7 @@ import {
   signUpRequestSchema,
 } from "@repo/contract/account/account-schema";
 import type { SignUpRequest } from "@repo/contract/account/account-schema";
-import { InviteRefusedError } from "@repo/contract/v1/errors";
+import { InviteRefusedError } from "@repo/contract/rpc/v1-errors";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth, withoutAuthToken } from "./auth";

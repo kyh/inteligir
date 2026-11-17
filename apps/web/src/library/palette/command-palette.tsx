@@ -8,7 +8,7 @@
 import { shownTitle } from "@repo/contract/items/item-name";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 import {
   CommandDialog,
   CommandFooter,

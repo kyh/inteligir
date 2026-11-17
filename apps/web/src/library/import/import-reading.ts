@@ -1,7 +1,7 @@
 // An import read on its own thread, start to end: the reader its source names, and what it came to
 // told as it goes, so the page draws it and Stop ends the thread wherever it stands.
 
-import { refusalText } from "@repo/contract/refusal-text";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
 
 import { freshTally, ImportStoppedError } from "./import-landing";
 import type { ImportCell, ImportTally } from "./import-landing";

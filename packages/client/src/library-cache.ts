@@ -9,9 +9,9 @@
 import type { RouterUtils } from "@orpc/tanstack-query";
 import type { QueryClient } from "@tanstack/query-core";
 
-import { sharedFailure } from "@repo/contract/library/call-outcome";
+import { sharedFailure } from "@repo/contract/rpc/call-outcome";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import { createAccountSocket } from "./account-socket";
 import type { AccountSocket } from "./account-socket";

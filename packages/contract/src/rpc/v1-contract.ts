@@ -6,8 +6,8 @@
 
 import type { RouterContractClient } from "@orpc/contract";
 
-import { accountContract } from "./account/account-contract";
-import { libraryContract } from "./library/library-contract";
+import { accountContract } from "./account-contract";
+import { libraryContract } from "./library-contract";
 
 export const V1_RPC_PATH = "/v1/rpc";
 

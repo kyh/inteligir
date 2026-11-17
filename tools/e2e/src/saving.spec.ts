@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import type { V1Client } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { download, openLibrary, test } from "./fixtures";
 
 // a PNG's head alone, of a cover's size: the fill reads a picture's size and decodes nothing

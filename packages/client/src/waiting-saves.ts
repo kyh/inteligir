@@ -7,7 +7,7 @@
 // again or lets it go, and one whose account is deleted goes. Every change is one step at a time,
 // so a try's answer never brings back a save let go while its call was on its way.
 
-import type { CallOutcome } from "@repo/contract/library/call-outcome";
+import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { z } from "zod";
 
 import { serialLock } from "./serial-lock";

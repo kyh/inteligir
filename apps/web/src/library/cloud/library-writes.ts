@@ -16,8 +16,8 @@ import { applyPropertyOps, mergeListField } from "@repo/contract/library/field-o
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { refusalText } from "@repo/contract/refusal-text";
-import type { V1Client } from "@repo/contract/v1";
+import { refusalText } from "@repo/contract/rpc/refusal-text";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { toast } from "@repo/ui/components/sonner";
 import { mutationOptions } from "@tanstack/react-query";
 import type {

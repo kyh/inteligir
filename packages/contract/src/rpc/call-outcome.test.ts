@@ -9,7 +9,7 @@ import {
   PayloadTooLargeError,
   QuotaError,
   TooManyRequestsError,
-} from "../v1-errors";
+} from "./v1-errors";
 import { outcomeOf, sessionEndOf, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallOutcome, SessionEnd, V1Transport } from "./call-outcome";
 

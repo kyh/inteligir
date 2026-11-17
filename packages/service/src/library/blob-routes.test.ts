@@ -3,7 +3,7 @@
 // account's reach.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { uploadBlob } from "@repo/contract/library/call-outcome";
+import { uploadBlob } from "@repo/contract/rpc/call-outcome";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";

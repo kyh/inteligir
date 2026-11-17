@@ -1,8 +1,8 @@
 // A library call inside the account's cell: the implementer every row's handler is built on, and
 // the context a handler works in. Its verbs run the engine for whoever the call is by and answer
-// the value, or throw the error the row declares (`@repo/contract/v1/errors`). A refusal is thrown
-// inside a transaction, caught at its edge as a value, and thrown again here, the one place that
-// says which error each kind is.
+// the value, or throw the error the row declares (`@repo/contract/rpc/v1-errors`). A refusal is
+// thrown inside a transaction, caught at its edge as a value, and thrown again here, the one place
+// that says which error each kind is.
 
 import { ORPCError, implement } from "@orpc/server";
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
@@ -16,7 +16,7 @@ import {
   NotFoundError,
   PayloadTooLargeError,
   QuotaError,
-} from "@repo/contract/v1/errors";
+} from "@repo/contract/rpc/v1-errors";
 import type { z } from "zod";
 
 import type { AgentCell } from "../agent/agent-turns";
