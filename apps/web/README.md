@@ -67,8 +67,9 @@ same context answers a page's guard whether its request is signed in,
 ## Invites
 
 Minting invites is a raw insert, deliberately — no admin UI, no self-serve
-issuance. Locally, add an `invite_code` row in `pnpm --filter @repo/db
-studio`; in production:
+issuance. Locally, `pnpm bootstrap` signs the dev account up on an invite it
+writes, and another account takes an `invite_code` row added in
+`pnpm --filter @repo/db studio`; in production:
 
 ```bash
 pnpm -F @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \

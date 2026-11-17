@@ -1,8 +1,9 @@
-// `pnpm --filter @repo/db ddl`: writes each Durable Object's DDL, which drizzle-kit exports from
-// its schema, to src/<object>/ddl.sql, the text the object applies as it wakes
-// (packages/service/src/object-schema.ts). Run it after editing a schema and commit what it
-// writes; `--check` writes nothing and exits 1 when a file differs from what it would write (the
-// workspace's `test` script runs it).
+// `pnpm --filter @repo/db ddl`: writes each schema's DDL, which drizzle-kit exports from it, to
+// src/<schema>/ddl.sql: the text a Durable Object applies as it wakes
+// (packages/service/src/object-schema.ts), and D1's, which the suites and the e2e apply to a
+// database of their own. Run it after editing a schema and commit what it writes; `--check` writes
+// nothing and exits 1 when a file differs from what it would write (the workspace's `test` script
+// runs it).
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -23,19 +24,19 @@ CREATE VIRTUAL TABLE \`search_fts\` USING fts5(
 );
 `;
 
-// each object's schema, and the statements its drizzle schema cannot spell
-const OBJECTS = { cell: SEARCH_FTS, note: "", thread: "" };
+// each schema, and the statements its drizzle schema cannot spell
+const SCHEMAS = { cell: SEARCH_FTS, d1: "", note: "", thread: "" };
 
 const dbRoot = path.resolve(import.meta.dirname, "..");
 
-const ddlOf = (object: string, extra: string): string => {
+const ddlOf = (schema: string, extra: string): string => {
   const exported = execFileSync(
     "drizzle-kit",
-    ["export", "--dialect=sqlite", `--schema=./src/${object}/schema.ts`],
+    ["export", "--dialect=sqlite", `--schema=./src/${schema}/schema.ts`],
     { cwd: dbRoot, encoding: "utf-8" },
   );
   const header = [
-    `-- Written by packages/db/scripts/object-ddl.ts from src/${object}/schema.ts: edit the schema,`,
+    `-- Written by packages/db/scripts/object-ddl.ts from src/${schema}/schema.ts: edit the schema,`,
     "-- then run `pnpm --filter @repo/db ddl`.",
   ];
   const statements = [exported, extra].map((part) => part.trim()).filter((part) => part !== "");
@@ -50,10 +51,10 @@ const readOrNull = (file: string): string | null => {
   }
 };
 
-for (const [object, extra] of Object.entries(OBJECTS)) {
-  const relative = `src/${object}/ddl.sql`;
+for (const [schema, extra] of Object.entries(SCHEMAS)) {
+  const relative = `src/${schema}/ddl.sql`;
   const file = path.join(dbRoot, relative);
-  const text = ddlOf(object, extra);
+  const text = ddlOf(schema, extra);
   if (readOrNull(file) !== text) {
     if (process.argv.includes("--check")) {
       console.error(

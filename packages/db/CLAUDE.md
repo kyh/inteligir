@@ -8,7 +8,8 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and no users, so a history serves nobody; the suites and
-  the e2e apply the DDL `drizzle-kit export` prints. `tools/e2e/src/fixtures.ts`.
+  the e2e apply the committed `ddl.sql`, a snapshot `test` holds to the schema.
+  `packages/db/src/d1/ddl.sql`.
 - **Declare D1 uniques as named unique indexes, never `.unique()`.** drizzle-kit
   1.0 plans `.unique()` as a table recreate whose `DROP` cascades through every
   child on D1, so lint refuses the modifier under `src/d1`. `oxlint.config.ts`.
@@ -29,3 +30,11 @@ each conversation's: D1's ships by `drizzle-kit push`, each object's as the DDL
 - **What the cell holds once is a column of its one row, and what it counts is a
   sum of its rows.** A key-value table hands each fact back untyped, and a
   counter kept beside the rows it counts can drift. `packages/db/src/cell/schema.ts`.
+
+## The local database
+
+- **`pnpm bootstrap` brings a running local Worker to a dev account, which
+  signs up through the invite gate.** miniflare makes D1's file on the Worker's
+  first query, so the account's sign-in goes before the push, and a row seeded
+  past Better Auth skips the gate every account passes.
+  `packages/db/scripts/bootstrap.ts`.

@@ -1,0 +1,15 @@
+{
+  // node strips these files' types and runs them, so the program resolves as node does
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "tsBuildInfoFile": "${configDir}/../.cache/tsbuildinfo.scripts.json"
+  },
+  "include": ["."]
+}
