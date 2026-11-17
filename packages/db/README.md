@@ -10,9 +10,9 @@ both, and nothing else ships them. Why each ships as it does is this package's
 ## Layout
 
 ```
-src/d1/            the ONE D1 schema, as Better Auth's generator prints it, and the client over its binding
+src/d1/            the ONE D1 schema, as Better Auth's generator prints it, the client over its binding, and the ddl.sql the suites apply
 src/cell/, src/note/, src/thread/   each object's schema and the ddl.sql written from it
-scripts/           drizzle-kit's export of each object's DDL, the search index appended
+scripts/           drizzle-kit's export of each schema's DDL, the search index appended
 drizzle.config*.ts the remote D1 (owner only) and the local Worker's D1 file
 ```
 
@@ -21,8 +21,7 @@ drizzle.config*.ts the remote D1 (owner only) and the local Worker's D1 file
 ```bash
 pnpm --filter @repo/db push                  # the D1 schema into pnpm dev:web's local D1
 pnpm --filter @repo/db studio                # browse it (mint an invite here)
-pnpm --filter @repo/db ddl                   # each object's ddl.sql, after a change to its schema
-pnpm --filter @repo/db run --silent export   # the D1 schema's DDL, as the suites and the e2e apply it
+pnpm --filter @repo/db ddl                   # each schema's ddl.sql, after a change to it
 ```
 
 > **Never run `push:remote` or `studio:remote`.** Both load
@@ -32,6 +31,6 @@ pnpm --filter @repo/db run --silent export   # the D1 schema's DDL, as the suite
 ## Testing
 
 `test` fails while a committed `ddl.sql` differs from what its schema writes.
-A schema change is tested by `@repo/service`'s workerd suites, which apply the
-D1 DDL and open every object through its own, and lint refuses a `.unique()`
-in the D1 schema (`oxlint.config.ts`).
+A schema change is tested by `@repo/service`'s workerd suites, which apply
+D1's `ddl.sql` and open every object through its own, and lint refuses a
+`.unique()` in the D1 schema (`oxlint.config.ts`).

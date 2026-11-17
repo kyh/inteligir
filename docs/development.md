@@ -49,8 +49,7 @@ against the local Worker's files:
 ```bash
 pnpm --filter @repo/db push                     # the D1 schema into pnpm dev:web's local D1
 pnpm --filter @repo/db studio                   # browse it (mint an invite here)
-pnpm --filter @repo/db ddl                      # each object's ddl.sql, from its src/<object>/schema.ts
-pnpm --filter @repo/db run --silent export      # the D1 schema's DDL, as the suites apply it
+pnpm --filter @repo/db ddl                      # each schema's ddl.sql, from its src/<schema>/schema.ts
 ```
 
 Never `push:remote` or `studio:remote`: both reach the PRODUCTION D1

@@ -1,15 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { messagesService } from "./messages-service.ts";
-
-// no migration files exist; the D1 DDL is derived from its schema by @repo/db's export script, the
-// one the e2e fixture runs too, since two spellings drift. Resolved from this file: cwd is this
-// package under vitest but the repo root under knip.
-const TEST_SCHEMA = execFileSync("pnpm", ["--filter", "@repo/db", "run", "--silent", "export"], {
-  cwd: import.meta.dirname,
-  encoding: "utf-8",
-});
 
 // the library model's pure suites, which run under node; every suite that reaches SQL runs in
 // workerd, on the cell's own SQLite
@@ -39,9 +30,8 @@ const workerd = cloudflareTest({
     // runs under another name, so the one namespace the suites read by name is declared here, which
     // also makes ctx.exports.LibraryDO a SQLite namespace (test-support/env.d.ts)
     durableObjects: { LIBRARY_CELL: { className: "LibraryDO", useSQLite: true } },
-    bindings: { TEST_SCHEMA },
-    // every object's DDL, which the objects import as text; the plugin takes module rules from here
-    // or a Wrangler file alone, and parses a .sql as JavaScript otherwise
+    // each schema's DDL, which the objects and the suites' setup import as text; the plugin takes
+    // module rules from here or a Wrangler file alone, and parses a .sql as JavaScript otherwise
     modulesRules: [{ include: ["**/*.sql"], type: "Text" }],
   },
 });

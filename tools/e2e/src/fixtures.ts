@@ -3,7 +3,6 @@
 // it. One account per test, signed in on the test's context and reachable through `/v1`.
 
 /* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- miniflare types its D1 binding with @cloudflare/workers-types, which this node program does not load, so the type-aware pass reads the database as an unresolved type */
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
@@ -131,15 +130,15 @@ const freePort = async (): Promise<number> => {
   return port;
 };
 
-// the script the service's suites run too, since two spellings of the DDL drift
-const exportSchema = (): string[] =>
-  execFileSync("pnpm", ["--filter", "@repo/db", "run", "--silent", "export"], {
-    cwd: REPO,
-    encoding: "utf-8",
-  })
+// D1's DDL as @repo/db commits it, the file the service's suites apply too, a statement each as a
+// batch takes them: split on `;`, which holds while no literal in the schema has one
+const schemaStatements = async (): Promise<string[]> => {
+  const ddl = await readFile(path.join(REPO, "packages/db/src/d1/ddl.sql"), "utf-8");
+  return ddl
     .split(";")
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
+};
 
 const builtWorker = async (outbound: (request: Request) => Promise<Response>) => {
   const raw: unknown = JSON.parse(await readFile(path.join(OUTPUT, "worker.config.json"), "utf-8"));
@@ -223,7 +222,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   cloudOptions: [{}, { option: true, scope: "worker" }],
   cloud: [
     async ({ cloudOptions }, use) => {
-      const statements = exportSchema();
+      const statements = await schemaStatements();
       const fake = await serveMessagesFake(0);
       // never emptied: a test that ended keeps its host for the fetches it left running
       const hosts = new Map<string, Web>();
@@ -271,7 +270,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       });
       await miniflare.ready;
       const db = await miniflare.getD1Database("DB");
-      // one batch is one transaction; splitting on `;` holds while no literal in the schema has one
+      // one batch is one transaction
       await db.batch(statements.map((statement) => db.prepare(statement)));
       await use({
         build,
