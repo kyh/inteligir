@@ -9,7 +9,7 @@ import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/client";
 import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
+import { AppState, Image } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import { addNetworkStateListener } from "expo-network";
@@ -25,7 +25,7 @@ import { keychainStorage } from "../auth/keychain-storage";
 import { phoneAuthOver } from "../auth/phone-auth";
 import type { PhoneAuth } from "../auth/phone-auth";
 import { expoFileFolder } from "../files/expo-file-folder";
-import { shrinkToThumbnail } from "../files/expo-thumbnail";
+import type { FileCachePorts } from "../files/file-cache";
 import type { KvStorage } from "../items/share-outbox";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { excludeFromBackup } from "./backup-exclusion";
@@ -42,6 +42,13 @@ const newBlockId = (): string => Crypto.randomUUID();
 
 const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   bytesToHex(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
+
+// a kept picture's size by the system's own reader, from its metadata with nothing decoded; React
+// Native answers 0 by 0 for a file it finds no picture in
+const measurePicture: FileCachePorts["measure"] = async (uri) => {
+  const size = await Image.getSize(uri);
+  return size.width > 0 && size.height > 0 ? size : null;
+};
 
 // the store's folder is taken out of the device backup with its first write; expo-sqlite types its
 // default folder as any
@@ -93,10 +100,10 @@ const build = (): AppRuntime => {
     cloudUrl,
     fetch: async (request) => await globalThis.fetch(request),
     folder: expoFileFolder,
+    measurePicture,
     newBlockId,
     newId: () => uuidV7(Date.now(), Crypto.getRandomBytes(16)),
     sha256Hex,
-    shrinkCover: shrinkToThumbnail,
     storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
     WebSocket,
   });

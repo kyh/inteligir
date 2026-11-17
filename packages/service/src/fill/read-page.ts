@@ -5,8 +5,8 @@
 // original, a page's article and facts read, a media host's oEmbed asked, and the first candidate
 // that is really a picture of a cover's size kept as the cover, whole: no picture is decoded here,
 // since a Worker's heap holds the reading already
-// (`packages/page-reader/src/extract-page.heap.test.ts`), so a device draws its own thumbnail. Every
-// byte kept goes to R2 as a library file before the reading lands (`./store-file`). The reader and
+// (`packages/page-reader/src/extract-page.heap.test.ts`), so a device decodes it at the size it
+// draws. Every byte kept goes to R2 as a library file before the reading lands (`./store-file`). The reader and
 // the DOM it reads over load with the first page a consumer reads, never with the Worker's start,
 // which every request waits on.
 

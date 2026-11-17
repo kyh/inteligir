@@ -1,11 +1,10 @@
 // The phone's copy of the library's files: each by its SHA-256 with the type it was sent or served
 // as, fetched from the cloud once, the first time a screen draws it, however many screens ask at
 // once, into the OS's cache, which iOS may purge, so a purged file is fetched again. A file this
-// phone sent is kept as it went, so the phone never downloads what it sent. A card's cover over
-// 512 KB draws from a thumbnail made once, in a format that keeps a transparent cover's
-// transparency. A cover is drawn whole only when it is a small file whose header names its size;
-// one past what a phone may decode, or whose thumbnail could not be made, shows the card's
-// placeholder, and is not tried again this session.
+// phone sent is kept as it went, so the phone never downloads what it sent. A card's cover is the
+// kept file itself, which React Native's Image decodes at the row's size: whether a row draws it
+// is judged once from its bytes and kept beside it, and a cover judged no shows the card's
+// placeholder.
 //
 // Every landing runs under one lock with the sign-in's clear, and checks that no clear came
 // between its download and its landing, so a file of an account this phone left never lands
@@ -14,6 +13,7 @@
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { decodable } from "@repo/contract/items/link-fill";
 import { pixelSize, sniffMedia } from "@repo/contract/items/sniff-media";
+import type { PixelSize } from "@repo/contract/items/sniff-media";
 import { serialLock } from "../lib/serial-lock";
 
 // the one folder the files are kept in, each by its name
@@ -26,7 +26,7 @@ export interface FileFolder {
   readonly clear: () => Promise<void>;
 }
 
-// a file's bytes and the type it was sent as, or the cloud served it as; a cover's thumbnail too
+// a file's bytes and the type it was sent as, or the cloud served it as
 export interface HeldFile {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly mime: string;
@@ -37,18 +37,17 @@ export interface FileCachePorts {
   // the file from the cloud, whole and hash-checked, with the type it serves; null when the cloud
   // holds none
   readonly download: (sha: string) => Promise<HeldFile | null>;
-  // a cover drawn at a card's width, or null when it cannot be decoded or is past what a phone may
-  // decode, which it measures before it decodes
-  readonly shrink: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<HeldFile | null>;
+  // the system's measure of the picture kept at an address, decoding nothing, for a header no
+  // reader here parses; null when it finds no picture there
+  readonly measure: (uri: string) => Promise<PixelSize | null>;
 }
 
 export interface FileCache {
   // where a file is drawn from on this phone, fetched on a miss; null when it cannot be had now
   // (offline, or the cloud holds none)
   readonly fileUri: (sha: string) => Promise<string | null>;
-  // a card's cover: the file itself when it is small, else a thumbnail made once; null too for a
-  // picture this phone will not decode
-  readonly thumbUri: (sha: string) => Promise<string | null>;
+  // a card's cover, drawn from the kept file; null too for a picture a row will not draw
+  readonly coverUri: (sha: string) => Promise<string | null>;
   // a file as this phone holds it, else fetched and kept, as the editor page draws a file a note
   // names, with the type it was kept as; null when it cannot be had now
   readonly heldFile: (sha: string) => Promise<HeldFile | null>;
@@ -58,15 +57,16 @@ export interface FileCache {
   readonly clear: () => Promise<void>;
 }
 
-// a cover up to this size is drawn as it is; past it, from its thumbnail
-export const THUMB_OVER_BYTES = 512 * 1024;
-
-const thumbName = (sha: string): string => `${sha}.thumb`;
-
 // the type a file was kept as sits beside it; a media type is ASCII, a byte a character
 const typeName = (name: string): string => `${name}.type`;
 const typeBytes = (mime: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(mime, (character) => character.codePointAt(0) ?? 0);
+
+// whether a row draws a file as a cover sits beside it too, one byte: a hash names the bytes that
+// were judged, so the verdict holds for as long as it is kept
+const coverName = (sha: string): string => `${sha}.cover`;
+const DRAWN = 1;
+const NOT_DRAWN = 0;
 
 // the run of `work` already on its way under `key`, else a new one, kept until it settles
 const once = async <T>(
@@ -92,21 +92,17 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
   const lock = serialLock();
   // moved by every clear: a landing that began under another generation lands nothing
   let generation = 0;
-  // covers this phone will not draw, tried once a session
-  const unshrinkable = new Set<string>();
-  // the cap bounds one decode, and a page of rows asks for its covers all at once
-  const decoding = serialLock();
   // one download and one landing per file however many screens ask for it at once; a clear lets
   // the old ones go, which land nothing
   let downloads = new Map<string, Promise<HeldFile | null>>();
   let landings = new Map<string, Promise<string | null>>();
 
+  const landed = async <T>(since: number, write: () => Promise<T>): Promise<T | null> =>
+    await lock(async () => (since === generation ? await write() : null));
+
   // the type first: the bytes are what makes the file found, so it is never found untyped
   const land = async (since: number, name: string, file: HeldFile): Promise<string | null> =>
-    await lock(async () => {
-      if (since !== generation) {
-        return null;
-      }
+    await landed(since, async () => {
       await folder.write(typeName(name), typeBytes(file.mime));
       return await folder.write(name, file.bytes);
     });
@@ -167,40 +163,36 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
         };
   };
 
-  const thumbUri = async (sha: string): Promise<string | null> =>
-    await once(landings, thumbName(sha), async () => {
+  // whether a row draws the picture these bytes are, kept at `uri`: one within what a phone may
+  // decode, by its header's size, else the system's. React Native decodes a GIF's every frame whole
+  // and plays it, where it decodes any other picture at the row's size, so a GIF is never drawn
+  const drawn = async (bytes: Uint8Array, uri: string): Promise<boolean> => {
+    const sniffed = sniffMedia(bytes);
+    if (sniffed?.kind !== "image" || sniffed.mediaType === "image/gif") {
+      return false;
+    }
+    const size = pixelSize(bytes, sniffed.mediaType) ?? (await ports.measure(uri));
+    return size !== null && decodable(size);
+  };
+
+  const coverUri = async (sha: string): Promise<string | null> =>
+    await once(landings, coverName(sha), async () => {
       const since = generation;
-      const name = thumbName(sha);
-      const made = await folder.uri(name);
-      if (made !== null) {
-        return made;
-      }
-      if (unshrinkable.has(sha)) {
-        return null;
+      const judged = await folder.read(coverName(sha));
+      if (judged !== null) {
+        return judged[0] === DRAWN ? await fileUri(sha) : null;
       }
       const held = await bytesOf(since, sha);
-      if (held === null) {
+      const uri = held === null ? null : await held.uri();
+      if (held === null || uri === null) {
         return null;
       }
-      const { bytes } = held.file;
-      // decoded as what its first bytes say it is, which a cover's thumbnail is made from
-      const mime = sniffMedia(bytes)?.mediaType ?? null;
-      const size = mime === null ? null : pixelSize(bytes, mime);
-      const refused = size !== null && !decodable(size);
-      if (size !== null && !refused && bytes.byteLength <= THUMB_OVER_BYTES) {
-        return await held.uri();
-      }
-      const shrunk =
-        mime === null || refused
-          ? null
-          : await decoding(async () => await ports.shrink(bytes, mime)).catch(() => null);
-      if (shrunk === null) {
-        unshrinkable.add(sha);
-        // kept all the same, so the next draw reads it here rather than downloading it again
-        await held.uri();
-        return null;
-      }
-      return await land(since, name, shrunk);
+      const draws = await drawn(held.file.bytes, uri);
+      const kept = await landed(
+        since,
+        async () => await folder.write(coverName(sha), Uint8Array.of(draws ? DRAWN : NOT_DRAWN)),
+      );
+      return draws && kept !== null ? uri : null;
     });
 
   const heldFile = async (sha: string): Promise<HeldFile | null> => {
@@ -221,15 +213,9 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
       generation += 1;
       downloads = new Map();
       landings = new Map();
-      unshrinkable.clear();
       await folder.clear();
     });
   };
 
-  return { clear, fileUri, heldFile, keep, thumbUri };
+  return { clear, coverUri, fileUri, heldFile, keep };
 };
-
-// the format a cover's thumbnail is written in: one that keeps transparency for every source that
-// can carry it, and JPEG only for a JPEG
-export const thumbFormatOf = (mime: string): "png" | "jpeg" =>
-  mime === "image/jpeg" ? "jpeg" : "png";

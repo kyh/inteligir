@@ -315,9 +315,16 @@ The unpacked store build, against production, with no dev build loaded.
   item; Page not read says why.
 - **Photos** from the camera and the library at 1 MB or less with no GPS, a
   picture pasted in a note, and pictures, video and PDFs read across devices.
-- **Hostile images**: a 30000 x 30000 PNG, an AVIF or HEIC over 50 megapixels,
-  a 48-megapixel JPEG and a hostile `og:image` cover each draw or refuse with no
-  crash.
+- **Covers**, which a row decodes from the kept file, on the oldest supported
+  iPhone: a library whose first thirty rows have covers of 2 to 10 MB each
+  (JPEG, PNG, WebP, HEIC and AVIF among them) launches cold and scrolls to its
+  end and back without the app being killed; a 7000 x 7000 PNG, a 48-megapixel
+  JPEG and a 48-megapixel HEIC draw on one screen at once, as does a JPEG no
+  header reader sizes (one `0xFF` byte put in after its first two); a 30000 x
+  30000 PNG, an AVIF or HEIC over 50 megapixels, a hostile `og:image` cover, a
+  GIF and an SVG each show the placeholder, and each opens in its viewer or
+  refuses with no crash; and every cover draws again on the next launch,
+  offline.
 - **The agent on the phone**: approvals, Stop beside a question, thinking shown,
   and an offline send, approval and Stop each refused with Needs a connection.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
@@ -328,6 +335,13 @@ The unpacked store build, against production, with no dev build loaded.
 - **A release build in the simulator**: the editor's content policy under
   WebKit, the `+native-intent` share address, a killed WebContent process
   reloading, and every screen in light and dark.
+- **Cover memory on a device**: a Release build on the oldest supported iPhone
+  (`pnpm --filter @repo/mobile ios --configuration Release --device`), Xcode
+  attached to it (Debug › Attach to Process) with its memory gauge open: the
+  thirty-cover library and the three 48-megapixel covers of the internal
+  build's Covers check, at a cold launch and through a scroll to the end and
+  back, raise no memory warning and leave the gauge where it rested before the
+  scroll.
 
 ### The site
 

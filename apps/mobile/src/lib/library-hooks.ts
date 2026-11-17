@@ -100,10 +100,11 @@ export const usePreview = (threadId: string): string | null => {
   return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
 };
 
-// where a file draws from on this phone, or a card's cover drawn small: undefined while it is
-// asked for, null while it cannot be had (offline, before it was ever drawn here), which is asked
-// again once the phone is back online. An address is this launch's, so none is kept
-export const useFileUri = (sha: string | null, small = false): string | null | undefined => {
+// where a file draws from on this phone, whole or as a card's cover: undefined while it is asked
+// for, null while it cannot be had (offline, before it was ever drawn here), which is asked again
+// once the phone is back online, and null for a cover a row will not draw. An address is this
+// launch's, so none is kept
+export const useFileUri = (sha: string | null, asCover = false): string | null | undefined => {
   const { files } = useLibrary();
   const { data } = useQuery({
     enabled: sha !== null,
@@ -113,9 +114,9 @@ export const useFileUri = (sha: string | null, small = false): string | null | u
       if (sha === null) {
         return null;
       }
-      return small ? await files.thumbUri(sha) : await files.fileUri(sha);
+      return asCover ? await files.coverUri(sha) : await files.fileUri(sha);
     },
-    queryKey: ["file", sha, small],
+    queryKey: ["file", sha, asCover],
     refetchOnReconnect: "always",
     staleTime: Number.POSITIVE_INFINITY,
   });

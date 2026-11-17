@@ -46,10 +46,11 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,
   and a sign-in, sign-out or revocation clears the cache, shares and files.
   `apps/mobile/modules/backup-exclusion`.
-- **A file's bytes are kept by their hash, fetched once, in the purgeable cache.** A file over 512
-  KB lists from a thumbnail and no cover decodes past `FILL_LIMITS.coverMaxPixels`, since a few
-  bytes can name a bitmap that kills the app on every launch.
-  `apps/mobile/src/files/expo-thumbnail.ts`.
+- **A file's bytes are kept by their hash, fetched once, in the purgeable cache, and a row's cover
+  is that file, judged once from its bytes.** React Native's Image decodes it at the row's size,
+  and a GIF, whose frames it decodes whole, or a picture past `FILL_LIMITS.coverMaxPixels` shows
+  the placeholder, since a few bytes can name a bitmap that kills the app on every launch.
+  `apps/mobile/src/files/file-cache.ts`.
 - **The phone signs in with a Better Auth session, kept by its Expo client in the Keychain, this
   device only, while unlocked.** Every call sends it under `expo-origin` with `credentials: "omit"`,
   since a credential of the phone's own is a second kind of sign-in for no gain.
