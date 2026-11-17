@@ -340,6 +340,8 @@ export default defineConfig({
         "packages/contract/src/items/**",
         "packages/contract/src/knowledge/**",
         "packages/contract/src/library/**",
+        "packages/contract/src/rpc/call-outcome.ts",
+        "packages/contract/src/rpc/library-contract.ts",
         "packages/contract/src/text/**",
         "packages/editor/src/headless/formulas/displays.ts",
         "packages/editor/src/headless/formulas/expression.ts",
