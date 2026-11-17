@@ -60,16 +60,25 @@ describe("the updates store", () => {
     expect(result.current).toStrictEqual({ downloadPercent: 0, status: "downloading" });
   });
 
-  it("says the update didn't go through when the shell refuses the call", async () => {
+  it("names the step the shell refused: a check that failed, or an update that didn't go through", async () => {
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { bridge } = fakeBridge(async () => await Promise.reject(new Error("not allowed")));
-    const { result } = renderHook(createUpdatesStore(bridge).use);
+    bridge.downloadUpdate.mockRejectedValueOnce(new Error("not allowed"));
+    const store = createUpdatesStore(bridge);
+    const { result } = renderHook(store.use);
     await vi.waitFor(() => {
       expect(result.current).toStrictEqual({
         message: "The updater did not answer.",
-        status: "error",
+        status: "check-failed",
       });
     });
-    expect(warned).toHaveBeenCalledOnce();
+    await act(async () => {
+      await store.move("download");
+    });
+    expect(result.current).toStrictEqual({
+      message: "The updater did not answer.",
+      status: "error",
+    });
+    expect(warned).toHaveBeenCalledTimes(2);
   });
 });

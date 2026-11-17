@@ -157,9 +157,10 @@ the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
   reserves no corner and asks its shell only for the update, since an overlay title bar costs a
   branch per host for a few pixels. `apps/web/src/library/top-bar.tsx`.
-- **The Mac app's update is a toast that stays, and Settings says the same.** One of the toasts, so
-  it stacks with them and their live region announces it; the updater is the shell's, so one store
-  mirrors what it pushes and nothing downloads or restarts without a click.
+- **The Mac app's update is a toast that stays while there is something to do, and Settings says
+  every state.** One of the toasts, so it stacks with them and their live region announces it; a
+  check that failed found no update, so only Settings says it; the updater is the shell's, so one
+  store mirrors what it pushes and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
 - **The agent's composer is one state the tab's store keeps, its words with it.** Moved by
   `composerAfter`, a passage quoted by the event that asks about it, since a `useState` per concern

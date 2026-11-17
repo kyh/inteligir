@@ -1,7 +1,8 @@
 // The Mac app's update, said in a toast that stays while there is something to do about it:
 // nothing downloads or restarts without the person's click. It reads the store Settings' Updates
-// row reads, so the two say one thing; a tab has no updater and shows none. One of the toasts, so it
-// stacks with them rather than over them, and the toaster's live region announces each step.
+// row reads, so the two say one thing; a check that failed found no update to act on, so only the
+// row says it, and a tab has no updater and shows none. One of the toasts, so it stacks with them
+// rather than over them, and the toaster's live region announces each step.
 
 import { Progress } from "@repo/ui/components/progress";
 import { toast } from "@repo/ui/components/sonner";

@@ -27,6 +27,12 @@ carries, and updates.
 - **An update waits for a click to download and another to restart** (owner decision). Rust drives
   Tauri's updater behind three commands and one event, its session one phase moved by one pure step,
   so an ask that does not fit the phase is a no-op. `apps/desktop/src-tauri/src/updater.rs`.
+- **A check that failed is a state of its own, apart from a download or an install that did.** The
+  page checks each time it loads, so a feed it could not read is no update to act on, and one state
+  for both would put the update's toast up over nothing. `apps/desktop/src-tauri/src/updater.rs`.
+- **Only the page asks for a check, and the menu holds no update item** (owner decision). Settings
+  words every answer a check gives, and a menu item's commonest one, up to date, has no screen of
+  its own to say it. `apps/desktop/src-tauri/src/menu.rs`.
 - **The release notes are the changelog, written for the person using the app.** A release's body is
   `CHANGELOG.md`'s top section, refused unless titled for the version, since a list of commit
   subjects says only that something changed. `apps/desktop/scripts/release-notes.ts`.

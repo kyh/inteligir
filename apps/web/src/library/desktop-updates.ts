@@ -29,7 +29,7 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
       listener();
     }
   };
-  // a shell that refuses the call answers as an update that did not go through, so every screen
+  // a shell that refuses the call answers as the step that did not go through, so every screen
   // already has its words for it
   const move = async (next: UpdateMove): Promise<void> => {
     if (bridge === null) {
@@ -39,7 +39,10 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
       adopt(await ASKS[next](bridge));
     } catch (error) {
       console.warn("[desktop] the updater did not answer", error);
-      adopt({ message: "The updater did not answer.", status: "error" });
+      adopt({
+        message: "The updater did not answer.",
+        status: next === "check" ? "check-failed" : "error",
+      });
     }
   };
   const subscribe = (listener: () => void): (() => void) => {

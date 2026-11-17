@@ -14,7 +14,11 @@ afterEach(() => {
 });
 
 // what the shell answers, its own shapes and one it never sends
-type ShellAnswer = { readonly status: string; readonly version?: string } | null;
+type ShellAnswer = {
+  readonly message?: string;
+  readonly status: string;
+  readonly version?: string;
+} | null;
 
 // Tauri's mock fakes the IPC alone, not the marker the runtime sets on every page it hosts, and
 // that marker is all isTauri() reads
@@ -46,6 +50,21 @@ describe("the Mac app's door", () => {
     await bridge.downloadUpdate();
     await bridge.installUpdate();
     expect(asked).toStrictEqual(["check_for_updates", "download_update", "install_update"]);
+  });
+
+  it("tells a check that failed from an update that did", async () => {
+    const bridge = underShell((command) => ({
+      message: "offline",
+      status: command === "check_for_updates" ? "check-failed" : "error",
+    }));
+    await expect(bridge.checkForUpdates()).resolves.toStrictEqual({
+      message: "offline",
+      status: "check-failed",
+    });
+    await expect(bridge.downloadUpdate()).resolves.toStrictEqual({
+      message: "offline",
+      status: "error",
+    });
   });
 
   it("refuses an answer it does not know", async () => {
