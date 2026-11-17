@@ -9,7 +9,7 @@ import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react"
 import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
+import { embedTypeForUrl } from "@repo/editor/headless/lib/embed-url";
 
 import { FileElement } from "@repo/editor/nodes/pdf-node";
 import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";

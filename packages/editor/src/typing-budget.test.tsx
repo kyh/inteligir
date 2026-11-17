@@ -10,10 +10,10 @@ import { createSlateEditor, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
-import { blockId } from "@repo/editor/node-props";
+import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
+import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
+import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
+import { blockId } from "@repo/editor/headless/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
 

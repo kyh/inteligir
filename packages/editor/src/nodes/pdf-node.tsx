@@ -6,10 +6,10 @@ import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { isPdfUrl } from "@repo/editor/lib/url";
+import { isPdfUrl } from "@repo/editor/headless/lib/url";
 import { cn } from "@repo/ui/lib/cn";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { FileCard } from "@repo/editor/nodes/file-card";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";

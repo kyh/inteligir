@@ -13,9 +13,9 @@ import {
   HTML_BLOCK_KEY,
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
-} from "@repo/editor/dialect-node-keys";
-import { lettersKept } from "@repo/editor/markdown/markdown-doc";
-import { alertProp } from "@repo/editor/node-props";
+} from "@repo/editor/headless/dialect-node-keys";
+import { lettersKept } from "@repo/editor/headless/markdown/markdown-doc";
+import { alertProp } from "@repo/editor/headless/node-props";
 import {
   meaningOf,
   readValue,

@@ -7,7 +7,7 @@ import type { PlateEditor } from "platejs/react";
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
-import { alertProp, stringProp } from "@repo/editor/node-props";
+import { alertProp, stringProp } from "@repo/editor/headless/node-props";
 
 // Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.
 export type TurnIntoId =

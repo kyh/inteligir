@@ -9,7 +9,7 @@ import type { PlateElementProps } from "platejs/react";
 import { cn } from "@repo/ui/lib/cn";
 
 import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 // what a block's fence value reads as: its payload, or why it stays code
 export type Parse<T> = { ok: true; payload: T } | { ok: false; reason: string };

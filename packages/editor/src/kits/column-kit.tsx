@@ -5,7 +5,10 @@ import type { PlateEditor } from "platejs/react";
 
 import { ColumnElement, ColumnGroupElement } from "@repo/editor/nodes/column-node";
 
-import { ColumnGroupBasePlugin, ColumnItemBasePlugin } from "./headless/column-base";
+import {
+  ColumnGroupBasePlugin,
+  ColumnItemBasePlugin,
+} from "@repo/editor/headless/kits/column-base";
 
 export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3): void => {
   const emptyBlock = () => ({ children: [{ text: "" }], type: editor.getType(KEYS.p) });

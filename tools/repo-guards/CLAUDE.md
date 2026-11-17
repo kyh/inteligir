@@ -51,7 +51,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
   fails without it.** Why: a bump fails the install until the patch is re-cut
-  or dropped. `patches/` (micromark: `packages/editor/src/markdown/parse-cost.test.ts`;
+  or dropped. `patches/` (micromark:
+  `packages/editor/src/headless/markdown/parse-cost.test.ts`;
   @platejs/core: `packages/editor/src/typing-budget.test.tsx`; react-dom:
   `packages/editor/src/commit-selection-walk.test.tsx`; slate-react:
   `tools/e2e/src/editor.spec.ts`).

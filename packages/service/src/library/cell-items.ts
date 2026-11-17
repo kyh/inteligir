@@ -2,10 +2,10 @@
 // by the rules every write meets (`./cell-landing`): a note or a file made whole, an item's fields
 // as a bulk organize, Deleted and back, or its page asked for again leaves them (`./cell-writes`),
 // and Deleted emptied. The markdown an agent writes goes through the codec
-// (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's body is
-// the note's (`./cell-edits`).
+// (`@repo/editor/headless/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's
+// body is the note's (`./cell-edits`).
 
-import { readBody } from "@repo/editor/codec/read-body";
+import { readBody } from "@repo/editor/headless/codec/read-body";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { organized } from "@repo/contract/library/cell-rules";
 import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";

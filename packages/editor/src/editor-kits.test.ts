@@ -10,7 +10,7 @@ import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { insertPageLink } from "@repo/editor/mention/mention-insert";
-import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 

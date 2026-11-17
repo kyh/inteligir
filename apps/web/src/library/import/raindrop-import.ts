@@ -4,7 +4,7 @@
 // holds already is counted, never saved twice, so reading the same export again lands nothing
 // twice.
 
-import { webNoteBlocks } from "@repo/editor/codec/item-markdown";
+import { webNoteBlocks } from "@repo/editor/headless/codec/item-markdown";
 
 import { newId } from "../library/new-id";
 import { createBatcher, importFolder, ImportStoppedError } from "./import-landing";

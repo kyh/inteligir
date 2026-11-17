@@ -1,6 +1,6 @@
 import type { SlateEditor } from "platejs";
 
-import { consumeTriggerLead } from "@repo/editor/combobox-input";
+import { consumeTriggerLead } from "@repo/editor/headless/combobox-input";
 import { pillFromEntryIn, pillNode } from "@repo/editor/formulas/formula-entry";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 

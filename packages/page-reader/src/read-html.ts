@@ -8,9 +8,9 @@
 import type { Root } from "mdast";
 
 import { deriveBody } from "@repo/contract/library/derive-item";
-import { articleBlocks } from "@repo/editor/codec/item-markdown";
-import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
-import { lettersKept } from "@repo/editor/markdown/markdown-doc";
+import { articleBlocks } from "@repo/editor/headless/codec/item-markdown";
+import type { ArticleBlocks } from "@repo/editor/headless/codec/item-markdown";
+import { lettersKept } from "@repo/editor/headless/markdown/markdown-doc";
 
 import { articleMdast, articleTree } from "./article-tree";
 import { extractPage } from "./extract-page";

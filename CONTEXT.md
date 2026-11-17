@@ -54,7 +54,7 @@ id and its **section**. The agent edits a body by block id, and a change to a
 block that moved since its writer read it is refused with the block as it is.
 A list item is a block, since lists are flat indent lists. Not a Plate node at
 any depth: a block's children are inside it
-(`packages/editor/src/live/element-block.ts`).
+(`packages/editor/src/headless/live/element-block.ts`).
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a **fill** wrote. A fill
@@ -65,9 +65,9 @@ note, and not a folder.
 
 **live document** — a note's body as one Yjs document, each top-level
 **block** carrying its **section**, which every device's editor and the agent
-edit at once (`packages/editor/src/live/yjs-binding.ts`). An editor's ⌘Z
-takes back its own changes alone. Not an offline copy: a device holds it only
-while the note's socket is open, and no presence crosses it.
+edit at once (`packages/editor/src/headless/live/yjs-binding.ts`). An
+editor's ⌘Z takes back its own changes alone. Not an offline copy: a device
+holds it only while the note's socket is open, and no presence crosses it.
 
 **note object** — `NoteDO`, one Durable Object per item holding its **live
 document** (`packages/service/src/note/note-do.ts`), reached by a device on
@@ -189,16 +189,17 @@ chip). A saved page, a picture or a PDF is an item, never a note.
 edit one property op (`apps/web/src/library/panel/item-properties.ts`): the
 fields stand where a file's frontmatter would. Not an imported file's
 frontmatter, which an import reads into the item's fields once
-(`@repo/editor/codec/item-fields`): an item has no frontmatter of its own.
+(`@repo/editor/headless/codec/item-fields`): an item has no frontmatter of
+its own.
 
 **dialect** — the markdown the library reads and writes: stock CommonMark and
 GFM with directives, item links, pills, alerts and **fence blocks**
-(`packages/editor/src/markdown/md-rules.ts`). One spec teaches it
+(`packages/editor/src/headless/markdown/md-rules.ts`). One spec teaches it
 (`packages/service/src/agent/prompt/`): the built-in agent's prompt holds it,
 and a **connected assistant** reads it as the **connector**'s guide. The
 **codec** is the headless converter between an item and its dialect
-(`@repo/editor/codec`), which an import and the agent's reads and edits run.
-Not the editor: the editor edits **blocks**, never markdown.
+(`@repo/editor/headless/codec`), which an import and the agent's reads and
+edits run. Not the editor: the editor edits **blocks**, never markdown.
 
 **node set** — the one vocabulary of what a body may hold, checked on every
 write (`@repo/contract/library/library-nodes`). Not the editor's kits, which
@@ -206,15 +207,16 @@ draw it.
 
 **fence blocks** — the three rich blocks the **dialect** writes as a fenced
 code block named `inteligir-chart`, `inteligir-canvas` or `inteligir-html`
-(`@repo/editor/markdown/fence-langs`). Not a code block, whose fence names a
-programming language.
+(`@repo/editor/headless/markdown/fence-langs`). Not a code block, whose
+fence names a programming language.
 
 **item link** — a link from one item to another: Plate's mention, its key the
-item's id, in markdown `[Title](mention:<id>)` (`@repo/editor/markdown/md-rules`).
-It shows the title its item goes by now, so no rename breaks it. Not a web
+item's id, in markdown `[Title](mention:<id>)`
+(`@repo/editor/headless/markdown/md-rules`). It shows the title its item goes
+by now, so no rename breaks it. Not a web
 link, and not `[[Title]]`, which only an import and the agent's text read, as
 an item link to the one item so titled or as the text it is
-(`@repo/editor/markdown/remark-wiki-import`).
+(`@repo/editor/headless/markdown/remark-wiki-import`).
 
 **Unsorted** — where an item filed in no folder shows: its folder is none or a
 deleted one (the `unsorted` scope of `@repo/contract/library-scope`), the

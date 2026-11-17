@@ -7,7 +7,7 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Button } from "@repo/ui/components/button";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 

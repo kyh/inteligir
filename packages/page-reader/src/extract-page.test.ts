@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { itemView } from "@repo/editor/codec/item-view";
+import { itemView } from "@repo/editor/headless/codec/item-view";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 import { deriveBody } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";

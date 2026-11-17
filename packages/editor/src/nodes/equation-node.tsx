@@ -11,7 +11,7 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 import { useEditPopover } from "./edit-popover";
 

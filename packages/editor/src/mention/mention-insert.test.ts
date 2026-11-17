@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
-import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/combobox-input";
+import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/headless/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { createAndLink, insertPageLink } from "@repo/editor/mention/mention-insert";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 

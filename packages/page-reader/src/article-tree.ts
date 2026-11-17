@@ -10,7 +10,7 @@ import type { Handle, NodeHandle } from "hast-util-to-mdast";
 import type { Paragraph, Root, Table } from "mdast";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
-import { RICH_FENCE_LANGS } from "@repo/editor/markdown/fence-langs";
+import { RICH_FENCE_LANGS } from "@repo/editor/headless/markdown/fence-langs";
 
 import { DROPPED, HAST, plainParagraph, wordsOf } from "./page-words";
 import { resolveWebUrl } from "./web-url";

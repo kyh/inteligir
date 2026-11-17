@@ -13,8 +13,8 @@ import type {
   itemSummarySchema,
   searchHitSchema,
 } from "@repo/contract/library/library-wire";
-import { viewPage } from "@repo/editor/codec/item-view";
-import type { ViewPage, ViewPorts } from "@repo/editor/codec/item-view";
+import { viewPage } from "@repo/editor/headless/codec/item-view";
+import type { ViewPage, ViewPorts } from "@repo/editor/headless/codec/item-view";
 import { compareText } from "@repo/contract/library/order-key";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";

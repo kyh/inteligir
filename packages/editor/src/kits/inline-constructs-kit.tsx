@@ -6,13 +6,13 @@ import type { PlateElementProps } from "platejs/react";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { convertFormulaToText, FormulaEditForm } from "@repo/editor/formulas/formula-edit";
 import { entryTextOf, pillFromEntryIn, pillNode } from "@repo/editor/formulas/formula-entry";
-import { isFormulaPill, pillOf } from "@repo/editor/formulas/pill-nodes";
+import { isFormulaPill, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 import { useEditPopover } from "@repo/editor/nodes/edit-popover";
 
-import { formulaPillBasePlugin } from "./headless/inline-constructs-base";
+import { formulaPillBasePlugin } from "@repo/editor/headless/kits/inline-constructs-base";
 
 const FormulaPillElement = (props: PlateElementProps) => {
   const { open, setOpen } = useEditPopover();

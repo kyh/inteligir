@@ -8,7 +8,7 @@ import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { cn } from "@repo/ui/lib/cn";
 
-import { numberProp, stringProp } from "@repo/editor/node-props";
+import { numberProp, stringProp } from "@repo/editor/headless/node-props";
 
 const TODO_STYLE_TYPE = "todo";
 

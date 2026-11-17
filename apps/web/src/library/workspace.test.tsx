@@ -2,7 +2,7 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { seedDoc } from "@repo/editor/live/note-blocks";
+import { seedDoc } from "@repo/editor/headless/live/note-blocks";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";

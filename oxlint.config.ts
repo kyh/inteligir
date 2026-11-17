@@ -80,6 +80,29 @@ const CONTRACT_PLATFORM = {
   message: "@repo/contract loads on every client and the Worker",
   regex: NODE_OR_REACT,
 };
+const EDITOR_PLATFORM = {
+  message: "@repo/editor runs in pages and headless in the Worker",
+  regex: NODE,
+};
+// the Worker and the page reader load the editor's headless folder. The Worker's program compiles
+// no jsx, which catches a .tsx; a `platejs/react` import from a .ts file type-checks and drags
+// React into the Worker
+const HEADLESS_FOLDER = "packages/editor/src/headless/**";
+const HEADLESS_PLATFORM = {
+  message: "packages/editor/src/headless/ runs in the Worker: no React half, stylesheet or node",
+  regex:
+    "^(?:node:|react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react$|\\.css$",
+};
+// a regex cannot count a climb's depth, so a headless file names another folder's by name
+const HEADLESS_WALL = {
+  message: "a headless file reaches another folder by @repo/editor/headless/, never by a climb",
+  regex: "(?:^|/)\\.\\./",
+};
+// a group, for its negation
+const HEADLESS_ALONE = {
+  group: ["@repo/editor/**", "!@repo/editor/headless/**"],
+  message: "the Worker and the page reader load @repo/editor/headless/ alone",
+};
 // the phone's note page runs in its web view and reaches the phone only through its props
 const NOTE_PAGE_PLATFORM = {
   allowTypeImports: true,
@@ -109,7 +132,7 @@ const restrictedImports = (patterns: readonly ImportPattern[]) => [
 ];
 const serviceImports = (...stubs: readonly ImportPattern[]) => [
   "error",
-  { patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, ...stubs] },
+  { patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, HEADLESS_ALONE, ...stubs] },
 ];
 const platformPurity = (dir: string, regex: string, message: string, ...more: ImportPattern[]) => ({
   excludeFiles: tests,
@@ -201,16 +224,28 @@ export default defineConfig({
       files: [RPC_FOLDER],
       rules: { "no-restricted-imports": restrictedImports([CONTRACT_PLATFORM]) },
     },
-    platformPurity(
-      "packages/editor",
-      NODE,
-      "@repo/editor runs in pages and headless in the Worker",
-      NO_ORPC_IN_PAGE,
-    ),
+    {
+      excludeFiles: [...tests, HEADLESS_FOLDER],
+      files: ["packages/editor/src/**"],
+      rules: { "no-restricted-imports": restrictedImports([EDITOR_PLATFORM, NO_ORPC_IN_PAGE]) },
+    },
+    {
+      excludeFiles: tests,
+      files: [HEADLESS_FOLDER],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          HEADLESS_PLATFORM,
+          HEADLESS_WALL,
+          HEADLESS_ALONE,
+          NO_ORPC_IN_PAGE,
+        ]),
+      },
+    },
     platformPurity(
       "packages/page-reader",
       NODE_OR_REACT,
       "@repo/page-reader reads over its host's DOM",
+      HEADLESS_ALONE,
     ),
     platformPurity("packages/client", CLIENT_IMPORTS, "@repo/client names no platform and no UI"),
     {
@@ -306,13 +341,13 @@ export default defineConfig({
         "packages/contract/src/knowledge/**",
         "packages/contract/src/library/**",
         "packages/contract/src/text/**",
-        "packages/editor/src/formulas/displays.ts",
-        "packages/editor/src/formulas/expression.ts",
-        "packages/editor/src/formulas/format-result.ts",
-        "packages/editor/src/items/**",
-        "packages/editor/src/knowledge/**",
-        "packages/editor/src/markdown/**",
-        "packages/editor/src/text/**",
+        "packages/editor/src/headless/formulas/displays.ts",
+        "packages/editor/src/headless/formulas/expression.ts",
+        "packages/editor/src/headless/formulas/format-result.ts",
+        "packages/editor/src/headless/items/**",
+        "packages/editor/src/headless/knowledge/**",
+        "packages/editor/src/headless/markdown/**",
+        "packages/editor/src/headless/text/**",
         "packages/service/src/imports/**",
         "packages/service/src/library/library-queries.ts",
         "packages/service/src/library/library-sql.ts",

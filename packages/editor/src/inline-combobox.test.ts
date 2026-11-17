@@ -12,11 +12,11 @@ import {
   ownsPicker,
   racedComboboxText,
   reconcileInsertionCaret,
-} from "@repo/editor/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+} from "@repo/editor/headless/combobox-input";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { seedDoc } from "@repo/editor/live/note-blocks";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { seedDoc } from "@repo/editor/headless/live/note-blocks";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 
 import { docNodes, liveEditor, relay, settle, syncedCopy } from "./test-support/live-notes";
 

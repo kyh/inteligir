@@ -7,7 +7,7 @@ import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { lockedBlockTypes } from "@repo/editor/kits/rich-block-lock-kit";
-import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";

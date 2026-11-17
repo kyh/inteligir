@@ -6,7 +6,7 @@ import type { PlateEditor } from "platejs/react";
 import { describe, expect, it } from "vitest";
 
 import type { LinkTarget } from "@repo/editor/host-io";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { MENTION_PICKER_MAX_ROWS } from "@repo/editor/mention/mention-input";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 

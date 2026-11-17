@@ -11,7 +11,7 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 import { useEditPopover } from "./edit-popover";
 

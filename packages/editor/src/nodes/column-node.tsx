@@ -11,7 +11,7 @@ import type { PlateElementProps } from "platejs/react";
 import { cn } from "@repo/ui/lib/cn";
 
 import { useFrozen, useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 import { LockedContent } from "./rich-block-chrome";
 

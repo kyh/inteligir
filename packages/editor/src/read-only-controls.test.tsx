@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./test-support/editor-harness";

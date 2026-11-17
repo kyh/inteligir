@@ -12,7 +12,7 @@ import { importedFields, stubFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { ImportedFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { parseItemTime } from "@repo/editor/items/item-time";
+import { parseItemTime } from "@repo/editor/headless/items/item-time";
 import Papa from "papaparse";
 
 interface RaindropHighlight {

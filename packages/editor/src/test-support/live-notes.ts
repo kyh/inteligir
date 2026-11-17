@@ -7,8 +7,8 @@ import { YjsEditor, yTextToSlateElement } from "@slate-yjs/core";
 import type { Descendant } from "slate";
 import * as Y from "yjs";
 
-import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/live/yjs-binding";
+import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
+import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/headless/live/yjs-binding";
 
 // the origin a relayed update lands under, which no editor writes as
 const RELAYED = Symbol("relayed");

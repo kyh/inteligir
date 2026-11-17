@@ -8,9 +8,9 @@ import { act, render } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 import { vi } from "vitest";
 
-import { importItem } from "../codec/item-markdown";
+import { importItem } from "../headless/codec/item-markdown";
 import { ItemEditor } from "../item/item-editor";
-import { seedDoc } from "../live/note-blocks";
+import { seedDoc } from "../headless/live/note-blocks";
 import { getLiveEditor } from "../live-editor";
 import { pretendLibrary } from "./codec-ports";
 import { noteServer } from "./note-server";

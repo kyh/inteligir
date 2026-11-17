@@ -3,11 +3,11 @@ import { PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
-import type { Pill } from "@repo/editor/formulas/displays";
-import { renameIn } from "@repo/editor/formulas/expression";
+import type { Pill } from "@repo/editor/headless/formulas/displays";
+import { renameIn } from "@repo/editor/headless/formulas/expression";
 import { entryTextOf, pillFromEntryIn } from "@repo/editor/formulas/formula-entry";
-import { pillEntries, pillOf } from "@repo/editor/formulas/pill-nodes";
-import type { PillEntry } from "@repo/editor/formulas/pill-nodes";
+import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
+import type { PillEntry } from "@repo/editor/headless/formulas/pill-nodes";
 
 // A new name for the pill at `at` spelled into every source that read its old one, so no formula
 // loses what it names. Only the first pill to hold a name is read by it, so a later one's rename

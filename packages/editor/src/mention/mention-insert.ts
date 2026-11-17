@@ -3,7 +3,7 @@ import type { SlateEditor } from "platejs";
 
 import { toast } from "@repo/ui/components/sonner";
 
-import { consumeTriggerLead } from "@repo/editor/combobox-input";
+import { consumeTriggerLead } from "@repo/editor/headless/combobox-input";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import type { LinkTarget } from "@repo/editor/host-io";
 

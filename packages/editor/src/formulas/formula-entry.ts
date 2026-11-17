@@ -3,10 +3,10 @@
 
 import type { SlateEditor, TElement } from "platejs";
 
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import type { Pill } from "@repo/editor/formulas/displays";
-import { isPillName, namesIn, parseExpression } from "@repo/editor/formulas/expression";
-import { pillEntries, pillOf } from "@repo/editor/formulas/pill-nodes";
+import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
+import type { Pill } from "@repo/editor/headless/formulas/displays";
+import { isPillName, namesIn, parseExpression } from "@repo/editor/headless/formulas/expression";
+import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 
 // The pill an entry spells, or null for one that spells none and stays the text it is. A bare
 // formula is one only when a pill holds every name it reads, since any word is a name; a named
@@ -36,7 +36,7 @@ export const pillFromEntryIn = (editor: SlateEditor, entry: string): Pill | null
   );
 
 // the pill as a node, its display left for the normalizer every editor of a note runs
-// (`kits/headless/inline-constructs-base.ts`)
+// (`headless/kits/inline-constructs-base.ts`)
 export const pillNode = ({ name, source }: Pill): TElement => {
   const node: TElement = { children: [{ text: "" }], display: "", source, type: FORMULA_PILL_KEY };
   if (name !== undefined) {

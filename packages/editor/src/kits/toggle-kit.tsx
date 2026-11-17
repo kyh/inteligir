@@ -9,10 +9,10 @@ import { toPlatePlugin } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 import { BaseTogglePlugin } from "@platejs/toggle";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
 
-import { ToggleBodyPlugin } from "./headless/toggle-base";
+import { ToggleBodyPlugin } from "@repo/editor/headless/kits/toggle-base";
 
 export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   editor.tf.withoutNormalizing(() => {

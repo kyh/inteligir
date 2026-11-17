@@ -26,7 +26,7 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { closeOwnPickers } from "@repo/editor/combobox-input";
+import { closeOwnPickers } from "@repo/editor/headless/combobox-input";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import { getEditorHostIo } from "@repo/editor/host-io";
@@ -38,7 +38,7 @@ import {
   flushEdits,
   noteRoot,
   yjsBindingPlugin,
-} from "@repo/editor/live/yjs-binding";
+} from "@repo/editor/headless/live/yjs-binding";
 import { getLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 

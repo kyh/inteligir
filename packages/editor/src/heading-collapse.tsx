@@ -20,7 +20,7 @@ import { createStore } from "zustand/vanilla";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { blockId } from "@repo/editor/node-props";
+import { blockId } from "@repo/editor/headless/node-props";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";

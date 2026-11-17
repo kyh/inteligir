@@ -6,7 +6,7 @@ import { ListPlugin } from "@platejs/list/react";
 
 import { BlockList } from "@repo/editor/block-list";
 
-import { INDENTABLE, INDENT_OPTIONS, LISTABLE } from "./headless/list-base";
+import { INDENTABLE, INDENT_OPTIONS, LISTABLE } from "@repo/editor/headless/kits/list-base";
 
 // what css spells a bullet with; every other style a pasted list carries is a kind of number
 const BULLET_STYLES: ReadonlySet<string> = new Set(["circle", "disc", "none", "square"]);

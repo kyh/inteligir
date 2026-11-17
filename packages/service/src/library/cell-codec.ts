@@ -4,11 +4,11 @@
 // off the type it was uploaded as. A port set lives for one call, so the titles it reads once are
 // those the call's transaction sees.
 
-import type { EditPorts } from "@repo/editor/codec/item-edit";
-import type { ViewPorts } from "@repo/editor/codec/item-view";
-import { libraryLinks } from "@repo/editor/codec/library-links";
-import type { LibraryLookup } from "@repo/editor/codec/library-links";
-import type { BodyPorts } from "@repo/editor/codec/read-body";
+import type { EditPorts } from "@repo/editor/headless/codec/item-edit";
+import type { ViewPorts } from "@repo/editor/headless/codec/item-view";
+import { libraryLinks } from "@repo/editor/headless/codec/library-links";
+import type { LibraryLookup } from "@repo/editor/headless/codec/library-links";
+import type { BodyPorts } from "@repo/editor/headless/codec/read-body";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 import { titleKey } from "@repo/contract/library/derive-item";

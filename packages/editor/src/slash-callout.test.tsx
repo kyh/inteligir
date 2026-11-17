@@ -4,7 +4,7 @@ import { PathApi } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
 import { meaningOf, readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
 

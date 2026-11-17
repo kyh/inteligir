@@ -21,7 +21,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { cn } from "@repo/ui/lib/cn";
 
-import { alertProp } from "@repo/editor/node-props";
+import { alertProp } from "@repo/editor/headless/node-props";
 
 interface AlertPresentation {
   Icon: ComponentType<{ className?: string }>;

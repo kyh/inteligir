@@ -12,11 +12,11 @@ import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socke
 import { deriveBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { applyBodyChanges } from "@repo/editor/live/body-change";
-import type { BodyChange, BodyChangeOutcome } from "@repo/editor/live/body-change";
-import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
-import { noteRoot, yjsBindingPlugin } from "@repo/editor/live/yjs-binding";
-import { BASE_KIT } from "@repo/editor/kits/base-kit";
+import { applyBodyChanges } from "@repo/editor/headless/live/body-change";
+import type { BodyChange, BodyChangeOutcome } from "@repo/editor/headless/live/body-change";
+import { readBlocks, seedDoc } from "@repo/editor/headless/live/note-blocks";
+import { noteRoot, yjsBindingPlugin } from "@repo/editor/headless/live/yjs-binding";
+import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { YjsEditor } from "@slate-yjs/core";
 import {
   appliedOps,

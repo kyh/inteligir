@@ -6,10 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PlateEditor } from "platejs/react";
 import { ElementApi } from "platejs";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { blockOfElement } from "./live/element-block";
+import { blockOfElement } from "./headless/live/element-block";
 import { EditorHarness } from "./test-support/editor-harness";
 
 beforeAll(() => {

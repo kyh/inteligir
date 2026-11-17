@@ -5,8 +5,8 @@ import type { Root } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { MD_REMARK_PLUGINS } from "../markdown/md-plugins";
-import { isMdastRoot } from "../markdown/mdast-nodes";
+import { MD_REMARK_PLUGINS } from "../headless/markdown/md-plugins";
+import { isMdastRoot } from "../headless/markdown/mdast-nodes";
 
 const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS).freeze();
 

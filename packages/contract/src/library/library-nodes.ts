@@ -47,7 +47,7 @@ export const libraryTextSchema = z.strictObject({
 // a void element's one leaf: empty, and marked only when a mark was laid across it
 const voidChildren = z.tuple([libraryTextSchema.extend({ text: z.literal("") })]);
 
-// the indent list's props, which every indentable block may carry (`kits/headless/list-base.ts`),
+// the indent list's props, which every indentable block may carry (`headless/kits/list-base.ts`),
 // spelled into each object below: a spread beside a recursive getter defeats TypeScript's inference
 const listChecked = z.boolean().optional();
 const listIndent = z.number().int().min(1).max(LIST_MAX_INDENT).optional();
@@ -346,7 +346,7 @@ const mention = z.strictObject({
 const date = z.strictObject({ children: voidChildren, date: isoDate, type: z.literal("date") });
 
 // `display` is what `source` gives among its item's pills, written wherever a source lands
-// (`@repo/editor/formulas/displays`); `name` is what another pill's source in the item reads it by
+// (`@repo/editor/headless/formulas/displays`); `name` is what another pill's source in the item reads it by
 const formulaPill = z.strictObject({
   children: voidChildren,
   display: z.string(),

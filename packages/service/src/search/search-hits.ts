@@ -9,7 +9,7 @@ import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import { bodyTexts, items } from "@repo/db/cell/schema";
 import { deriveItem } from "@repo/contract/library/derive-item";
 import type { SearchHits } from "@repo/contract/library/library-index";
-import { findTextOffsets } from "@repo/editor/knowledge/text-matches";
+import { findTextOffsets } from "@repo/editor/headless/knowledge/text-matches";
 
 import { readBodyOpening } from "../library/cell-body";
 import type { CellDb } from "../library/cell-db";

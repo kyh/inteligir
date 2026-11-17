@@ -4,11 +4,11 @@
 
 import { fileKindOf } from "@repo/contract/items/item-kind";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
+import type { WikiReach, WikiTarget } from "@repo/editor/headless/markdown/remark-wiki-import";
 
-import type { FoundFile, ImportPorts } from "../codec/item-markdown";
-import type { LinkedItem } from "../codec/read-blocks";
-import type { WritePorts, WrittenFile } from "../codec/write-blocks";
+import type { FoundFile, ImportPorts } from "../headless/codec/item-markdown";
+import type { LinkedItem } from "../headless/codec/read-blocks";
+import type { WritePorts, WrittenFile } from "../headless/codec/write-blocks";
 
 // 2026-05-28T21:46:40Z, a whole second
 export const CODEC_NOW = 1_780_004_800_000;

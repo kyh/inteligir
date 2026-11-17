@@ -8,7 +8,7 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { isWebUrl } from "@repo/contract/items/item-url";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { useLibraryFile } from "@repo/editor/nodes/library-file";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";

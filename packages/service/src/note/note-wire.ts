@@ -3,7 +3,7 @@
 
 import type { BodyBlock, DerivedBody } from "@repo/contract/library/derive-item";
 import { bodyBlockSchema } from "@repo/contract/library/library-wire";
-import type { BodyChange } from "@repo/editor/live/body-change";
+import type { BodyChange } from "@repo/editor/headless/live/body-change";
 import { z } from "zod";
 
 import type { NoteDO } from "./note-do";

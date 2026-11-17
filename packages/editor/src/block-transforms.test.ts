@@ -13,7 +13,7 @@ import {
 } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { meaningOf, readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const makeEditor = (md: string) => {

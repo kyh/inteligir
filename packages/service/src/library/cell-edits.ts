@@ -7,8 +7,8 @@
 // writer's turn, and lands the note's answered body when it is newer.
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { editItemView } from "@repo/editor/codec/item-edit";
-import type { EditOutcome, ViewEdit } from "@repo/editor/codec/item-edit";
+import { editItemView } from "@repo/editor/headless/codec/item-edit";
+import type { EditOutcome, ViewEdit } from "@repo/editor/headless/codec/item-edit";
 import { z } from "zod";
 
 import { noteBlocksSchema } from "../note/note-wire";

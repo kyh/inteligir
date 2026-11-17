@@ -19,7 +19,7 @@ import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
 import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 // A `listStyleType` block hosts BlockList's <ul> inside it, which inside <p>/<h*> is invalid DOM
 // and React logs a nesting error.

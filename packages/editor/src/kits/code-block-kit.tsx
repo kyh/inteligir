@@ -10,7 +10,7 @@ import { common, createLowlight } from "lowlight";
 import { cn } from "@repo/ui/lib/cn";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 // pele loads with the first diagram a note shows, never with the editor
 const MermaidPreview = lazy(async () => await import("@repo/editor/nodes/code-block-mermaid"));

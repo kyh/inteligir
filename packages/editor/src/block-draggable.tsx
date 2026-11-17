@@ -24,7 +24,7 @@ import { shallow } from "zustand/shallow";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { blockId } from "@repo/editor/node-props";
+import { blockId } from "@repo/editor/headless/node-props";
 import { DRAG_OVERHANG_ATTR } from "@repo/editor/style-hooks";
 
 // A block's NodeIdPlugin id survives both an edit and a move; its node object survives only the move.

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
-import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/headless/combobox-input";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
 import { completeFormulaFromPicker } from "@repo/editor/formulas/formula-insert";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 
 const makeEditor = (text: string) =>
   createSlateEditor({

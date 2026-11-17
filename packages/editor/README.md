@@ -20,16 +20,23 @@ and `@repo/ui`, and no node, oRPC or shell.
 
 ```
 src/
-  markdown/      the dialect over Plate's stock markdown: the plugin list, the rule table, the read
+  headless/      what runs with no React, which the Worker and the page reader load, and nothing
+                 else of the editor (`oxlint.config.ts`):
+    markdown/    the dialect over Plate's stock markdown: the plugin list, the rule table, the read
                  that refuses with a reason, fence names, the frontmatter fence, `serializeNote`
-  codec/         an item as markdown, headless: an import's plan, file and frontmatter, the agent's
-                 view and edits
-  kits/          the plugin kits: the shared content kit, the desktop and touch profiles, the headless mirror
-  nodes/         every node type as a Base (headless) + React pair
+    codec/       an item as markdown: an import's plan, file and frontmatter, the agent's view and
+                 edits
+    kits/        the base kits the codec's editor is built from, the mirror of the React kits
+    live/        a note's live document: the binding, the blocks it seeds and reads, a writer's edits
+    formulas/    a pill's source, what it shows and its nodes
+    knowledge/, items/, text/, lib/    an import's link targets, an item's instants, the one diff,
+                 what a url embeds as
+    *.ts         the Slate decode boundary, the dialect's node keys, a picker's input
+  kits/          the plugin kits: the shared content kit, the desktop and touch profiles
+  nodes/         every node type's component
   item/          an item edited by its id: its editor and its note's connection
-  live/          a note's live document: the binding, the blocks it seeds and reads, a writer's edits
-  formulas/, mention/                formula pills, the `[[` picker
-  knowledge/, items/, text/, lib/    an import's link targets, an item's instants, the one diff, helpers
+  formulas/, mention/                what a person types for a pill and its picker, the `[[` picker
+  lib/           a drawing made inert, the page's door to the web
   test-support/  the fake host, memory notes behind a fake socket, the corpus fixtures
   *.ts(x)        the editor surface and its in-document affordances, and the host seam
 styles-entry.css what a host imports as `@repo/editor/styles.css`: the rules and the sources Tailwind scans

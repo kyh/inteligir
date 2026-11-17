@@ -12,10 +12,10 @@ import { sameJson } from "@repo/contract/library/canonical-json";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 
-import { settledAlone } from "@repo/editor/formulas/pill-nodes";
+import { settledAlone } from "@repo/editor/headless/formulas/pill-nodes";
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { blockOfElement } from "@repo/editor/live/element-block";
-import { ownUndoStep } from "@repo/editor/live/yjs-binding";
+import { blockOfElement } from "@repo/editor/headless/live/element-block";
+import { ownUndoStep } from "@repo/editor/headless/live/yjs-binding";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 

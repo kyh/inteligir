@@ -7,7 +7,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { formatIsoDate, parseIsoDate } from "@repo/contract/iso-date";
 
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 import { cn } from "@repo/ui/lib/cn";
 

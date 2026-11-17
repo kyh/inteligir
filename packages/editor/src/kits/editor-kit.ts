@@ -10,7 +10,7 @@ import { EmbedKit } from "@repo/editor/kits/embed-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
 import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
-import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
+import { MarkdownKit } from "@repo/editor/headless/kits/markdown-kit";
 import { MathKit } from "@repo/editor/kits/math-kit";
 import { MentionKit } from "@repo/editor/kits/mention-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
@@ -26,9 +26,9 @@ import { SelectionToolbarKit } from "@repo/editor/selection-toolbar";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { TocKit } from "@repo/editor/toc";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
-import { PickerRaceKit } from "@repo/editor/combobox-input";
-import { ReadOnlyGuardPlugin } from "@repo/editor/live/edit-guard";
-import { NoteSectionPlugin } from "@repo/editor/live/note-section";
+import { PickerRaceKit } from "@repo/editor/headless/combobox-input";
+import { ReadOnlyGuardPlugin } from "@repo/editor/headless/live/edit-guard";
+import { NoteSectionPlugin } from "@repo/editor/headless/live/note-section";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations and the
 // markdown wiring. Every surface composes this whole, so a note reads

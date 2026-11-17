@@ -13,8 +13,8 @@ import {
   HTML_BLOCK_KEY,
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
-} from "@repo/editor/dialect-node-keys";
-import { editGuard } from "@repo/editor/live/edit-guard";
+} from "@repo/editor/headless/dialect-node-keys";
+import { editGuard } from "@repo/editor/headless/live/edit-guard";
 
 const RICH_BLOCK_LOCK_KEY = "richBlockLock";
 

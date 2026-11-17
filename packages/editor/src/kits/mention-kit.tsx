@@ -5,7 +5,7 @@ import { MentionInputPlugin, MentionPlugin } from "@platejs/mention/react";
 
 import { MentionChip } from "@repo/editor/mention/mention-chip";
 import { MentionInputElement } from "@repo/editor/mention/mention-input";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 const MentionElement = (props: PlateElementProps) => {
   const itemId = stringProp(props.element, "key") ?? "";

@@ -2,7 +2,7 @@
 // no extractor, so a program typed without a DOM (the cloud's Worker,
 // apps/web/src/worker/tsconfig.json) can name what `read-html.ts` answers.
 
-import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
+import type { ArticleBlocks } from "@repo/editor/headless/codec/item-markdown";
 
 // a page to read: its html, the address it was read at, and which text it is kept for, its prose or
 // (a video's, a song's) its description

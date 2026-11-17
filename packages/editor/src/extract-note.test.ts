@@ -16,7 +16,7 @@ import type { ItemActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { seedDoc } from "@repo/editor/live/note-blocks";
+import { seedDoc } from "@repo/editor/headless/live/note-blocks";
 import { YjsEditor } from "@slate-yjs/core";
 import * as Y from "yjs";
 

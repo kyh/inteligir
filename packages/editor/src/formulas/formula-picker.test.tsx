@@ -4,9 +4,9 @@ import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { describe, expect, it } from "vitest";
 
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
+import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "../test-support/editor-harness";

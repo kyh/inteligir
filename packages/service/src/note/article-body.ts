@@ -4,7 +4,7 @@
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { BodyChange } from "@repo/editor/live/body-change";
+import type { BodyChange } from "@repo/editor/headless/live/body-change";
 
 const articleAt = (blocks: readonly BodyBlock[]): number => {
   const at = blocks.findIndex(({ section }) => section === "article");

@@ -6,7 +6,7 @@ import type { PlateEditor } from "platejs/react";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { EquationElement, InlineEquationElement } from "@repo/editor/nodes/equation-node";
 
-import { EquationBasePlugin, InlineEquationBasePlugin } from "./headless/math-base";
+import { EquationBasePlugin, InlineEquationBasePlugin } from "@repo/editor/headless/kits/math-base";
 
 export const insertEquation = (editor: PlateEditor): void => {
   insertVoidAndEscape(editor, {

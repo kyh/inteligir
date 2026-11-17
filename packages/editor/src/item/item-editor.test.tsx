@@ -18,7 +18,7 @@ import { deferred } from "@repo/contract/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { openFindBar } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
+import { readBlocks, seedDoc } from "@repo/editor/headless/live/note-blocks";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { NOTES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 

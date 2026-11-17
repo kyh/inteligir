@@ -2,9 +2,9 @@ import { ElementApi, TextApi } from "platejs";
 import type { Descendant } from "platejs";
 
 import { shownTitle } from "@repo/contract/items/item-name";
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
+import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { libraryTitles } from "@repo/editor/host-io";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 
 // A node's words as the editor draws them: a page link by the name its item goes by now (the one its
 // chip shows), else the title it was written with, and a date and a formula as they show.

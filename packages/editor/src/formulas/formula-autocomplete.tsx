@@ -11,11 +11,11 @@ import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
 import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import type { PickerRow } from "@repo/editor/inline-combobox";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
-import { formulaInputBasePlugin } from "../kits/headless/picker-input-base";
-import { stringProp } from "@repo/editor/node-props";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
+import { formulaInputBasePlugin } from "@repo/editor/headless/kits/picker-input-base";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { completeFormulaFromPicker } from "@repo/editor/formulas/formula-insert";
-import { pillEntries, pillOf } from "@repo/editor/formulas/pill-nodes";
+import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 
 // a name the note's pills hold, once each, with what the pill it reads shows
 interface VariableRow extends PickerRow {

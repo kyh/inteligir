@@ -11,12 +11,12 @@ import { PlusIcon, XIcon } from "lucide-react";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/dialect-node-keys";
+import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { useFrozen, useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
-import { stringProp } from "@repo/editor/node-props";
+import { stringProp } from "@repo/editor/headless/node-props";
 import { LockedContent } from "@repo/editor/nodes/rich-block-chrome";
 
-import { tabGroupBasePlugin, tabPanelBasePlugin } from "./headless/tabs-base";
+import { tabGroupBasePlugin, tabPanelBasePlugin } from "@repo/editor/headless/kits/tabs-base";
 
 const ActiveTabContext = createContext(0);
 

@@ -1,5 +1,5 @@
 // A zip of markdown read into the library, this app's export or an Obsidian vault, by the codec's
-// plan (`@repo/editor/codec/import-plan`): pass one lists the zip, keeps each note's frontmatter and
+// plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each note's frontmatter and
 // sends every file up by its sha; the cell says how each planned note stands; pass two reads each
 // new note whole and lands it; last, every file no item names becomes an item of its own. An item's
 // id comes from the zip's listing and its path, so reading the same zip again lands nothing twice.
@@ -15,10 +15,10 @@ import {
   planFileItems,
   planImport,
   unwrapExport,
-} from "@repo/editor/codec/import-plan";
-import type { ImportEntry, PlanIds, PlannedDoc } from "@repo/editor/codec/import-plan";
-import { frontmatterEnd } from "@repo/editor/markdown/frontmatter";
-import { lfOnly } from "@repo/editor/markdown/md-read";
+} from "@repo/editor/headless/codec/import-plan";
+import type { ImportEntry, PlanIds, PlannedDoc } from "@repo/editor/headless/codec/import-plan";
+import { frontmatterEnd } from "@repo/editor/headless/markdown/frontmatter";
+import { lfOnly } from "@repo/editor/headless/markdown/md-read";
 import { BlobReader, ZipReader } from "@zip.js/zip.js/lib/zip-core-native.js";
 import type { FileEntry } from "@zip.js/zip.js/lib/zip-core-native.js";
 

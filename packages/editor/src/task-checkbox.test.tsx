@@ -6,7 +6,7 @@ import { render } from "@testing-library/react";
 import type { Value } from "platejs";
 import { describe, expect, it } from "vitest";
 
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
