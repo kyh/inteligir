@@ -70,8 +70,7 @@ describe("a saved link's reading", () => {
       expect(item?.fields).toMatchObject({
         author: "Ada Lindqvist",
         description: "A short argument for plain files over databases.",
-        fetchError: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         lang: "en",
         published: "2024-03-04",
         site: "Field Notes",
@@ -103,7 +102,7 @@ describe("a saved link's reading", () => {
       serveWeb({ [url]: htmlPage(html) });
       await expect(deliver(job)).resolves.toMatchObject({ acked: true });
       const item = await itemIn(accountId, itemId);
-      expect(item?.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
+      expect(item?.fields).toMatchObject({ reading: { state: "read" } });
       // every page gives an article or, a video's, the words it says of itself
       const article = [...(item?.blocks.values() ?? [])].filter(
         (stored) => stored.section === "article",
@@ -126,8 +125,7 @@ describe("a saved link's reading", () => {
       });
       await expect(deliver(job)).resolves.toMatchObject({ acked: true });
       await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-        fetchError: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         url,
       });
     },
@@ -150,7 +148,7 @@ describe("a saved link's reading", () => {
     expect(item?.fields).toMatchObject({
       // the page's own byline wins over what the host's oEmbed says
       author: "Crumb Kitchen",
-      fetchState: "filled",
+      reading: { state: "read" },
       kind: "video",
     });
     expect(textOfSection(item, "article")).not.toBe("[]");
@@ -166,7 +164,7 @@ describe("a saved link's reading", () => {
     });
     await deliver(job);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ fetchState: "filled", kind: "video" });
+    expect(item?.fields).toMatchObject({ reading: { state: "read" }, kind: "video" });
     const article = textOfSection(item, "article");
     expect(article).toContain("A quick guide to a first loaf");
     expect(article).not.toContain("Great video");
@@ -182,7 +180,7 @@ describe("a saved link's reading", () => {
     });
     await deliver(job);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ fetchState: "filled", kind: "audio" });
+    expect(item?.fields).toMatchObject({ reading: { state: "read" }, kind: "audio" });
     expect(textOfSection(item, "article")).toContain("A quick guide to a first loaf");
   });
 
@@ -201,7 +199,11 @@ describe("a saved link's reading", () => {
     });
     await deliver(job);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ author: "A Poster", fetchState: "filled", site: "X" });
+    expect(item?.fields).toMatchObject({
+      author: "A Poster",
+      reading: { state: "read" },
+      site: "X",
+    });
     expect(textOfSection(item, "article")).toContain("Words only the host's answer holds.");
   });
 
@@ -257,7 +259,11 @@ describe("a saved link's reading", () => {
     await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ author: null, fetchState: "filled", title: "A post" });
+    expect(item?.fields).toMatchObject({
+      author: null,
+      reading: { state: "read" },
+      title: "A post",
+    });
     expect(textOfSection(item, "article")).toContain("Words worth keeping.");
   });
 
@@ -272,7 +278,11 @@ describe("a saved link's reading", () => {
     await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
     expect(web.asked.map((hop) => hop.url)).toContain(endpoint);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ author: null, fetchState: "filled", title: "A post" });
+    expect(item?.fields).toMatchObject({
+      author: null,
+      reading: { state: "read" },
+      title: "A post",
+    });
     expect(textOfSection(item, "article")).toContain("Words worth keeping.");
   });
 
@@ -282,7 +292,7 @@ describe("a saved link's reading", () => {
     serveWeb({ [url]: filePage(PDF, "application/pdf") });
     await deliver(job);
     const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({ fetchState: "filled", kind: "pdf" });
+    expect(item?.fields).toMatchObject({ reading: { state: "read" }, kind: "pdf" });
     const kept = await env.BLOBS.head(blobKey(accountId, item?.fields.originalSha ?? ""));
     expect(kept?.httpMetadata?.contentType).toBe("application/pdf");
     expect(kept?.size).toBe(PDF.length);
@@ -307,7 +317,9 @@ describe("a saved link's reading", () => {
     const web = serveWeb({ [url]: htmlPage(blogPost) });
     await deliver(job);
     expect(web.asked[0]?.url).toBe(url);
-    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({ fetchState: "filled" });
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
+      reading: { state: "read" },
+    });
   });
 });
 
@@ -323,14 +335,15 @@ describe("a reading that did not land a page", () => {
       delays.push(delivered.delaySeconds);
     }
     expect(delays).toStrictEqual([30, 60, 120]);
-    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({ fetchState: "pending" });
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
+      reading: { state: "pending" },
+    });
     await expect(deliver(job, { attempts: 4 })).resolves.toMatchObject({
       acked: true,
       retried: false,
     });
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError: "The site answered 503 (service unavailable).",
-      fetchState: "failed",
+      reading: { error: "The site answered 503 (service unavailable).", state: "failed" },
     });
   });
 
@@ -340,8 +353,7 @@ describe("a reading that did not land a page", () => {
     serveWeb({});
     await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError: "The site answered 404 (not found).",
-      fetchState: "failed",
+      reading: { error: "The site answered 404 (not found).", state: "failed" },
     });
   });
 
@@ -354,14 +366,13 @@ describe("a reading that did not land a page", () => {
       "http://192.168.1.20/admin",
       "The cloud opens pages by name, so an address written as numbers isn't read.",
     ],
-  ])("asks nothing of %s, and says why at once", async (url, fetchError) => {
+  ])("asks nothing of %s, and says why at once", async (url, error) => {
     const { accountId, itemId, job } = await savedLink(url);
     const web = serveWeb({});
     await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
     expect(web.asked).toStrictEqual([]);
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError,
-      fetchState: "failed",
+      reading: { error, state: "failed" },
     });
   });
 
@@ -374,7 +385,10 @@ describe("a reading that did not land a page", () => {
     await deliver(job);
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError: "The page pointed at an address on your own network, so it isn't read.",
+      reading: {
+        error: "The page pointed at an address on your own network, so it isn't read.",
+        state: "failed",
+      },
     });
   });
 
@@ -386,8 +400,7 @@ describe("a reading that did not land a page", () => {
     });
     expect(web.asked).toStrictEqual([]);
     await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
-      fetchError: "The page couldn't be reached.",
-      fetchState: "failed",
+      reading: { error: "The page couldn't be reached.", state: "failed" },
     });
   });
 });

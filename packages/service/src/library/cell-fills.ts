@@ -14,7 +14,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { jobs } from "@repo/db/cell/schema";
-import { readingOf, withReading } from "@repo/contract/library/item-reading";
+import { withPage, withReading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem } from "./library-queries";
 import type { StoredItem } from "./library-queries";
@@ -32,7 +32,7 @@ import type { Lease } from "./cell-jobs";
 import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
 import type { CellResult } from "./cell-refusal";
-import { landRead, withPage } from "./cell-saves";
+import { landRead } from "./cell-saves";
 import { foldReading } from "./change-sets";
 import { landFields } from "./cell-writes";
 import type { LibraryEngine } from "./library-engine";
@@ -76,7 +76,7 @@ const waitsForFill = (
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
 } =>
-  readingOf(item.fields).state === "pending" &&
+  item.fields.reading.state === "pending" &&
   item.fields.url !== null &&
   item.fields.deletedAt === null;
 
@@ -175,7 +175,7 @@ const waiting = (item: StoredItem | null, url: string): item is StoredItem => {
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
-    readingOf(item.fields).state === "pending" &&
+    item.fields.reading.state === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)
   );

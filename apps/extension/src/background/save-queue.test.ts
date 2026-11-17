@@ -240,6 +240,13 @@ describe("a save that waits", () => {
     await expect(alarmStands()).resolves.toBe(false);
   });
 
+  it("is sent with the empty title of a tab that gave none, a link with no name yet", async () => {
+    await keepSave(waiting({ title: "" }));
+    const cloud = fakeCloud({});
+    await sendQueued(depsWith(cloud));
+    expect(cloud.links).toMatchObject([{ title: "", url: "https://example.test/file-over-app" }]);
+  });
+
   it("is sent only under its own account's session", async () => {
     await keepSave(waiting({ email: OTHER_SESSION.email }));
     await keepSave(waiting({ opId: THIRD }));

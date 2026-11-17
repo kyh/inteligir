@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import {
   bookmarkFields,
@@ -215,11 +214,9 @@ describe(bookmarkFields, () => {
     expect(importedFieldsSchema.safeParse(fields).error?.issues).toBeUndefined();
     expect(fields).toMatchObject({
       description: "An excerpt.",
-      fetchError: null,
-      fetchState: "pending",
-      fetchedAt: null,
       kind: "link",
       pinnedAt: Date.UTC(2023, 6, 1, 9, 12, 30),
+      reading: { at: null, state: "pending" },
       savedAt: Date.UTC(2023, 6, 1, 9, 12, 30),
       tags: ["ideas"],
       title: "A post",
@@ -227,12 +224,11 @@ describe(bookmarkFields, () => {
     });
   });
 
-  it("names an untitled bookmark after its address, and cuts a title to a line", () => {
-    const url = "https://example.com/untitled";
+  it("leaves an untitled bookmark for its page to name, and cuts a title to a line", () => {
     const [untitled, long] = fieldsOf(
-      `title,url\n,${url}\n${"t".repeat(ITEM_FIELD_CAPS.line + 1)},https://example.com/long\n`,
+      `title,url\n,https://example.com/untitled\n${"t".repeat(ITEM_FIELD_CAPS.line + 1)},https://example.com/long\n`,
     );
-    expect(untitled).toMatchObject({ pinnedAt: null, title: itemNameFromUrl(url) });
+    expect(untitled).toMatchObject({ pinnedAt: null, title: "" });
     expect(long?.title).toHaveLength(ITEM_FIELD_CAPS.line);
   });
 });

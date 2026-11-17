@@ -22,11 +22,12 @@ type Items = V1Client["library"]["items"];
 export type PageSave = Parameters<Items["save"]>[0];
 export type LinkSave = Parameters<Items["saveLink"]>[0];
 export type FileCreate = Parameters<Items["createFile"]>[0];
-// what the extension reads of a save's answer: the item's name as it landed, and whether the save
-// made it or the library already held the address
+// what the extension reads of a save's answer: the name the item's card goes by, which a link
+// nobody named yet takes from its address, and whether the save made it or the library already
+// held the address
 export interface Saved {
   readonly created: boolean;
-  readonly item: { readonly fields: { readonly title: string } };
+  readonly item: { readonly card: { readonly title: string } };
 }
 
 // what a save asks of the cloud: the library's two saves and a file's create, and `/v1` for the

@@ -18,7 +18,7 @@ const page = (title: string, head: string, article: string): string =>
 
 const settled = async (library: V1Client["library"], id: string) => {
   const read = await library.items.read({ id });
-  return read.fields.fetchState === "pending" ? null : read;
+  return read.fields.reading.state === "pending" ? null : read;
 };
 
 // the cover's sha, which only an item's whole row carries
@@ -65,9 +65,8 @@ test("a link pasted on the grid is read by the Worker's own fill, and saved agai
   expect(read.fields).toMatchObject({
     author: "Ada Example",
     description: "Why a folder of text files outlasts every app.",
-    fetchError: null,
-    fetchState: "filled",
     kind: "link",
+    reading: { state: "read" },
     site: "The Example Journal",
     title: "Keeping notes in plain files",
     url,
@@ -136,8 +135,7 @@ Highlight: Apps are ephemeral.",false
   await expect.poll(async () => await settled(library, live ?? "")).not.toBeNull();
   const liveRead = await library.items.read({ id: live ?? "" });
   expect(liveRead.fields).toMatchObject({
-    fetchError: null,
-    fetchState: "filled",
+    reading: { state: "read" },
     site: "Steph Ango",
     tags: ["files"],
   });
@@ -153,8 +151,7 @@ Highlight: Apps are ephemeral.",false
   await expect.poll(async () => await settled(library, dead ?? "")).not.toBeNull();
   const deadRead = await library.items.read({ id: dead ?? "" });
   expect(deadRead.fields).toMatchObject({
-    fetchError: "The site answered 404 (not found).",
-    fetchState: "failed",
+    reading: { error: "The site answered 404 (not found).", state: "failed" },
   });
   expect(deadRead.view.markdown).toContain("> Words the page no longer holds.");
   // no cover is fetched for a page the fill could not read

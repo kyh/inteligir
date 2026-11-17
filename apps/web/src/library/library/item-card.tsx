@@ -4,7 +4,6 @@
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { shownTitle } from "@repo/contract/items/item-name";
-import { readingOf } from "@repo/contract/library/item-reading";
 import {
   MediaCard,
   MediaCardBadge,
@@ -112,7 +111,7 @@ const CoverImage = ({ sha }: { sha: string }) => {
 };
 
 const CoverArea = ({ row }: { row: ListedItem }) => {
-  if (readingOf(row.fields).state === "pending") {
+  if (row.fields.reading.state === "pending") {
     return (
       <div className="flex size-full items-center justify-center bg-muted/60">
         <span className="text-body text-muted-foreground">Not read yet</span>
@@ -152,7 +151,7 @@ export const ItemCard = ({
   const playable =
     (row.fields.kind === "video" || row.fields.kind === "audio") && row.fields.coverSha !== null;
   const title = shownTitle(row.card.title);
-  const reading = readingOf(row.fields);
+  const { reading } = row.fields;
   return (
     <MediaCard
       selected={selected}

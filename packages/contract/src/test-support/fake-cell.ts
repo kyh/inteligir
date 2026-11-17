@@ -7,8 +7,9 @@
 // one moved, a verb of the cell's lands the fields the cell's own rules compute, an op id is
 // answered once, a file must be uploaded before a write names it, every write takes the library's
 // next sequence, and a read answers through the cell's own derivation and listing
-// (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). A suite seeds it
-// without a call, and reads an item back as a listing or `items.get` answers it.
+// (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). The cases in
+// `./cell-conformance` hold it to the real cell, which runs them too. A suite seeds it without a
+// call, and reads an item back as a listing or `items.get` answers it.
 
 import { createORPCClient } from "@orpc/client";
 import type { ClientContext, ClientLink } from "@orpc/client";
@@ -34,7 +35,8 @@ import { canonicalJson } from "../library/canonical-json";
 import { folderOpLanding, folderOpRefusal, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
-import { withReading } from "../library/item-reading";
+import { takesRead, withPage, withReading } from "../library/item-reading";
+import type { ReadPage } from "../library/item-reading";
 import type { PropertyOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
@@ -137,6 +139,8 @@ export const createFakeCell = (): FakeCell => {
   let head = 0;
   let signedOut = false;
   const items = new Map<string, CellItem>();
+  // the ids of the items Deleted was emptied of
+  const tombstones = new Set<string>();
   const folders = new Map<string, FolderRow>();
   // each file's bytes, and its type as its upload named it
   const blobs = new Map<
@@ -283,14 +287,20 @@ export const createFakeCell = (): FakeCell => {
     return { ...liveRow(id, item), blocks: [...item.blocks] };
   };
 
+  // an id is made once: an item holds it, or a purged one kept it
   const made = (id: string): void => {
-    if (items.has(id)) {
+    if (items.has(id) || tombstones.has(id)) {
       throw new ConflictError();
     }
   };
 
   // a save of the address an item holds: that item as it stands
   const answerHeld = (id: string) => ({ created: false, item: liveRow(id, holding(id)) });
+
+  // a device's read on the item that holds its address: its fields once the page is read into
+  // them, and its article after the item's own blocks
+  const landRead = (id: string, item: CellItem, page: ReadPage, article: readonly BodyBlock[]) =>
+    land(id, withPage(item.fields, page, NOW), [...item.blocks, ...article]);
 
   // the folder a write files into, a live one the library holds; the fake files by id alone
   const folderIdOf = (target: FolderTarget | undefined): string | null | undefined => {
@@ -305,6 +315,29 @@ export const createFakeCell = (): FakeCell => {
       throw new NotFoundError();
     }
     return target.id;
+  };
+
+  // To Deleted, or back: an item already where it is asked to be counts as changed and lands
+  // nothing, an id naming no item is missing, and an item whose address another live item holds
+  // now stays in Deleted
+  const setDeleted = (ids: readonly string[], deleted: boolean) => {
+    const changed: string[] = [];
+    const missing: string[] = [];
+    const addressHeld: string[] = [];
+    for (const id of new Set(ids)) {
+      const item = items.get(id);
+      if (item === undefined) {
+        missing.push(id);
+      } else if ((item.fields.deletedAt !== null) === deleted) {
+        changed.push(id);
+      } else if (!deleted && item.fields.url !== null && holderOf(item.fields.url) !== null) {
+        addressHeld.push(id);
+      } else {
+        land(id, { ...item.fields, deletedAt: deleted ? NOW : null }, item.blocks);
+        changed.push(id);
+      }
+    }
+    return { addressHeld, changed, missing };
   };
 
   // tags, folder, pin and title for each item, as the cell's own organize leaves them
@@ -354,6 +387,7 @@ export const createFakeCell = (): FakeCell => {
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
   const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
   const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
+  const deletedSchema = z.object({ deleted: z.array(z.string()), missing: z.array(z.string()) });
   const restoredSchema = z.object({
     addressHeld: z.array(z.string()),
     missing: z.array(z.string()),
@@ -391,21 +425,19 @@ export const createFakeCell = (): FakeCell => {
             return land(input.id, fileFields({ ...input, mime }), []);
           }),
         ),
-        delete: os.library.items.delete.handler(({ input }) => {
-          const deleted = input.ids.filter((id) => items.has(id));
-          for (const id of deleted) {
-            const item = holding(id);
-            land(id, { ...item.fields, deletedAt: NOW }, item.blocks);
-          }
-          return { deleted, missing: input.ids.filter((id) => !deleted.includes(id)) };
-        }),
+        delete: os.library.items.delete.handler(({ input }) =>
+          once(input.opId, deletedSchema, () => {
+            const { changed, missing } = setDeleted(input.ids, true);
+            return { deleted: changed, missing };
+          }),
+        ),
         get: os.library.items.get.handler(({ input }) => held(input.id)),
         organize: os.library.items.organize.handler(({ input }) =>
           once(input.opId, organizedSchema, () => ({
             items: organize(input).map(({ id }) => itemSummary(listingRow(id, holding(id)))),
           })),
         ),
-        // emptying Deleted: an item there goes for good, and any other id is missing
+        // emptying Deleted: an item there goes for good, its id kept, and any other id is missing
         purge: os.library.items.purge.handler(({ input }) =>
           once(input.opId, purgedSchema, () => {
             const purged: string[] = [];
@@ -416,6 +448,7 @@ export const createFakeCell = (): FakeCell => {
                 missing.push(id);
               } else {
                 items.delete(id);
+                tombstones.add(id);
                 purged.push(id);
               }
             }
@@ -434,38 +467,31 @@ export const createFakeCell = (): FakeCell => {
         ),
         restore: os.library.items.restore.handler(({ input }) =>
           once(input.opId, restoredSchema, () => {
-            const known = input.ids.filter((id) => items.has(id));
-            const addressHeld = known.filter((id) => {
-              const address = holding(id).fields.url;
-              const holder = address === null ? null : holderOf(address);
-              return holder !== null && holder !== id;
-            });
-            const restored = known.filter((id) => !addressHeld.includes(id));
-            for (const id of restored) {
-              const item = holding(id);
-              land(id, { ...item.fields, deletedAt: null }, item.blocks);
-            }
-            return {
-              addressHeld,
-              missing: input.ids.filter((id) => !known.includes(id)),
-              restored,
-            };
+            const { addressHeld, changed, missing } = setDeleted(input.ids, false);
+            return { addressHeld, missing, restored: changed };
           }),
         ),
         row: os.library.items.row.handler(({ input }) => liveRow(input.id, holding(input.id))),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
+            const article = input.article.map((block): BodyBlock => ({
+              block,
+              section: "article",
+            }));
             const holder = holderOf(input.url);
             if (holder !== null) {
-              return answerHeld(holder);
+              const item = holding(holder);
+              return takesRead(item.fields.reading, deriveBody(item.blocks).digest.article, input)
+                ? { created: false, ...landRead(holder, item, input, article) }
+                : answerHeld(holder);
             }
             made(input.id);
             return {
               created: true,
               ...land(input.id, pageFields(input, NOW), [
                 ...noteBlocks(input.id, input.note),
-                ...input.article.map((block): BodyBlock => ({ block, section: "article" })),
+                ...article,
               ]),
             };
           }),

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { blankItemFields, stubFields } from "./item-makes";
-import { readingAfter, readingFields, readingOf, withReading } from "./item-reading";
+import { readingAfter, takesRead, withReading } from "./item-reading";
 import type { Reading, ReadingEvent } from "./item-reading";
-import { FETCH_STATES } from "./library-item";
+import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
+import { paragraph } from "../test-support/library-items";
 
 const AT = 1_700_000_000_000;
 const LATER = AT + 60_000;
@@ -21,48 +22,39 @@ const ASKED: ReadingEvent = { kind: "asked" };
 const LANDED: ReadingEvent = { at: LATER, kind: "read" };
 const BROKE: ReadingEvent = { at: LATER, error: "Timed out.", kind: "failed" };
 
-// a link's fields holding `reading`, and the reading `event` leaves them
-const landed = (reading: Reading, event: ReadingEvent): Reading => {
-  const fields: LibraryItemFields = {
-    ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
-    ...readingFields(reading),
-  };
-  return readingOf(withReading(fields, event));
-};
+const linkWith = (reading: Reading): LibraryItemFields => ({
+  ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
+  reading,
+});
+
+// the reading `event` leaves a link holding `reading`
+const landed = (reading: Reading, event: ReadingEvent): Reading =>
+  withReading(linkWith(reading), event).reading;
 
 describe("a saved page's reading", () => {
-  it("reads every triple of its fields as one reading, a failure that said nothing included", () => {
-    const errors = [null, WHY];
-    const times = [null, AT];
-    const read = FETCH_STATES.flatMap((fetchState) =>
-      errors.flatMap((fetchError) =>
-        times.map((fetchedAt) => readingOf({ fetchError, fetchState, fetchedAt })),
-      ),
-    );
-    expect(read).toStrictEqual([
-      NONE,
-      NONE,
-      NONE,
-      NONE,
-      WAITING,
-      AGAIN,
-      WAITING,
-      AGAIN,
-      { at: null, state: "read" },
-      READ,
-      { at: null, state: "read" },
-      READ,
-      { at: null, error: "The page couldn't be read.", state: "failed" },
-      { at: AT, error: "The page couldn't be read.", state: "failed" },
-      { at: null, error: WHY, state: "failed" },
-      FAILED,
-    ]);
-  });
-
-  it("writes each reading back as the fields it reads from", () => {
-    for (const reading of [NONE, WAITING, READ, FAILED, AGAIN]) {
-      expect(readingOf(readingFields(reading))).toStrictEqual(reading);
+  it("is one value an item's fields hold, and no other pairing of its parts", () => {
+    for (const reading of [NONE, WAITING, AGAIN, READ, FAILED]) {
+      expect(libraryItemFieldsSchema.parse(linkWith(reading)).reading).toStrictEqual(reading);
     }
+    for (const reading of [
+      { at: AT, state: "failed" },
+      { at: AT, error: "", state: "failed" },
+      { at: null, state: "read" },
+      { state: "filled" },
+    ]) {
+      expect(libraryItemFieldsSchema.validate({ ...linkWith(NONE), reading })).toBe(false);
+    }
+    // a read page says nothing of a failure, and a note nothing of a time
+    expect(
+      libraryItemFieldsSchema.parse({
+        ...linkWith(NONE),
+        reading: { at: AT, error: WHY, state: "read" },
+      }).reading,
+    ).toStrictEqual(READ);
+    expect(
+      libraryItemFieldsSchema.parse({ ...linkWith(NONE), reading: { at: AT, state: "none" } })
+        .reading,
+    ).toStrictEqual(NONE);
   });
 
   it("waits once asked, keeping when it was last read, and lands a reading or its failure", () => {
@@ -83,5 +75,15 @@ describe("a saved page's reading", () => {
     expect(withReading(note, LANDED)).toStrictEqual(note);
     expect(withReading(note, BROKE)).toStrictEqual(note);
     expect(readingAfter(READ, BROKE)).toStrictEqual(READ);
+  });
+
+  it("takes a device's read that found an article, only while it waits or failed with none of its own", () => {
+    const found = { article: [paragraph("p1", "Read.")] };
+    const takers = [NONE, WAITING, AGAIN, READ, FAILED].filter((reading) =>
+      takesRead(reading, false, found),
+    );
+    expect(takers).toStrictEqual([WAITING, AGAIN, FAILED]);
+    expect(takesRead(WAITING, true, found)).toBe(false);
+    expect(takesRead(WAITING, false, { article: [] })).toBe(false);
   });
 });

@@ -187,6 +187,7 @@ export const readItemView = (
   ]);
   into.delete(input.id);
   const { fields } = item;
+  const { reading } = fields;
   const detailed = input.responseFormat === "detailed";
   return {
     fields: {
@@ -194,13 +195,15 @@ export const readItemView = (
       author: fields.author,
       deletedAt: fields.deletedAt === null ? null : isoOf(fields.deletedAt),
       description: fields.description,
-      fetchError: fields.fetchError,
-      fetchState: fields.fetchState,
       folderId: fields.folderId,
       kind: fields.kind,
       pinned: fields.pinnedAt !== null,
       properties: detailed ? fields.properties : undefined,
       published: fields.published,
+      reading:
+        reading.state === "none"
+          ? reading
+          : { ...reading, at: reading.at === null ? null : isoOf(reading.at) },
       savedAt: isoOf(fields.savedAt),
       site: fields.site,
       tags: fields.tags,

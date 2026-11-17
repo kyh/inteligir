@@ -36,7 +36,7 @@ export const KEPT = keptAs(SESSION.email, SESSION.bearer);
 
 export const savedAs = (title: string, created = true): Saved => ({
   created,
-  item: { fields: { title } },
+  item: { card: { title } },
 });
 
 type Answer<T> = () => Promise<T>;

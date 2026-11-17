@@ -11,25 +11,24 @@ search, every device and you work on every item alike.
 An item's `kind` is `note`, `link`, `video`, `audio`, `image`, `pdf` or `file`. `read_item` answers
 its fields; the ones you change, you change with `organize_items`, and the rest are the library's.
 
-| Field         | What it is                                       | Who changes it             |
-| ------------- | ------------------------------------------------ | -------------------------- |
-| `title`       | What the item is called                          | you, with `organize_items` |
-| `tags`        | The person's tags                                | you, with `organize_items` |
-| `folderId`    | The folder it is filed in, or none (Unsorted)    | you, with `organize_items` |
-| `pinned`      | Kept first                                       | you, with `organize_items` |
-| `kind`        | What the item is                                 | the save and the page read |
-| `url`         | Where a saved link points, as it was saved       | the save, once             |
-| `site`        | The publisher's name                             | the page read              |
-| `author`      | Who wrote the page                               | the page read              |
-| `published`   | When the page says it was published              | the page read              |
-| `description` | One line on what the item is                     | the page read              |
-| `savedAt`     | When it was saved                                | the save, once             |
-| `fetchState`  | Whether the page was read: `pending` until it is | the page read              |
-| `fetchError`  | Why the page could not be read, in a sentence    | a failed read              |
+| Field         | What it is                                    | Who changes it             |
+| ------------- | --------------------------------------------- | -------------------------- |
+| `title`       | What the item is called                       | you, with `organize_items` |
+| `tags`        | The person's tags                             | you, with `organize_items` |
+| `folderId`    | The folder it is filed in, or none (Unsorted) | you, with `organize_items` |
+| `pinned`      | Kept first                                    | you, with `organize_items` |
+| `kind`        | What the item is                              | the save and the page read |
+| `url`         | Where a saved link points, as it was saved    | the save, once             |
+| `site`        | The publisher's name                          | the page read              |
+| `author`      | Who wrote the page                            | the page read              |
+| `published`   | When the page says it was published           | the page read              |
+| `description` | One line on what the item is                  | the page read              |
+| `savedAt`     | When it was saved                             | the save, once             |
+| `reading`     | Where the page's read stands, by its `state`  | the page read              |
 
-A link whose `fetchState` is `pending` is waiting for the library to read its page; leave it, and
-its text fills in on its own. One whose read failed keeps its address and says why in
-`fetchError`.
+A link whose `reading` is `pending` is waiting for the library to read its page; leave it, and its
+text fills in on its own. One whose read `failed` keeps its address and says why in the reading's
+`error`. A note or a file has no page, so its `reading` is `none`.
 
 ## Unsorted, Folders And Tags
 

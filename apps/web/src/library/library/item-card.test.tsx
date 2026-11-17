@@ -22,9 +22,6 @@ const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
   coverSha: null,
   deletedAt: null,
   description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
   folderId: null,
   kind: "link",
   lang: null,
@@ -33,6 +30,7 @@ const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
   pinnedAt: null,
   properties: {},
   published: null,
+  reading: { state: "none" },
   savedAt: SAVED,
   site: "example.com",
   tags: [],
@@ -71,7 +69,8 @@ const drawCard = (row: ListedItem) => {
   return { onMenu, onOpen, onPress };
 };
 
-const failedRow = (): ListedItem => linkRow({ fetchError: REASON, fetchState: "failed" });
+const failedRow = (): ListedItem =>
+  linkRow({ reading: { at: SAVED, error: REASON, state: "failed" } });
 
 const badge = (): HTMLElement => screen.getByText("Page not read");
 
@@ -96,12 +95,7 @@ describe("a card with no title and no words", () => {
 
 describe("a card whose page went unread", () => {
   it("draws no badge when the page was read", () => {
-    drawCard(linkRow({ fetchState: "filled" }));
-    expect(screen.queryByText("Page not read")).toBeNull();
-  });
-
-  it("draws no badge for a reason a page waiting to be read again still carries", () => {
-    drawCard(linkRow({ fetchError: REASON, fetchState: "pending" }));
+    drawCard(linkRow({ reading: { at: SAVED, state: "read" } }));
     expect(screen.queryByText("Page not read")).toBeNull();
   });
 

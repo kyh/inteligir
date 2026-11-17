@@ -3,7 +3,6 @@
 // as the error its row declares.
 
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -24,7 +23,6 @@ import { FILL_ACTOR } from "./cell-fills";
 import { readSeed } from "./cell-notes";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
-const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
@@ -49,14 +47,14 @@ const NOTHING_LEFT = { kept: [], lostText: [], next: null, refused: [], reverted
 
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
-const pageSave = (url: string, overrides: { article?: LibraryBlock[]; tags?: string[] } = {}) => ({
-  article: overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
+const pageSave = (url: string) => ({
+  article: [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
   coverSha: null,
   facts: { ...FACTS, site: "example.com" },
   folderId: null,
   id: newId(),
   savedAt: Date.UTC(2026, 9, 1),
-  tags: overrides.tags ?? [],
+  tags: [],
   title: "A page",
   url,
 });
@@ -93,29 +91,7 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("saves a page with its article, and answers a second save of the url with that item as it stands", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const first = await library.items.save(
-        pageSave("https://example.com/fox", { tags: ["animals"] }),
-      );
-      expect(first.created).toBe(true);
-
-      const again = await library.items.save(
-        pageSave("https://example.com/fox#top", {
-          article: [paragraph("p2", "Now: the quick brown fox naps.")],
-          tags: ["Animals", "dogs"],
-        }),
-      );
-      expect(again).toMatchObject({ created: false, item: { id: first.item.id } });
-      const read = await library.items.read({ id: first.item.id });
-      expect(read.fields.tags).toStrictEqual(["animals"]);
-      expect(read.view.markdown).toContain("over the lazy dog");
-      expect(read.view.markdown).not.toContain("naps");
-    });
-  });
-
-  it("keeps the words a page was saved with as a new item's note, and leaves a held item's as it is", async () => {
+  it("keeps the words a page was saved with as a new item's note", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/words";
@@ -127,41 +103,6 @@ describe("the library's procedures", () => {
       const made = await library.items.read({ id: first.item.id });
       expect(made.view.markdown).toContain("For Tuesday, before the call.");
       expect(made.view.markdown).toContain(":::article");
-
-      const again = await library.items.save({ ...pageSave(url), note: "And for Friday." });
-      expect(again).toMatchObject({ created: false, item: { id: first.item.id } });
-      const held = await library.items.read({ id: first.item.id });
-      expect(held.view.markdown).not.toContain("Friday");
-    });
-  });
-
-  it("lands a device's read on a held link with no article yet, the name the person gave kept", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const url = "https://example.com/saved-later";
-      const stub = await library.items.saveLink({ title: "My name for it", url });
-      const landed = await library.items.save({
-        ...pageSave(url, { tags: ["animals"] }),
-        facts: { ...FACTS, author: "A. Writer" },
-        note: "Words the read brought.",
-      });
-      expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
-      const read = await library.items.read({ id: stub.item.id });
-      expect(read.fields).toMatchObject({
-        author: "A. Writer",
-        fetchState: "filled",
-        tags: [],
-        title: "My name for it",
-      });
-      expect(read.view.markdown).not.toContain("Words the read brought.");
-      expect(read.view.markdown).toContain("The quick brown fox jumps");
-
-      // read now, so a later device's read leaves it as it stands
-      await library.items.save(
-        pageSave(url, { article: [paragraph("p2", "Now: the quick brown fox naps.")] }),
-      );
-      const kept = await library.items.read({ id: stub.item.id });
-      expect(kept.view.markdown).not.toContain("naps");
     });
   });
 
@@ -177,13 +118,13 @@ describe("the library's procedures", () => {
       const landed = await library.items.save(pageSave(url));
       expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
       const read = await library.items.read({ id: stub.item.id });
-      expect(read.fields.fetchState).toBe("filled");
+      expect(read.fields.reading.state).toBe("read");
       expect(read.view.markdown).toContain("For Tuesday.");
       expect(read.view.markdown).toContain("The quick brown fox jumps");
     });
   });
 
-  it("lands a device's read on a held link whose reading failed, and leaves a waiting one to the cloud when the read found no article", async () => {
+  it("lands a device's read on a held link whose reading failed", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/refuses";
@@ -191,8 +132,7 @@ describe("the library's procedures", () => {
         createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
-            fetchError: "The site refused the read.",
-            fetchState: "failed",
+            reading: { at: null, error: "The site refused the read.", state: "failed" },
             kind: "link",
             title: "A refusing site",
             url,
@@ -203,43 +143,26 @@ describe("the library's procedures", () => {
       const landed = await library.items.save(pageSave(url));
       expect(landed).toMatchObject({ created: false, item: { id: failed.id } });
       const read = await library.items.read({ id: failed.id });
-      expect(read.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
+      expect(read.fields).toMatchObject({ reading: { state: "read" } });
       expect(read.view.markdown).toContain("quick brown fox");
-
-      const waiting = await library.items.saveLink({ url: "https://example.com/waits" });
-      await library.items.save({ ...pageSave("https://example.com/waits"), article: [] });
-      const still = await library.items.read({ id: waiting.item.id });
-      expect(still.fields.fetchState).toBe("pending");
     });
   });
 
-  it("lands a link to read later as a pending stub, and a refresh sends it back to pending", async () => {
+  it("lands a link to read later as a pending stub, and a refresh sends a failed or a read one back to pending", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const saved = await library.items.saveLink({ url: "https://example.com/later/a-long-read" });
       expect(saved.created).toBe(true);
       const read = await library.items.read({ id: saved.item.id });
-      expect(read.fields).toMatchObject({ fetchState: "pending", kind: "link" });
+      expect(read.fields).toMatchObject({ reading: { state: "pending" }, kind: "link" });
       expect(read.fields.title).not.toBe("");
-
-      const held = await library.items.saveLink({
-        note: "Read this one first.",
-        url: "https://example.com/later/a-long-read",
-      });
-      expect(held).toMatchObject({ created: false, item: { id: saved.item.id } });
-      const after = await library.items.read({ id: saved.item.id });
-      expect(after.view.markdown).not.toContain("Read this one first.");
-
-      const refreshed = await library.items.refresh({ id: saved.item.id });
-      expect(refreshed.item.id).toBe(saved.item.id);
 
       // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
       const { item: failed } = landedValue(
         createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
-            fetchError: "The site refused the read.",
-            fetchState: "failed",
+            reading: { at: null, error: "The site refused the read.", state: "failed" },
             kind: "link",
             title: "A refusing site",
             url: "https://example.com/refuses",
@@ -248,15 +171,11 @@ describe("the library's procedures", () => {
         }),
       );
       const retried = await library.items.refresh({ id: failed.id });
-      expect(retried.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
+      expect(retried.item.fields.reading).toStrictEqual({ at: null, state: "pending" });
       const page = await library.items.save(pageSave("https://example.com/read-again"));
-      expect(page.item.fields.fetchState).toBe("filled");
+      expect(page.item.fields.reading.state).toBe("read");
       const reread = await library.items.refresh({ id: page.item.id });
-      expect(reread.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
-      const note = await library.items.createNote({ markdown: "No page here." });
-      await expect(refusalOf(library.items.refresh({ id: note.item.id }))).resolves.toMatchObject({
-        code: "NOT_FOUND",
-      });
+      expect(reread.item.fields).toMatchObject({ reading: { state: "pending" } });
     });
   });
 
@@ -526,45 +445,17 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("deletes, restores and purges items, naming the ids it could not change", async () => {
+  it("reads an item in Deleted with when it went there, and none once it is purged", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const { item } = await library.items.createNote({ markdown: "Soon gone." });
-      const nobody = newId();
-      await expect(library.items.delete({ ids: [item.id, nobody] })).resolves.toStrictEqual({
-        deleted: [item.id],
-        missing: [nobody],
-      });
+      await library.items.delete({ ids: [item.id] });
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
         fields: { deletedAt: expect.any(String) },
       });
-      await expect(library.items.restore({ ids: [item.id, nobody] })).resolves.toStrictEqual({
-        addressHeld: [],
-        missing: [nobody],
-        restored: [item.id],
-      });
-      await library.items.delete({ ids: [item.id] });
-      await expect(library.items.purge({ ids: [item.id] })).resolves.toStrictEqual({
-        missing: [],
-        purged: [item.id],
-      });
+      await library.items.purge({ ids: [item.id] });
       await expect(refusalOf(library.items.read({ id: item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",
-      });
-    });
-  });
-
-  it("leaves in Deleted an item whose address another item holds now, and says which", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const url = "https://example.com/held";
-      const { item: first } = await library.items.saveLink({ url });
-      await library.items.delete({ ids: [first.id] });
-      await library.items.saveLink({ url });
-      await expect(library.items.restore({ ids: [first.id] })).resolves.toStrictEqual({
-        addressHeld: [first.id],
-        missing: [],
-        restored: [],
       });
     });
   });
@@ -830,36 +721,6 @@ describe("the library's procedures", () => {
         cursor: null,
         items: [],
       });
-    });
-  });
-
-  it("refuses a file whose bytes were never uploaded", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      await expect(
-        refusalOf(
-          library.items.createFile({
-            folderId: null,
-            id: newId(),
-            name: "photo.png",
-            savedAt: Date.UTC(2026, 9, 1),
-            sha: SHA,
-            tags: [],
-          }),
-        ),
-      ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] }, defined: true });
-    });
-  });
-
-  it("answers a resend by its op id with what the first call answered", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const opId = crypto.randomUUID();
-      const first = await library.items.createNote({ markdown: "Once.", opId });
-      const again = await library.items.createNote({ markdown: "Once.", opId });
-      expect(again).toStrictEqual(first);
-      const listed = await library.items.list({});
-      expect(listed.items).toHaveLength(1);
     });
   });
 

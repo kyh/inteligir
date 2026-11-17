@@ -10,11 +10,6 @@ import { isWebUrl } from "../items/item-url";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
 
-// where a url item's page reading stands: never asked (a note, a file), asked and waiting, read,
-// or tried and failed; a stub is a url item still `pending`
-export const FETCH_STATES = ["none", "pending", "filled", "failed"] as const;
-const fetchStateSchema = z.enum(FETCH_STATES);
-
 // a file's bytes are named by their SHA-256, as R2 keeps them
 export const SHA256_HEX_RE = /^[0-9a-f]{64}$/u;
 const sha256 = z.string().regex(SHA256_HEX_RE);
@@ -68,15 +63,26 @@ const properties = z
     error: `holds more than ${String(ITEM_FIELD_CAPS.propertiesBytes)} bytes of properties`,
   });
 
+// why a page could not be read, in a sentence
+export const readingErrorSchema = text;
+
+// Where a url item's page reading stands: never asked (a note, a file), asked and waiting, read,
+// or tried and failed; a stub is a url item still `pending`. `at` is when the page was last read
+// or tried, which only a read always knows. Its arms are `z.object`, since a row's fields are read
+// through them and a row drops what a newer cell adds.
+const reading = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("none") }),
+  z.object({ at: instant.nullable(), state: z.literal("pending") }),
+  z.object({ at: instant, state: z.literal("read") }),
+  z.object({ at: instant.nullable(), error: readingErrorSchema, state: z.literal("failed") }),
+]);
+
 export const libraryItemFieldsSchema = z.strictObject({
   aliases: listOf(text),
   author: text.nullable(),
   coverSha: sha256.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
-  fetchError: text.nullable(),
-  fetchState: fetchStateSchema,
-  fetchedAt: instant.nullable(),
   folderId: text.nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
@@ -88,6 +94,7 @@ export const libraryItemFieldsSchema = z.strictObject({
   // what a frontmatter key held that no column names, as any JSON, so an import loses none
   properties,
   published: text.nullable(),
+  reading,
   savedAt: instant,
   site: text.nullable(),
   tags: listOf(tagNameSchema),

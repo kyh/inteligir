@@ -40,15 +40,21 @@ random bytes and fresh ids are injected.
   place are the schema's.** A default the cell supplies is a parse a new row
   forgets, and a cursor read past the schema needs a refusal of its own.
   `packages/contract/src/library/library-contract.ts`.
-- **One fake cell answers every client's suites, over the cell's own folder and
-  organize rules.** A fake per client, or rules spelled twice, drift from what
-  the cell refuses. `packages/contract/src/library/cell-rules.ts`.
-- **An item's reading is one value, which every writer moves and every surface
-  reads alike.** Three fields set by hand can badge a failure over a read.
-  `packages/contract/src/library/item-reading.ts`.
+- **One fake cell answers every client's suites, over the cell's own rules and
+  held to it by the cases both run.** A fake per client, a rule spelled twice or
+  a case copied by hand drifts from what the cell answers.
+  `packages/contract/src/test-support/cell-conformance.ts`.
+- **An item's reading is one field, a union the row and the wire hold as it
+  is, and every writer moves it by one function.** Three fields paired by hand
+  can badge a failure over a read. `packages/contract/src/library/item-reading.ts`.
+- **A saved link nobody named holds an empty title, and its card goes by its
+  address.** A made-up name in the person's field has to be made up again to
+  ask whether a page may still name the link.
+  `packages/contract/src/library/derive-item.ts`.
 - **A make's fields are spelled once, and an import's item is a make less its
-  place.** A landing that spells an item by hand pairs the reading's three
-  fields its own way. `packages/contract/src/library/item-makes.ts`.
+  place.** An item spelled by hand at each landing reads one way on the device
+  that drew it and another once the cell answers.
+  `packages/contract/src/library/item-makes.ts`.
 - **A library tool has one name, in a plain table the connector's rows, the
   agent's policies and each device's words are typed against.** A name spelled
   in each package lets a rename compile and draw as "Used the library".

@@ -94,8 +94,7 @@ describe("a page's reading, landed", () => {
       expect(sectionOf(state, id, "article")).toHaveLength(1);
       expect(stateOf(state, id)?.fields).toMatchObject({
         author: "A. Writer",
-        fetchError: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         site: "Pages",
         tags: ["reading"],
         title: "The page's own title",
@@ -104,7 +103,26 @@ describe("a page's reading, landed", () => {
     });
   });
 
-  it("never touches the person's note or a title they gave while it waited", async () => {
+  it("names by its page a link saved with an empty title, which goes by its address until then", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const { client: library, library: engine } = cellIn(state);
+      const url = "https://pages.example/posts/a-long-read";
+      const saved = await library.items.saveLink({ title: "", url });
+      expect(saved.item).toMatchObject({
+        card: { title: "pages.example - a long read" },
+        fields: { title: "" },
+      });
+      landReading(
+        engine,
+        read({ itemId: saved.item.id, url }, [paragraph("p1", "The article.")]),
+        null,
+      );
+      expect(stateOf(state, saved.item.id)?.fields.title).toBe("The page's own title");
+    });
+  });
+
+  it("never touches the person's note or a title they gave while it waited, its address's name too", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const { client: library, library: engine } = cellIn(state);
@@ -113,7 +131,7 @@ describe("a page's reading, landed", () => {
         url: "https://pages.example/b",
       });
       const { id } = saved.item;
-      await library.items.organize({ ids: [id], title: "My name for it" });
+      await library.items.organize({ ids: [id], title: "pages.example - b" });
       landReading(
         engine,
         read({ itemId: id, url: "https://pages.example/b" }, [paragraph("p1", "The article.")]),
@@ -123,7 +141,7 @@ describe("a page's reading, landed", () => {
       expect(JSON.stringify((after?.blocks ?? []).filter((b) => b.section === "note"))).toContain(
         "First thought.",
       );
-      expect(after?.fields.title).toBe("My name for it");
+      expect(after?.fields.title).toBe("pages.example - b");
     });
   });
 
@@ -167,7 +185,7 @@ describe("a page's reading, landed", () => {
       expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
       expect(stateOf(state, stub.item.id)?.fields).toMatchObject({
         deletedAt: null,
-        fetchState: "filled",
+        reading: { state: "read" },
         tags: ["later"],
         title: "The page's own title",
         url: short,
@@ -316,8 +334,7 @@ describe("a page's reading, landed", () => {
         null,
       );
       expect(stateOf(state, saved.item.id)?.fields).toMatchObject({
-        fetchError: "The page took too long to answer.",
-        fetchState: "failed",
+        reading: { error: "The page took too long to answer.", state: "failed" },
         title: saved.item.fields.title,
       });
     });
@@ -342,7 +359,7 @@ describe("a page's reading, landed", () => {
       cellOf(accountId),
       (state) => stateOf(state, saved.item.id)?.fields,
     );
-    expect(fields?.fetchState).toBe("pending");
+    expect(fields?.reading.state).toBe("pending");
   });
 
   it("lands the article by the item's note while that note is still opening", async () => {
@@ -362,7 +379,7 @@ describe("a page's reading, landed", () => {
       cell,
       async (state) => await cellIn(state).client.items.read({ id: saved.item.id }),
     );
-    expect(item.fields.fetchState).toBe("filled");
+    expect(item.fields.reading.state).toBe("read");
     expect(item.view.markdown).toContain("For Tuesday.");
     expect(item.view.markdown).toContain("The article.");
   });

@@ -77,14 +77,14 @@ export const accountGone = async (email: string): Promise<void> => {
   }
 };
 
-// a waiting save as the link it is sent as: its title only where it has one
-export const linkOf = (save: QueuedSave): LinkSave => {
-  const link: LinkSave = { id: save.id, opId: save.opId, savedAt: save.savedAt, url: save.url };
-  if (save.title !== "") {
-    link.title = save.title;
-  }
-  return link;
-};
+// a waiting save as the link it is sent as; an empty title is a link with no name yet
+export const linkOf = (save: QueuedSave): LinkSave => ({
+  id: save.id,
+  opId: save.opId,
+  savedAt: save.savedAt,
+  title: save.title,
+  url: save.url,
+});
 
 type DropReason = Extract<OutcomeReason, "library-full" | "too-large" | "failed">;
 

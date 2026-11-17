@@ -173,7 +173,7 @@ describe("a Raindrop export read on the device", () => {
       kind: "done",
     });
     expect(titled(library.items, "Pasta al limone")).toMatchObject({
-      fields: { fetchState: "pending", tags: ["recipes", "Quick-Meals"] },
+      fields: { reading: { at: null, state: "pending" }, tags: ["recipes", "Quick-Meals"] },
       folder: "Cooking/Weeknight",
     });
   });

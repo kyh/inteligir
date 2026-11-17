@@ -126,7 +126,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     title: "File over app",
   });
   const read = await library.items.read({ id: (await landed("/file-over-app")) ?? "" });
-  expect(read.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
+  expect(read.fields).toMatchObject({ reading: { state: "read" } });
   expect(read.view.markdown).toContain(PASSAGE);
   // the browser's one load: the extension fetched it no second time, and a fetch of it by the
   // cloud fails the test as one no page answered

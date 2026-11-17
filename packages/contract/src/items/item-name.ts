@@ -1,5 +1,5 @@
-// What an item is called as a name: the file an export writes its title to, and the title a saved
-// address goes by until its page is read. A title becomes a legal file name here, once, for every
+// What an item is called as a name: the file an export writes its title to, and the name a saved
+// address goes by while its item has none. A title becomes a legal file name here, once, for every
 // writer, repaired rather than refused, so each name is one every disk takes and a link can name.
 
 import { utf8ByteLength } from "../library/canonical-json";

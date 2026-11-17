@@ -1,57 +1,12 @@
-// Where a saved page's reading stands, the one value an item's fetchState, fetchError and
-// fetchedAt spell: never asked (a note, a file), asked and waiting, read, or tried and failed, each
-// with when the page was last read. Every writer moves it through `withReading` and every surface
-// reads it through `readingOf`, so no writer or reader pairs the three fields its own way.
+// How a saved page's reading moves. An item's `reading` field is the one value: never asked (a
+// note, a file), asked and waiting, read, or tried and failed. Every writer moves it through
+// `withReading`, so no writer decides for itself what a reading may follow, and a read page lands
+// by `withPage` on the item `takesRead` names, so the cell and the fake cell land one alike.
 
 import type { LibraryItemFields } from "./library-item";
+import type { LibraryBlock } from "./library-nodes";
 
-export type Reading =
-  | { readonly state: "none" }
-  | { readonly state: "pending"; readonly at: number | null }
-  | { readonly state: "read"; readonly at: number | null }
-  | { readonly state: "failed"; readonly at: number | null; readonly error: string };
-
-type ReadingFields = Pick<LibraryItemFields, "fetchError" | "fetchState" | "fetchedAt">;
-
-// what a failed reading says when no writer said why
-const UNSAID_FAILURE = "The page couldn't be read.";
-
-export const readingOf = (fields: ReadingFields): Reading => {
-  switch (fields.fetchState) {
-    case "none": {
-      return { state: "none" };
-    }
-    case "pending": {
-      return { at: fields.fetchedAt, state: "pending" };
-    }
-    case "filled": {
-      return { at: fields.fetchedAt, state: "read" };
-    }
-    case "failed": {
-      return { at: fields.fetchedAt, error: fields.fetchError ?? UNSAID_FAILURE, state: "failed" };
-    }
-    // no default
-  }
-};
-
-// the three fields a reading is kept in, which a make lands it as
-export const readingFields = (reading: Reading): ReadingFields => {
-  switch (reading.state) {
-    case "none": {
-      return { fetchError: null, fetchState: "none", fetchedAt: null };
-    }
-    case "pending": {
-      return { fetchError: null, fetchState: "pending", fetchedAt: reading.at };
-    }
-    case "read": {
-      return { fetchError: null, fetchState: "filled", fetchedAt: reading.at };
-    }
-    case "failed": {
-      return { fetchError: reading.error, fetchState: "failed", fetchedAt: reading.at };
-    }
-    // no default
-  }
-};
+export type Reading = LibraryItemFields["reading"];
 
 // a page saved or refreshed to be read, read, or tried and failed
 export type ReadingEvent =
@@ -76,5 +31,46 @@ export const readingAfter = (reading: Reading, event: ReadingEvent): Reading => 
 // an item's fields with the reading after `event`
 export const withReading = (fields: LibraryItemFields, event: ReadingEvent): LibraryItemFields => ({
   ...fields,
-  ...readingFields(readingAfter(readingOf(fields), event)),
+  reading: readingAfter(fields.reading, event),
 });
+
+// what a read page brings to an item's fields, however it was read
+export interface ReadPage {
+  readonly title: string;
+  readonly coverSha: string | null;
+  readonly facts: Pick<LibraryItemFields, "author" | "description" | "lang" | "published" | "site">;
+}
+
+// an item's fields once a page is read into it, however it reached the item: what the page said of
+// itself where it said anything (a value it did not give never removes one an import gave), its
+// cover where it brought one, the reading's own state, and its title (empty when it gave none) only
+// where the item has no name of its own
+export const withPage = (
+  fields: LibraryItemFields,
+  page: ReadPage,
+  now: number,
+): LibraryItemFields => {
+  const { facts } = page;
+  return {
+    ...withReading(fields, { at: now, kind: "read" }),
+    author: facts.author ?? fields.author,
+    coverSha: page.coverSha ?? fields.coverSha,
+    description: facts.description ?? fields.description,
+    lang: facts.lang ?? fields.lang,
+    published: facts.published ?? fields.published,
+    site: facts.site ?? fields.site,
+    title: page.title !== "" && fields.title.trim() === "" ? page.title : fields.title,
+  };
+};
+
+// whether the item that holds a page's address takes a device's read of it: a read that found an
+// article, while the item has none of its own to lose and its reading waits or failed. A read that
+// found none leaves a waiting item to the cloud's
+export const takesRead = (
+  reading: Reading,
+  hasArticle: boolean,
+  read: { readonly article: readonly LibraryBlock[] },
+): boolean =>
+  read.article.length > 0 &&
+  !hasArticle &&
+  (reading.state === "pending" || reading.state === "failed");

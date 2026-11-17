@@ -4,7 +4,6 @@
 
 import { KIND_LABELS } from "@repo/client/library-labels";
 import { shownTitle } from "@repo/contract/items/item-name";
-import { readingOf } from "@repo/contract/library/item-reading";
 import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
@@ -28,7 +27,7 @@ export interface QuickLookProps {
 const Look = ({ row }: { row: ListedItem }) => {
   const nowMs = useNow();
   const cover = coverOf(row);
-  const notice = readingNotice(readingOf(row.fields));
+  const notice = readingNotice(row.fields.reading);
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {cover === null ? null : (

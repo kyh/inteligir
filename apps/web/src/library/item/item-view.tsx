@@ -31,7 +31,16 @@ export interface ItemViewProps {
   readonly onNote: (note: OpenNote | null) => void;
 }
 
-const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
+// `placeholder`: what the field says while the item has no name of its own
+const TitleField = ({
+  itemId,
+  title,
+  placeholder,
+}: {
+  itemId: string;
+  title: string;
+  placeholder: string;
+}) => {
   const retitle = useMutation(useLibraryWrites().organize("The title couldn't be changed."));
   const [draft, setDraft] = useState<string | null>(null);
   const commit = (): void => {
@@ -47,7 +56,7 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
       spellCheck={false}
       className="min-w-0 flex-1 truncate bg-transparent text-title font-medium outline-none"
       value={draft ?? title}
-      placeholder={UNTITLED}
+      placeholder={placeholder}
       onChange={(event) => {
         setDraft(event.target.value);
       }}
@@ -125,7 +134,12 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
         {held === null ? (
           <span className="flex-1" />
         ) : (
-          <TitleField key={itemId} itemId={itemId} title={held.fields.title} />
+          <TitleField
+            key={itemId}
+            itemId={itemId}
+            title={held.fields.title}
+            placeholder={held.fields.url === null ? UNTITLED : held.card.title}
+          />
         )}
         <Button
           variant="ghost"

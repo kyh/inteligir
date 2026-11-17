@@ -63,7 +63,7 @@ describe(revertItemChange, () => {
   });
 
   it("moves an item it made to Deleted unless a person touched it since, in its fields or its note", () => {
-    const made = noteFixture({ fetchState: "pending", kind: "link" });
+    const made = noteFixture({ kind: "link", reading: { at: null, state: "pending" } });
     const change = changeOf(null, made);
     expect(fieldsOf(revert(change, nowOf(made))).deletedAt).toBe(AT);
     const retitled = retitle(made, "Mine");

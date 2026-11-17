@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 
+import { itemNameFromUrl } from "../items/item-name";
 import { urlKey, urlSearchText } from "../items/item-url";
 import { inlineTagSpans } from "../knowledge/tag-grammar";
 import { clipSnippet } from "../text/clip-text";
@@ -48,7 +49,7 @@ interface OutlineEntry {
 }
 
 export interface ItemCard {
-  // the item's name, or when it has none its first heading's or line's text
+  // the item's name, or when it has none its address's, else its first heading's or line's text
   readonly title: string;
   // the first paragraph's text, at most PREVIEW_MAX; "" when none holds any
   readonly preview: string;
@@ -84,7 +85,8 @@ export interface ItemSearchText {
 // what the item's row keeps of its body: what its card and index text need beside the fields, and
 // what its rows of tags and files are rewritten from when only the fields change
 export interface BodyDigest {
-  // the first heading's text, else the first line's, cut to a line: the title of an item with none
+  // the first heading's text, else the first line's, cut to a line: what an item with no name and
+  // no address goes by
   readonly lead: string;
   readonly preview: string;
   readonly outline: readonly OutlineEntry[];
@@ -373,6 +375,10 @@ export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
   };
 };
 
+// what an item with no name of its own goes by: its address, else its first words
+const unnamedTitle = (fields: LibraryItemFields, digest: BodyDigest): string =>
+  fields.url === null ? digest.lead : itemNameFromUrl(fields.url);
+
 export const deriveItem = (fields: LibraryItemFields, digest: BodyDigest): DerivedItem => {
   const tags = [
     ...unique(
@@ -382,7 +388,7 @@ export const deriveItem = (fields: LibraryItemFields, digest: BodyDigest): Deriv
     ...digest.tags.map((tag): DerivedTag => ({ origin: "inline", tag })),
   ];
   const named = fields.title.trim();
-  const title = named === "" ? digest.lead : named;
+  const title = named === "" ? unnamedTitle(fields, digest) : named;
   return {
     card: { outline: [...digest.outline], preview: digest.preview, title, words: digest.words },
     search: {

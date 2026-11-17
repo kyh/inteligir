@@ -47,6 +47,7 @@
     "./needs-connection": "./src/needs-connection.ts",
     "./origin": "./src/cloud-origin.ts",
     "./refusal-text": "./src/refusal-text.ts",
+    "./test-support/cell-conformance": "./src/test-support/cell-conformance.ts",
     "./test-support/fake-cell": "./src/test-support/fake-cell.ts",
     "./test-support/library-items": "./src/test-support/library-items.ts",
     "./test-support/seeded-random": "./src/test-support/seeded-random.ts",

@@ -22,8 +22,8 @@ Reuse the values the library already uses instead of inventing a parallel vocabu
 ## What Is The Library's
 
 `kind`, `url`, `savedAt`, and what the page read wrote (`site`, `author`, `published`,
-`description`, `fetchState`, `fetchError`) are the library's. They read like any field, but no call
-of yours changes them: a saved link keeps the address it was saved at, and reading its page again
+`description`, `reading`) are the library's. They read like any field, but no call of yours
+changes them: a saved link keeps the address it was saved at, and reading its page again
 is the person's to ask for.
 
 An item's `id` is its identity. Links point at it. Never invent

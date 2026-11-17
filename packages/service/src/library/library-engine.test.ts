@@ -266,8 +266,7 @@ describe("a write to the library cell", () => {
         { title: "shorter" },
         { pinnedAt: 5 },
         { folderId: "folder" },
-        { fetchState: "failed" },
-        { fetchError: "The page would not load." },
+        { reading: { at: 6, error: "The page would not load.", state: "failed" } },
         { deletedAt: 7 },
       ] satisfies Partial<LibraryItemFields>[]) {
         landedValue(setFields(library, FILL_ACTOR, itemId, fields));

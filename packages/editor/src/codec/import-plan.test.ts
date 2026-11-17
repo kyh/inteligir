@@ -367,10 +367,10 @@ describe("an Obsidian vault read into the library", () => {
       {
         fields: {
           coverSha: sha,
-          fetchState: "none",
           kind: "image",
           originalName: "shot.png",
           originalSha: sha,
+          reading: { state: "none" },
           savedAt: CODEC_NOW,
           title: "shot",
         },
@@ -405,7 +405,7 @@ describe("an Obsidian vault read into the library", () => {
     const page = byTitle(library, "Read later");
     expect(page.fields).toMatchObject({
       coverSha: shaOf("assets/covers/0123456789abcdef.jpg"),
-      fetchState: "filled",
+      reading: { state: "read" },
     });
     expect(page.blocks.map(({ section }) => section)).toStrictEqual(["article"]);
     // the page's hashtags are the page's text

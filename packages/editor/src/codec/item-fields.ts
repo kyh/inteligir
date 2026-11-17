@@ -17,7 +17,6 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
 import { blankItemFields } from "@repo/contract/library/item-makes";
-import { readingFields } from "@repo/contract/library/item-reading";
 import type { Reading } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
@@ -260,9 +259,9 @@ export const itemFields = (facts: FileFacts, name: string, now: number): Library
   return {
     ...blankItemFields(savedAt),
     ...facts.fields,
-    ...readingFields(facts.reading),
     pinnedAt: facts.pinned ? savedAt : null,
     properties: facts.properties,
+    reading: facts.reading,
     title: titleOf(facts, name),
   };
 };

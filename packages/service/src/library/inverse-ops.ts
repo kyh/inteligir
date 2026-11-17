@@ -1,9 +1,10 @@
 // An item's way back as a change set keeps it: one op a slot (a field, a list, a property by its
 // key), each guarded by the value the set left, since an Undo lands them long after, over edits
-// made since. A field sets whole, a list merges as a set and a property is the device's own op
-// (`@repo/contract/library/field-ops`). Each of the set's landings composes its own in
-// (`composeInverse`), and only the set's Undo lands them.
+// made since. A field sets whole, the reading too, met by its value, a list merges as a set and a
+// property is the device's own op (`@repo/contract/library/field-ops`). Each of the set's landings
+// composes its own in (`composeInverse`), and only the set's Undo lands them.
 
+import { sameJson } from "@repo/contract/library/canonical-json";
 import {
   applyGuarded,
   landPropertyOp,
@@ -43,9 +44,6 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("coverSha"),
   setOf("deletedAt"),
   setOf("description"),
-  setOf("fetchError"),
-  setOf("fetchState"),
-  setOf("fetchedAt"),
   setOf("folderId"),
   setOf("kind"),
   setOf("lang"),
@@ -53,6 +51,7 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("originalSha"),
   setOf("pinnedAt"),
   setOf("published"),
+  setOf("reading"),
   setOf("savedAt"),
   setOf("site"),
   setOf("title"),
@@ -84,10 +83,10 @@ const verdictOf = (fields: LibraryItemFields, op: InverseOp): OpVerdict => {
   switch (op.op) {
     case "set": {
       const current = fields[op.field];
-      if (current === op.base) {
+      if (sameJson(current, op.base)) {
         return "apply";
       }
-      return current === op.value ? "satisfied" : "conflict";
+      return sameJson(current, op.value) ? "satisfied" : "conflict";
     }
     case "tags":
     case "aliases": {
@@ -153,7 +152,7 @@ const slotOf = (op: InverseOp): string => {
 const opsBetween = (from: LibraryItemFields, to: LibraryItemFields): InverseOp[] => {
   const ops: InverseOp[] = [];
   for (const field of SCALAR_FIELDS) {
-    if (from[field] !== to[field]) {
+    if (!sameJson(from[field], to[field])) {
       // the parse ties the values to the field's own type, which TypeScript cannot follow through
       // a loop over every field
       ops.push(inverseOpSchema.parse({ base: from[field], field, op: "set", value: to[field] }));
