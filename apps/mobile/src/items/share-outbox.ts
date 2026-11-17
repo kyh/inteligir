@@ -15,11 +15,6 @@ import type { ShareSave } from "./share-payload";
 
 export type WaitingShare = WaitingSave<ShareSave>;
 
-type ShareOutcome =
-  | { readonly kind: "landed"; readonly itemId: string }
-  | { readonly kind: "waiting" }
-  | { readonly kind: "refused"; readonly message: string };
-
 export interface ShareOutbox {
   // oldest first, the parked among them
   readonly waiting: ReadableStore<readonly WaitingShare[]>;
@@ -29,8 +24,8 @@ export interface ShareOutbox {
   readonly keep: (save: ShareSave) => Promise<WaitingShare | null>;
   // a pass over every one waiting; it never throws
   readonly flush: () => Promise<void>;
-  // a pass, then what became of one share
-  readonly deliver: (opId: string) => Promise<ShareOutcome>;
+  // a pass, then the item one share landed as; null while it waits or is parked
+  readonly deliver: (opId: string) => Promise<string | null>;
   readonly retry: (opId: string) => Promise<void>;
   readonly discard: (opId: string) => Promise<void>;
   // every one goes, and nothing is kept after
@@ -85,12 +80,7 @@ export const createShareOutbox = (args: {
     },
     deliver: async (opId) => {
       await flush();
-      const itemId = landedIds.get(opId);
-      if (itemId !== undefined) {
-        return { itemId, kind: "landed" };
-      }
-      const refused = waiting.get().find((share) => share.opId === opId)?.refused ?? null;
-      return refused === null ? { kind: "waiting" } : { kind: "refused", message: refused };
+      return landedIds.get(opId) ?? null;
     },
     discard: shares.discard,
     flush,

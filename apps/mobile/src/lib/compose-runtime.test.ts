@@ -116,7 +116,7 @@ const shareWaiting = async (library: PhoneLibrary, network: FakeDevice): Promise
   if (kept === null) {
     throw new Error("the outbox refused a share while signed in");
   }
-  await expect(library.shares.deliver(kept.opId)).resolves.toStrictEqual({ kind: "waiting" });
+  await expect(library.shares.deliver(kept.opId)).resolves.toBeNull();
 };
 
 describe("the phone's runtime", () => {

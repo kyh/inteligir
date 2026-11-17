@@ -65,7 +65,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
       throw new Error("the outbox refused a share while signed in");
     }
     expect(storage.held.has(`share:${kept.opId}`)).toBe(true);
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toHaveLength(1);
     expect(cell.items().size).toBe(0);
   });
@@ -99,12 +99,9 @@ describe("the shares this phone keeps until the cloud takes them", () => {
       throw new Error("the outbox refused a share while signed in");
     }
     device.loseAnswers(1);
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
 
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({
-      itemId: kept.id,
-      kind: "landed",
-    });
+    await expect(shares.deliver(kept.opId)).resolves.toBe(kept.id);
     expect(itemsAt(cell, PAGE)).toHaveLength(1);
   });
 
@@ -115,7 +112,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
-    await expect(shares.deliver(kept.opId)).resolves.toMatchObject({ kind: "landed" });
+    await expect(shares.deliver(kept.opId)).resolves.toBe(kept.id);
     expect(cell.item(kept.id)?.fields.title).toBe("Call the printer");
   });
 
@@ -126,10 +123,7 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
-    await expect(shares.deliver(kept.opId)).resolves.toStrictEqual({
-      kind: "refused",
-      message: WEB_URL_RULE,
-    });
+    await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toMatchObject([{ refused: WEB_URL_RULE }]);
 
     await shares.retry(kept.opId);
