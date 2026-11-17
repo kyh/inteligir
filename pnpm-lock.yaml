@@ -1216,6 +1216,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../db
+      '@repo/editor':
+        specifier: workspace:*
+        version: link:../editor
       better-auth:
         specifier: 'catalog:'
         version: 1.7.25(8d33f3ac5ee8ef09b9e9a6c65457d669)

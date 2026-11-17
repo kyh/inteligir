@@ -2,7 +2,7 @@
 
 The cloud's code, which `apps/web` serves: the environment it reads, one zod
 schema in `src/env.ts`, accounts on Better Auth over Postgres, `/v1/rpc` and
-the library's writes on Postgres.
+the library's reads and writes on Postgres.
 Its decisions are this package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
@@ -31,7 +31,10 @@ src/library/library-writes.ts  an item's fields landed, a device's property ops
 src/library/library-folders.ts the folder tree's writes, a path filed into
 src/library/library-rows.ts  an item's rows to and from the library model
 src/files/file-names.ts      the files the library's rows name, and touched_at
+src/library/library-listing.ts listings, the rail's counts and titles, under one read snapshot
+src/library/library-reads.ts an item whole or as markdown, an agent's list and search
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
+src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
 ```
 
 `apps/web` mounts the three handlers (`src/app/api/auth/[...all]/route.ts`,

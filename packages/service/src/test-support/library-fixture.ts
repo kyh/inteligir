@@ -10,7 +10,15 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
-import { file, item, itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-schema";
+import {
+  file,
+  folder,
+  item,
+  itemBody,
+  itemLink,
+  itemSearch,
+  itemTag,
+} from "@repo/db/library-schema";
 import { createRouterClient } from "@orpc/server";
 
 import type { LibraryPrincipal } from "../library/library-principal";
@@ -31,11 +39,13 @@ export interface ItemSeed {
   readonly id?: string;
   // the sequence of the write it stands for; none took one by default
   readonly seq?: number;
+  // when it last changed; when it was saved by default
+  readonly updatedAt?: number;
 }
 
 // an item with its body, search row, tags and links, as a landing would leave them
 export const seedItem = async (accountId: string, seed: ItemSeed): Promise<StoredItem> => {
-  const { blocks = [], fields, id = randomUUID(), seq = 0 } = seed;
+  const { blocks = [], fields, id = randomUUID(), seq = 0, updatedAt = fields.savedAt } = seed;
   const body = deriveBody(blocks);
   const derived = deriveItem(fields, body.digest);
   const stored: StoredItem = {
@@ -43,7 +53,7 @@ export const seedItem = async (accountId: string, seed: ItemSeed): Promise<Store
     fields,
     id,
     seq,
-    updatedAt: fields.savedAt,
+    updatedAt,
     urlKey: derived.urlKey,
   };
   const tags = tagRowsOf(accountId, id, derived.tags);
@@ -99,4 +109,20 @@ export const libraryAs = (principal: LibraryPrincipal) =>
 export const personalLibrary = async () => {
   const accountId = await makeAccount();
   return { accountId, library: libraryAs(sessionPrincipal(accountId)) };
+};
+
+export interface FolderSeed {
+  readonly name: string;
+  readonly id?: string;
+  readonly parentId?: string | null;
+  // its order key among its siblings
+  readonly sort?: string;
+  readonly deletedAt?: number | null;
+}
+
+// a folder as a folder write would leave it, at the top by default
+export const seedFolder = async (accountId: string, seed: FolderSeed): Promise<string> => {
+  const { deletedAt = null, id = randomUUID(), name, parentId = null, sort = "a0" } = seed;
+  await db.insert(folder).values({ accountId, deletedAt, id, name, parentId, seq: 0, sort });
+  return id;
 };

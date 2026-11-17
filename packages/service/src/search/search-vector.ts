@@ -35,7 +35,8 @@ const VECTOR_BYTES_BUDGET = 1_000_000;
 
 const utf8Bytes = (text: string): number => Buffer.byteLength(text, "utf-8");
 
-const quoted = (lexeme: string): string =>
+// a lexeme as a tsvector or a tsquery literal spells it
+export const lexemeLiteral = (lexeme: string): string =>
   `'${lexeme.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
 
 // each field's tokens in reading order, the fields title first
@@ -106,7 +107,7 @@ export const searchVectorOf = (text: SearchText): string => {
       const at = [...held].map(([spot, weight]) =>
         weight === "D" ? String(spot) : `${String(spot)}${weight}`,
       );
-      return `${quoted(lexeme)}:${at.join(",")}`;
+      return `${lexemeLiteral(lexeme)}:${at.join(",")}`;
     })
     .join(" ");
 };

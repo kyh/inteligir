@@ -76,7 +76,8 @@ const FIELD_COLUMNS = {
   url: item.url,
 } satisfies Record<keyof LibraryItemFields, PgColumn>;
 
-const STORED_ITEM_COLUMNS = {
+// what a select of an item reads back as its `StoredItem`
+export const STORED_ITEM_COLUMNS = {
   card: item.card,
   fields: FIELD_COLUMNS,
   id: item.id,

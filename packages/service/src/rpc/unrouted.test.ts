@@ -43,8 +43,6 @@ it("names every row not routed yet", () => {
       "library.imports.settle",
       "library.imports.named",
       "library.imports.land",
-      "library.items.list",
-      "library.items.read",
       "library.items.createNote",
       "library.items.save",
       "library.items.saveLink",
@@ -52,11 +50,6 @@ it("names every row not routed yet", () => {
       "library.items.saveBody",
       "library.items.sweep",
       "library.items.refresh",
-      "library.listing.page",
-      "library.listing.scopes",
-      "library.listing.titles",
-      "library.organize.outline",
-      "library.search",
     ]
   `);
 });

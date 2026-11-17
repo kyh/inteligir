@@ -140,6 +140,13 @@ decisions port with its code from the tag `cloudflare-last`.
   name it: an item's `item_file`, a change set's `change_set_file`.** Every
   name added or dropped moves `touched_at`; a count kept beside those rows is a
   second spelling that drifts from them. `packages/service/src/files/file-names.ts`.
+- **A read of more than one query is one read-only, repeatable-read
+  transaction.** A page and its counts, or a hit and its passage, then read one
+  library. `packages/service/src/library/library-listing.ts`.
+- **The listing is SQL held to the library model's by a seeded parity suite,
+  its ids and titles ordered `collate "C"`.** The fake cell answers every
+  client's suites by the model, and the database's collation orders case and
+  accents apart from it. `packages/service/src/library/library-parity.test.ts`.
 
 ## Search
 
@@ -151,3 +158,14 @@ decisions port with its code from the tag `cloudflare-last`.
 - **The vector fills its fields in order under Postgres's own cost, and stops
   at the first word past it.** A long body keeps its opening, and the literal
   tier still reaches its tail. `packages/service/src/search/search-vector.ts`.
+- **A query is a tsquery literal from the same tokenizer, each term its word,
+  a prefix while typed, or its stem's shadow, every word asked before any.**
+  `to_tsquery` and `websearch_to_tsquery` stem with Postgres's stemmer, whose
+  lexemes the vector never wrote. `packages/service/src/search/search-sql.ts`.
+- **A needle of 3+ printable ASCII characters is also matched as written, by
+  `LIKE` on the trigram index, at most 200 candidates.** Code and punctuation
+  the tokenizer drops still find their item, and a shorter needle has no
+  trigram to narrow by. `packages/service/src/search/search-sql.ts`.
+- **A hit's passage is cut in JS from its text, not by `ts_headline`.**
+  `ts_headline` reparses with Postgres's parser and marks words our tokenizer
+  never matched. `packages/service/src/search/search-excerpt.ts`.

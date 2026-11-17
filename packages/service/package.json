@@ -18,6 +18,7 @@
     "@orpc/server": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/editor": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "next": "catalog:",

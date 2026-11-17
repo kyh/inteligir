@@ -170,11 +170,10 @@ of the cell (`agent-turns.ts`). The panel calls it a conversation.
 the cell and a body of Plate **blocks**, its **note object**'s **live
 document** (`@repo/contract/library/library-item`). A link, a video, an image,
 a PDF and a note the person wrote are each one, and "item" is the only word for
-them: a page is a web page, and a bookmark Raindrop's. The cell holds the
-listing over its items between calls
-(`@repo/contract/library/library-index`), which answers a screen's pages, the
-rail's counts, the titles a link shows and an agent's lists. Not a doc or a
-file on disk.
+them: a page is a web page, and a bookmark Raindrop's. The library's listing
+follows `@repo/contract/library/library-index`'s rules, in SQL in the cloud,
+and answers a screen's pages, the rail's counts, the titles a link shows and an
+agent's lists. Not a doc or a file on disk.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
 or `file` (`ITEM_KINDS` in `@repo/contract/items/item-kind`). A saved file's is
