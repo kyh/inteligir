@@ -213,7 +213,7 @@ const LibraryScreen = () => {
   const words = usePaused(query.trim());
   const listing = useInfiniteQuery(
     queries.library.listing.page.infiniteOptions({
-      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      getNextPageParam: (page) => page.cursor ?? undefined,
       initialPageParam: undefined,
       input: (cursor: number | undefined) => listingPage({ kinds, scope, words }, cursor),
       placeholderData: keepPreviousData,

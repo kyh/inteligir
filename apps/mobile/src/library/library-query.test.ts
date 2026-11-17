@@ -1,21 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { listingPage, listingQuery } from "./library-query";
+import { listingPage } from "./library-query";
 
 const NONE = new Set<never>();
 
 describe("the Library's question to the listing", () => {
-  it("asks every live item newest first, and Deleted's own", () => {
-    expect(listingQuery({ kinds: NONE, scope: { kind: "all" }, words: "" })).toStrictEqual({
-      deleted: false,
+  it("asks a scope's first page of every kind while nothing narrows it", () => {
+    expect(listingPage({ kinds: NONE, scope: { kind: "all" }, words: "" })).toStrictEqual({
+      cursor: undefined,
       kinds: undefined,
-      sort: "saved",
-    });
-    expect(listingQuery({ kinds: NONE, scope: { kind: "deleted" }, words: "" })).toMatchObject({
-      deleted: true,
+      limit: 100,
+      scope: { kind: "all" },
+      words: undefined,
     });
   });
 
-  it("narrows to the kinds chosen, and ranks a search by the words on the side it lists", () => {
+  it("narrows to the kinds chosen, and searches the words in the scope it lists", () => {
     const filter = {
       kinds: new Set(["link" as const]),
       scope: { kind: "deleted" as const },
@@ -23,14 +22,10 @@ describe("the Library's question to the listing", () => {
     };
     expect(listingPage(filter, 200)).toStrictEqual({
       cursor: 200,
+      kinds: ["link"],
       limit: 100,
-      query: { deleted: true, kinds: ["link"], sort: "relevance" },
+      scope: { kind: "deleted" },
       words: "draft",
-    });
-    expect(listingPage({ ...filter, words: "" })).toMatchObject({
-      cursor: undefined,
-      query: { sort: "saved" },
-      words: undefined,
     });
   });
 });

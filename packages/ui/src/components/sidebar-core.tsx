@@ -75,9 +75,10 @@ const useIsMobile = (): boolean => {
   return isMobile === true;
 };
 
-// what an owner may ask of its sidebar: the toggle a click on the rail runs, which opens the
-// sheet below the mobile breakpoint, where nothing else reaches it
+// what an owner may ask of its sidebar: to open, and the toggle a click on the rail runs. Below
+// the mobile breakpoint both act on the sheet, which nothing else reaches
 export interface SidebarActions {
+  open: () => void;
   toggle: () => void;
 }
 
@@ -120,11 +121,19 @@ const SidebarProvider = ({
     }
   }, [isMobile, open, onOpenChange]);
 
+  const openSidebar = useCallback(() => {
+    if (isMobile) {
+      setOpenMobile(true);
+    } else {
+      onOpenChange?.(true);
+    }
+  }, [isMobile, onOpenChange]);
+
   useEffect(() => {
     if (actionsRef !== undefined) {
-      actionsRef.current = { toggle: toggleSidebar };
+      actionsRef.current = { open: openSidebar, toggle: toggleSidebar };
     }
-  }, [actionsRef, toggleSidebar]);
+  }, [actionsRef, openSidebar, toggleSidebar]);
 
   const value: SidebarContextValue = {
     isMobile,

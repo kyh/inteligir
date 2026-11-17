@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { z } from "zod";
 
+import type { LibraryScope } from "../library-scope";
 import { blankItemFields } from "./item-makes";
-import { itemListing, LibraryIndex, listingPageOf } from "./library-index";
+import { itemListing, itemSummary, LibraryIndex, listingPageOf } from "./library-index";
 import type { ItemListing, ListingQuery, ListingRow } from "./library-index";
 import type { LibraryItemFields } from "./library-item";
+import { listingPageInputSchema } from "./library-wire";
 
 const row = (id: string, overrides: Partial<ListingRow> = {}): ListingRow => ({
   deletedAt: null,
@@ -23,7 +26,7 @@ const query = (overrides: Partial<ListingQuery> = {}): ListingQuery => ({
   deleted: false,
   limit: 50,
   offset: 0,
-  sort: "saved",
+  order: { by: "saved" },
   ...overrides,
 });
 
@@ -58,56 +61,53 @@ describe(LibraryIndex, () => {
   it("leads every order with pinned items and keeps Deleted apart", () => {
     const index = filled();
     expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);
-    expect(ids(index, { sort: "modified" })).toStrictEqual(["pinned", "old", "link", "new"]);
-    expect(ids(index, { sort: "title" })).toStrictEqual(["pinned", "new", "old", "link"]);
+    expect(ids(index, { order: { by: "modified" } })).toStrictEqual([
+      "pinned",
+      "old",
+      "link",
+      "new",
+    ]);
+    expect(ids(index, { order: { by: "title" } })).toStrictEqual(["pinned", "new", "old", "link"]);
     expect(ids(index, { deleted: true })).toStrictEqual(["binned"]);
   });
 
-  it("filters by kind, tag family, untagged, folder, site and saved dates, counting kinds apart", () => {
+  it("filters by kind, tag family, folder tree, pin and saved dates, counting kinds apart", () => {
     const index = filled();
     const links = index.items(query({ kinds: ["link"] }));
     expect(links.items.map((item) => item.id)).toStrictEqual(["link"]);
     expect(links.total).toBe(1);
     expect(links.kindCounts).toStrictEqual(expect.objectContaining({ link: 1, note: 3 }));
     expect(ids(index, { tag: "read" })).toStrictEqual(["new", "link"]);
-    expect(ids(index, { untagged: true })).toStrictEqual(["pinned", "old"]);
-    expect(ids(index, { folderId: "work" })).toStrictEqual(["new"]);
-    expect(ids(index, { folderId: "work", subfolders: true })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { folderId: "work" })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { folderId: "work", tag: "read/later" })).toStrictEqual(["new"]);
     expect(ids(index, { folderId: null })).toStrictEqual(["pinned", "old"]);
-    expect(ids(index, { site: "example.com" })).toStrictEqual(["link"]);
+    expect(ids(index, { pinned: true })).toStrictEqual(["pinned"]);
+    expect(ids(index, { pinned: false })).toStrictEqual(["new", "link", "old"]);
     expect(ids(index, { sinceMs: 3 })).toStrictEqual(["new", "link"]);
     expect(ids(index, { beforeMs: 3 })).toStrictEqual(["pinned", "old"]);
     expect(ids(index, { beforeMs: 5, sinceMs: 3 })).toStrictEqual(["link"]);
   });
 
-  it("orders a search's hits by rank, pinned first, and answers only them", () => {
+  it("orders a search's hits by rank, pinned first, and answers only those on its side", () => {
+    const rank = new Map([
+      ["old", 1],
+      ["link", 0],
+      ["binned", 2],
+      ["pinned", 5],
+    ]);
     const index = filled();
-    expect(
-      ids(index, {
-        sort: "relevance",
-        within: new Map([
-          ["old", 1],
-          ["link", 0],
-          ["pinned", 5],
-        ]),
-      }),
-    ).toStrictEqual(["pinned", "link", "old"]);
+    expect(ids(index, { order: { by: "rank", rank } })).toStrictEqual(["pinned", "link", "old"]);
+    expect(ids(index, { deleted: true, order: { by: "rank", rank } })).toStrictEqual(["binned"]);
   });
 
-  it("pages a listing without losing its total", () => {
+  it("pages a listing, naming where the next page starts until the list ends", () => {
     const page = filled().items(query({ limit: 2, offset: 1 }));
     expect(page.items.map((item) => item.id)).toStrictEqual(["new", "link"]);
-    expect(page.total).toBe(4);
-  });
-
-  it("answers every row to a limit past the count, an unbounded one included", () => {
-    expect(ids(filled(), { limit: 10 })).toStrictEqual(["pinned", "new", "link", "old"]);
-    expect(ids(filled(), { limit: Number.POSITIVE_INFINITY })).toStrictEqual([
-      "pinned",
-      "new",
-      "link",
-      "old",
-    ]);
+    expect(page).toMatchObject({ next: 3, total: 4 });
+    const last = filled().items(query({ limit: 2, offset: 3 }));
+    expect(last.items.map((item) => item.id)).toStrictEqual(["old"]);
+    expect(last).toMatchObject({ next: null, total: 4 });
+    expect(filled().items(query({ limit: 4 })).next).toBeNull();
   });
 
   it("re-sorts only what a change moved", () => {
@@ -190,12 +190,28 @@ const answering = (): LibraryIndex<ItemListing> => {
 // the index above holds each row whole
 const whole = (listed: ItemListing): ItemListing => listed;
 
+// a browse asks no search
+const noSearch = (): never => {
+  throw new Error("a page with no words searched");
+};
+
+// a page as the wire's schema parses its request, every default in place
+const pageOf = (
+  index: LibraryIndex<ItemListing>,
+  input: z.input<typeof listingPageInputSchema>,
+  search: Parameters<typeof listingPageOf>[2] = noSearch,
+) => listingPageOf(index, listingPageInputSchema.parse(input), search, whole);
+
 describe(listingPageOf, () => {
-  it("pages a listing from where the last page ended, counting each kind", () => {
-    const notes = { deleted: false, kinds: ["note" as const], sort: "title" as const };
-    const first = listingPageOf(answering(), { limit: 2, query: notes }, null, whole);
+  it("pages a scope from where the last page ended, counting each kind", () => {
+    const notes = {
+      kinds: ["note" as const],
+      scope: { kind: "all" as const },
+      sort: "title" as const,
+    };
+    const first = pageOf(answering(), { ...notes, limit: 2 });
     expect(first.items.map(({ card }) => card.title)).toStrictEqual(["Apple", "Banana"]);
-    expect(first).toMatchObject({ kindCounts: { link: 1, note: 3 }, nextCursor: 2, total: 3 });
+    expect(first).toMatchObject({ cursor: 2, kindCounts: { link: 1, note: 3 }, total: 3 });
     expect(first.items[0]).toStrictEqual({
       card: { outline: [], preview: "", title: "Apple", words: 0 },
       fields: expect.objectContaining({ title: "Apple" }),
@@ -205,18 +221,35 @@ describe(listingPageOf, () => {
       updatedAt: 0,
     });
 
-    const last = listingPageOf(answering(), { cursor: 2, limit: 2, query: notes }, null, whole);
+    const last = pageOf(answering(), { ...notes, cursor: 2, limit: 2 });
     expect(last.items.map(({ card }) => card.title)).toStrictEqual(["Cherry"]);
-    expect(last.nextCursor).toBeNull();
+    expect(last.cursor).toBeNull();
   });
 
-  it("answers only a search's hits, best first, cutting a passage for each row of the page alone", () => {
+  it("lists what a scope names: every item, Unsorted, a folder with what is under it, a tag, or Deleted", () => {
+    const index = answering();
+    index.setFolders([
+      { id: "fruit", name: "Fruit", parentId: null, sort: "a0" },
+      { id: "red", name: "Red", parentId: "fruit", sort: "a0" },
+    ]);
+    index.upsert(listing("apple", { folderId: "red", savedAt: 2, title: "Apple" }, ["Fruit"]));
+    index.upsert(listing("elder", { deletedAt: 9, savedAt: 5, title: "Elder" }));
+    const titles = (scope: LibraryScope) =>
+      pageOf(index, { limit: 10, scope }).items.map(({ card }) => card.title);
+    expect(titles({ kind: "all" })).toStrictEqual(["durian", "Banana", "Apple", "Cherry"]);
+    expect(titles({ kind: "unsorted" })).toStrictEqual(["durian", "Banana", "Cherry"]);
+    expect(titles({ folderId: "fruit", kind: "folder" })).toStrictEqual(["Apple"]);
+    expect(titles({ kind: "tag", tag: "fruit" })).toStrictEqual(["Apple"]);
+    expect(titles({ kind: "deleted" })).toStrictEqual(["Elder"]);
+  });
+
+  it("answers only a search's hits on the scope's side, best first, cutting a passage for each row of the page alone", () => {
     const cut: string[] = [];
-    const page = listingPageOf(
-      answering(),
-      { limit: 2, query: { deleted: false, sort: "relevance" } },
-      {
-        passage: (id) => {
+    const asked: [string, boolean][] = [];
+    const search = (words: string, deleted: boolean) => {
+      asked.push([words, deleted]);
+      return {
+        passage: (id: string) => {
           cut.push(id);
           return id === "cherry" ? "a cherry tree" : null;
         },
@@ -225,14 +258,47 @@ describe(listingPageOf, () => {
           ["banana", 1],
           ["apple", 2],
         ]),
-      },
-      whole,
-    );
+      };
+    };
+    const page = pageOf(answering(), { limit: 2, scope: { kind: "all" }, words: "tree" }, search);
     expect(page.items.map(({ id, snippet }) => [id, snippet])).toStrictEqual([
       ["cherry", "a cherry tree"],
       ["banana", "Banana"],
     ]);
-    expect(page).toMatchObject({ nextCursor: 2, total: 3 });
+    expect(page).toMatchObject({ cursor: 2, total: 3 });
     expect(cut).toStrictEqual(["cherry", "banana"]);
+
+    const deleted = pageOf(
+      answering(),
+      { limit: 2, scope: { kind: "deleted" }, words: "tree" },
+      search,
+    );
+    expect(deleted.items).toStrictEqual([]);
+    expect(asked).toStrictEqual([
+      ["tree", false],
+      ["tree", true],
+    ]);
+  });
+});
+
+describe(itemSummary, () => {
+  it("names an item by its row: every tag it carries, and its saved time as a date", () => {
+    const saved = row("a", {
+      folderId: "work",
+      pinnedAt: 3,
+      savedAt: Date.UTC(2026, 0, 2),
+      tags: ["Read", "later"],
+      url: "https://example.com/a",
+    });
+    expect(itemSummary(saved)).toStrictEqual({
+      folderId: "work",
+      id: "a",
+      kind: "note",
+      pinned: true,
+      savedAt: "2026-01-02T00:00:00.000Z",
+      tags: ["Read", "later"],
+      title: "a",
+      url: "https://example.com/a",
+    });
   });
 });

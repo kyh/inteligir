@@ -125,7 +125,7 @@ Highlight: Apps are ephemeral.",false
     const folder = folders.find((each) => each.id === folderId);
     return folder === undefined ? "" : `${pathOf(folder.parentId)}${folder.name}/`;
   };
-  const { items } = await library.items.list({ kind: "link" });
+  const { items } = await library.items.list({ kinds: ["link"] });
   expect(items.map((item) => `${pathOf(item.folderId)}${item.title}`).toSorted()).toEqual([
     "Reading/File over app",
     "Reading/Old/A page that is gone",
@@ -163,7 +163,7 @@ Highlight: Apps are ephemeral.",false
 
   await importCsv();
   await expect(tab.getByText("Added 0, 2 already in the library.")).toBeVisible();
-  await expect(library.items.list({ kind: "link" })).resolves.toMatchObject({
+  await expect(library.items.list({ kinds: ["link"] })).resolves.toMatchObject({
     items: { length: 2 },
   });
 });

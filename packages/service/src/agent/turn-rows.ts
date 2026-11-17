@@ -20,7 +20,6 @@ import type { TurnActor } from "../library/cell-actor";
 import { excluded } from "../library/cell-db";
 import type { CellDb } from "../library/cell-db";
 import type { WriteScope } from "../library/cell-landing";
-import { offsetOf } from "../library/cell-reads";
 import { refuse } from "../library/cell-refusal";
 
 type ThreadStatus = (typeof threads.$inferSelect)["status"];
@@ -74,18 +73,17 @@ export const everyThreadId = (db: CellDb): string[] =>
 // the newest-touched first
 export const listThreads = (
   db: CellDb,
-  input: { readonly cursor?: string | undefined; readonly limit: number },
+  input: { readonly cursor: number; readonly limit: number },
 ) => {
-  const offset = offsetOf(input.cursor);
   const rows = db
     .select()
     .from(threads)
     .orderBy(desc(threads.updatedAt), desc(threads.id))
     .limit(input.limit + 1)
-    .offset(offset)
+    .offset(input.cursor)
     .all();
   return {
-    cursor: rows.length > input.limit ? String(offset + input.limit) : null,
+    cursor: rows.length > input.limit ? input.cursor + input.limit : null,
     threads: rows.slice(0, input.limit),
   };
 };

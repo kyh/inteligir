@@ -10,7 +10,8 @@ import {
   LibraryIndex,
   listingPageOf,
 } from "@repo/contract/library/library-index";
-import type { ListingPageInput, ListingRow } from "@repo/contract/library/library-index";
+import type { ListingRow } from "@repo/contract/library/library-index";
+import type { listingPageInputSchema } from "@repo/contract/library/library-wire";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { searchHits } from "../search/search-hits";
 import { readItem, readListingRows, readListingSince } from "./library-queries";
@@ -18,6 +19,7 @@ import type { StoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import { asc, gt, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import type { z } from "zod";
 
 import { items, itemTags } from "@repo/db/cell/schema";
 import type { CellDb } from "./cell-db";
@@ -46,7 +48,7 @@ export const itemWhole = (db: CellDb, id: string, blocks: readonly BodyBlock[]) 
 });
 
 // each tag the items `where` names carry, their field's and their body's, each spelling once
-const tagsOf = (db: CellDb, where?: SQL): Map<string, string[]> => {
+export const tagsOf = (db: CellDb, where?: SQL): Map<string, string[]> => {
   const tags = new Map<string, string[]>();
   for (const row of db
     .select({ itemId: itemTags.itemId, tag: itemTags.tag })
@@ -122,13 +124,11 @@ export const listedWhole = (db: CellDb, id: string): StoredItem => {
 export const listingPage = (
   db: CellDb,
   listing: LibraryIndex<ListingRow>,
-  input: ListingPageInput & { readonly words?: string | undefined },
+  input: z.output<typeof listingPageInputSchema>,
 ) =>
   listingPageOf(
     listing,
     input,
-    input.words === undefined
-      ? null
-      : searchHits(db, input.words, input.query.deleted ? "deleted" : "live"),
+    (words, deleted) => searchHits(db, words, deleted ? "deleted" : "live"),
     (row) => itemListing(listedWhole(db, row.id), row.tags),
   );

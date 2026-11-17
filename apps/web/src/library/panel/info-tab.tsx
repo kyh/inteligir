@@ -16,13 +16,8 @@ import { z } from "zod";
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { formatCount, isUrlItem } from "../library/item-labels";
+import { useLibraryCommands } from "../library/library-commands";
 import { PropertiesPanel } from "./properties-panel";
-
-export interface InfoActions {
-  readonly move: (itemId: string) => void;
-  // the tags its own field holds, which the dialog offers to take off
-  readonly tag: (itemId: string, tags: readonly string[]) => void;
-}
 
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -52,7 +47,8 @@ const propertyText = (value: PropertyValue): string => {
   return words.success ? words.data : JSON.stringify(value);
 };
 
-export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActions }) => {
+export const InfoTab = ({ itemId }: { itemId: string }) => {
+  const commands = useLibraryCommands();
   const queries = useLibraryQueries();
   const writes = useLibraryWrites();
   const pin = useMutation(writes.organize("That couldn't be pinned."));
@@ -94,7 +90,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
                   size="compact"
                   variant="ghost"
                   onClick={() => {
-                    actions.move(id);
+                    commands.move([id]);
                   }}
                 >
                   Move…
@@ -112,7 +108,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
                   size="compact"
                   variant="ghost"
                   onClick={() => {
-                    actions.tag(id, fields.tags);
+                    commands.tag([{ id, tags: fields.tags }]);
                   }}
                 >
                   Tag…

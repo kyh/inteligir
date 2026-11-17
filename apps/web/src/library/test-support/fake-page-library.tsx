@@ -2,7 +2,8 @@
 // in-memory link, recording each call, so a screen runs on what it runs on in the tab. A call
 // reaches the fake cell (`@repo/contract/test-support/fake-cell`) unless the suite answers it
 // itself; the account's threads and their events are answered from what the suite hands it, and
-// the account's socket is one the suite speaks for.
+// the account's socket is one the suite speaks for. A screen drawn on it presses spies for
+// commands, so its suite says which press it made and runs none.
 
 import { createORPCClient, DynamicLink } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
@@ -15,11 +16,15 @@ import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/libra
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { vi } from "vitest";
 import { z } from "zod";
 
 import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
 import { createPageQueryClient } from "../cloud/v1";
+import { LibraryCommandsContext } from "../library/library-commands";
+import type { LibraryCommands } from "../library/library-commands";
+import { createWorkspaceStore } from "../workspace-store";
 
 export type ThreadRow = z.infer<typeof threadRowSchema>;
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
@@ -125,25 +130,55 @@ export const fakePageLibrary = ({
         previews,
       },
       wire: { client, orpc: createTanstackQueryUtils(client) },
+      workspace: createWorkspaceStore(),
     },
     moved: items.tell,
     preview: previews.hear,
   };
 };
 
+export const spyCommands = () =>
+  ({
+    askAgent: vi.fn<LibraryCommands["askAgent"]>(),
+    askSaveLink: vi.fn<LibraryCommands["askSaveLink"]>(),
+    closeItem: vi.fn<LibraryCommands["closeItem"]>(),
+    deleteFolder: vi.fn<LibraryCommands["deleteFolder"]>(),
+    emptyDeleted: vi.fn<LibraryCommands["emptyDeleted"]>(),
+    move: vi.fn<LibraryCommands["move"]>(),
+    newFolder: vi.fn<LibraryCommands["newFolder"]>(),
+    newNote: vi.fn<LibraryCommands["newNote"]>(),
+    openItem: vi.fn<LibraryCommands["openItem"]>(),
+    openPalette: vi.fn<LibraryCommands["openPalette"]>(),
+    openSettings: vi.fn<LibraryCommands["openSettings"]>(),
+    pin: vi.fn<LibraryCommands["pin"]>(),
+    purge: vi.fn<LibraryCommands["purge"]>(),
+    refresh: vi.fn<LibraryCommands["refresh"]>(),
+    remove: vi.fn<LibraryCommands["remove"]>(),
+    renameFolder: vi.fn<LibraryCommands["renameFolder"]>(),
+    restore: vi.fn<LibraryCommands["restore"]>(),
+    save: vi.fn<LibraryCommands["save"]>(),
+    saveLink: vi.fn<LibraryCommands["saveLink"]>(),
+    showKind: vi.fn<LibraryCommands["showKind"]>(),
+    showScope: vi.fn<LibraryCommands["showScope"]>(),
+    startTidy: vi.fn<LibraryCommands["startTidy"]>(),
+    tag: vi.fn<LibraryCommands["tag"]>(),
+  }) satisfies LibraryCommands;
+
 // the page's providers over the fake, under one page QueryClient of its own
-const onLibrary = (library: PageLibrary) => {
+const onLibrary = (library: PageLibrary, commands: LibraryCommands = spyCommands()) => {
   const queryClient = createPageQueryClient();
   const OnLibrary = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <PageLibraryProvider library={library}>{children}</PageLibraryProvider>
+      <PageLibraryProvider library={library}>
+        <LibraryCommandsContext value={commands}>{children}</LibraryCommandsContext>
+      </PageLibraryProvider>
     </QueryClientProvider>
   );
   return OnLibrary;
 };
 
-export const renderOnLibrary = (ui: ReactNode, library: PageLibrary) =>
-  render(ui, { wrapper: onLibrary(library) });
+export const renderOnLibrary = (ui: ReactNode, library: PageLibrary, commands?: LibraryCommands) =>
+  render(ui, { wrapper: onLibrary(library, commands) });
 
 export const renderHookOnLibrary = <T,>(hook: () => T, library: PageLibrary) =>
   renderHook(hook, { wrapper: onLibrary(library) });

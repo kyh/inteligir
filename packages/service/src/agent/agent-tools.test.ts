@@ -157,10 +157,10 @@ describe("the built-in agent's tools", () => {
           responseFormat: "detailed",
         });
         const page = z
-          .object({ cursor: z.string().nullable(), hits: z.array(z.unknown()) })
+          .object({ cursor: z.number().nullable(), hits: z.array(z.unknown()) })
           .parse(JSON.parse(fitted.content));
         expect(page.hits.length).toBeLessThan(50);
-        expect(page.cursor).toBe(String(page.hits.length));
+        expect(page.cursor).toBe(page.hits.length);
       });
     },
   );

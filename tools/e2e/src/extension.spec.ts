@@ -104,7 +104,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     );
   };
   const landed = async (pathname: string) => {
-    const { items } = await library.items.list({ kind: "link" });
+    const { items } = await library.items.list({ kinds: ["link"] });
     return items.find((item) => item.url === `${PAGES}${pathname}`)?.id;
   };
   // the extension's alarm sends what waits every 30 s

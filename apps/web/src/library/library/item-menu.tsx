@@ -1,5 +1,5 @@
 // A card's right-click menu, over the card it was opened on, or over the whole selection when that
-// card is in it. Every verb is the caller's (`LibraryItemActions`); the menu only names them for
+// card is in it. Every verb is a command (`./library-commands.tsx`); the menu only names them for
 // the rows it was opened over, by what those rows are: a library item, or one in Deleted.
 
 import {
@@ -11,46 +11,33 @@ import {
 import { plural } from "@repo/ui/lib/plural";
 
 import { copyText } from "../copy-text";
+import { useLibraryCommands } from "./library-commands";
 import type { ListedItem } from "./listing";
-
-export interface LibraryItemActions {
-  readonly open: (row: ListedItem) => void;
-  readonly quickLook: (row: ListedItem) => void;
-  readonly pin: (rows: readonly ListedItem[], pinned: boolean) => void;
-  readonly move: (rows: readonly ListedItem[]) => void;
-  readonly tag: (rows: readonly ListedItem[]) => void;
-  readonly askAgent: (rows: readonly ListedItem[]) => void;
-  readonly refresh: (row: ListedItem) => void;
-  readonly remove: (rows: readonly ListedItem[]) => void;
-  readonly restore: (rows: readonly ListedItem[]) => void;
-  readonly purge: (rows: readonly ListedItem[]) => void;
-}
-
-// what the grid's owner answers: the grid draws its own Quick Look
-export type LibraryGridActions = Omit<LibraryItemActions, "quickLook">;
 
 export interface ItemMenuState {
   readonly row: ListedItem;
   readonly anchor: HTMLElement;
-  // what the verbs act on: the row alone, or the selection it is part of
+  // what the verbs act on: the row alone, or the selection it is part of. The grid selects a card
+  // it opens the menu on, so the subjects are the selection a message to the agent carries
   readonly subjects: readonly ListedItem[];
 }
 
+const idsOf = (rows: readonly ListedItem[]): string[] => rows.map((row) => row.id);
+
 const DeletedVerbs = ({
   subjects,
-  actions,
   run,
 }: {
   subjects: readonly ListedItem[];
-  actions: LibraryItemActions;
   run: (verb: () => void) => () => void;
 }) => {
+  const commands = useLibraryCommands();
   const many = subjects.length > 1;
   return (
     <>
       <DropdownMenuItem
         onClick={run(() => {
-          actions.restore(subjects);
+          commands.restore(idsOf(subjects));
         })}
       >
         {many ? `Restore ${plural(subjects.length, "item")}` : "Restore"}
@@ -59,7 +46,7 @@ const DeletedVerbs = ({
       <DropdownMenuItem
         variant="destructive"
         onClick={run(() => {
-          actions.purge(subjects);
+          commands.purge(idsOf(subjects));
         })}
       >
         {many ? `Delete ${plural(subjects.length, "item")} forever…` : "Delete forever…"}
@@ -70,14 +57,16 @@ const DeletedVerbs = ({
 
 const LibraryVerbs = ({
   menu,
-  actions,
+  onQuickLook,
   run,
 }: {
   menu: ItemMenuState;
-  actions: LibraryItemActions;
+  onQuickLook: (row: ListedItem) => void;
   run: (verb: () => void) => () => void;
 }) => {
+  const commands = useLibraryCommands();
   const { row, subjects } = menu;
+  const ids = idsOf(subjects);
   const many = subjects.length > 1;
   const pinned = subjects.every((subject) => subject.fields.pinnedAt !== null);
   const { url } = row.fields;
@@ -87,14 +76,14 @@ const LibraryVerbs = ({
         <>
           <DropdownMenuItem
             onClick={run(() => {
-              actions.open(row);
+              commands.openItem(row.id);
             })}
           >
             Open
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={run(() => {
-              actions.quickLook(row);
+              onQuickLook(row);
             })}
           >
             Quick Look
@@ -111,31 +100,27 @@ const LibraryVerbs = ({
           Copy address
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem
-        onClick={run(() => {
-          actions.askAgent(subjects);
-        })}
-      >
+      <DropdownMenuItem onClick={run(commands.askAgent)}>
         {many ? `Ask the agent about ${plural(subjects.length, "item")}` : "Ask the agent"}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onClick={run(() => {
-          actions.tag(subjects);
+          commands.tag(subjects.map(({ fields, id }) => ({ id, tags: fields.tags })));
         })}
       >
         {many ? `Tag ${plural(subjects.length, "item")}…` : "Tag…"}
       </DropdownMenuItem>
       <DropdownMenuItem
         onClick={run(() => {
-          actions.move(subjects);
+          commands.move(ids);
         })}
       >
         {many ? `Move ${plural(subjects.length, "item")} to…` : "Move to…"}
       </DropdownMenuItem>
       <DropdownMenuItem
         onClick={run(() => {
-          actions.pin(subjects, !pinned);
+          commands.pin(ids, !pinned);
         })}
       >
         {pinned ? "Unpin" : "Pin"}
@@ -143,7 +128,7 @@ const LibraryVerbs = ({
       {url === null || many ? null : (
         <DropdownMenuItem
           onClick={run(() => {
-            actions.refresh(row);
+            commands.refresh(row.id);
           })}
         >
           Read the page again
@@ -153,7 +138,7 @@ const LibraryVerbs = ({
       <DropdownMenuItem
         variant="destructive"
         onClick={run(() => {
-          actions.remove(subjects);
+          commands.remove(ids);
         })}
       >
         {many ? `Delete ${plural(subjects.length, "item")}` : "Delete"}
@@ -164,11 +149,11 @@ const LibraryVerbs = ({
 
 export const ItemMenu = ({
   menu,
-  actions,
+  onQuickLook,
   onClose,
 }: {
   menu: ItemMenuState | null;
-  actions: LibraryItemActions;
+  onQuickLook: (row: ListedItem) => void;
   onClose: () => void;
 }) => {
   const run = (verb: () => void) => () => {
@@ -187,9 +172,9 @@ export const ItemMenu = ({
       {menu === null ? null : (
         <DropdownMenuContent anchor={menu.anchor} side="bottom" align="start">
           {menu.row.fields.deletedAt === null ? (
-            <LibraryVerbs menu={menu} actions={actions} run={run} />
+            <LibraryVerbs menu={menu} onQuickLook={onQuickLook} run={run} />
           ) : (
-            <DeletedVerbs subjects={menu.subjects} actions={actions} run={run} />
+            <DeletedVerbs subjects={menu.subjects} run={run} />
           )}
         </DropdownMenuContent>
       )}

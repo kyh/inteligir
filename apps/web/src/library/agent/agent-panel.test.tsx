@@ -6,14 +6,14 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { PausedWrites } from "../cloud/needs-connection";
+import { usePageLibrary } from "../cloud/library-context";
+import type { PageLibrary } from "../cloud/library-context";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
-import type { ComposerEvent } from "./agent-composer";
 import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
@@ -47,13 +47,21 @@ const panel = (
   flushOpen = vi.fn<() => Promise<void>>(async () => {
     await Promise.resolve();
   }),
-  threadId: string | null = THREAD,
-) => (
+) => <AgentPanel viewContext={() => {}} flushOpen={flushOpen} />;
+
+// the library with THREAD the conversation its composer sends to
+const onThread = (library: PageLibrary): PageLibrary => {
+  library.workspace.compose({ kind: "chose", threadId: THREAD });
+  return library;
+};
+
+// the panel over an open item, whose screen a Tidy does not send
+const tidyPanel = (
   <AgentPanel
-    composer={{ kind: "asking", passage: null, threadId }}
-    dispatch={vi.fn<(event: ComposerEvent) => void>()}
-    viewContext={() => {}}
-    flushOpen={flushOpen}
+    viewContext={() => ({ itemId: THREAD, surface: "item" })}
+    flushOpen={vi.fn<() => Promise<void>>(async () => {
+      await Promise.resolve();
+    })}
   />
 );
 
@@ -74,18 +82,20 @@ const UNDONE = { ...NOTHING_LEFT, reverted: ["i1"] };
 
 // the panel on THREAD, until "Move" takes it to `to`, and back
 const Moving = ({ to }: { to: string | null }) => {
-  const [open, setOpen] = useState<string | null>(THREAD);
+  const { workspace } = usePageLibrary();
   return (
     <>
       <button
         type="button"
         onClick={() => {
-          setOpen((now) => (now === THREAD ? to : THREAD));
+          const { target } = workspace.store.getState().composer;
+          const here = target.kind === "asking" && target.threadId === THREAD;
+          workspace.compose({ kind: "chose", threadId: here ? to : THREAD });
         }}
       >
         Move
       </button>
-      {panel(undefined, open)}
+      {panel()}
     </>
   );
 };
@@ -175,7 +185,7 @@ describe("the agent panel's conversation", () => {
       events: [row(0, { text: "Bin the draft.", type: "user.message" }), deleteAsked(1)],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     await waitFor(() => {
       expect(callsTo(calls, "library.agent.respond")).toStrictEqual([
@@ -195,7 +205,7 @@ describe("the agent panel's conversation", () => {
       events: [deleteAsked(0)],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     const approve = await screen.findByRole("button", { name: "Approve" });
     const cancel = screen.getByRole("button", { name: "Cancel" });
     fireEvent.click(approve);
@@ -248,7 +258,7 @@ describe("the agent panel's conversation", () => {
       ],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     await expect(screen.findByText(url)).resolves.toBeDefined();
     expect(screen.getByText(/save a link from collector\.example/u)).toBeDefined();
   });
@@ -259,7 +269,7 @@ describe("the agent panel's conversation", () => {
       events: [row(0, { text: "File these.", type: "user.message" })],
       threads: [{ ...thread, status: "running" }],
     });
-    renderOnLibrary(panel(), fake.library);
+    renderOnLibrary(panel(), onThread(fake.library));
     await screen.findByText("File these.");
 
     act(() => {
@@ -304,7 +314,7 @@ describe("the agent panel's conversation", () => {
       ],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     // the turns left to undo are in once the finished turn offers its own undo
     await screen.findByRole("button", { name: "Undo this turn" });
     expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
@@ -323,7 +333,7 @@ describe("the agent panel's conversation", () => {
       events: twoFinishedTurns,
       threads: [thread],
     });
-    renderOnLibrary(panel(flushOpen), library);
+    renderOnLibrary(panel(flushOpen), onThread(library));
     const { turn, whole } = await twoTurnsDrawn();
     fireEvent.click(turn);
     await waitFor(() => {
@@ -355,7 +365,7 @@ describe("the agent panel's conversation", () => {
       events: twoFinishedTurns,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     await waitFor(() => {
       expect(document.querySelectorAll("[data-turn-ended]")).toHaveLength(2);
     });
@@ -386,7 +396,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     fireEvent.click(whole);
     await waitFor(() => {
@@ -426,7 +436,7 @@ describe("the agent panel's conversation", () => {
         <PausedWrites />
         {panel()}
       </>,
-      library,
+      onThread(library),
     );
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     setOnline(false);
@@ -460,7 +470,7 @@ describe("the agent panel's conversation", () => {
       events: twoFinishedTurns,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     const { turn, whole } = await twoTurnsDrawn();
     fireEvent.click(turn);
     await waitFor(() => {
@@ -490,7 +500,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread, { ...thread, id: OTHER_THREAD }],
     });
-    renderOnLibrary(<Moving to={OTHER_THREAD} />, library);
+    renderOnLibrary(<Moving to={OTHER_THREAD} />, onThread(library));
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     setOnline(false);
     fireEvent.click(whole);
@@ -514,7 +524,7 @@ describe("the agent panel's conversation", () => {
         events: oneFinishedTurn,
         threads: [thread],
       });
-      renderOnLibrary(panel(), library);
+      renderOnLibrary(panel(), onThread(library));
       const turn = await screen.findByRole("button", { name: "Undo this turn" });
       setOnline(false);
       fireEvent.click(turn);
@@ -546,7 +556,7 @@ describe("the agent panel's conversation", () => {
         events: oneFinishedTurn,
         threads: [thread],
       });
-      renderOnLibrary(panel(), library);
+      renderOnLibrary(panel(), onThread(library));
       const turn = await screen.findByRole("button", { name: "Undo this turn" });
       pressed = true;
       fireEvent.click(turn);
@@ -579,7 +589,7 @@ describe("the agent panel's conversation", () => {
           events: oneFinishedTurn,
           threads: [thread],
         });
-        renderOnLibrary(<Moving to={null} />, library);
+        renderOnLibrary(<Moving to={null} />, onThread(library));
         const pressed = await screen.findByRole("button", { name });
         setOnline(false);
         fireEvent.click(pressed);
@@ -607,7 +617,7 @@ describe("the agent panel's conversation", () => {
         events: twoFinishedTurns,
         threads: [thread],
       });
-      renderOnLibrary(panel(), library);
+      renderOnLibrary(panel(), onThread(library));
       const { turn, whole } = await twoTurnsDrawn();
       setOnline(false);
       fireEvent.click(whole);
@@ -633,7 +643,7 @@ describe("the agent panel's conversation", () => {
         events: twoFinishedTurns,
         threads: [thread],
       });
-      renderOnLibrary(panel(flushOpen), library);
+      renderOnLibrary(panel(flushOpen), onThread(library));
       const { turn, whole } = await twoTurnsDrawn();
       fireEvent.click(turn);
       await waitFor(() => {
@@ -672,7 +682,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     const turn = await screen.findByRole("button", { name: "Undo this turn" });
     turns = [];
     fireEvent.click(turn);
@@ -698,7 +708,7 @@ describe("the agent panel's conversation", () => {
         events: oneFinishedTurn,
         threads: [thread],
       });
-      renderOnLibrary(panel(), library);
+      renderOnLibrary(panel(), onThread(library));
       const pressed = await screen.findByRole("button", { name });
       turns = [];
       fireEvent.click(pressed);
@@ -724,7 +734,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith(expect.stringMatching(words));
@@ -748,7 +758,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
-    renderOnLibrary(panel(), library);
+    renderOnLibrary(panel(), onThread(library));
     fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith("Undone.", {
@@ -758,31 +768,24 @@ describe("the agent panel's conversation", () => {
   });
 
   it("sends Tidy my library from Unsorted, with nothing typed, and lets the request go once sent", async () => {
-    const dispatch = vi.fn<(event: ComposerEvent) => void>();
     const { calls, library } = fakePageLibrary({
       answer: () => ({ status: "running", threadId: THREAD }),
     });
-    renderOnLibrary(
-      <AgentPanel
-        composer={{ kind: "tidying" }}
-        dispatch={dispatch}
-        viewContext={() => ({ itemId: THREAD, surface: "item" })}
-        flushOpen={vi.fn<() => Promise<void>>(async () => {
-          await Promise.resolve();
-        })}
-      />,
-      library,
-    );
+    library.workspace.compose({ kind: "tidy" });
+    renderOnLibrary(tidyPanel, library);
     expect(screen.getByText(TIDY_LABEL)).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     // the conversation it went to, which lets the Tidy go (`./agent-composer`)
     await waitFor(() => {
-      expect(dispatch).toHaveBeenCalledWith({ kind: "chose", threadId: THREAD });
+      expect(library.workspace.store.getState().composer.target).toStrictEqual({
+        kind: "asking",
+        threadId: THREAD,
+      });
     });
     expect(callsTo(calls, "library.agent.send")).toStrictEqual([
       { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
     ]);
-    expect(dispatch).toHaveBeenCalledOnce();
+    expect(screen.queryByText(TIDY_LABEL)).toBeNull();
   });
 
   it("sends Tidy my library as a new conversation from Unsorted, with what the person adds, whatever is open", async () => {
@@ -794,17 +797,8 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
-    renderOnLibrary(
-      <AgentPanel
-        composer={{ kind: "tidying" }}
-        dispatch={vi.fn<(event: ComposerEvent) => void>()}
-        viewContext={() => ({ itemId: THREAD, surface: "item" })}
-        flushOpen={vi.fn<() => Promise<void>>(async () => {
-          await Promise.resolve();
-        })}
-      />,
-      library,
-    );
+    library.workspace.compose({ kind: "tidy" });
+    renderOnLibrary(tidyPanel, library);
     fireEvent.change(screen.getByPlaceholderText(TIDY_PLACEHOLDER), {
       target: { value: " Skip recipes " },
     });

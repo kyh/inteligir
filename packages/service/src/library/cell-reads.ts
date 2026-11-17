@@ -1,8 +1,13 @@
-// What the cell answers an agent's reads with, inside one read transaction: the listing and a
-// search's filters through the cell's listing (`./cell-listing`); an item as its markdown view,
-// paged by block position and cut to a page an agent's tool result can carry; and the folder tree
-// and tags. Times an agent reads are ISO 8601.
+// What the cell answers an agent's reads with, inside one read transaction, each from its row's
+// input as the contract parsed it: a list and a search through the cell's listing
+// (`./cell-listing`); and an item as its markdown view, paged by block position and cut to a page
+// an agent's tool result can carry. Times an agent reads are ISO 8601.
 
+import type {
+  listInputSchema,
+  readInputSchema,
+  searchInputSchema,
+} from "@repo/contract/library/library-contract";
 import type {
   itemReadSchema,
   itemSummarySchema,
@@ -10,111 +15,72 @@ import type {
 } from "@repo/contract/library/library-wire";
 import { viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage, ViewPorts } from "@repo/editor/codec/item-view";
-import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
-import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
-import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { linksTo, linksToUrl, readItem } from "./library-queries";
-import { and, asc, countDistinct, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { itemListing, itemSummary } from "@repo/contract/library/library-index";
+import type { ItemListing, LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
+import { cardTitle, linksTo, linksToUrl, readItem } from "./library-queries";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { z } from "zod";
 
 import { items, itemTags, links } from "@repo/db/cell/schema";
 import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
-import { liveFolders } from "./cell-folders";
+import type { LiveItemRow } from "./cell-landing";
 import { searchHits } from "../search/search-hits";
-import { listedWhole } from "./cell-listing";
+import { listedWhole, tagsOf } from "./cell-listing";
 import { refuse } from "./cell-refusal";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
 type ItemRead = z.infer<typeof itemReadSchema>;
 
-export type ResponseFormat = "concise" | "detailed";
-
 const isoOf = (ms: number): string => new Date(ms).toISOString();
-
-// ---- pages ----
-
-// a page's place in an answer: the rows from `offset`, and the cursor the next page starts at
-const CURSOR = /^(?:0|[1-9]\d{0,8})$/u;
-
-export const offsetOf = (cursor: string | undefined): number => {
-  if (cursor === undefined) {
-    return 0;
-  }
-  return CURSOR.test(cursor) ? Number(cursor) : refuse({ kind: "bad-cursor" });
-};
-
-const nextCursor = (offset: number, shown: number, total: number): string | null =>
-  offset + shown < total ? String(offset + shown) : null;
 
 // ---- the listing ----
 
-// an item as a list names it: ids and names, and in detail what a person reads on its card
-export const summaryOf = (
-  item: {
-    readonly id: string;
-    readonly card: ItemCard;
-    readonly fields: Pick<
-      LibraryItemFields,
-      "folderId" | "kind" | "pinnedAt" | "savedAt" | "site" | "url"
-    > & { readonly tags: readonly string[] };
-  },
-  format: ResponseFormat,
-): ItemSummary => {
-  const { fields } = item;
-  const detailed = format === "detailed";
-  return {
-    folderId: fields.folderId,
-    id: item.id,
-    kind: fields.kind,
-    pinned: fields.pinnedAt !== null,
-    preview: detailed ? item.card.preview : undefined,
-    savedAt: isoOf(fields.savedAt),
-    site: detailed ? fields.site : undefined,
-    tags: [...fields.tags],
-    title: item.card.title,
-    url: fields.url,
-  };
-};
+// an item as a list names it in detail: its summary, and what a person reads on its card
+const detailedSummary = (item: ItemListing): ItemSummary => ({
+  ...itemSummary(item),
+  preview: item.card.preview,
+  site: item.fields.site,
+});
 
-const LIST_SORTS = { saved: "saved", title: "title", updated: "modified" } as const;
-
-export interface ListInput {
-  readonly cursor?: string | undefined;
-  readonly folderId?: string | undefined;
-  readonly kind?: ItemKind | undefined;
-  readonly limit: number;
-  readonly pinned?: boolean | undefined;
-  readonly responseFormat: ResponseFormat;
-  readonly sort?: keyof typeof LIST_SORTS | undefined;
-  readonly tag?: string | undefined;
-}
-
-export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: ListInput) => {
-  const offset = offsetOf(input.cursor);
+export const listItems = (
+  db: CellDb,
+  listing: LibraryIndex<ListingRow>,
+  input: z.output<typeof listInputSchema>,
+) => {
   const page = listing.items({
     deleted: false,
     folderId: input.folderId,
-    kinds: input.kind === undefined ? undefined : [input.kind],
-    limit: Number.MAX_SAFE_INTEGER,
-    offset: 0,
-    sort: LIST_SORTS[input.sort ?? "saved"],
-    subfolders: true,
+    kinds: input.kinds,
+    limit: input.limit,
+    offset: input.cursor,
+    order: { by: input.sort },
+    pinned: input.pinned,
     tag: input.tag,
   });
-  const rows =
-    input.pinned === undefined
-      ? page.items
-      : page.items.filter((row) => (row.pinnedAt !== null) === input.pinned);
-  const shown = rows.slice(offset, offset + input.limit);
   return {
-    cursor: nextCursor(offset, shown.length, rows.length),
-    items: shown.map((row) => summaryOf(listedWhole(db, row.id), input.responseFormat)),
+    cursor: page.next,
+    items: page.items.map((row) =>
+      input.responseFormat === "detailed"
+        ? detailedSummary(itemListing(listedWhole(db, row.id), row.tags))
+        : itemSummary(row),
+    ),
   };
+};
+
+// the items a write landed as a list names them, each with every tag it carries as the write
+// left it, so an organize and a list answer one spelling of an item
+export const landedSummaries = (db: CellDb, rows: readonly LiveItemRow[]): ItemSummary[] => {
+  const tags = new Map(
+    listChunks(rows.map(({ id }) => id)).flatMap((ids) => [
+      ...tagsOf(db, inArray(itemTags.itemId, ids)),
+    ]),
+  );
+  return rows.map((row) => itemSummary(itemListing(row, tags.get(row.id) ?? [])));
 };
 
 // ---- search ----
@@ -122,22 +88,13 @@ export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: 
 // how much of a hit's text a concise answer keeps
 const CONCISE_SNIPPET_CHARS = 160;
 
-export interface SearchInput {
-  readonly query: string;
-  readonly cursor?: string | undefined;
-  readonly folderId?: string | undefined;
-  readonly kinds?: readonly ItemKind[] | undefined;
-  readonly limit: number;
-  readonly responseFormat: ResponseFormat;
-  readonly savedAfter?: string | undefined;
-  readonly savedBefore?: string | undefined;
-  readonly tag?: string | undefined;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: SearchInput) => {
-  const offset = offsetOf(input.cursor);
+export const searchItems = (
+  db: CellDb,
+  listing: LibraryIndex<ListingRow>,
+  input: z.output<typeof searchInputSchema>,
+) => {
   const hits = searchHits(db, input.query, "live");
   const page = listing.items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
@@ -145,15 +102,13 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
     folderId: input.folderId,
     kinds: input.kinds,
     limit: input.limit,
-    offset,
+    offset: input.cursor,
+    order: { by: "rank", rank: hits.rank },
     sinceMs: input.savedAfter === undefined ? undefined : Date.parse(input.savedAfter),
-    sort: "relevance",
-    subfolders: true,
     tag: input.tag,
-    within: hits.rank,
   });
   return {
-    cursor: nextCursor(offset, page.items.length, page.total),
+    cursor: page.next,
     hits: page.items.map((row): SearchHit => {
       const snippet = hits.passage(row.id) ?? row.title;
       return {
@@ -171,30 +126,24 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
 
 // ---- an item ----
 
-// the blocks a read takes unless it asks, and the most of the markdown one page carries: twice
-// over (as text and as structured content) a page stays well inside what an agent's tool result
-// may carry whole
-const READ_BLOCKS_DEFAULT = 200;
+// the most of the markdown one page of a read carries: twice over (as text and as structured
+// content) a page stays well inside what an agent's tool result may carry whole
 const READ_PAGE_MAX_CHARS = 16_000;
 // the items a read names as linking in or out, the first by title
 const READ_LINKS_MAX = 50;
 
 // the live items of `ids`, by title
-const linkedItems = (db: CellDb, ids: ReadonlySet<string>) => {
-  const found: { id: string; title: string }[] = [];
-  for (const chunk of listChunks([...ids])) {
-    for (const row of db
-      .select({ card: items.card, id: items.id })
-      .from(items)
-      .where(and(isNull(items.deletedAt), inArray(items.id, chunk)))
-      .all()) {
-      found.push({ id: row.id, title: row.card.title });
-    }
-  }
-  return found
+const linkedItems = (db: CellDb, ids: ReadonlySet<string>) =>
+  listChunks([...ids])
+    .flatMap((chunk) =>
+      db
+        .select({ id: items.id, title: cardTitle })
+        .from(items)
+        .where(and(isNull(items.deletedAt), inArray(items.id, chunk)))
+        .all(),
+    )
     .toSorted((a, b) => compareText(a.title.toLowerCase(), b.title.toLowerCase()))
     .slice(0, READ_LINKS_MAX);
-};
 
 // the page the read asks for, halved until it fits; one block alone is its own page however long
 const pageWithin = (
@@ -211,25 +160,18 @@ const pageWithin = (
   return page;
 };
 
-export interface ReadInput {
-  readonly id: string;
-  readonly from?: number | undefined;
-  readonly count?: number | undefined;
-  readonly responseFormat: ResponseFormat;
-}
-
 // the item's markdown from its body's blocks, read from where the body lives
 export const readItemView = (
   db: CellDb,
   codec: CellCodec,
-  input: ReadInput,
+  input: z.output<typeof readInputSchema>,
   blocks: readonly BodyBlock[],
 ): ItemRead => {
   const item = readItem(db, input.id);
   if (item === null) {
     return refuse({ kind: "not-found" });
   }
-  const page = pageWithin(blocks, codec.view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
+  const page = pageWithin(blocks, codec.view, input.from, input.count);
   const out = new Set(
     db
       .selectDistinct({ targetId: links.targetId })
@@ -268,27 +210,5 @@ export const readItemView = (
     id: input.id,
     links: { in: linkedItems(db, into), out: linkedItems(db, out) },
     view: { from: page.from, markdown: page.markdown, to: page.to, total: page.total },
-  };
-};
-
-// ---- the folder tree and tags ----
-
-export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
-  const counts = new Map(listing.scopes().folders.map((folder) => [folder.id, folder.items]));
-  return {
-    folders: liveFolders(db).map((folder) => ({
-      id: folder.id,
-      items: counts.get(folder.id) ?? 0,
-      name: folder.name,
-      parentId: folder.parentId,
-    })),
-    tags: db
-      .select({ items: countDistinct(itemTags.itemId), tag: itemTags.tag })
-      .from(itemTags)
-      .innerJoin(items, eq(items.id, itemTags.itemId))
-      .where(isNull(items.deletedAt))
-      .groupBy(itemTags.tag)
-      .orderBy(asc(itemTags.tag))
-      .all(),
   };
 };

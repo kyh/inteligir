@@ -1,7 +1,8 @@
 // The page's library, handed to every screen through one context: the wire to the account's cell,
-// the account's socket that says what moved, wanted while the page shows the library, and what the
-// host decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes).
-// Mounted once, above the router's routes, so Settings and back keeps the one socket.
+// the account's socket that says what moved, wanted while the page shows the library, what the
+// host decides (where `/v1` is reached for bytes, how the session ends and where a sign-out goes),
+// and what the tab's shell holds (`../workspace-store.ts`). Mounted once, above the router's routes,
+// so Settings and back keeps the one socket.
 
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { createContext, useContext, useEffect } from "react";
@@ -13,6 +14,7 @@ import { libraryWrites } from "./library-writes";
 import type { LibraryWrites } from "./library-writes";
 import type { SignedIn } from "#lib/auth-client";
 import type { LibrarySocket } from "@repo/client/library-cache";
+import type { WorkspaceStore } from "../workspace-store";
 import type { CloudWire } from "./v1";
 
 // why this device leaves its account: a sign-out, or the account deleted
@@ -39,6 +41,7 @@ export interface PageLibrary {
   readonly cloud: FileCloud;
   readonly socket: LibrarySocket;
   readonly session: TabSessionStore;
+  readonly workspace: WorkspaceStore;
   // this device has left its account: the host's next screen
   readonly left: (reason: LeaveReason) => void;
 }

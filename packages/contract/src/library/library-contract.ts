@@ -28,6 +28,7 @@ import {
   BULK_ITEMS_MAX,
   cursorSchema,
   eventIdSchema,
+  folderCountSchema,
   folderNameSchema,
   folderOpSchema,
   FOLDER_NAME_MAX,
@@ -37,12 +38,13 @@ import {
   IMPORT_STANDINGS,
   itemReadSchema,
   itemSummarySchema,
+  kindsSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
   folderRowSchema,
   listedItemSchema,
-  LISTING_PAGE_MAX,
-  listingQuerySchema,
+  listingPageInputSchema,
+  listingSortSchema,
   MARKDOWN_MAX,
   MESSAGE_MAX,
   newIdSchema,
@@ -54,6 +56,7 @@ import {
   seqSchema,
   shaSchema,
   bodyBlockSchema,
+  tagCountSchema,
   THREAD_STATUSES,
   threadEventRowSchema,
   threadRowSchema,
@@ -62,9 +65,11 @@ import {
 
 const FIELDS = libraryItemFieldsSchema.shape;
 const opId = opIdSchema.optional();
-const limit = z.number().int().min(1).max(PAGE_MAX).optional();
-const cursor = cursorSchema.optional();
-const responseFormat = responseFormatSchema.optional();
+// a list's page: at most `limit` rows from `cursor`, its answer's `cursor` the next page's
+const limit = z.number().int().min(1).max(PAGE_MAX).default(PAGE_MAX);
+const cursor = cursorSchema.default(0);
+const nextCursor = cursorSchema.nullable();
+const responseFormat = responseFormatSchema.default("concise");
 const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
 
 // a write that makes an item answers with its row as it landed
@@ -106,33 +111,47 @@ export const saveLinkInputSchema = z.strictObject({
 });
 export const deleteInputSchema = z.strictObject({ ids, opId });
 
+// the inputs of the rows that read for an agent, by name: the cell's reads take each as its
+// schema parsed it, every default in place (packages/service/src/library/cell-reads.ts)
+export const listInputSchema = z.strictObject({
+  cursor,
+  // a folder and every folder under it
+  folderId: idSchema.optional(),
+  kinds: kindsSchema.optional(),
+  limit,
+  pinned: z.boolean().optional(),
+  responseFormat,
+  sort: listingSortSchema.default("saved"),
+  // a tag and every tag under it
+  tag: FIELDS.tags.element.optional(),
+});
+// `from` and `count` are block positions, so a long item reads a page at a time
+export const readInputSchema = z.strictObject({
+  count: z.number().int().min(1).max(500).default(200),
+  from: z.number().int().nonnegative().default(0),
+  id: idSchema,
+  responseFormat,
+});
+export const searchInputSchema = z.strictObject({
+  cursor,
+  folderId: idSchema.optional(),
+  kinds: kindsSchema.optional(),
+  limit,
+  query: z.string().trim().min(1).max(500),
+  responseFormat,
+  savedAfter: isoDate.optional(),
+  savedBefore: isoDate.optional(),
+  tag: FIELDS.tags.element.optional(),
+});
+
 const itemsContract = {
   list: signedBase
-    .input(
-      z.strictObject({
-        cursor,
-        folderId: idSchema.optional(),
-        kind: FIELDS.kind.optional(),
-        limit,
-        pinned: z.boolean().optional(),
-        responseFormat,
-        sort: z.enum(["saved", "updated", "title"]).optional(),
-        tag: FIELDS.tags.element.optional(),
-      }),
-    )
-    .output(z.object({ cursor: cursorSchema.nullable(), items: z.array(itemSummarySchema) })),
+    .input(listInputSchema)
+    .output(z.object({ cursor: nextCursor, items: z.array(itemSummarySchema) })),
 
-  // `from` and `count` are block positions, so a long item reads a page at a time
   read: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
-    .input(
-      z.strictObject({
-        count: z.number().int().min(1).max(500).optional(),
-        from: z.number().int().nonnegative().optional(),
-        id: idSchema,
-        responseFormat,
-      }),
-    )
+    .input(readInputSchema)
     .output(itemReadSchema),
 
   // an item whole, its row and every block in reading order, for the apps; Deleted's items too
@@ -336,44 +355,25 @@ const count = z.number().int().nonnegative();
 
 // what the apps' screens list, each answered from the cell's rows as they stand
 const listingContract = {
-  // a page of the items a query names, from `cursor`, the position the last page ended at; with
-  // `words`, only the items a search on the query's side (the library, or Deleted) finds, each with
-  // the passage that matched, ranked under the query's `relevance` sort. `kindCounts` counts the
-  // query's items by kind, its own kinds aside
-  page: signedBase
-    .input(
-      z.strictObject({
-        cursor: count.optional(),
-        limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
-        query: listingQuerySchema,
-        words: z.string().trim().min(1).max(500).optional(),
-      }),
-    )
-    .output(
-      z.object({
-        items: z.array(listedItemSchema),
-        kindCounts: z.record(FIELDS.kind, count),
-        nextCursor: count.nullable(),
-        total: count,
-      }),
-    ),
+  // a page of a scope's items, each a search found with the passage that matched. `kindCounts`
+  // counts the scope's items by kind, the page's own kinds aside
+  page: signedBase.input(listingPageInputSchema).output(
+    z.object({
+      cursor: nextCursor,
+      items: z.array(listedItemSchema),
+      kindCounts: z.record(FIELDS.kind, count),
+      total: count,
+    }),
+  ),
 
   // what the rail counts: the library, Unsorted, untagged and Deleted; every live folder in rail
-  // order (a parent before its children, siblings by their order key) with the items in it and
-  // under it; every tag with the items carrying it, its first spelling, the most held first
+  // order (a parent before its children, siblings by their order key); every tag under its first
+  // spelling, the most held first
   scopes: signedBase.output(
     z.object({
       deleted: count,
-      folders: z.array(
-        z.object({
-          id: idSchema,
-          items: count,
-          name: z.string(),
-          parentId: idSchema.nullable(),
-          sort: z.string(),
-        }),
-      ),
-      tags: z.array(z.object({ items: count, tag: z.string() })),
+      folders: z.array(folderCountSchema),
+      tags: z.array(tagCountSchema),
       total: count,
       unsorted: count,
       untagged: count,
@@ -387,18 +387,11 @@ const listingContract = {
 };
 
 const organizeContract = {
-  // the folder tree and every tag, each with how many live items it holds
+  // the folder tree and every tag as the rail counts them, for an agent
   outline: signedBase.output(
     z.object({
-      folders: z.array(
-        z.object({
-          id: idSchema,
-          items: z.number().int().nonnegative(),
-          name: z.string(),
-          parentId: idSchema.nullable(),
-        }),
-      ),
-      tags: z.array(z.object({ items: z.number().int().nonnegative(), tag: z.string() })),
+      folders: z.array(folderCountSchema.omit({ sort: true })),
+      tags: z.array(tagCountSchema),
     }),
   ),
 };
@@ -506,7 +499,7 @@ const agentContract = {
 
   list: signedBase
     .input(z.strictObject({ cursor, limit }))
-    .output(z.object({ cursor: cursorSchema.nullable(), threads: z.array(threadRowSchema) })),
+    .output(z.object({ cursor: nextCursor, threads: z.array(threadRowSchema) })),
 
   // a thread's stored events after `after`, in order
   events: signedBase
@@ -514,7 +507,7 @@ const agentContract = {
     .input(
       z.strictObject({
         after: z.number().int().nonnegative().optional(),
-        limit: z.number().int().min(1).max(500).optional(),
+        limit: z.number().int().min(1).max(500).default(PAGE_MAX),
         threadId: idSchema,
       }),
     )
@@ -599,20 +592,8 @@ export const libraryContract = {
   // full-text search over titles, notes and saved articles, for agents; the apps search through
   // `listing.page`'s words
   search: signedBase
-    .input(
-      z.strictObject({
-        cursor,
-        folderId: idSchema.optional(),
-        kinds: z.array(FIELDS.kind).min(1).optional(),
-        limit,
-        query: z.string().trim().min(1).max(500),
-        responseFormat,
-        savedAfter: isoDate.optional(),
-        savedBefore: isoDate.optional(),
-        tag: FIELDS.tags.element.optional(),
-      }),
-    )
-    .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
+    .input(searchInputSchema)
+    .output(z.object({ cursor: nextCursor, hits: z.array(searchHitSchema) })),
 
   // one item's property ops, each guarded by its base, landing whole or not at all. Every other
   // field moves by a verb of `items`, which asks the reading or tells the note with it, and a body

@@ -3,13 +3,8 @@
 // cell's own index, as every device's does, and Deleted searches what it lists; a scope names a
 // folder by its id as the cell keeps it.
 
-import { scopeQuery } from "@repo/client/library-labels";
-import type { z } from "zod";
 import type { LibraryScope } from "@repo/contract/library-scope";
-import type { listingQuerySchema } from "@repo/contract/library/library-wire";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-
-type ListingQuery = z.infer<typeof listingQuerySchema>;
 
 // rows a page of the list holds; the next is asked for as the list nears its end
 const LISTING_PAGE = 100;
@@ -21,16 +16,11 @@ export interface LibraryFilter {
   readonly words: string;
 }
 
-export const listingQuery = ({ kinds, scope, words }: LibraryFilter): ListingQuery => ({
-  ...scopeQuery(scope),
-  kinds: kinds.size === 0 ? undefined : [...kinds],
-  sort: words === "" ? "saved" : "relevance",
-});
-
 // the page of the listing from `cursor`, the position the last page ended at
-export const listingPage = (filter: LibraryFilter, cursor?: number) => ({
+export const listingPage = ({ kinds, scope, words }: LibraryFilter, cursor?: number) => ({
   cursor,
+  kinds: kinds.size === 0 ? undefined : [...kinds],
   limit: LISTING_PAGE,
-  query: listingQuery(filter),
-  words: filter.words === "" ? undefined : filter.words,
+  scope,
+  words: words === "" ? undefined : words,
 });

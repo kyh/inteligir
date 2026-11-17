@@ -2,7 +2,7 @@
 // listing as cards: the pages the cell answered so far, only the cards in view drawn, and the next
 // page asked for as the view nears the end of what is read. The grid
 // owns the gestures (the selection, the focus, the keys of the shortcut table's grid rows and the
-// menu); what a verb does is the caller's.
+// menu); what a verb does is a command's.
 
 import { CardGrid } from "@repo/ui/components/card-grid";
 import type { CardGridHandle } from "@repo/ui/components/card-grid";
@@ -15,7 +15,8 @@ import { useStore } from "zustand";
 import { useNow } from "../relative-time";
 import { ItemCard } from "./item-card";
 import { ItemMenu } from "./item-menu";
-import type { ItemMenuState, LibraryGridActions } from "./item-menu";
+import type { ItemMenuState } from "./item-menu";
+import { useLibraryCommands } from "./library-commands";
 import { shortcutFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
 import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
@@ -44,12 +45,12 @@ const NEAR_END_ROWS = 60;
 export interface LibraryGridProps {
   readonly rows: readonly ListedItem[];
   readonly selection: LibrarySelectionStore;
-  readonly actions: LibraryGridActions;
   // the view came near the end of the rows read so far
   readonly onNearEnd: () => void;
 }
 
-export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGridProps) => {
+export const LibraryGrid = ({ rows, selection, onNearEnd }: LibraryGridProps) => {
+  const commands = useLibraryCommands();
   const [columns, setColumns] = useState(1);
   const [menu, setMenu] = useState<ItemMenuState | null>(null);
   const [look, setLook] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
       case "open-item": {
         if (focused !== null) {
           event.preventDefault();
-          actions.open(focused);
+          commands.openItem(focused.id);
         }
         return;
       }
@@ -138,7 +139,7 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
         if (subjects.length > 0) {
           event.preventDefault();
           if (subjects.every((row) => row.fields.deletedAt === null)) {
-            actions.remove(subjects);
+            commands.remove(subjects.map((row) => row.id));
           }
         }
         break;
@@ -182,7 +183,7 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
               nowMs={nowMs}
               onPress={press}
               onOpen={(opened) => {
-                actions.open(opened);
+                commands.openItem(opened.id);
               }}
               onMenu={openMenu}
             />
@@ -191,11 +192,8 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
       />
       <ItemMenu
         menu={menu}
-        actions={{
-          ...actions,
-          quickLook: (row) => {
-            setLook(row.id);
-          },
+        onQuickLook={(row) => {
+          setLook(row.id);
         }}
         onClose={() => {
           setMenu(null);
@@ -212,7 +210,7 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
         }}
         onOpen={(row) => {
           setLook(null);
-          actions.open(row);
+          commands.openItem(row.id);
         }}
         onStep={(by) => {
           const at = look === null ? -1 : order.indexOf(look);

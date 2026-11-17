@@ -29,8 +29,17 @@ random bytes and fresh ids are injected.
 - **A folder's place is a fractional key.** An integer position renumbers on
   insert, and two renumberings conflict. `packages/contract/src/library/order-key.ts`.
 - **The listing is in memory over what it filters and orders by, and pinned
-  leads it.** One assembly answers for the cell and the fake cell alike, and a
-  host hands a batch's rows whole. `packages/contract/src/library/library-index.ts`.
+  leads it.** One assembly answers the apps and an agent, for the cell and the
+  fake cell alike, and a host hands a batch's rows whole.
+  `packages/contract/src/library/library-index.ts`.
+- **A listing page asks by the scope union, and its order is a sort or a
+  search's ranks.** A bag of flags lets Deleted take a folder and relevance go
+  without words, and each device then flattens the scope its own way.
+  `packages/contract/src/library/library-wire.ts`.
+- **A row's input is whole once its schema parsed it: a default and a page's
+  place are the schema's.** A default the cell supplies is a parse a new row
+  forgets, and a cursor read past the schema needs a refusal of its own.
+  `packages/contract/src/library/library-contract.ts`.
 - **One fake cell answers every client's suites, over the cell's own folder and
   organize rules.** A fake per client, or rules spelled twice, drift from what
   the cell refuses. `packages/contract/src/library/cell-rules.ts`.

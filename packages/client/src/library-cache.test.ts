@@ -36,7 +36,7 @@ const openSocket = async () => {
     events: agent.events.queryKey({ input: { threadId: THREAD } }),
     note: items.row.queryKey({ input: { id: note.id } }),
     other: items.get.queryKey({ input: { id: other.id } }),
-    page: listing.page.queryKey({ input: { limit: 20, query: { deleted: false, sort: "saved" } } }),
+    page: listing.page.queryKey({ input: { limit: 20, scope: { kind: "all" } } }),
     scopes: listing.scopes.queryKey(),
     threads: agent.list.queryKey({ input: {} }),
     titles: listing.titles.queryKey(),

@@ -24,8 +24,6 @@ export type CellRefusal =
   | { readonly kind: "url-held" }
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
-  // a page's cursor this library never answered with
-  | { readonly kind: "bad-cursor" }
   // the built-in agent cannot be used: this deployment has no Claude to call, its conversation's
   // object could not be reached, or the person turned it off
   | { readonly kind: "agent-unavailable" }

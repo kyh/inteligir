@@ -255,28 +255,6 @@ export const urlSearchText = (value: string): string => {
   return [bareHost(url), ...words].join(" ");
 };
 
-// what a `site` filter names: a host, or an address reduced to its host
-const siteFilterHost = (filter: string): string => {
-  const trimmed = filter.trim();
-  if (trimmed === "") {
-    return "";
-  }
-  return (
-    urlHost(trimmed) ??
-    urlHost(`https://${trimmed}`) ??
-    trimmed
-      .toLowerCase()
-      .replace(/\.$/u, "")
-      .replace(/^www\./u, "")
-  );
-};
-
-// a host matches its own name and every subdomain of it
-export const siteMatches = (host: string | null, filter: string): boolean => {
-  const site = siteFilterHost(filter);
-  return host !== null && site !== "" && (host === site || host.endsWith(`.${site}`));
-};
-
 const SPOTIFY_AUDIO = /^\/(?:album|episode|playlist|show|track)\//u;
 
 const isVideo = (host: string, path: string): boolean => {

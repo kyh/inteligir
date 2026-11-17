@@ -1,9 +1,9 @@
 // The library's tab, in a browser or the Mac app's window alike, opened once a document whatever
 // library route it opens on: it reads the session the site's sign-in left and makes the wire, the
-// account's socket and the QueryClient every library route shares, and with no session sends the
-// browser to the site's sign-in, which brings it back here. Sign-in is the first run: there is
-// nothing to choose before it. Where the tab's session stands after that is one value, moved by
-// one step (`tabAfter`) whichever way the page meets its end.
+// account's socket, the shell's store and the QueryClient every library route shares, and with no
+// session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
+// run: there is nothing to choose before it. Where the tab's session stands after that is one
+// value, moved by one step (`tabAfter`) whichever way the page meets its end.
 
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
@@ -27,6 +27,7 @@ import type { FileCloud } from "./cloud/library-files";
 import { createCloudWire, createPageQueryClient } from "./cloud/v1";
 import type { CloudWire } from "./cloud/v1";
 import { followDevicePrefs } from "./document-prefs";
+import { createWorkspaceStore } from "./workspace-store";
 
 type TabEnd =
   | { readonly kind: "ended"; readonly why: SessionEnd }
@@ -171,6 +172,7 @@ const open = async (): Promise<TabOpening> => {
     session: tab.store,
     socket,
     wire,
+    workspace: createWorkspaceStore(),
   };
   return { kind: "open", library, queryClient };
 };

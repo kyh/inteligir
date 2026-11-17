@@ -7,13 +7,14 @@ the open item, the panel, the palette, Settings and the tab's own preferences.
 
 The tab is the site's `/library` route (`apps/web/src/routes/library.tsx`), its children the
 workspace and Settings, its code this folder. `library-tab.ts` opens the tab once a document (the
-session, the wire, the account's socket and the QueryClient) in the route's `beforeLoad`, and
-`library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
-queries, the writes and the socket; `workspace.tsx` the rail, the grid or the open item, the panel
-and the palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/`
-the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an
-import's reading; `styles/` the sheet only this route links; `shell/desktop-bridge.ts` the Mac
-app's update.
+session, the wire, the account's socket, the shell's store and the QueryClient) in the route's
+`beforeLoad`, and `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1`
+client, the queries, the writes and the socket; `workspace.tsx` lays out the rail, the grid or the
+open item, the panel and the palette, `workspace-store.ts` holds what they share and
+`library-place.ts` moves where the tab is; `library/` the grid, its verbs and the commands every
+screen presses; `item/` the open item; `panel/` Info; `agent/` the agent's conversations;
+`palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an import's reading; `styles/`
+the sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 
 ## The tab over the cell
 
@@ -57,15 +58,23 @@ app's update.
 
 ## Surfaces
 
-- **Window-level hosts mount in the library's layout.** The dialog host, the toaster, the tooltip
-  provider, the theme and the notices sit above every library route, since a host one route mounts
-  leaves another's `confirm()` parked. `apps/web/src/library/library-layout.tsx`.
+- **Window-level hosts mount in the library's layout.** The confirm and ask hosts, the toaster, the
+  tooltip provider, the theme and the notices sit above every library route, since a host one route
+  mounts leaves another's `confirm()` parked. `apps/web/src/library/library-layout.tsx`.
+- **A press is a command, made once and read by context.** Each asks or confirms first where it
+  must, runs its verb and goes where it leads, one function a menu row, a chord and ⌘P call alike,
+  since a verb handed down is a bag of props per screen, tested only by drawing the whole page.
+  `apps/web/src/library/library/library-commands.tsx`.
+- **A command asks through one host, and one ask stands at a time.** A name, a folder and a tag
+  change each answer a promise as `confirm()` does, the form mounted with its ask, since a dialog
+  state per verb lets two stand at once and a draft outlive the ask it was typed for.
+  `apps/web/src/library/library/ask.ts`.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
   with the cell's count, and a waiting call is the layout's one notice, since an online tab has
   nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
-- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, the grid's
-  listing and a view context read one set of zod arms, a folder by its id, since a scope per surface
-  drifts and a folder by path breaks every link to it on a rename.
+- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, a listing's
+  page on the wire and a view context read one set of zod arms, a folder by its id, since a scope
+  per surface drifts and a folder by path breaks every link to it on a rename.
   `packages/contract/src/library-scope.ts`.
 - **There is one search surface, and it is ⌘P.** One field over the cell's full-text index, ranked
   as the cell ranks it for every device, and ⌘F searches the open item, since an index of the tab's
@@ -73,6 +82,12 @@ app's update.
 - **The panel starts closed, is flat-tabbed, and is dragged like the rail.** Info and the Agent,
   its width kept through the rail's own resize handle, so there is no second resize mechanism.
   `apps/web/src/library/panel/panel.tsx`.
+- **What the shell holds beside its address is one store the tab makes.** The panel's tab, ⌘P and
+  the agent's composer ride the page's library, since state in the workspace's hooks reaches a
+  screen only as a prop handed down. `apps/web/src/library/workspace-store.ts`.
+- **The panel opens through its sidebar's own handle.** A reveal and a toggle ask the provider,
+  which holds the window's pref above 768px and a sheet's open below it, since a write of the pref
+  alone opens nothing in a narrow window. `apps/web/src/library/workspace-store.ts`.
 - **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
   the kind and the open item are the route's search, so Back and Forward walk them, a link opens
   them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside
@@ -135,6 +150,10 @@ app's update.
   block.** The host hands the editor `/v1/blobs/<sha>`, which the cloud serves in ranges, and sends
   a pasted file up first, so the cell never meets a sha it does not hold.
   `apps/web/src/library/item/page-editor-host.ts`.
+- **The editor's host is whole the moment it is installed.** A link, a tag, Ask the agent and a
+  note the editor makes are answered by the router, the query client and the tab's store, handed
+  over once as the library first renders, since actions bound from a component's effect leave a
+  host that does nothing until they are. `apps/web/src/library/item/page-editor-host.ts`.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
   reserves no corner and asks its shell only for the update, since an overlay title bar costs a
   branch per host for a few pixels. `apps/web/src/library/top-bar.tsx`.
@@ -142,8 +161,9 @@ app's update.
   it stacks with them and their live region announces it; the updater is the shell's, so one store
   mirrors what it pushes and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
-- **The agent's composer is one state the workspace keeps.** Moved by `composerAfter` under one
-  `useReducer`, since a `useState` per concern lets a Tidy sit beside an open conversation.
+- **The agent's composer is one state the tab's store keeps, its words with it.** Moved by
+  `composerAfter`, a passage quoted by the event that asks about it, since a `useState` per concern
+  lets a Tidy sit beside an open conversation and drops a typed message with the tab that drew it.
   `apps/web/src/library/agent/agent-composer.ts`.
 
 ## Suites

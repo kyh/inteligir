@@ -154,6 +154,9 @@ export const idTaken = (db: CellDb, id: string): boolean =>
 // title taken out in SQL, since parsing every row whole was most of a listing's cost
 export type ListingFacts = Omit<ListingRow, "tags">;
 
+// an item's title as its card holds it, by its JSON path
+export const cardTitle = sql`json_extract(${items.card}, '$.title')`.mapWith(String);
+
 const LISTING_COLUMNS = {
   deletedAt: items.deletedAt,
   folderId: items.folderId,
@@ -161,7 +164,7 @@ const LISTING_COLUMNS = {
   kind: items.kind,
   pinnedAt: items.pinnedAt,
   savedAt: items.savedAt,
-  title: sql`json_extract(${items.card}, '$.title')`.mapWith(String),
+  title: cardTitle,
   updatedAt: items.updatedAt,
   url: items.url,
 };

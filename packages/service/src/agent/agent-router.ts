@@ -11,7 +11,7 @@ import {
   undoChangeSets,
   undoneSchema,
 } from "../library/cell-undo";
-import { answer, os, PAGE_DEFAULT } from "../library/library-orpc";
+import { answer, os } from "../library/library-orpc";
 import { readLibraryRules, writeLibraryRules } from "../library/library-rules";
 import type { TurnUndone } from "../note/note-wire";
 import { readThreadEvents } from "./agent-events";
@@ -35,13 +35,9 @@ export const agentRouter = {
     answer(await deleteAgentThread(context.agent, input)),
   ),
   events: os.agent.events.handler(({ context, input }) =>
-    context.read((db) => readThreadEvents(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
+    context.read((db) => readThreadEvents(db, input)),
   ),
-  list: os.agent.list.handler(({ context, input }) =>
-    context.read((db) =>
-      listThreads(db, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
-    ),
-  ),
+  list: os.agent.list.handler(({ context, input }) => context.read((db) => listThreads(db, input))),
   respond: os.agent.respond.handler(async ({ context, input }) =>
     answer(await respondToAgent(context.agent, input)),
   ),

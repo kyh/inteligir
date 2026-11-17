@@ -6,7 +6,11 @@
 // declares (`./library-orpc`). The built-in agent's rows are `../agent/agent-router`'s.
 
 import { NotFoundError } from "@repo/contract/v1/errors";
-import { folderRowSchema, liveItemRowSchema } from "@repo/contract/library/library-wire";
+import {
+  folderRowSchema,
+  itemSummarySchema,
+  liveItemRowSchema,
+} from "@repo/contract/library/library-wire";
 import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
@@ -31,16 +35,16 @@ import {
 import { landProjection } from "./cell-notes";
 import type { ItemScope, LiveItemRow } from "./cell-landing";
 import { itemRow, itemWhole, listingPage } from "./cell-listing";
-import { listItems, outlineOf, readItemView, searchItems, summaryOf } from "./cell-reads";
+import { landedSummaries, listItems, readItemView, searchItems } from "./cell-reads";
 import { saveLink, savePage } from "./cell-saves";
 import { landedSchema, landPropertyOps } from "./cell-writes";
 import type { CellActor } from "./cell-actor";
 import { libraryHead } from "./library-engine";
-import { answer, os, PAGE_DEFAULT } from "./library-orpc";
+import { answer, os } from "./library-orpc";
 import type { CellContext } from "./library-orpc";
 
 const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
-const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
+const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 const changedSchema = z.object({
   addressHeld: z.array(z.string()),
   changed: z.array(z.string()),
@@ -50,8 +54,6 @@ const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: 
 const count = z.number().int().nonnegative();
 const importLandedSchema = z.object({ added: count, alreadySaved: count, unreadable: count });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
-
-const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
 // an item's body in reading order, read where it lives: the seed the cell kept, or its note, which
 // is read outside any transaction since a cold note's load calls back into the cell
@@ -138,20 +140,13 @@ export const libraryRouter = os.router({
       return context.read((db) => itemWhole(db, input.id, blocks));
     }),
     list: os.items.list.handler(({ context, input }) =>
-      context.readListing((listing, db) =>
-        listItems(db, listing, {
-          ...input,
-          limit: input.limit ?? PAGE_DEFAULT,
-          responseFormat: input.responseFormat ?? "concise",
-        }),
-      ),
+      context.readListing((listing, db) => listItems(db, listing, input)),
     ),
-    organize: os.items.organize.handler(({ context, input }) => {
-      const { items } = context.land({ answer: organizedSchema, opId: input.opId }, (scope) => ({
-        items: organizeItems(scope, context.library.ids, input),
-      }));
-      return { items: items.map(summaryOfRow) };
-    }),
+    organize: os.items.organize.handler(({ context, input }) =>
+      context.land({ answer: organizedSchema, opId: input.opId }, (scope) => ({
+        items: landedSummaries(scope.db, organizeItems(scope, context.library.ids, input)),
+      })),
+    ),
     purge: os.items.purge.handler(({ context, input }) =>
       context.landApart({ answer: purgedSchema, opId: input.opId }, (scope) =>
         purgeItems(scope, input.ids),
@@ -160,12 +155,7 @@ export const libraryRouter = os.router({
     read: os.items.read.handler(async ({ context, input }) => {
       const blocks = await bodyOf(context, input.id);
       return context.read((db) =>
-        readItemView(
-          db,
-          cellCodec(db, context.library.ids),
-          { ...input, responseFormat: input.responseFormat ?? "concise" },
-          blocks,
-        ),
+        readItemView(db, cellCodec(db, context.library.ids), input, blocks),
       );
     }),
     // the page is read again by the cloud: the item waits, pending, as a stub saved to read later
@@ -232,18 +222,16 @@ export const libraryRouter = os.router({
     ),
   },
   organize: {
+    // the rail's own folders and tags; the row's answer leaves a folder's order key out
     outline: os.organize.outline.handler(({ context }) =>
-      context.readListing((listing, db) => outlineOf(db, listing)),
+      context.readListing((listing) => {
+        const { folders, tags } = listing.scopes();
+        return { folders, tags };
+      }),
     ),
   },
   search: os.search.handler(({ context, input }) =>
-    context.readListing((listing, db) =>
-      searchItems(db, listing, {
-        ...input,
-        limit: input.limit ?? PAGE_DEFAULT,
-        responseFormat: input.responseFormat ?? "concise",
-      }),
-    ),
+    context.readListing((listing, db) => searchItems(db, listing, input)),
   ),
   write: os.write.handler(({ context, input }) =>
     context.land({ answer: landedSchema, opId: input.opId }, (scope) => ({

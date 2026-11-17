@@ -32,23 +32,19 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import type { ComposerEvent, ComposerState } from "./agent-composer";
-import { quotePassage } from "./quote-passage";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 import { UNDO_SCOPE, undoToEnd, useUndoWaits } from "./undo-queue";
 
 export interface AgentPanelProps {
-  // the conversation shown and what the composer holds, which the workspace keeps
-  readonly composer: ComposerState;
-  readonly dispatch: (event: ComposerEvent) => void;
   // the screen the next message leaves from, read as it is sent
   readonly viewContext: () => AgentViewContext | undefined;
   // writes what the open item holds unsaved, so an undo meets the item as the person sees it
@@ -338,44 +334,34 @@ const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
   </div>
 );
 
-const Composer = ({
-  composer,
-  dispatch,
-  viewContext,
-}: {
-  composer: ComposerState;
-  dispatch: (event: ComposerEvent) => void;
-  viewContext: () => AgentViewContext | undefined;
-}) => {
-  const { orpc } = usePageLibrary().wire;
-  const [text, setText] = useState("");
+const Composer = ({ viewContext }: { viewContext: () => AgentViewContext | undefined }) => {
+  const {
+    wire: { orpc },
+    workspace,
+  } = usePageLibrary();
+  const { quoted, target, text } = useStore(workspace.store, (state) => state.composer);
   const field = useRef<HTMLTextAreaElement>(null);
-  const tidying = composer.kind === "tidying";
-  const threadId = composer.kind === "asking" ? composer.threadId : null;
-  const passage = composer.kind === "asking" ? composer.passage : null;
-  // quoted as it renders, until the composer lets the passage go: quoting it twice changes nothing
-  const quoted = passage === null ? text : quotePassage(text, passage);
-  if (quoted !== text) {
-    setText(quoted);
-  }
+  const tidying = target.kind === "tidying";
+  const threadId = target.kind === "asking" ? target.threadId : null;
+  // a passage waiting on the person's question hands the field the keyboard, as it is quoted and
+  // as the composer comes up holding it
   useEffect(() => {
-    if (passage !== null) {
+    if (quoted > 0) {
       field.current?.focus();
-      dispatch({ kind: "quoted" });
     }
-  }, [dispatch, passage]);
+  }, [quoted]);
   const send = useMutation(
     orpc.library.agent.send.mutationOptions({
       onError: onSendRefused,
-      // the conversation it went to, which lets a Tidy go
       onSuccess: (answer) => {
-        setText("");
-        dispatch({ kind: "chose", threadId: answer.threadId });
+        workspace.compose({ kind: "sent", threadId: answer.threadId });
       },
     }),
   );
+  // read off the cache, since the words outlive this composer and a send may too
+  const sending = useIsMutating({ mutationKey: orpc.library.agent.send.mutationKey() }) > 0;
   const submit = (): void => {
-    if (send.isPending) {
+    if (sending) {
       return;
     }
     // a Tidy starts a conversation of its own, from Unsorted, whatever the screen shows
@@ -390,7 +376,9 @@ const Composer = ({
     <div className="flex shrink-0 flex-col gap-1.5 border-t border-border p-3">
       <InputMessage
         value={text}
-        onValueChange={setText}
+        onValueChange={(typed) => {
+          workspace.compose({ kind: "typed", text: typed });
+        }}
         onSend={submit}
         placeholder={tidying ? TIDY_PLACEHOLDER : composerPlaceholder(threadId)}
         sendsEmpty={tidying}
@@ -398,7 +386,7 @@ const Composer = ({
           tidying ? (
             <TidyChip
               onDrop={() => {
-                dispatch({ kind: "tidyEnded" });
+                workspace.compose({ kind: "tidyEnded" });
               }}
             />
           ) : undefined
@@ -406,7 +394,7 @@ const Composer = ({
         sendLabel="Send"
         minRows={2}
         maxRows={8}
-        disabled={send.isPending}
+        disabled={sending}
         textareaRef={field}
         textareaProps={{ "aria-label": "Message the agent" }}
       />
@@ -414,10 +402,14 @@ const Composer = ({
   );
 };
 
-export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: AgentPanelProps) => {
-  const threadId = composer.kind === "asking" ? composer.threadId : null;
+export const AgentPanel = ({ viewContext, flushOpen }: AgentPanelProps) => {
+  const { workspace } = usePageLibrary();
+  // the conversation shown: the one the composer sends to
+  const threadId = useStore(workspace.store, ({ composer: { target } }) =>
+    target.kind === "asking" ? target.threadId : null,
+  );
   const onThread = (next: string | null): void => {
-    dispatch({ kind: "chose", threadId: next });
+    workspace.compose({ kind: "chose", threadId: next });
   };
   return (
     <div className="flex h-full min-h-0 flex-col" data-agent-panel>
@@ -440,7 +432,7 @@ export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: Agent
       ) : (
         <Conversation threadId={threadId} flushOpen={flushOpen} />
       )}
-      <Composer composer={composer} dispatch={dispatch} viewContext={viewContext} />
+      <Composer viewContext={viewContext} />
     </div>
   );
 };

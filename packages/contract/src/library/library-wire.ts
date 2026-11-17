@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "../library-scope";
+import { itemScopeSchema, LIBRARY_SELECTION_MAX, libraryScopeSchema } from "../library-scope";
 import { ITEM_KINDS } from "../items/item-kind";
 import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
@@ -35,8 +35,11 @@ const instant = z.number().int().nonnegative();
 export const seqSchema = z.number().int().nonnegative();
 const isoInstant = z.iso.datetime();
 export const isoDate = z.iso.date();
+const count = z.number().int().nonnegative();
 
-export const cursorSchema = z.string().min(1).max(512);
+// a list's place: a page starts at the position the last one ended at, and an answer's is where
+// the next page starts, null once the list ends
+export const cursorSchema = z.number().int().nonnegative();
 
 // ---- caps a device checks before it sends ----
 
@@ -177,21 +180,32 @@ export const editRefusalSchema = z.discriminatedUnion("kind", [
 
 // ---- what the apps list ----
 
-// which items a listing shows, as `@repo/contract/library/library-index` answers it: the library or
-// Deleted, narrowed by kind, tag (and every tag under it), folder (or none, for Unsorted), site and
-// saved time
-export const listingQuerySchema = z.strictObject({
-  beforeMs: instant.optional(),
-  deleted: z.boolean(),
-  folderId: idSchema.nullable().optional(),
-  kinds: z.array(z.enum(ITEM_KINDS)).optional(),
-  sinceMs: instant.optional(),
-  site: z.string().trim().min(1).max(253).optional(),
-  sort: z.enum(["saved", "modified", "title", "relevance"]),
-  subfolders: z.boolean().optional(),
-  tag: libraryItemFieldsSchema.shape.tags.element.optional(),
-  untagged: z.boolean().optional(),
+const itemKindSchema = z.enum(ITEM_KINDS);
+
+// the orders a list is browsed in: newest saved, last changed, or by title
+export const listingSortSchema = z.enum(["saved", "modified", "title"]);
+export const kindsSchema = z.array(itemKindSchema).min(1);
+
+// a page of the items a scope lists, from `cursor`, narrowed to `kinds`: in the `sort` order, or
+// with `words` only what a search of the scope's side (the library, or Deleted) finds, best first
+export const listingPageInputSchema = z.strictObject({
+  cursor: cursorSchema.default(0),
+  kinds: kindsSchema.optional(),
+  limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
+  scope: libraryScopeSchema,
+  sort: listingSortSchema.default("saved"),
+  words: z.string().trim().min(1).max(500).optional(),
 });
+
+// a live folder with the items in it and under it, and a tag with the items carrying it
+export const folderCountSchema = z.object({
+  id: idSchema,
+  items: count,
+  name: z.string(),
+  parentId: idSchema.nullable(),
+  sort: z.string(),
+});
+export const tagCountSchema = z.object({ items: count, tag: z.string() });
 
 // an item as a listing draws it: its row, every tag it carries (its field's and its body's), and
 // under a search the passage that matched
@@ -209,8 +223,6 @@ export const listedItemSchema = z.object({
 
 // concise answers carry ids and names; detailed ones every field a person would read
 export const responseFormatSchema = z.enum(["concise", "detailed"]);
-
-const itemKindSchema = z.enum(ITEM_KINDS);
 
 export const itemSummarySchema = z.object({
   folderId: idSchema.nullable(),
@@ -281,7 +293,7 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
   z.strictObject({
     // the first selected; [] when nothing is
     itemIds: z.array(idSchema).max(LIBRARY_SELECTION_MAX),
-    kinds: z.array(itemKindSchema).min(1).optional(),
+    kinds: kindsSchema.optional(),
     q: z.string().min(1).max(500).optional(),
     scope: itemScopeSchema,
     // how many are selected, which may exceed itemIds.length

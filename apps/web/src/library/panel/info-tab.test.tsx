@@ -4,7 +4,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary, spyCommands } from "../test-support/fake-page-library";
 import { InfoTab } from "./info-tab";
 
 afterEach(() => {
@@ -26,28 +26,22 @@ const cellWithALink = () => {
   return { cell, id };
 };
 
-const noActions = () => ({
-  move: vi.fn<(itemId: string) => void>(),
-  tag: vi.fn<(itemId: string, tags: readonly string[]) => void>(),
-});
-
 const pinned = (): HTMLElement => screen.getByRole("switch", { name: "Pinned" });
 
 describe("Info over an item", () => {
   it("draws the item as the cell holds it, and acts on it by its id", async () => {
     const { cell, id } = cellWithALink();
     const { calls, library } = fakePageLibrary({ cell });
-    const tag = vi.fn<(itemId: string, tags: readonly string[]) => void>();
-    const move = vi.fn<(itemId: string) => void>();
+    const commands = spyCommands();
 
-    renderOnLibrary(<InfoTab itemId={id} actions={{ move, tag }} />, library);
+    renderOnLibrary(<InfoTab itemId={id} />, library, commands);
     await screen.findByText("Reading");
     fireEvent.click(screen.getByRole("button", { name: "Tag…" }));
     fireEvent.click(screen.getByRole("button", { name: "Move…" }));
     fireEvent.click(screen.getByRole("button", { name: "Read the page again" }));
 
-    expect(tag).toHaveBeenCalledWith(id, ["reading"]);
-    expect(move).toHaveBeenCalledWith(id);
+    expect(commands.tag).toHaveBeenCalledWith([{ id, tags: ["reading"] }]);
+    expect(commands.move).toHaveBeenCalledWith([id]);
     await waitFor(() => {
       expect(calls.filter((call) => call.path === "library.items.refresh")).toStrictEqual([
         { input: { id }, path: "library.items.refresh" },
@@ -70,7 +64,7 @@ describe("Info over an item", () => {
       cell,
     });
 
-    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    renderOnLibrary(<InfoTab itemId={id} />, library);
     await screen.findByText("Reading");
     expect(pinned().getAttribute("aria-checked")).toBe("false");
     fireEvent.click(pinned());
@@ -100,7 +94,7 @@ describe("Info over an item", () => {
     });
     const failed = vi.spyOn(toast, "error");
 
-    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    renderOnLibrary(<InfoTab itemId={id} />, library);
     await screen.findByText("Reading");
     fireEvent.click(pinned());
 
@@ -115,10 +109,7 @@ describe("Info over an item", () => {
   it("says the item is not here when the cell holds no such item", async () => {
     const { library } = fakePageLibrary();
 
-    renderOnLibrary(
-      <InfoTab itemId="0199a4c2-0000-7000-8000-0000000000a1" actions={noActions()} />,
-      library,
-    );
+    renderOnLibrary(<InfoTab itemId="0199a4c2-0000-7000-8000-0000000000a1" />, library);
 
     await expect(screen.findByText("This item isn’t here.")).resolves.toBeDefined();
   });
@@ -135,7 +126,7 @@ describe("Info over an item", () => {
       cell,
     });
 
-    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    renderOnLibrary(<InfoTab itemId={id} />, library);
     await screen.findByText("Reading");
     fireEvent.click(screen.getByRole("button", { name: "Add property" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
@@ -163,7 +154,7 @@ describe("Info over an item", () => {
     const id = cell.seed.item({ deletedAt: 1, properties: { status: "draft" }, title: "Gone" });
     const { library } = fakePageLibrary({ cell });
 
-    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    renderOnLibrary(<InfoTab itemId={id} />, library);
 
     await screen.findByText("draft");
     expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
