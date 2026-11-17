@@ -29,7 +29,7 @@ const EVERY_BLOCK = [
       {
         children: leaf,
         display: "12,000",
-        meta: "id=f1;name=budget",
+        name: "budget",
         source: "1000*12",
         type: "formulaPill",
       },

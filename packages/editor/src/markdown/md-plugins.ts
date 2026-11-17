@@ -34,13 +34,15 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CONTINUE, SKIP, visit } from "unist-util-visit";
 
-import { z } from "zod";
-
 import { isIsoDate } from "@repo/contract/iso-date";
 import { ALERT_VARIANTS, alertVariantSchema } from "@repo/contract/library/library-nodes";
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
-import { containerDirectiveSchema, textDirectiveSchema } from "./directive-names";
+import {
+  containerDirectiveSchema,
+  formulaAttributesSchema,
+  textDirectiveSchema,
+} from "./directive-names";
 import { nestInLists } from "./mdast-lists";
 import { isMdastRoot } from "./mdast-nodes";
 
@@ -57,8 +59,8 @@ type ContainerDirective = Extract<RootContent, { type: "containerDirective" }>;
 const labelText = (node: { children: readonly PhrasingContent[] }): string =>
   node.children.map((child) => ("value" in child ? child.value : "")).join("");
 
-// a text directive the rules can read whole: a date's label is its ISO day, a formula names its
-// source
+// a text directive the rules can read whole: a date's label is its ISO day, a formula says its
+// source, and its name where it has one, and nothing else
 const readableText = (node: TextDirective): boolean => {
   const attributes = node.attributes ?? {};
   switch (textDirectiveSchema.safeParse(node.name).data) {
@@ -66,7 +68,7 @@ const readableText = (node: TextDirective): boolean => {
       return Object.keys(attributes).length === 0 && isIsoDate(labelText(node));
     }
     case "formula": {
-      return z.string().safeParse(attributes.source).success;
+      return formulaAttributesSchema.safeParse(attributes).success;
     }
     case undefined: {
       return false;

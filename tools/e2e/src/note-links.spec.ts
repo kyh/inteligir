@@ -21,19 +21,17 @@ const drawnPicture = async (page: Page) =>
     width: img.complete ? img.naturalWidth : 0,
   }));
 
-test("a bound formula reads its pill, Extract makes a linked note, and [[ links or creates", async ({
+test("a formula reads a pill of its note by name, Extract makes a linked note, and [[ links or creates", async ({
   cloud,
   library,
   page,
 }) => {
-  const sizes = await library.items.createNote({
-    markdown: ':formula[40]{meta="id=fb;name=base" source="40"}\n',
-    title: "Sizes",
-  });
-  const formula = `:formula[0]{meta="id=fa;name=bigger" source="@(base#${sizes.item.id}#fb)+2"}`;
+  const sizes = await library.items.createNote({ markdown: "Every size.\n", title: "Sizes" });
+  const formulas =
+    ':formula[40]{name="base" source="40"} and :formula[0]{name="bigger" source="base+2"}';
   const { item } = await library.items.createNote({
     folder: { path: "Birds" },
-    markdown: `# Field notes\n\nDouble it: ${formula}\n\n${PASSAGE}\n\n${STAYS}\n`,
+    markdown: `# Field notes\n\nSizes: ${formulas}\n\n${PASSAGE}\n\n${STAYS}\n`,
     title: "Field notes",
   });
   const { folders } = await library.organize.outline();
@@ -42,20 +40,22 @@ test("a bound formula reads its pill, Extract makes a linked note, and [[ links 
     const { items } = await library.items.list({ folderId, limit: 50 });
     return items.find((row) => row.title === title)?.id;
   };
+  // the note was written with a display its source does not give, which no reader ever meets
+  expect(await markdownOf(library, item.id)).toContain(
+    ':formula[42]{name="bigger" source="base+2"}',
+  );
   await openLibrary(page, cloud, `?item=${item.id}`);
 
-  await expect
-    .poll(async () => await markdownOf(library, item.id))
-    .toContain(':formula[42]{meta="id=fa;name=bigger"');
-
-  // the pill's editor opens with its entry selected, so typing replaces it, and Enter saves
-  await page.locator(EDITOR).getByRole("button", { name: "42" }).click();
+  // the pill's editor opens with its entry selected, so typing replaces it, and Enter saves; the
+  // pill that reads it by name follows in the same edit
+  await page.locator(EDITOR).getByRole("button", { name: "40" }).click();
   await expect(page.getByRole("textbox", { name: "Edit formula" })).toBeFocused();
-  await page.keyboard.type("bigger=40+3");
+  await page.keyboard.type("base=41");
   await page.keyboard.press("Enter");
+  await expect(page.locator(EDITOR).getByRole("button", { name: "43" })).toBeVisible();
   await expect
     .poll(async () => await markdownOf(library, item.id))
-    .toContain(':formula[43]{meta="id=fa;name=bigger"');
+    .toContain(':formula[41]{name="base" source="41"} and :formula[43]{name="bigger"');
 
   await page.locator(EDITOR).getByText(PASSAGE, { exact: true }).selectText();
   await page.getByRole("button", { name: "Extract to new note" }).click();

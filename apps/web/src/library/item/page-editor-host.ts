@@ -20,7 +20,6 @@ import { fileUrl, readFile, uploadFile } from "../cloud/library-files";
 import type { FileCloud } from "../cloud/library-files";
 import { libraryQueries } from "../cloud/library-queries";
 import { libraryWrites } from "../cloud/library-writes";
-import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "../cloud/v1";
 import type { LibraryGoes } from "../library-place";
 import type { WorkspaceStore } from "../workspace-store";
@@ -28,7 +27,6 @@ import type { WorkspaceStore } from "../workspace-store";
 interface PageEditorPorts {
   readonly wire: CloudWire;
   readonly cloud: FileCloud;
-  readonly socket: Pick<LibrarySocket, "onItems">;
   readonly queryClient: QueryClient;
   readonly goes: Pick<LibraryGoes, "now" | "openItem" | "showScope">;
   readonly workspace: Pick<WorkspaceStore, "compose" | "revealPanel">;
@@ -50,7 +48,6 @@ export const installPageEditorHost = ({
   cloud,
   goes,
   queryClient,
-  socket,
   wire,
   workspace,
 }: PageEditorPorts): void => {
@@ -86,7 +83,6 @@ export const installPageEditorHost = ({
         return ticket;
       },
     },
-    onItemsChanged: socket.onItems,
     openItem: (itemId) => {
       goes.openItem(itemId);
     },

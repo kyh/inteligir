@@ -12,6 +12,7 @@ import { sameJson } from "@repo/contract/library/canonical-json";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 
+import { settledAlone } from "@repo/editor/formulas/pill-nodes";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { blockOfElement } from "@repo/editor/live/element-block";
 import { ownUndoStep } from "@repo/editor/live/yjs-binding";
@@ -43,10 +44,11 @@ const blocksAt = (editor: SlateEditor, paths: readonly Path[]): TElement[] =>
     return entry === undefined ? [] : [entry[0]];
   });
 
-// each element as the block the item stores, or null when one of them stores none
+// each element as the block the new note stores, a pill showing what it does once they stand
+// apart from the pills they leave behind; null when one of them stores none
 const storedBlocks = (elements: readonly TElement[]): LibraryBlock[] | null => {
   const blocks: LibraryBlock[] = [];
-  for (const element of elements) {
+  for (const element of settledAlone(elements)) {
     const block = blockOfElement(element);
     if (block === null) {
       return null;

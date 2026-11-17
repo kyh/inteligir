@@ -206,6 +206,32 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     expect(NodeApi.get(editor, [1, 0, 0])).toMatchObject({ children: [{ text: "" }] });
   });
 
+  // the pill's own source is held, and what it shows is derived from one that is not
+  it("a pill a column holds shows what a pill outside it now gives", () => {
+    const editor = touchEditor(
+      [
+        'rate :formula[2]{name="rate" source="2"}',
+        "",
+        "::::columns",
+        ":::column",
+        'cost :formula[20]{name="cost" source="rate*10"}',
+        ":::",
+        "",
+        ":::column",
+        "right column",
+        ":::",
+        "::::",
+        "",
+      ].join("\n"),
+    );
+
+    editor.tf.setNodes({ source: "rate*100" }, { at: [1, 0, 0, 1] });
+    expect(serializeNote(editor)).toContain(':formula[20]{name="cost" source="rate*10"}');
+
+    editor.tf.setNodes({ source: "3" }, { at: [0, 1] });
+    expect(serializeNote(editor)).toContain(':formula[30]{name="cost" source="rate*10"}');
+  });
+
   it("a re-seed replaces the whole note, locked blocks and all", () => {
     const editor = touchEditor();
     const next = NOTE.replace('"value":3', '"value":9').replace("left column", "moved left");
@@ -216,6 +242,8 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     expect(serializeNote(editor)).toContain("moved left");
   });
 });
+
+const pillEditors = (): number => screen.queryAllByRole("textbox", { name: "Edit formula" }).length;
 
 describe("a locked block's controls", () => {
   beforeEach(() => {
@@ -298,6 +326,37 @@ describe("a locked block's controls", () => {
     for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
+  });
+
+  // a pill's editor writes the pill, which the lock refuses where a column or a tab holds it
+  it.each([
+    ["touch", false],
+    ["desktop", true],
+  ] as const)("the %s kit opens the editor of a pill a column holds: %s", (profile, opens) => {
+    const note = [
+      'outside :formula[4]{source="2+2"}',
+      "",
+      "::::columns",
+      ":::column",
+      'inside :formula[6]{source="3+3"}',
+      ":::",
+      "",
+      ":::column",
+      "right column",
+      ":::",
+      "::::",
+      "",
+    ].join("\n");
+    render(<EditorHarness profile={profile} value={valueOf(note)} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "6" }));
+    });
+    expect(pillEditors() > 0).toBe(opens);
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "4" }));
+    });
+    expect(pillEditors()).toBeGreaterThan(0);
   });
 
   // A tap lands the caret in a locked block's text, and slate-react defers a plain character's

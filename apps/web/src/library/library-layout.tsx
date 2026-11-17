@@ -66,12 +66,11 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
   // host as it renders, and the router it navigates by is React's to hand over
   // oxlint-disable-next-line react/hook-use-state -- a once-a-mount install: React's lazy initializer, with no value to keep
   useState(() => {
-    const { cloud, socket, wire, workspace } = library;
+    const { cloud, wire, workspace } = library;
     installPageEditorHost({
       cloud,
       goes: libraryGoes(router),
       queryClient,
-      socket,
       wire,
       workspace,
     });

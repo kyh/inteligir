@@ -1,26 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { formulasIn } from "../test-support/formulas-in";
-import type { LibraryNode } from "@repo/contract/library/library-nodes";
-import { formulasById, formulasInBlocks } from "./collect-formulas";
-import type { CollectedFormula } from "./collect-formulas";
-import { evaluateExpression, parseExpression } from "./expression";
+import { displaysOf } from "./displays";
+import { evaluateExpression, isPillName, namesIn, parseExpression, renameIn } from "./expression";
 import { formatResult } from "./format-result";
-import { parseFormulaMeta, serializeFormulaMeta } from "./formula-meta";
-import { loadFormulaGraph, resolveExpression } from "./resolve-graph";
-
-const noRefs = (): null => null;
 
 const evaluate = (source: string): number | null => {
   const tree = parseExpression(source);
-  if (tree === null) {
-    return null;
-  }
-  const outcome = evaluateExpression(tree, noRefs);
-  return outcome.ok ? outcome.value : null;
+  return tree === null ? null : evaluateExpression(tree, () => null);
 };
 
-describe("the executable grammar (the skill's own examples)", () => {
+const names = (source: string): string[] | null => {
+  const tree = parseExpression(source);
+  return tree === null ? null : namesIn(tree);
+};
+
+describe("the formula grammar (the skill's own examples)", () => {
   it("computes plain arithmetic", () => {
     expect(evaluate("2+2")).toBe(4);
     expect(evaluate("1000*12")).toBe(12_000);
@@ -54,24 +48,45 @@ describe("the executable grammar (the skill's own examples)", () => {
     expect(evaluate("2*-3")).toBe(-6);
   });
 
-  it("refuses what the grammar excludes — those pills are symbolic", () => {
+  it("reads a word as the name of a pill, and a number's suffix as the number's", () => {
+    expect(names("price*qty")).toStrictEqual(["price", "qty"]);
+    expect(names("(base_size+h1)/2")).toStrictEqual(["base_size", "h1"]);
+    expect(names("rate-fee")).toStrictEqual(["rate", "fee"]);
+    expect(names("2k*k")).toStrictEqual(["k"]);
+    expect(names("time")).toStrictEqual(["time"]);
+  });
+
+  it("refuses what it excludes, which is text", () => {
     expect(parseExpression("9am")).toBeNull();
     expect(parseExpression("9am-930am")).toBeNull();
     expect(parseExpression("sum(1,2)")).toBeNull();
     expect(parseExpression("2^3")).toBeNull();
+    expect(parseExpression("price qty")).toBeNull();
     // malformed thousands group
     expect(parseExpression("1,23")).toBeNull();
     expect(parseExpression("")).toBeNull();
-    expect(parseExpression("time")).toBeNull();
   });
 
-  it("answers not-finite for a division by zero instead of a display", () => {
-    const tree = parseExpression("1/0");
-    expect(tree).not.toBeNull();
-    if (tree === null) {
-      return;
-    }
-    expect(evaluateExpression(tree, noRefs)).toStrictEqual({ ok: false, reason: "not-finite" });
+  it("has no value for a division by zero, or for a name with none", () => {
+    expect(evaluate("1/0")).toBeNull();
+    expect(evaluate("price*2")).toBeNull();
+  });
+
+  it("takes a name a source can spell, and no other", () => {
+    expect(["budget", "base_size", "h1"].every(isPillName)).toBe(true);
+    expect(["", "1st", "rate-fee", "my total", "total="].some(isPillName)).toBe(false);
+  });
+});
+
+describe("a name respelled in a source", () => {
+  it("changes every read of it, and no longer name that holds it", () => {
+    expect(renameIn("price*qty + price", "price", "cost")).toBe("cost*qty + cost");
+    expect(renameIn("prices*price_2", "price", "cost")).toBe("prices*price_2");
+    expect(renameIn("2k*k", "k", "kilo")).toBe("2k*kilo");
+  });
+
+  it("leaves text as it was written", () => {
+    expect(renameIn("price is high", "price", "cost")).toBe("price is high");
   });
 });
 
@@ -85,212 +100,50 @@ describe("result formatting", () => {
   });
 });
 
-describe("metadata", () => {
-  it("round-trips id/name/stale in one spelling", () => {
-    const meta = parseFormulaMeta("id=abc;name=budget;stale=1");
-    expect(meta).toStrictEqual({ id: "abc", name: "budget", stale: true, unknown: [] });
-    expect(serializeFormulaMeta(meta)).toBe("id=abc;name=budget;stale=1");
-    // Both spellings parse; `1` is the one we emit.
-    expect(parseFormulaMeta("stale=true").stale).toBe(true);
+describe("what an item's pills show", () => {
+  it("is each formula's value", () => {
+    expect(displaysOf([{ source: "2+2" }, { source: "1000*12" }])).toStrictEqual(["4", "12,000"]);
   });
 
-  it("keeps unknown keys on rewrite", () => {
-    const meta = parseFormulaMeta("id=abc;format=usd;x=1");
-    expect(serializeFormulaMeta(meta)).toBe("id=abc;format=usd;x=1");
+  it("reads another pill by its name, wherever in the item it stands", () => {
+    expect(
+      displaysOf([
+        { name: "total", source: "price*qty" },
+        { name: "price", source: "5" },
+        { name: "qty", source: "3" },
+        { source: "total+1" },
+      ]),
+    ).toStrictEqual(["15", "5", "3", "16"]);
   });
 
-  it("serializes nothing for an anonymous pill", () => {
-    expect(serializeFormulaMeta(parseFormulaMeta())).toBeUndefined();
+  it("is the text of a source that is no formula, and of a pill that only names one", () => {
+    expect(
+      displaysOf([{ name: "time", source: "9am" }, { source: "time" }, { source: "time+1" }]),
+    ).toStrictEqual(["9am", "9am", "time+1"]);
   });
-});
 
-describe("formulas by id", () => {
-  it("first instance wins for linked ids", () => {
-    const formulas = formulasIn(
-      ':formula[1]{source="1" meta="id=a;name=x"} and :formula[2]{source="2" meta="id=a;name=x"}\n',
-    );
-    expect(formulasById(formulas).get("a")?.source).toBe("1");
-  });
-});
-
-const pill = (source: string, display: string, meta?: string): LibraryNode => {
-  const node: LibraryNode = { children: [{ text: "" }], display, source, type: "formulaPill" };
-  if (meta !== undefined) {
-    node.meta = meta;
-  }
-  return node;
-};
-
-describe("an item's pills", () => {
-  it("are every pill under its blocks in reading order, nested ones included", () => {
-    const blocks: LibraryNode[] = [
-      { children: [{ text: "a " }, pill("1", "1", "id=f1;name=one"), { text: "" }], type: "p" },
-      {
-        children: [
-          {
-            children: [
-              {
-                children: [{ children: [{ text: "" }, pill("2*3", "6"), { text: "" }], type: "p" }],
-                type: "td",
-              },
-            ],
-            type: "tr",
-          },
-        ],
-        type: "table",
-      },
-      { children: [{ text: "" }, pill("note", "note"), { text: "" }], type: "p" },
-    ];
-
-    const formulas = formulasInBlocks(blocks);
-
-    expect(formulas.map(({ display, source }) => ({ display, source }))).toStrictEqual([
-      { display: "1", source: "1" },
-      { display: "6", source: "2*3" },
-      { display: "note", source: "note" },
+  it("is the pill's own source where it has no value", () => {
+    expect(displaysOf([{ source: "price*2" }, { source: "1/0" }])).toStrictEqual([
+      "price*2",
+      "1/0",
     ]);
-    expect(formulas[0]?.meta.id).toBe("f1");
-    expect(formulas[1]?.expression).not.toBeNull();
-    expect(formulas[2]?.expression).toBeNull();
   });
 
-  it("leave a code block's text alone", () => {
-    const code: LibraryNode = {
-      children: [{ children: [{ text: ':formula[1]{source="1"}' }], type: "code_line" }],
-      type: "code_block",
-    };
-    expect(formulasInBlocks([code])).toStrictEqual([]);
-  });
-});
-
-describe("the graph (the skill's own type-scale example)", () => {
-  const NOTE = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
-  const doc = [
-    `:formula[28]{source="28" meta="id=b371c6db-70db-48f1-99e2-9ea1ef6f1151;name=h1_size"}`,
-    `:formula[22]{source="@(h1_size#${NOTE}#b371c6db-70db-48f1-99e2-9ea1ef6f1151)-6" meta="id=c520e764-a784-48c5-81ca-f93ac6f4ad37;name=h2_size"}`,
-  ].join("\n\n");
-
-  it("resolves a bound reference through the same note", () => {
-    const formulas = formulasIn(`${doc}\n`);
-    const [, bound] = formulas;
-    expect(bound?.expression).not.toBeNull();
-    if (bound === undefined || bound.expression === null) {
-      return;
-    }
-    const outcome = resolveExpression(
-      bound.expression,
-      { notes: new Map([[NOTE, formulas]]) },
-      NOTE,
-      formulas,
-    );
-    expect(outcome).toStrictEqual({ ok: true, value: 22 });
+  it("is the source of each pill in a loop, and of each that reads one", () => {
+    expect(
+      displaysOf([
+        { name: "a", source: "b+1" },
+        { name: "b", source: "a+1" },
+        { source: "a*2" },
+        { name: "c", source: "d" },
+        { name: "d", source: "c" },
+      ]),
+    ).toStrictEqual(["b+1", "a+1", "a*2", "d", "c"]);
   });
 
-  it("answers cyclic for a reference loop", () => {
-    const cyclic = formulasIn(
-      [
-        `:formula[0]{source="@(b#${NOTE}#idb)+1" meta="id=ida;name=a"}`,
-        `:formula[0]{source="@(a#${NOTE}#ida)+1" meta="id=idb;name=b"}`,
-        "",
-      ].join("\n"),
-    );
-    const [first] = cyclic;
-    if (first === undefined || first.expression === null) {
-      throw new Error("expected an executable pill");
-    }
-    const outcome = resolveExpression(
-      first.expression,
-      { notes: new Map([[NOTE, cyclic]]) },
-      NOTE,
-      cyclic,
-    );
-    expect(outcome).toStrictEqual({ ok: false, reason: "cyclic" });
-  });
-
-  it("answers missing-ref for an absent note or id", () => {
-    const formulas = formulasIn(`:formula[0]{source="@(x#other-note#nope)+1" meta="id=ida"}\n`);
-    const [first] = formulas;
-    if (first === undefined || first.expression === null) {
-      throw new Error("expected an executable pill");
-    }
-    const outcome = resolveExpression(first.expression, { notes: new Map() }, NOTE, formulas);
-    expect(outcome).toStrictEqual({ ok: false, reason: "missing-ref" });
-  });
-
-  it("resolves across notes", () => {
-    const other = formulasIn(':formula[100]{source="100" meta="id=base;name=base"}\n');
-    const local = formulasIn(`:formula[200]{source="@(base#other#base)*2" meta="id=d"}\n`);
-    const [first] = local;
-    if (first === undefined || first.expression === null) {
-      throw new Error("expected an executable pill");
-    }
-    const outcome = resolveExpression(
-      first.expression,
-      { notes: new Map([["other", other]]) },
-      NOTE,
-      local,
-    );
-    expect(outcome).toStrictEqual({ ok: true, value: 200 });
-  });
-});
-
-// every note but "a", the open one, answered from its markdown
-const library = (notes: Readonly<Record<string, string>>) => {
-  const reads: string[] = [];
-  const read = async (noteId: string): Promise<CollectedFormula[] | null> => {
-    reads.push(noteId);
-    const markdown = notes[noteId];
-    return await Promise.resolve(markdown === undefined ? null : formulasIn(markdown));
-  };
-  return { read, reads };
-};
-
-const resolveFirst = async (
-  local: CollectedFormula[],
-  read: (noteId: string) => Promise<CollectedFormula[] | null>,
-  maxNotes?: number,
-) => {
-  const [first] = local;
-  if (first === undefined || first.expression === null) {
-    throw new Error("expected an executable pill");
-  }
-  const graph = await loadFormulaGraph(local, "a", read, maxNotes);
-  return resolveExpression(first.expression, graph, "a", local);
-};
-
-describe("loading the graph", () => {
-  it("follows a chain through a note the open one never names", async () => {
-    const { read, reads } = library({
-      b: ':formula[0]{source="@(c#c#fc)+1" meta="id=fb;name=b"}\n',
-      c: ':formula[40]{source="40" meta="id=fc;name=c"}\n',
-    });
-    const local = formulasIn(':formula[0]{source="@(b#b#fb)*2" meta="id=fa;name=a"}\n');
-
-    await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: true, value: 82 });
-    expect(reads).toStrictEqual(["b", "c"]);
-  });
-
-  it("answers cyclic for a loop across notes, reading each note once and never itself", async () => {
-    const { read, reads } = library({
-      b: ':formula[0]{source="@(a#a#fa)+1" meta="id=fb;name=b"}\n',
-    });
-    const local = formulasIn(':formula[0]{source="@(b#b#fb)+1" meta="id=fa;name=a"}\n');
-
-    await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: false, reason: "cyclic" });
-    expect(reads).toStrictEqual(["b"]);
-  });
-
-  it("stops reading at the cap, and a note past it answers missing-ref", async () => {
-    const { read, reads } = library({
-      b: ':formula[0]{source="@(c#c#fc)+1" meta="id=fb;name=b"}\n',
-      c: ':formula[40]{source="40" meta="id=fc;name=c"}\n',
-    });
-    const local = formulasIn(':formula[0]{source="@(b#b#fb)*2" meta="id=fa;name=a"}\n');
-
-    await expect(resolveFirst(local, read, 1)).resolves.toStrictEqual({
-      ok: false,
-      reason: "missing-ref",
-    });
-    expect(reads).toStrictEqual(["b"]);
+  it("reads the first pill to hold a name two of them hold", () => {
+    expect(
+      displaysOf([{ name: "x", source: "1" }, { name: "x", source: "2" }, { source: "x*10" }]),
+    ).toStrictEqual(["1", "2", "10"]);
   });
 });

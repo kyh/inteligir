@@ -1,23 +1,21 @@
-export interface BoundRef {
-  name: string;
-  noteId: string;
-  formulaId: string;
-}
+// A formula's source: arithmetic over numbers and the names of other pills in the same item.
+
+type Operator = "+" | "-" | "*" | "/";
 
 type Token =
   | { kind: "number"; value: number }
-  | { kind: "op"; op: "+" | "-" | "*" | "/" | "(" | ")" }
-  | { kind: "ref"; ref: BoundRef };
+  | { kind: "op"; op: Operator | "(" | ")" }
+  | { kind: "ref"; name: string; at: number };
 
 export type ExpressionNode =
   | { kind: "number"; value: number }
-  | { kind: "ref"; ref: BoundRef }
+  | { kind: "ref"; name: string }
   | { kind: "negate"; operand: ExpressionNode }
-  | { kind: "binary"; op: "+" | "-" | "*" | "/"; left: ExpressionNode; right: ExpressionNode };
+  | { kind: "binary"; op: Operator; left: ExpressionNode; right: ExpressionNode };
 
-const REF_RE =
-  /^@\((?<name>[A-Za-z][A-Za-z0-9_-]*)#(?<noteId>[^#()\s]+)#(?<formulaId>[^#()\s]+)\)/u;
-// a malformed thousands run is not a number, so the whole expression goes symbolic rather than half-parsed
+// no `-`, which a source reads as a minus
+const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*/u;
+// a malformed thousands run is not a number, so the whole source is text rather than half-parsed
 const NUMBER_RE =
   /^\$?(?<integer>\d{1,3}(?:,\d{3})+|\d+)(?<decimals>\.\d+)?(?<suffix>[kmb])?(?<percent>%)?/iu;
 
@@ -26,6 +24,9 @@ const MAGNITUDES = new Map([
   ["k", 1e3],
   ["m", 1e6],
 ]);
+
+// whether a source can spell `text` to read the pill it names
+export const isPillName = (text: string): boolean => NAME_RE.exec(text)?.[0] === text;
 
 const numberToken = (match: RegExpExecArray): Token => {
   const { groups } = match;
@@ -42,24 +43,17 @@ const tokenize = (source: string): Token[] | null => {
     if (rest === "") {
       break;
     }
-    const ref = REF_RE.exec(rest);
-    if (ref !== null) {
-      const [whole] = ref;
-      const name = ref.groups?.name;
-      const noteId = ref.groups?.noteId;
-      const formulaId = ref.groups?.formulaId;
-      if (name === undefined || noteId === undefined || formulaId === undefined) {
-        return null;
-      }
-      tokens.push({ kind: "ref", ref: { formulaId, name, noteId } });
-      rest = rest.slice(whole.length);
-      continue;
-    }
     const number = NUMBER_RE.exec(rest);
     if (number !== null) {
       const [whole] = number;
       tokens.push(numberToken(number));
       rest = rest.slice(whole.length);
+      continue;
+    }
+    const [name] = NAME_RE.exec(rest) ?? [];
+    if (name !== undefined) {
+      tokens.push({ at: source.length - rest.length, kind: "ref", name });
+      rest = rest.slice(name.length);
       continue;
     }
     const [op] = rest;
@@ -73,12 +67,7 @@ const tokenize = (source: string): Token[] | null => {
   return tokens.length === 0 ? null : tokens;
 };
 
-/** null = not executable (the symbolic answer, not an error). */
-export const parseExpression = (source: string): ExpressionNode | null => {
-  const tokens = tokenize(source);
-  if (tokens === null) {
-    return null;
-  }
+const parseTokens = (tokens: readonly Token[]): ExpressionNode | null => {
   let position = 0;
 
   const peek = (): Token | undefined => tokens[position];
@@ -94,14 +83,14 @@ export const parseExpression = (source: string): ExpressionNode | null => {
     }
     if (token.kind === "ref") {
       position += 1;
-      return { kind: "ref", ref: token.ref };
+      return { kind: "ref", name: token.name };
     }
-    if (token.kind === "op" && token.op === "-") {
+    if (token.op === "-") {
       position += 1;
       const operand = parseFactor();
       return operand === null ? null : { kind: "negate", operand };
     }
-    if (token.kind === "op" && token.op === "(") {
+    if (token.op === "(") {
       position += 1;
       // oxlint-disable-next-line no-use-before-define -- recursive descent: factor and sum are mutually recursive, so one is always named before it is defined
       const inner = parseSum();
@@ -157,41 +146,58 @@ export const parseExpression = (source: string): ExpressionNode | null => {
   return tree !== null && position === tokens.length ? tree : null;
 };
 
-export const collectBoundRefs = (node: ExpressionNode, into: BoundRef[] = []): BoundRef[] => {
+/** null = text, not a formula (an answer, not an error). */
+export const parseExpression = (source: string): ExpressionNode | null => {
+  const tokens = tokenize(source);
+  return tokens === null ? null : parseTokens(tokens);
+};
+
+// every name the expression reads, as often as it reads it
+export const namesIn = (node: ExpressionNode): string[] => {
   switch (node.kind) {
     case "number": {
-      return into;
+      return [];
     }
     case "ref": {
-      into.push(node.ref);
-      return into;
+      return [node.name];
     }
     case "negate": {
-      return collectBoundRefs(node.operand, into);
+      return namesIn(node.operand);
     }
     case "binary": {
-      collectBoundRefs(node.left, into);
-      return collectBoundRefs(node.right, into);
+      return [...namesIn(node.left), ...namesIn(node.right)];
     }
     // no default
   }
 };
 
-export type EvaluateOutcome =
-  | { ok: true; value: number }
-  | { ok: false; reason: "missing-ref" | "not-finite" };
+// `source` with every `from` it reads spelled `to`; text that is no formula stays as written
+export const renameIn = (source: string, from: string, to: string): string => {
+  const tokens = tokenize(source);
+  if (tokens === null || parseTokens(tokens) === null) {
+    return source;
+  }
+  let renamed = source;
+  for (const token of tokens.toReversed()) {
+    if (token.kind === "ref" && token.name === from) {
+      renamed = `${renamed.slice(0, token.at)}${to}${renamed.slice(token.at + from.length)}`;
+    }
+  }
+  return renamed;
+};
 
+// null where the expression has no value: a name with none, or a result that is not finite
 export const evaluateExpression = (
   node: ExpressionNode,
-  resolveRef: (ref: BoundRef) => number | null,
-): EvaluateOutcome => {
+  valueOf: (name: string) => number | null,
+): number | null => {
   const walk = (current: ExpressionNode): number | null => {
     switch (current.kind) {
       case "number": {
         return current.value;
       }
       case "ref": {
-        return resolveRef(current.ref);
+        return valueOf(current.name);
       }
       case "negate": {
         const operand = walk(current.operand);
@@ -223,11 +229,5 @@ export const evaluateExpression = (
     }
   };
   const result = walk(node);
-  if (result === null) {
-    return { ok: false, reason: "missing-ref" };
-  }
-  if (!Number.isFinite(result)) {
-    return { ok: false, reason: "not-finite" };
-  }
-  return { ok: true, value: result };
+  return result !== null && Number.isFinite(result) ? result : null;
 };

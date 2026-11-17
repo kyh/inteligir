@@ -4,11 +4,7 @@ import type { TElement } from "platejs";
 
 import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
-import {
-  completeFormulaFromPicker,
-  insertFormulaFromPicker,
-} from "@repo/editor/formulas/formula-insert";
-import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
+import { completeFormulaFromPicker } from "@repo/editor/formulas/formula-insert";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
@@ -31,8 +27,11 @@ const findByType = (editor: Editor, type: string): TElement | null => {
   return null;
 };
 
-const openAndCommitFormulaPicker = (editor: Editor, offset: number): void => {
-  editor.tf.select({ offset, path: [0, 0] });
+// `{{` typed at `offset` of the first text, or where the caret is, and its picker committed
+const openAndCommitFormulaPicker = (editor: Editor, offset?: number): void => {
+  if (offset !== undefined) {
+    editor.tf.select({ offset, path: [0, 0] });
+  }
   editor.tf.insertText("{");
   editor.tf.insertText("{");
   const element = findByType(editor, FORMULA_INPUT_KEY);
@@ -51,27 +50,14 @@ describe("formula picker completion", () => {
     expect(out(editor)).toBe('before :formula[2]{source="2"}after\n');
   });
 
-  it("completes a piped body verbatim", () => {
+  it("completes a named entry, which a later one reads by its name", () => {
     const editor = makeEditor("before after");
     openAndCommitFormulaPicker(editor, 7);
-    completeFormulaFromPicker(editor, "2+2|4");
-    expect(out(editor)).toBe('before :formula[4]{source="2+2"}after\n');
-  });
-
-  it("a picked variable replaces the whole {{", () => {
-    const editor = makeEditor("before after");
-    openAndCommitFormulaPicker(editor, 7);
-    const meta = "id=abc;name=budget";
-    insertFormulaFromPicker(
-      editor,
-      formulaNodeFrom({
-        display: "5,000",
-        meta,
-        source: "5000",
-      }),
-    );
+    completeFormulaFromPicker(editor, "budget=5000");
+    openAndCommitFormulaPicker(editor);
+    completeFormulaFromPicker(editor, "budget*2");
     expect(out(editor)).toBe(
-      `${String.raw`before :formula[5,000]{meta="id=abc;name=budget" source="5000"}after`}\n`,
+      'before :formula[5,000]{name="budget" source="5000"}:formula[10,000]{source="budget*2"}after\n',
     );
   });
 

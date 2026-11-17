@@ -4,7 +4,7 @@
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
 // but takes no edit and says why above the text, and a note whose opening stalled shows what the
-// host holds of it until it opens. A formula's display follows the pills it names.
+// host holds of it until it opens.
 
 import {
   useEffect,
@@ -29,10 +29,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { closeOwnPickers } from "@repo/editor/combobox-input";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
-import {
-  followItemFormulas,
-  scheduleFormulaRecompute,
-} from "@repo/editor/formulas/formula-recompute";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { NoteHost } from "@repo/editor/host-io";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
@@ -155,14 +151,6 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
   };
 };
 
-// the item's pills recomputed once it opens, after each change and when another item changes,
-// since a pill may name one (`followItemFormulas`)
-const FormulaRecompute = ({ itemId }: { itemId: string }) => {
-  const editor = useEditorRef();
-  useEffect(() => followItemFormulas(editor, itemId, getEditorHostIo()), [editor, itemId]);
-  return null;
-};
-
 // The editor answers for its item by the item's id, where a writer outside the surface finds it,
 // once Plate has drawn its text: mounted after the container, in the commit that draws it.
 const AnswersForItem = ({ itemId }: { itemId: string }) => {
@@ -238,19 +226,11 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
   return (
     <>
       {notice === null ? null : <Notice profile={profile} text={notice} />}
-      <Plate
-        key={connects}
-        editor={editor}
-        onValueChange={() => {
-          scheduleFormulaRecompute(editor);
-        }}
-        readOnly={notice !== null}
-      >
+      <Plate key={connects} editor={editor} readOnly={notice !== null}>
         <EditorContainer>
           <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
         </EditorContainer>
         <AnswersForItem itemId={itemId} />
-        {notice === null ? <FormulaRecompute itemId={itemId} /> : null}
       </Plate>
     </>
   );

@@ -519,6 +519,28 @@ describe("a reference and its definition", () => {
   });
 });
 
+describe("a pill's display in a file", () => {
+  it("is what its source gives among the file's pills, whatever its label said", () => {
+    const item = imported(
+      [
+        'Each :formula[1]{name="price" source="5"}, in all :formula[99]{source="price*qty"}.',
+        "",
+        ":::article",
+        'Sold :formula[]{name="qty" source="3"} and :formula[soon]{source="when"}.',
+        ":::",
+        "",
+      ].join("\n"),
+    );
+    expect(bodyOf(item)).toContain(
+      'Each :formula[5]{name="price" source="5"}, in all :formula[15]{source="price*qty"}.',
+    );
+    expect(bodyOf(item)).toContain(
+      'Sold :formula[3]{name="qty" source="3"} and :formula[when]{source="when"}.',
+    );
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+});
+
 describe("an equation's fence line", () => {
   it("leads the expression, since an equation has nowhere else to hold it", () => {
     const item = imported("$$ E = mc^2\n+ x\n$$\n");

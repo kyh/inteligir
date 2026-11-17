@@ -22,6 +22,11 @@ const INNERMOST = 1000;
 export const appliesRemoteChange = (editor: SlateEditor): boolean =>
   YjsEditor.isYjsEditor(editor) && YjsEditor.connected(editor) && !YjsEditor.isLocal(editor);
 
+// Applying the edit of the person at this editor: not the document's own change, which an undo is
+// too, and not a write kept out of undo.
+export const appliesOwnEdit = (editor: SlateEditor): boolean =>
+  !appliesRemoteChange(editor) && editor.api.isSaving() !== false;
+
 // `localOrigin` names this editor's writes in the document, which its undo tracks and every other
 // editor reads as remote. The host connects it (`YjsEditor.connect`) once the document has synced,
 // so an editor never seeds a document it has yet to read.
@@ -109,8 +114,9 @@ const untracked = (editor: YHistoryEditor, fn: () => void): void => {
 
 // Undo and redo are the document's: a Y.UndoManager over the binding's local origin, so they take
 // back this editor's changes and no one else's. `editor.tf.withoutSaving` keeps a write out of it
-// (a formula's display). It sits beside Plate's HistoryPlugin rather than replacing it, since
-// Plate's own readers of `editor.history` stay, as @platejs/yjs's history does.
+// (a pill's display settled after someone else's change). It sits beside Plate's HistoryPlugin
+// rather than replacing it, since Plate's own readers of `editor.history` stay, as @platejs/yjs's
+// history does.
 export const YHistoryPlugin = createSlatePlugin({
   extendEditor: ({ editor }) => {
     if (!YjsEditor.isYjsEditor(editor)) {

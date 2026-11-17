@@ -210,7 +210,7 @@ const VALUE_ROWS: ValueRow[] = [
         row(
           cell(
             "td",
-            p(t(""), voidEl("formulaPill", { display: "a|b", source: "=IF(a|b)" }), t("")),
+            p(t(""), voidEl("formulaPill", { display: "IF(a|b)", source: "IF(a|b)" }), t("")),
           ),
         ),
       ]),
@@ -296,20 +296,26 @@ const VALUE_ROWS: ValueRow[] = [
   { node: "mention of an untitled item", value: [p(voidEl("mention", { key: "abc", value: "" }))] },
   { node: "date", value: [p(t("due "), voidEl("date", { date: "2026-01-02" }), t("."))] },
   {
-    node: "formulaPill display, source and meta",
+    node: "formulaPill whose source is text, with its name",
     value: [
       p(
         voidEl("formulaPill", {
-          display: "42 [ok] *b* _c_ `d` | e",
-          meta: "id=f1;name=total",
-          source: '=SUM(A1:A3) & "x" & {y}',
+          display: 'SUM(A1:A3) & "x" & {y} [ok] *b* _c_ `d` | e',
+          name: "total",
+          source: 'SUM(A1:A3) & "x" & {y} [ok] *b* _c_ `d` | e',
         }),
       ),
     ],
   },
   {
-    node: "formulaPill with no display",
-    value: [p(voidEl("formulaPill", { display: "", source: "=1" }))],
+    node: "formulaPill that reads another",
+    value: [
+      p(
+        voidEl("formulaPill", { display: "1,200", name: "rate", source: "1200" }),
+        t(" by "),
+        voidEl("formulaPill", { display: "14,400", source: "rate*12" }),
+      ),
+    ],
   },
   {
     node: "inline_equation",

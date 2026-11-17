@@ -54,12 +54,11 @@ export const FILES_ORIGIN = "https://files.test";
 // answers from the items and files it is handed, keeps a file by its real sha and then draws it
 // under `FILES_ORIGIN` (refusing one with no type, as the hosts do), dials a note at the Worker's
 // path on `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing,
-// and an open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
-// host's change feed does, and `goOffline` that the connection went or came back.
+// and an open, a new note and a kept file are recorded in `calls`. `goOffline` says the connection
+// went or came back.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const files = new Map(options.files);
-  const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
   const reachListeners = new Set<() => void>();
   let offline = options.offline ?? false;
   let made = 0;
@@ -112,12 +111,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       files.set(sha, new Blob([bytes], { type: mime }));
       return await Promise.resolve({ sha });
     },
-    onItemsChanged: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
     openItem: (itemId) => {
       calls.push({ action: "openItem", args: [itemId] });
     },
@@ -148,11 +141,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
 
   return {
     calls,
-    changed: (ids: ReadonlySet<string> | null) => {
-      for (const listener of listeners) {
-        listener(ids);
-      }
-    },
     files,
     goOffline: (next: boolean) => {
       offline = next;

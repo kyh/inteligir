@@ -25,7 +25,7 @@ export const shownText = (node: Descendant): string => {
       return stringProp(node, "date") ?? "";
     }
     case FORMULA_PILL_KEY: {
-      return stringProp(node, "display") ?? stringProp(node, "source") ?? "";
+      return stringProp(node, "display") ?? "";
     }
     default: {
       return node.children.map(shownText).join("");

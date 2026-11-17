@@ -19,7 +19,7 @@ are listed at the end of this section.
    edit, though the library may respell it: a rule as `***`, a bare address as `<https://…>`. A
    construct spelled wrong does not error; it stays literal text, which is a silent failure.
    Follow the grammar exactly.
-3. **Preserve what you did not come to change.** Formula identities, link ids and unfamiliar
+3. **Preserve what you did not come to change.** Formula names, link ids and unfamiliar
    syntax all stay as found. `edit_item` changes only the passages you name, so
    name only what you mean to change.
 
@@ -260,4 +260,4 @@ Each is a section of this prompt, after this one:
 
 - A new note's text opens with one H1, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
-- Formula identities and link ids you did not come to change are exactly as you read them.
+- Formula names and link ids you did not come to change are exactly as you read them.

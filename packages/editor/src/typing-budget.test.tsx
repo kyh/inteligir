@@ -29,7 +29,7 @@ const SEED = 704;
 const LONG_LINES = 10_000;
 const SHORT_LINES = LONG_LINES / 8;
 const KEYSTROKES = 6;
-// past the formula recompute's pause after typing
+// past any pause a pass could wait out after typing
 const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
@@ -42,7 +42,7 @@ const CLOSING_BLOCK = "The end.";
 // Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded,
 // with the editor bound to the note's live document: a keystroke costs 12ms in the long note
 // against 5ms in the short one, 2.5x for eight times the lines, and 0.016 of a 740ms parse of the
-// note; the settle costs 13ms, 0.02 of that parse. A pass quadratic in the note is 64x. A store
+// note. A pass quadratic in the note is 64x. A store
 // atom every block holds is recomputed on every change: Plate's toggle hider or its navigation
 // flash alone put a keystroke at 6-7x and 0.06 of the parse. A memory-starved CI runner's garbage
 // collection pushes a ratio up by about half, so the ceilings leave that room over the recorded
@@ -51,7 +51,6 @@ const CLOSING_BLOCK = "The end.";
 // name.
 const KEYSTROKE_GROWTH_CEILING = 5;
 const KEYSTROKE_TO_PARSE_CEILING = 0.035;
-const SETTLE_TO_PARSE_CEILING = 1;
 // a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
 // and still passes, and CI's job limit is the outer bound
 const COLLECT_TIMEOUT_MS = 1_500_000;
@@ -94,13 +93,8 @@ const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   SELECTOR_SUBSCRIPTIONS,
 ];
 const CARET_BUDGET: readonly BudgetRow[] = [SORTABLE_IDS, FOLD_REACH, SELECTOR_SUBSCRIPTIONS];
-const SETTLE_BUDGET: readonly BudgetRow[] = [
-  {
-    module: "formulas/formula-recompute.ts",
-    name: "formulaEntries",
-    why: "a pill may name any other pill in the note, so the recompute after a pause reads them all",
-  },
-];
+// no pass waits for a pause: what a change derives, a pill's display among it, lands inside it
+const SETTLE_BUDGET: readonly BudgetRow[] = [];
 
 const passLabel = ({ name, module }: Pass): string => `${name} (${module})`;
 
@@ -300,25 +294,19 @@ const timed = async (run: () => Promise<void>): Promise<number> => {
   return performance.now() - began;
 };
 
-interface Costs {
-  readonly keystrokeMs: number;
-  readonly settleMs: number;
-}
-
-// the fastest of several, so one GC pause or scheduler stall cannot stand for the cost
-const measure = async (note: OpenNote): Promise<Costs> => {
-  let keystrokeMs = Number.POSITIVE_INFINITY;
-  let settleMs = Number.POSITIVE_INFINITY;
+// the fastest of several keystrokes, so one GC pause or scheduler stall cannot stand for the cost
+const keystrokeMsIn = async (note: OpenNote): Promise<number> => {
+  let fastest = Number.POSITIVE_INFINITY;
   for (let round = 0; round < KEYSTROKES; round += 1) {
-    keystrokeMs = Math.min(
-      keystrokeMs,
+    fastest = Math.min(
+      fastest,
       await timed(async () => {
         await keystroke(note.editor);
       }),
     );
-    settleMs = Math.min(settleMs, await timed(settle));
+    await settle();
   }
-  return { keystrokeMs, settleMs };
+  return fastest;
 };
 
 const fastestParseMs = (markdown: string): number => {
@@ -361,8 +349,8 @@ const observe = async (note: OpenNote): Promise<Observed> => {
 const ms = (value: number): string => `${value.toFixed(0)}ms`;
 
 describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
-  let short: Costs;
-  let long: Costs;
+  let shortMs: number;
+  let longMs: number;
   let parseMs: number;
   let observed: Observed;
 
@@ -379,10 +367,10 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     installFakeEditorHost();
     const small = await openNote("short", SHORT_LINES);
-    short = await measure(small);
+    shortMs = await keystrokeMsIn(small);
     small.unmount();
     const note = await openNote("long", LONG_LINES);
-    long = await measure(note);
+    longMs = await keystrokeMsIn(note);
     observed = await observe(note);
     note.unmount();
     parseMs = fastestParseMs(noteOf(LONG_LINES));
@@ -405,32 +393,24 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     }
   });
 
-  it("walks the note once typing settles only through its budget", () => {
+  it("walks the note through no pass once typing settles", () => {
     expectBudget("the settle after typing", SETTLE_BUDGET, observed.settle);
   });
 
   it("costs a keystroke that grows no faster than the note", () => {
-    const growth = long.keystrokeMs / short.keystrokeMs;
+    const growth = longMs / shortMs;
     expect(
       growth,
-      `a keystroke costs ${ms(long.keystrokeMs)} in the ${String(LONG_LINES)}-line note and ${ms(short.keystrokeMs)} in the ${String(SHORT_LINES)}-line one, ${growth.toFixed(1)}x for eight times the lines; the ceiling is ${String(KEYSTROKE_GROWTH_CEILING)}x`,
+      `a keystroke costs ${ms(longMs)} in the ${String(LONG_LINES)}-line note and ${ms(shortMs)} in the ${String(SHORT_LINES)}-line one, ${growth.toFixed(1)}x for eight times the lines; the ceiling is ${String(KEYSTROKE_GROWTH_CEILING)}x`,
     ).toBeLessThan(KEYSTROKE_GROWTH_CEILING);
   });
 
   it("costs a keystroke a small share of reading the note", () => {
-    const share = long.keystrokeMs / parseMs;
+    const share = longMs / parseMs;
     expect(
       share,
-      `a keystroke in the ${String(LONG_LINES)}-line note costs ${ms(long.keystrokeMs)}, ${share.toFixed(3)}x the ${ms(parseMs)} parse that opened it; the ceiling is ${String(KEYSTROKE_TO_PARSE_CEILING)}x, and a store atom every block holds is 0.06x`,
+      `a keystroke in the ${String(LONG_LINES)}-line note costs ${ms(longMs)}, ${share.toFixed(3)}x the ${ms(parseMs)} parse that opened it; the ceiling is ${String(KEYSTROKE_TO_PARSE_CEILING)}x, and a store atom every block holds is 0.06x`,
     ).toBeLessThan(KEYSTROKE_TO_PARSE_CEILING);
-  });
-
-  it("settles for less than it cost to open the note", () => {
-    const share = long.settleMs / parseMs;
-    expect(
-      share,
-      `the settle after typing costs ${ms(long.settleMs)}, ${share.toFixed(2)}x the ${ms(parseMs)} parse that opened the note; the ceiling is ${String(SETTLE_TO_PARSE_CEILING)}x`,
-    ).toBeLessThan(SETTLE_TO_PARSE_CEILING);
   });
 });
 

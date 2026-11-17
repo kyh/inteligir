@@ -66,9 +66,11 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **An extract is one undo step, and its note is an item of its own.** The host makes the note of
   the very blocks first, then the removal and the link land as their own undo step, since
   create-or-reuse by title loses the blocks. `packages/editor/src/extract-note.ts`.
-- **A formula recompute is not an edit, and a bound ref's item is found by id.** A pass reads only
-  the items its pills name, and its display lands outside the note's undo (`withoutSaving`), so one
-  undo reaches the person's own edit. `packages/editor/src/formulas/formula-recompute.ts`.
+- **A pill's display is derived where its source lands, and a source reads its own item's pills by
+  name.** Every editor of a note settles it inside the change that touches a pill, outside undo
+  when the change is someone else's, and a whole body is settled as it is read, since a display
+  only an open editor refreshed is stale to every reader of a closed note.
+  `packages/editor/src/kits/headless/inline-constructs-base.ts`.
 - **A block overlay names its block by node id and subscribes to the document.** A path goes stale
   after an insert above, and Plate turns ids off under NODE_ENV=test, so such a suite mounts with
   ids on. `packages/editor/src/block-draggable.tsx`.
@@ -80,8 +82,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   name and a slow runner never does. `packages/editor/src/typing-budget.test.tsx`.
 - **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
-  whole-block op lands, since hiding the buttons lets a paste or key in.
-  `packages/editor/src/kits/rich-block-lock-kit.ts`.
+  whole-block op lands, and a pill's, date's, link's or equation's popover stays shut there, since
+  hiding the buttons lets a paste or key in. `packages/editor/src/kits/rich-block-lock-kit.ts`.
 - **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
   structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
   check, since a lifecycle copied per block drifts.
@@ -105,8 +107,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   only the server is y-partyserver's, and both ends frame with one y-protocols.
   `packages/editor/src/item/note-socket.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
-  `readItemBlocks`, `onItemsChanged` and `notes` take ids, and `fileSrc` and `readFile` a sha,
-  since paths a host mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
+  `readItemBlocks` and `notes` take ids, and `fileSrc` and `readFile` a sha, since paths a host
+  mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
 - **A file in a note draws from an address the host hands, and the editor reads no bytes.** An
   `<img>` or a `<video>` loads, caches and seeks it, since every block of a note is mounted and a
   read of the bytes fetches each file whole at open; only the phone reads them, once a file.
@@ -166,8 +168,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   it touches.** An empty old text adds after the note and one that reaches the article is refused,
   since a refresh replaces the article; the blocks read again keep their ids by content.
   `packages/editor/src/codec/item-edit.ts`.
-- **Markdown written into a body is read by `readBody` at every door.** A new note, a save's note,
-  an edit's new text and a fill's page read the same text as the same blocks, and only a file's
+- **Markdown written into a body is read by `readBody` at every door, and an edit's new text as
+  part of one.** A new note, a save's note, an edit's text and a fill's page read the same text as
+  the same blocks, but for a pill's display, which only a whole body can settle, and only a file's
   import reads frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
   and its landing both read through `readFrontmatter`, each key one row and the filename the title,

@@ -5,7 +5,6 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ItemsMoved } from "@repo/client/library-cache";
 import { libraryQueries } from "../cloud/library-queries";
 import { createPageQueryClient } from "../cloud/v1";
 import type { LibraryGoes } from "../library-place";
@@ -32,7 +31,6 @@ const install = (
   upload: (request: Request) => Promise<Response>,
   openItem: string | null = null,
 ) => {
-  const listeners: ((moved: ItemsMoved) => void)[] = [];
   const queryClient = createPageQueryClient();
   const workspace = createWorkspaceStore();
   const goes = {
@@ -44,25 +42,10 @@ const install = (
     cloud: { fetch: upload, onSessionEnd: nothing, origin: ORIGIN },
     goes,
     queryClient,
-    socket: {
-      onItems: (listener) => {
-        listeners.push(listener);
-        return nothing;
-      },
-    },
     wire,
     workspace,
   });
-  return {
-    goes,
-    moved: (moved: ItemsMoved) => {
-      for (const listener of listeners) {
-        listener(moved);
-      }
-    },
-    queryClient,
-    workspace,
-  };
+  return { goes, queryClient, workspace };
 };
 
 const refused = async (): Promise<Response> =>
@@ -114,19 +97,6 @@ describe("the page's editor host", () => {
     onlineManager.setOnline(true);
     stop();
     expect(heard).toBe(2);
-  });
-
-  it("tells the editor which items the account's socket says moved", () => {
-    const { moved } = install(refused);
-    const heard: (ReadonlySet<string> | null)[] = [];
-    getEditorHostIo().onItemsChanged((ids) => {
-      heard.push(ids);
-    });
-
-    moved(new Set([PLANS]));
-    moved(null);
-
-    expect(heard).toStrictEqual([new Set([PLANS]), null]);
   });
 
   it("opens the item a link names and shows the grid of a tag a note names", () => {

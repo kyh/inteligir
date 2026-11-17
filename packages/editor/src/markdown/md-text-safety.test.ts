@@ -55,6 +55,9 @@ const PASTED = [
   ":date[not a date]",
   ":date[2026-01-02]{x=1}",
   ":formula[no source]",
+  ':formula[]{source=""}',
+  ':formula[4]{meta="id=a" source="2+2"}',
+  ':formula[4]{name="my total" source="2+2"}',
   "::leaf[x]{y=z}",
   ":smile: :+1:",
   "10:30 a:b",
@@ -96,7 +99,7 @@ const pill = (type: string, props: Record<string, string>): TElement => ({
 });
 
 // every ASCII punctuation mark, and each inline construct a label could read as, so a label the
-// writer escapes too little shows here
+// writer escapes too little shows here; a pill shows such text when it is its source
 const LABELS = [
   "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
   "*a* _b_ `c` ~~d~~ ~e~ $$f$$ [g](h) ![i](j) <k> <https://l.m> &amp; :n[o] p|q \\*r",
@@ -107,7 +110,7 @@ describe("a label", () => {
     const written = writeValue([
       { children: [pill("date", { date: "2026-08-22" }), { text: " " }], type: "p" },
       {
-        children: [pill("formulaPill", { display: "1,000.50", source: "=1000.5" }), { text: "" }],
+        children: [pill("formulaPill", { display: "1,000.50", source: "1000.5" }), { text: "" }],
         type: "p",
       },
       {
@@ -131,7 +134,7 @@ describe("a label", () => {
       {
         children: [
           { text: "" },
-          pill("formulaPill", { display: label, source: "=1" }),
+          pill("formulaPill", { display: label, source: label }),
           { text: "" },
         ],
         type: "p",

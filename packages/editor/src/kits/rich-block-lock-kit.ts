@@ -4,7 +4,7 @@
 // removed or moved whole: a re-seed lands, and a deleted block comes back with one undo.
 
 import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
-import type { Operation, Path, SlateEditor, TRange } from "platejs";
+import type { Operation, Path, SlateEditor, TElement, TRange } from "platejs";
 import { createPlatePlugin, useEditorRef, useReadOnly } from "platejs/react";
 
 import {
@@ -139,6 +139,12 @@ export const RichBlockLockKit = [
     key: RICH_BLOCK_INPUT_KEY,
   }),
 ];
+
+// whether the lock holds `node`: it sits in a locked block of an editor that carries the lock
+export const lockHolds = (editor: SlateEditor, node: TElement): boolean => {
+  const path = lockInstalled(editor) ? editor.api.findPath(node) : undefined;
+  return path !== undefined && heldAt(editor, lockedBlockTypes(editor), path);
+};
 
 // whether this editor carries the lock
 export const useRichBlocksLocked = (): boolean => {

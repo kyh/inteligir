@@ -46,7 +46,11 @@ import {
 } from "@repo/editor/markdown/fence-langs";
 import { alertProp, numberProp, stringProp } from "@repo/editor/node-props";
 
-import { containerDirectiveSchema, textDirectiveSchema } from "./directive-names";
+import {
+  containerDirectiveSchema,
+  formulaAttributesSchema,
+  textDirectiveSchema,
+} from "./directive-names";
 import type { ContainerDirectiveName, TextDirectiveName } from "./directive-names";
 import { isFlow, nestInLists } from "./mdast-lists";
 import type { FlowContent } from "./mdast-lists";
@@ -325,15 +329,15 @@ const readTextDirective = (node: TextDirective): TElement => {
       return { children: [{ text: "" }], date: label, type: KEYS.date };
     }
     case "formula": {
+      const { name, source } = formulaAttributesSchema.parse(node.attributes);
       const pill: TElement = {
         children: [{ text: "" }],
         display: label,
-        source: node.attributes?.source ?? "",
+        source,
         type: FORMULA_PILL_KEY,
       };
-      const meta = node.attributes?.meta ?? "";
-      if (meta !== "") {
-        pill.meta = meta;
+      if (name !== undefined) {
+        pill.name = name;
       }
       return pill;
     }
@@ -695,12 +699,12 @@ const columnDirective = (node: TElement, options: SerializeMdOptions): Container
 };
 
 const writeFormula = (node: TElement): TextDirective => {
-  const meta = stringProp(node, "meta") ?? "";
+  const name = stringProp(node, "name");
   const source = stringProp(node, "source") ?? "";
   return textDirective(
     "formula",
     stringProp(node, "display") ?? "",
-    meta === "" ? { source } : { meta, source },
+    name === undefined ? { source } : { name, source },
   );
 };
 

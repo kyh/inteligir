@@ -18,6 +18,17 @@ const stored = (element: TElement & { readonly id: string }): LibraryBlock =>
 const p = (id: string, text: string): LibraryBlock =>
   stored({ children: [{ text }], id, type: "p" });
 
+// a paragraph holding one named pill, showing `display`
+const pill = (id: string, name: string, source: string, display: string): LibraryBlock =>
+  stored({
+    children: [
+      { text: `${name} ` },
+      { children: [{ text: "" }], display, name, source, type: "formulaPill" },
+    ],
+    id,
+    type: "p",
+  });
+
 const cell = (text: string): TElement => ({
   children: [{ children: [{ text }], type: "p" }],
   type: "td",
@@ -58,6 +69,29 @@ const texts = (editor: LiveEditor): string[] =>
 const ids = (blocks: readonly NoteBlock[]): string[] => blocks.map(({ block }) => block.id);
 
 describe("a body change applied through the note's editor", () => {
+  // no reader of the note derives a display, so the write that changes a source settles them
+  it("settles what every pill shows in the write that changes one's source", () => {
+    const { base, net, object, objectDoc, read } = note([
+      pill("price", "price", "5", "5"),
+      pill("total", "total", "price*2", "10"),
+    ]);
+    // the display a writer puts beside its source is whatever it wrote
+    applyBodyChanges(object, [
+      {
+        base: base("price"),
+        block: pill("price", "price", "6", "five"),
+        blockId: "price",
+        kind: "put",
+      },
+    ]);
+
+    expect(read().map(({ block }) => block)).toStrictEqual([
+      pill("price", "price", "6", "6"),
+      pill("total", "total", "price*2", "12"),
+    ]);
+    expect(net.sent(objectDoc)).toBe(1);
+  });
+
   it("edits a block in place, so what a person typed in it meanwhile stays", () => {
     const { base, device, object, settleBoth } = note([p("one", "hello world")]);
     const read = base("one");

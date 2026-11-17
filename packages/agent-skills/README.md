@@ -36,8 +36,8 @@ skills/
                                   # call, and which are the library's
   inteligir-links/SKILL.md        # links to items by id or by [[Title]], external links,
                                   # embeds and the library's files
-  inteligir-formulas/SKILL.md     # :formula[display]{source meta} pills and named variables:
-                                  # grammar, identity, references
+  inteligir-formulas/SKILL.md     # :formula[display]{name source} pills and named variables:
+                                  # grammar, what computes, names
   inteligir-canvas/SKILL.md       # inteligir-canvas fences: when a sketch is the answer, and
                                   # the exact grid payload
   inteligir-html/SKILL.md         # inteligir-html fences: the shell, the sandbox contract,
