@@ -220,8 +220,8 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A reading of a link an agent's turn saved folds into that turn's change
   set.** A reading is no person's change, and Undo would keep the link as
   changed since the turn. `packages/service/src/library/change-sets.ts`.
-- **The cloud keeps a page's cover as the site served it, and each device draws
-  its own thumbnail.** A decoded picture is four bytes a pixel in an isolate the
+- **The cloud keeps a page's cover as the site served it, and each device decodes
+  it at the size it draws.** A decoded picture is four bytes a pixel in an isolate the
   reading already fills. `packages/service/src/fill/read-page.ts`.
 - **A link the agent saves is read only once its turn seals** (owner decision).
   Reading it at once would hand the agent a web reader within its turn.

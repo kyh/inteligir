@@ -74,11 +74,11 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
     cloudUrl: "https://cell.test",
     fetch: options.fetch ?? (async (request) => await network.transport.fetch(request)),
     folder: options.folder ?? memoryFolder(),
+    measurePicture: async () => await Promise.resolve(null),
     newBlockId: idSource(),
     newId: idSource(),
     sha256Hex: async (bytes) =>
       await Promise.resolve(createHash("sha256").update(bytes).digest("hex")),
-    shrinkCover: async () => await Promise.resolve(null),
     storage,
     WebSocket: options.sockets?.WebSocket ?? null,
   });

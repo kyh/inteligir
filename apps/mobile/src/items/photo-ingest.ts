@@ -12,7 +12,6 @@ import {
 } from "expo-image-picker";
 import type { ImagePickerOptions } from "expo-image-picker";
 import { ActionSheetIOS } from "react-native";
-import { removed } from "../files/expo-thumbnail";
 import { messageOf } from "../lib/error-message";
 import type { PhoneSaves } from "./phone-saves";
 import { photoName, photoResize, photoType } from "./photo-plan";
@@ -77,6 +76,14 @@ const pick = async (source: PhotoSource): Promise<PhotoIngest | PickedPhoto> => 
   return asset === undefined
     ? { kind: "cancelled" }
     : { kind: "photo", type: photoType(asset.mimeType), uri: asset.uri };
+};
+
+const removed = (file: File): void => {
+  try {
+    file.delete();
+  } catch {
+    // a copy left in the cache is the OS's to purge
+  }
 };
 
 // the size is read off the decoded image: the picker may answer 0 for one it was not told

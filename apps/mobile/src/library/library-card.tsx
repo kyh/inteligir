@@ -1,6 +1,6 @@
 // One Library row: the title, the site and when it was saved, the tags, and the cover on the right,
-// drawn small from the phone's file cache, with a placeholder holding its place while it comes so
-// rows do not jump.
+// the phone's kept file decoded at the row's size, with a placeholder holding its place while it
+// comes, and in place of a cover a row will not draw, so rows do not jump.
 
 import { Image, Pressable, Text, View } from "react-native";
 import type { z } from "zod";

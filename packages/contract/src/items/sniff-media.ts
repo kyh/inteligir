@@ -2,6 +2,8 @@
 // is, read from its header without decoding it. A cover under 200 px is a tracking pixel or an icon,
 // never a picture of the page.
 
+import { HEIF } from "image-size/types/heif";
+
 export type SniffedMedia =
   | {
       kind: "image";
@@ -131,6 +133,29 @@ const webpSize = (bytes: Uint8Array): PixelSize | null => {
   return null;
 };
 
+// a still's `meta` box leads its file, and the reader walks the boxes it is handed again for every
+// size it finds, so it is handed the head alone
+const HEIF_HEAD_BYTES = 64 * 1024;
+
+// the largest size a HEIF's item properties name: an iPhone's HEIC is a grid of tiles, each with a
+// size of its own beside the whole picture's
+const heifSize = (bytes: Uint8Array): PixelSize | null => {
+  try {
+    const read = HEIF.calculate(bytes.subarray(0, HEIF_HEAD_BYTES));
+    let largest: PixelSize = read;
+    for (const next of read.images ?? []) {
+      if (next.width * next.height > largest.width * largest.height) {
+        largest = next;
+      }
+    }
+    const { height, width } = largest;
+    // the reader takes a crop off the width, which a hostile file sends below zero and under any cap
+    return width > 0 && height > 0 ? { height, width } : null;
+  } catch {
+    return null;
+  }
+};
+
 // null for a vector picture, or a header this cannot read
 export const pixelSize = (bytes: Uint8Array, mediaType: string): PixelSize | null => {
   switch (mediaType) {
@@ -145,6 +170,10 @@ export const pixelSize = (bytes: Uint8Array, mediaType: string): PixelSize | nul
     }
     case "image/webp": {
       return webpSize(bytes);
+    }
+    case "image/avif":
+    case "image/heic": {
+      return heifSize(bytes);
     }
     default: {
       return null;

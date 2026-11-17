@@ -60,7 +60,7 @@ export interface ComposeRuntimeArgs {
   readonly newId: () => string;
   readonly newBlockId: () => string;
   readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
-  readonly shrinkCover: FileCachePorts["shrink"];
+  readonly measurePicture: FileCachePorts["measure"];
 }
 
 // the account's library as this phone reaches it, while signed in
@@ -189,7 +189,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     download: async (sha) =>
       state.kind === "open" ? await downloadBlob(transport, args.sha256Hex, sha) : null,
     folder: args.folder,
-    shrink: args.shrinkCover,
+    measure: args.measurePicture,
   });
 
   // everything of an account on this phone goes: its kept cache, its files and its shares

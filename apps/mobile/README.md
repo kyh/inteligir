@@ -23,7 +23,7 @@ src/
              the palette and theme
   auth/      Better Auth's Expo client and its Keychain storage
   login/     signing in, or making an account with an invite code
-  files/     the library's files by their hash, cached with their thumbnails
+  files/     the library's files by their hash, cached, and whether a row draws each as a cover
   editor/    an item's note: page/ is the DOM component, beside it its native half
   items/     saves, photos, what a share hands over, the outbox, an item's Info
   library/   the Library screen: its listing, cards and the saves waiting

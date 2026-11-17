@@ -16,7 +16,7 @@ const MiB = 1024 * 1024;
 // heap by that markup's length, 36 MB a MiB, where a Worker isolate holds 128 MB in all, measured by
 // packages/page-reader/src/extract-page.heap.test.ts); a cover candidate up to 10 MiB, and one under
 // 200 px is a pixel or an icon, never a cover. A cover is kept as the site served it, within
-// coverBytes, and each device draws its own thumbnail from it, rather than the cloud shrinking it
+// coverBytes, and each device decodes it at the size it draws, rather than the cloud shrinking it
 // with a wasm decoder: a decoded picture is four bytes a pixel (48 MB for 4000 x 3000) in an
 // isolate whose heap the reading already uses. So no cover is kept or drawn past coverMaxPixels,
 // whatever the file's size, since a few bytes can name a bitmap of gigabytes; the cap clears the

@@ -46,11 +46,11 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
     cloudUrl: "https://cell.test",
     fetch: async (request) => await network.transport.fetch(request),
     folder: memoryFolder(),
+    measurePicture: async () => await Promise.resolve(null),
     newBlockId: idSource(),
     newId: idSource(),
     sha256Hex: async (bytes) =>
       await Promise.resolve(changedBytes ? sha256(Uint8Array.of(0)) : sha256(bytes)),
-    shrinkCover: async () => await Promise.resolve(null),
     storage: memoryKv(),
     WebSocket: null,
   });

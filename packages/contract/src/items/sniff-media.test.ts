@@ -1,18 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { heifOf, pngOf } from "../test-support/picture-heads";
 import { pixelSize, sniffMedia } from "./sniff-media";
 
 const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);
 
-// a PNG's signature and IHDR, which is all its size is read from
-const pngOf = (width: number, height: number): Uint8Array => {
-  const head = new Uint8Array(24);
-  head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  const view = new DataView(head.buffer);
-  view.setUint32(16, width);
-  view.setUint32(20, height);
-  return head;
-};
 const ascii = (text: string): Uint8Array => new TextEncoder().encode(text);
 
 describe(sniffMedia, () => {
@@ -47,8 +39,27 @@ describe(pixelSize, () => {
     expect(pixelSize(jpeg, "image/jpeg")).toStrictEqual({ height: 400, width: 600 });
   });
 
+  it("reads an AVIF's and a HEIC's size from its item properties, a grid's as its whole picture", () => {
+    expect(pixelSize(heifOf("avif", [[1, 1]]), "image/avif")).toStrictEqual({
+      height: 1,
+      width: 1,
+    });
+    // an iPhone's photo: its tiles, the whole picture, its thumbnail
+    const grid = heifOf("heic", [
+      [512, 512],
+      [4032, 3024],
+      [320, 240],
+    ]);
+    expect(pixelSize(grid, "image/heic")).toStrictEqual({ height: 3024, width: 4032 });
+  });
+
+  it("reads a HEIF's head alone, wherever its sizes sit", () => {
+    expect(pixelSize(heifOf("avif", [[640, 400]], 64 * 1024), "image/avif")).toBeNull();
+  });
+
   it("answers null for a vector picture or a header it cannot read", () => {
     expect(pixelSize(ascii("<svg/>"), "image/svg+xml")).toBeNull();
     expect(pixelSize(bytes(1, 2), "image/png")).toBeNull();
+    expect(pixelSize(ascii("\u0000\u0000\u0000\u0018ftypavif"), "image/avif")).toBeNull();
   });
 });

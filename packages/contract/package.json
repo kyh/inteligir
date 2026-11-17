@@ -66,6 +66,7 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "fractional-indexing": "catalog:",
+    "image-size": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
