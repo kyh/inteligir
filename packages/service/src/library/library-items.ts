@@ -14,6 +14,7 @@ import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
+import { askFill } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
 import { landItem } from "./library-landing";
 import type { LiveItemRow } from "./library-landing";
@@ -107,7 +108,7 @@ export interface BulkAnswer {
 }
 
 // to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
-// no item as missing
+// no item as missing. A link back from Deleted still waiting for its page asks for it again
 export const setDeleted = async (
   scope: WriteScope,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
@@ -123,10 +124,11 @@ export const setDeleted = async (
       changed.push(itemId);
     } else {
       try {
-        await landFields(scope, held, {
+        const landed = await landFields(scope, held, {
           ...held.fields,
           deletedAt: input.deleted ? scope.now : null,
         });
+        await askFill(scope, landed);
         changed.push(itemId);
       } catch (error) {
         // refused before anything of the item was written: its address is another live item's

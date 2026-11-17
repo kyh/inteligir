@@ -26,7 +26,8 @@ export interface PropertyWrite {
 // what a write of one item answers: the item as it landed
 export const landedSchema = z.object({ item: liveItemRowSchema });
 
-const rowOf = ({ card, fields, id, seq, updatedAt }: StoredItem): LiveItemRow => ({
+// the item as it stands, as a write answers it
+export const liveRowOf = ({ card, fields, id, seq, updatedAt }: StoredItem): LiveItemRow => ({
   card,
   fields,
   id,
@@ -42,7 +43,7 @@ export const landFields = async (
   fields: LibraryItemFields,
 ): Promise<LiveItemRow> =>
   canonicalJson(item.fields) === canonicalJson(fields)
-    ? rowOf(item)
+    ? liveRowOf(item)
     : await landItem(scope, { before: item, body: null, fields, itemId: item.id });
 
 export const landPropertyOps = async (

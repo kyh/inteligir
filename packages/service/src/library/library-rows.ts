@@ -16,7 +16,7 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import type { itemLink, itemSearch } from "@repo/db/library-schema";
 import { item, itemBody, itemTag, libraryState, purgedItem } from "@repo/db/library-schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 import { searchVectorOf } from "../search/search-vector";
@@ -102,6 +102,19 @@ export const readItem = async (
     .select(STORED_ITEM_COLUMNS)
     .from(item)
     .where(and(eq(item.accountId, accountId), eq(item.id, id)));
+  return row ?? null;
+};
+
+// the one live item at an address, by its url's key; null while none holds it
+export const liveItemAt = async (
+  db: DbExecutor,
+  accountId: string,
+  urlKey: string,
+): Promise<StoredItem | null> => {
+  const [row] = await db
+    .select(STORED_ITEM_COLUMNS)
+    .from(item)
+    .where(and(eq(item.accountId, accountId), eq(item.urlKey, urlKey), isNull(item.deletedAt)));
   return row ?? null;
 };
 

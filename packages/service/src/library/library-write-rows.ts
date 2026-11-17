@@ -18,6 +18,7 @@ import {
   setDeleted,
 } from "./library-items";
 import { libraryHead } from "./library-rows";
+import { savedSchema, saveLink, savePage } from "./library-saves";
 import { writeLibrary } from "./library-store";
 import { landedSchema, landPropertyOps } from "./library-writes";
 
@@ -107,6 +108,24 @@ export const libraryWriteRows = {
       );
       return { addressHeld, missing, restored: changed };
     }),
+    save: writing.items.save.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: savedSchema, opId: input.opId },
+          async (scope) => await savePage(scope, input),
+        ),
+      ),
+    ),
+    saveLink: writing.items.saveLink.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: savedSchema, opId: input.opId },
+          async (scope) => await saveLink(scope, input),
+        ),
+      ),
+    ),
   },
   write: writing.write.handler(async ({ context, input }) =>
     answer(

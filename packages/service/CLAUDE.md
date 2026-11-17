@@ -136,6 +136,15 @@ decisions port with its code from the tag `cloudflare-last`.
 - **A write reads the account's folders once and lands its ops on that copy.**
   The contract's folder rules read synchronously, and a tree of names is small
   beside the item rows a write reads. `packages/service/src/library/library-folders.ts`.
+- **A link saved to read later lands unread and asks for its page in the same
+  write, as a `fill` row of the job table due at once, whoever saved it.** A
+  reading is never asked by a write that rolled back nor lost by one that
+  landed, a save calls no model, and the built-in agent reads the web itself, so
+  its turn holds nothing back. `packages/service/src/library/library-fills.ts`.
+- **Markdown written into a body reads its links in one round of three queries
+  inside its write.** A query per link is a round trip each, and a title index
+  of the whole library reads every item to name a few.
+  `packages/service/src/library/library-codec.ts`.
 - **A file is let go a day after its last name went, asked of the rows that
   name it: an item's `item_file`, a change set's `change_set_file`.** Every
   name added or dropped moves `touched_at`; a count kept beside those rows is a
