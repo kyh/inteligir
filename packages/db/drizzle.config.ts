@@ -1,15 +1,26 @@
 import type { Config } from "drizzle-kit";
 
-// Targets the remote D1 over d1-http; needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_DATABASE_ID
-// and CLOUDFLARE_D1_TOKEN. Local pushes use drizzle.config.local.ts. No migration files:
-// one deployer, an additive schema, and the suites apply the ddl.sql written from schema.ts.
+// drizzle-kit introspection stalls forever on Supabase's transaction pooler.
+const url = process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
+
+if (url === undefined || url === "") {
+  throw new Error("Missing POSTGRES_URL");
+}
+
+// DDL blocked by a long or orphaned statement fails after 5 s instead of queueing every write.
+const withLockTimeout = (connectionUrl: string) => {
+  const parsed = new URL(connectionUrl);
+  const options = parsed.searchParams.get("options");
+  const kept = options === null || options === "" ? "" : `${options} `;
+  parsed.searchParams.set("options", `${kept}-c lock_timeout=5s`);
+  return parsed.toString();
+};
+
 export default {
   dbCredentials: {
-    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-    databaseId: process.env.CLOUDFLARE_DATABASE_ID ?? "",
-    token: process.env.CLOUDFLARE_D1_TOKEN ?? "",
+    url: withLockTimeout(url),
   },
-  dialect: "sqlite",
-  driver: "d1-http",
-  schema: "./src/d1/schema.ts",
+  dialect: "postgresql",
+  schema: "./src/*-schema.ts",
+  schemaFilter: ["public"],
 } satisfies Config;

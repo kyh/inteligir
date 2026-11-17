@@ -1,0 +1,52 @@
+# Local Supabase, as `pnpm db:start` runs it: Postgres and its pooler alone, as native processes.
+# It shapes the local stack only; production is whatever POSTGRES_URL names.
+project_id = "inteligir"
+
+# Postgres is the only service the app runs on: auth is Better Auth and the API is oRPC.
+[api]
+enabled = false
+
+[db]
+# Off the CLI's default block (54321–54329) and dataembed's (54520–54529), which other local stacks
+# on this machine hold. `pnpm db:start` writes the URL into .env.local, so nothing else names it.
+port = 54622
+shadow_port = 54620
+# The major production and CI's postgres:17 run; the native runtime runs 15 and 17.
+major_version = 17
+
+# Production reaches Postgres through Supabase's transaction pooler, so a pooled connection is
+# testable here too: no prepared statements, and a session's state ends with its transaction.
+[db.pooler]
+enabled = true
+port = 54629
+pool_mode = "transaction"
+
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+# `pnpm --filter @repo/db studio` (Drizzle Studio) browses the local database.
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = false
+
+[auth]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[experimental]
+# The CLI's stack backend: local Supabase as plain processes, no Docker. Experimental (CLI 2.119+),
+# so its flags and output can move between releases: re-run `pnpm db:start` after a bump.
+stack = true

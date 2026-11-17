@@ -71,7 +71,7 @@ if (signedIn.status === 429) {
   throw new Error(`${origin} is counting sign-ins out: run \`pnpm bootstrap\` again in a minute.`);
 }
 
-execFileSync("pnpm", ["run", "push"], {
+execFileSync("drizzle-kit", ["push", "--config", "drizzle.config.local.ts", "--force"], {
   cwd: path.resolve(import.meta.dirname, ".."),
   stdio: "inherit",
 });

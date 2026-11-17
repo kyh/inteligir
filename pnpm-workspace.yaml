@@ -85,8 +85,9 @@ catalog:
   cn: ^0.4.0
   # exact: 0.x output moves between patches; the fill corpus pins it
   defuddle: 0.19.5
-  drizzle-kit: 1.0.0-rc.4
-  drizzle-orm: 1.0.0-rc.4
+  dotenv-cli: ^11.1.0
+  drizzle-kit: 1.0.0-rc.5
+  drizzle-orm: 1.0.0-rc.5
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
   eas-cli: 24.12.1
@@ -141,6 +142,8 @@ catalog:
   platejs: ^53.5.2
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
+  # exact: the patch below keys this release
+  postgres: 3.4.9
   # held under 19.3: the Expo SDK names React 19.2, the minor react-native's renderer is built on,
   # and the react-dom patch below keys 19.2.8 exactly
   react: ~19.2.8
@@ -167,6 +170,9 @@ catalog:
   slate: 0.146.0
   # the node server in front of the scripted Messages API, the copy TanStack Start resolves
   srvx: ^1.0.8
+  # exact: `pnpm db:start` runs local Postgres on its experimental native stack, whose flags and
+  # output move between releases; a bump re-runs `pnpm db:start`
+  supabase: 2.122.1
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
   unified: ^11.0.5
@@ -280,6 +286,11 @@ patchedDependencies:
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
+  # a pooled client on a lost or closed socket: postgres.js writes a query to the missing socket and
+  # waits forever, sends a transaction's late COMMIT down a connection already serving another
+  # caller, and reconnects a pool already ended; the patch fails each instead, as dataembed's does,
+  # dropped once a release does
+  postgres@3.4.9: patches/postgres@3.4.9.patch
   # before every commit React reads the focused element's selection as text offsets, which for a
   # contenteditable walks every node of the open note; the editor keeps its own selection, so the
   # patch reads none there, dropped once a release stops walking it

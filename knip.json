@@ -20,9 +20,10 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "packages/db": {
-      // the local D1's config throws on load until `pnpm dev:web` has made that database
+      // the local D1's config throws on load until `pnpm dev:web` has made that database, so its
+      // schema, which drizzle-kit reads, is named here
       "ignore": ["drizzle.config.local.ts"],
-      "drizzle": { "config": ["drizzle.config.ts"] }
+      "drizzle": { "config": ["drizzle.config.ts"], "entry": ["src/d1/schema.ts"] }
     },
     "packages/service": {
       "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts"],

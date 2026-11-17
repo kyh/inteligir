@@ -71,7 +71,9 @@
       "dependsOn": ["^topo", "generate"],
       // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
       // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
-      "cache": false
+      "cache": false,
+      // the Postgres the database suites clone theirs on (@repo/db/test-database); unset, they skip
+      "passThroughEnv": ["TEST_POSTGRES_URL"]
     }
   },
   // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
