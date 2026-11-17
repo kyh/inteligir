@@ -65,9 +65,12 @@ const envSchema = z
 
     CRON_SECRET: optionalText,
 
-    // `log` writes each message to the server's log, a live reset link included, so it is never
-    // the default
-    EMAIL_MODE: optionalText.pipe(z.enum(["resend", "log", "off"]).default("off")),
+    // the reset mail's sender, an address on a domain Resend has verified: `Name <address>`
+    EMAIL_FROM: optionalText,
+
+    // unset, production sends nothing and anywhere else logs (`auth/send-email.ts`): `log` writes
+    // a live reset link to the server's log, which production's must never hold
+    EMAIL_MODE: optionalText.pipe(z.enum(["resend", "log", "off"]).optional()),
 
     LIBRARY_STORAGE_CAP_BYTES: byteCount(GIB),
 
@@ -81,11 +84,21 @@ const envSchema = z
     RESEND_API_KEY: optionalText,
   })
   .superRefine((env, context) => {
-    if (env.EMAIL_MODE === "resend" && env.RESEND_API_KEY === undefined) {
+    if (env.EMAIL_MODE !== "resend") {
+      return;
+    }
+    if (env.RESEND_API_KEY === undefined) {
       context.addIssue({
         code: "custom",
         message: "EMAIL_MODE=resend sends through Resend, so it needs RESEND_API_KEY",
         path: ["RESEND_API_KEY"],
+      });
+    }
+    if (env.EMAIL_FROM === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "EMAIL_MODE=resend sends from EMAIL_FROM, so it needs one",
+        path: ["EMAIL_FROM"],
       });
     }
   });
@@ -93,3 +106,5 @@ const envSchema = z
 export const ENV_KEYS = envSchema.keyof().options;
 
 export const parseEnv = (source: NodeJS.ProcessEnv) => envSchema.parse(source);
+
+export const env = parseEnv(process.env);

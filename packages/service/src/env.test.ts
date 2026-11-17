@@ -28,7 +28,7 @@ describe("env", () => {
     const env = parseEnv({});
     expect(env.MIN_CLIENT_BUILD).toStrictEqual({ major: 0, minor: 7, patch: 0, prerelease: false });
     expect(env.LIBRARY_STORAGE_CAP_BYTES).toBe(1_073_741_824);
-    expect(env.EMAIL_MODE).toBe("off");
+    expect(env.EMAIL_MODE).toBeUndefined();
     expect(env.RATE_LIMIT_DISABLED).toBe(false);
     expect(env.APP_URL).toBeUndefined();
     expect(env.POSTGRES_URL).toBeUndefined();
@@ -83,10 +83,16 @@ describe("env", () => {
     }
   });
 
-  it("sends through Resend only with its key, and knows no other mode", () => {
+  it("sends through Resend only with its key and a sender, and knows no other mode", () => {
     expect(parseEnv({ EMAIL_MODE: "log" }).EMAIL_MODE).toBe("log");
-    expect(parseEnv({ EMAIL_MODE: "resend", RESEND_API_KEY: "re_1" }).EMAIL_MODE).toBe("resend");
-    expect(() => parseEnv({ EMAIL_MODE: "resend" })).toThrow(/RESEND_API_KEY/u);
+    expect(
+      parseEnv({ EMAIL_FROM: "a <a@example.test>", EMAIL_MODE: "resend", RESEND_API_KEY: "re_1" })
+        .EMAIL_MODE,
+    ).toBe("resend");
+    expect(() => parseEnv({ EMAIL_FROM: "a <a@example.test>", EMAIL_MODE: "resend" })).toThrow(
+      /RESEND_API_KEY/u,
+    );
+    expect(() => parseEnv({ EMAIL_MODE: "resend", RESEND_API_KEY: "re_1" })).toThrow(/EMAIL_FROM/u);
     expect(() => parseEnv({ EMAIL_MODE: "smtp" })).toThrow();
   });
 

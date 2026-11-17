@@ -2,23 +2,32 @@
   "name": "@repo/service",
   "version": "0.1.0",
   "private": true,
-  "description": "The cloud's code, which apps/web serves: the environment it reads, as one zod schema.",
+  "description": "The cloud's code, which apps/web serves: the environment it reads, and accounts on Better Auth over Postgres behind the invite gate.",
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"
   },
   "scripts": {
+    "seed": "dotenv -e ../../.env.local -e ../../.env -- tsx src/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "catalog:",
+    "@better-auth/expo": "catalog:",
     "@repo/contract": "workspace:*",
+    "@repo/db": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
+    "next": "catalog:",
+    "resend": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@repo/db": "workspace:*",
     "@types/node": "catalog:",
+    "dotenv-cli": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
