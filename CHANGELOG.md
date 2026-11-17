@@ -11,6 +11,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent, every change reaching your other devices as you make it.
 - **The Mac app opens your library from inteligir.com**: close the window and click Inteligir in the Dock to bring it back; offline, choose View › Reload once you're back.
 - **Your library, one card per item**: All items, Unsorted, a folder or a tag in the sidebar, a kind above the grid, Finder's selection, Space for a quick look, quick with tens of thousands of items.
+- **⌘A selects everything the header counts**, not only the cards scrolled into view: Move, Tag, Pin, Delete and Restore act on all of it, and ⌘-click a card leaves it out.
 - **Back and Forward walk your library**: a folder, a tag or Deleted is its own place in the window's address, so a reload keeps it and a link opens it; choosing a kind above the grid adds no step to Back.
 - **A new window, and the Mac app when it starts, open All items**: choose a folder or a tag in the sidebar to go back to it.
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
@@ -106,6 +107,9 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room.
 - **A change your library can't take says why**, and puts it back.
 - **Pin, Unpin and Restore from the grid's menu say how many items they changed**, and a restore names every item that stayed in Deleted because another item has its address.
+- **Moving, tagging, pinning, deleting or restoring more items than the grid has read, past the first 200, is handed to your library**, which finishes it on its own, even if the tab closes: the notice says how many items it took, such a run has no Stop and no Undo, and a delete asks first and its items wait in Deleted.
+- **Empty Deleted… is one request your library finishes by itself**, and always empties all of Deleted, whatever kind the grid is narrowed to.
+- **A selection survives a change of sort or kind**: cards that come back into view are still selected.
 - **Adding files shows its progress from the first one**, "Adding 3 of 12…", as saving several links does, with Stop only while any are left.
 - **A link or file that couldn't be saved says why**, and what was saved before it is counted: "Stopped after 2 of 5."
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
