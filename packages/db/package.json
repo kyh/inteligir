@@ -2,25 +2,14 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "Postgres: the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase and the suites' databases; beside it until they go, the D1 accounts database's, each library cell's, each note's and each conversation's drizzle schemas, the D1 client and each schema's DDL.",
+  "description": "Postgres: the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase and the suites' databases.",
   "type": "module",
   "exports": {
-    "./cell/ddl.sql": "./src/cell/ddl.sql",
-    "./cell/schema": "./src/cell/schema.ts",
-    "./d1/client": "./src/d1/client.ts",
-    "./d1/ddl.sql": "./src/d1/ddl.sql",
-    "./d1/schema": "./src/d1/schema.ts",
     "./drizzle-client": "./src/drizzle-client.ts",
-    "./note/ddl.sql": "./src/note/ddl.sql",
-    "./note/schema": "./src/note/schema.ts",
     "./test-database": "./src/test-database.ts",
-    "./test-database-file": "./src/test-database-file.ts",
-    "./thread/ddl.sql": "./src/thread/ddl.sql",
-    "./thread/schema": "./src/thread/schema.ts"
+    "./test-database-file": "./src/test-database-file.ts"
   },
   "scripts": {
-    "bootstrap": "node scripts/bootstrap.ts",
-    "ddl": "node scripts/object-ddl.ts",
     "push": "pnpm with-env node scripts/push.ts",
     "push:check": "pnpm with-env node scripts/check-push.ts",
     "push:remote": "dotenv -e ../../.env.production.local -- node scripts/push.ts",
@@ -29,19 +18,17 @@
     "status": "supabase status",
     "stop": "supabase stop",
     "studio": "pnpm with-env drizzle-kit studio",
-    "test": "node scripts/object-ddl.ts --check && vitest run",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
     "with-env": "dotenv -e ../../.env.local -e ../../.env --"
   },
   "dependencies": {
-    "@repo/contract": "workspace:*",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@libsql/client": "^0.18.0",
     "@types/node": "catalog:",
     "dotenv-cli": "catalog:",
     "drizzle-kit": "catalog:",
