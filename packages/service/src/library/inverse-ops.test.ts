@@ -37,6 +37,24 @@ describe(applyInverse, () => {
       applyInverse(noteFixture({ tags: ["Foo"] }), [{ base: ["Foo"], op: "tags", value: ["foo"] }]),
     ).toMatchObject({ changed: true, kind: "applied" });
   });
+
+  it("meets a reading by its value, however equal a copy of its base reads", () => {
+    const waiting = { at: 1, state: "pending" } as const;
+    const read = { at: 2, state: "read" } as const;
+    const link = noteFixture({ kind: "link", reading: { ...read } });
+    const back: readonly InverseOp[] = [
+      { base: { ...read }, field: "reading", op: "set", value: waiting },
+    ];
+    expect(applied(link, back).reading).toStrictEqual(waiting);
+    expect(applyInverse({ ...link, reading: { ...waiting } }, back)).toMatchObject({
+      changed: false,
+      kind: "applied",
+    });
+    const failed = { at: 3, error: "Timed out.", state: "failed" } as const;
+    expect(applyInverse({ ...link, reading: failed }, back)).toStrictEqual({ kind: "conflict" });
+    // a landing that reads the same reading anew from its row writes no slot
+    expect(composeInverse([], link, { ...link, reading: { ...read } })).toStrictEqual([]);
+  });
 });
 
 describe("an op of the way back", () => {
