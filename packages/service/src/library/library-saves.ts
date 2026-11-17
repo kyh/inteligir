@@ -17,7 +17,7 @@ import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import { noteBlocksOf } from "./library-codec";
-import { askFill } from "./library-fills";
+import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
 import { landNew } from "./library-items";
@@ -142,6 +142,6 @@ export const saveLink = async (scope: WriteScope, input: SaveLinkInput): Promise
     }),
     id: input.id ?? mintLibraryId(scope.now),
   });
-  await askFill(scope, stub);
+  await askFills(scope, [stub]);
   return { created: true, item: stub };
 };

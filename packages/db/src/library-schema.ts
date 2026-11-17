@@ -38,7 +38,7 @@ const TAG_ORIGINS = [
 ] as const satisfies readonly DerivedItem["tags"][number]["origin"][];
 
 // the kinds of work a job runs after the write that asked for it; an area appends its own
-const JOB_KINDS = ["fill", "file-release"] as const;
+const JOB_KINDS = ["fill", "file-release", "sweep"] as const;
 
 export const itemKind = pgEnum("item_kind", ITEM_KINDS);
 export const tagOrigin = pgEnum("tag_origin", TAG_ORIGINS);
@@ -300,8 +300,9 @@ export const changeSetItem = pgTable.withRLS(
   ],
 );
 
-// a body a set's turn edited: its blocks before the turn's first edit, and its version after the
-// turn's last, which an Undo writes back over only while the body still stands there
+// a body a set's turn wrote: its blocks before the turn's first write and the version they stood
+// at, none at 0 for an item the turn made, and its version after the turn's last, which an Undo
+// writes back over only while the body still stands there; turns undone together chain by them
 export const changeSetBody = pgTable.withRLS(
   "change_set_body",
   {
@@ -310,6 +311,7 @@ export const changeSetBody = pgTable.withRLS(
     changeSetId: text("change_set_id").notNull(),
     itemId: text("item_id").notNull(),
     versionAfter: integer("version_after").notNull(),
+    versionBefore: integer("version_before").notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.accountId, table.changeSetId, table.itemId] }),

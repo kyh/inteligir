@@ -20,6 +20,7 @@ import {
 import { libraryHead } from "./library-rows";
 import { savedSchema, saveLink, savePage } from "./library-saves";
 import { writeLibrary } from "./library-store";
+import { undoneSchema, undoTurns } from "./library-undo";
 import { landedSchema, landPropertyOps } from "./library-writes";
 
 const ids = z.array(z.string());
@@ -29,6 +30,18 @@ const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 const purgedSchema = z.object({ missing: ids, purged: ids });
 
 export const libraryWriteRows = {
+  agent: {
+    // no opId: an undo sent again finds nothing left to take back
+    undo: writing.agent.undo.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: undoneSchema, opId: undefined },
+          async (scope) => await undoTurns(scope, input),
+        ),
+      ),
+    ),
+  },
   folders: {
     write: writing.folders.write.handler(async ({ context, input }) =>
       answer(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { lostTextSentence, undoSentence } from "./undo-answer";
+import { undoSentence } from "./undo-answer";
 
 describe("what an undo says", () => {
   it("says when a later change was kept where it overlapped", () => {
@@ -22,15 +22,5 @@ describe("what an undo says", () => {
     expect(sentence).toMatch(/^Nothing was undone/u);
     expect(sentence).toMatch(/were kept where they overlapped/u);
     expect(sentence).toMatch(/undo this again/u);
-  });
-
-  it("names each note whose typing went with the agent's words, and counts past three", () => {
-    expect(lostTextSentence([])).toBeNull();
-    expect(lostTextSentence(["Plans", "Trips"])).toBe(
-      "What was typed inside the agent's words in “Plans” and “Trips” went with them.",
-    );
-    expect(lostTextSentence(["A", "B", "C", "D"])).toBe(
-      "What was typed inside the agent's words in 4 notes went with them.",
-    );
   });
 });

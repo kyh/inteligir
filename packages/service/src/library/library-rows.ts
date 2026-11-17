@@ -15,7 +15,7 @@ import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import type { itemLink, itemSearch } from "@repo/db/library-schema";
-import { item, itemBody, itemTag, libraryState, purgedItem } from "@repo/db/library-schema";
+import { item, itemBody, itemTag, libraryState } from "@repo/db/library-schema";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
@@ -116,21 +116,6 @@ export const liveItemAt = async (
     .from(item)
     .where(and(eq(item.accountId, accountId), eq(item.urlKey, urlKey), isNull(item.deletedAt)));
   return row ?? null;
-};
-
-// whether the library made the id already: an item holds it, or a purged one kept it
-export const idTaken = async (db: DbExecutor, accountId: string, id: string): Promise<boolean> => {
-  const [held, purged] = await Promise.all([
-    db
-      .select({ id: item.id })
-      .from(item)
-      .where(and(eq(item.accountId, accountId), eq(item.id, id))),
-    db
-      .select({ id: purgedItem.id })
-      .from(purgedItem)
-      .where(and(eq(purgedItem.accountId, accountId), eq(purgedItem.id, id))),
-  ]);
-  return held.length > 0 || purged.length > 0;
 };
 
 // the body's version and digest, without its blocks: what a write of the fields alone derives from

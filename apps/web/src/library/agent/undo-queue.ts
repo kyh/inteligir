@@ -29,7 +29,6 @@ export const undoToEnd = async (client: V1Client, press: UndoPress): Promise<Und
     if (lot.next === null) {
       return {
         kept: lots.flatMap((one) => one.kept),
-        lostText: [...new Set(lots.flatMap((one) => one.lostText))],
         next: null,
         refused: lots.flatMap((one) => one.refused),
         reverted: lots.flatMap((one) => one.reverted),

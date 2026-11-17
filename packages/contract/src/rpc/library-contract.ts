@@ -588,10 +588,11 @@ const agentContract = {
 
   // What the thread's turns changed, taken back in one write: one turn, or the conversation's,
   // newest first, so many a call, those before `before`. `next` is where the turns this call left
-  // start, null once none wait. An item a later edit overlaps is named under `kept` and one a rule
-  // refuses under `refused`, each left to undo again; when a rule held back all that could land,
-  // its own error is the answer. A turn with nothing left to take back, already undone or still
-  // open, changes nothing, so the call takes no opId: sent again, it finds nothing left
+  // start, null once none wait. An item someone changed since, in a field the turn wrote or in its
+  // body at all, is named under `kept` and left whole, and one a rule refuses under `refused`,
+  // each left to undo again; when a rule held back all that could land, its own error is the
+  // answer. A turn with nothing left to take back, already undone or still open, changes nothing,
+  // so the call takes no opId: sent again, it finds nothing left
   undo: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,
@@ -607,8 +608,6 @@ const agentContract = {
     .output(
       z.object({
         kept: z.array(idSchema),
-        // the items whose undo took text someone wrote inside a block the undone turn added
-        lostText: z.array(idSchema),
         next: turnNumber.nullable(),
         refused: z.array(idSchema),
         reverted: z.array(idSchema),

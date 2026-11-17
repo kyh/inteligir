@@ -22,7 +22,6 @@ import {
   workWords,
 } from "@repo/client/thread-entries";
 import type { ThreadBlock, ThreadEntry, WaitingApproval } from "@repo/client/thread-entries";
-import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard } from "@repo/ui/ai/approval-card";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
@@ -242,11 +241,7 @@ const Conversation = ({
       onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.agent.undoable.key() });
       },
-      onSuccess: (answer) => {
-        announceUndo(answer, (id) =>
-          shownTitle(titles.find((target) => target.id === id)?.title ?? ""),
-        );
-      },
+      onSuccess: announceUndo,
       scope: UNDO_SCOPE,
     }),
   );

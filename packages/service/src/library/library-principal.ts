@@ -6,7 +6,7 @@
 
 import type { AppPrincipal } from "../rpc/admit";
 
-interface TurnActor {
+export interface TurnActor {
   readonly kind: "agent";
   readonly threadId: string;
   readonly turn: number;

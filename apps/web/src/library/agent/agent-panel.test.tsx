@@ -2,7 +2,6 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { deferred } from "@repo/contract/deferred";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -73,7 +72,7 @@ const oneFinishedTurn = [
   row(1, { reason: "done", turn: 1, type: "turn.ended" }),
 ];
 
-const NOTHING_LEFT = { kept: [], lostText: [], next: null, refused: [], reverted: [] };
+const NOTHING_LEFT = { kept: [], next: null, refused: [], reverted: [] };
 const UNDONE = { ...NOTHING_LEFT, reverted: ["i1"] };
 
 // the panel on THREAD, until "Move" takes it to `to`, and back
@@ -695,32 +694,6 @@ describe("the agent panel's conversation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith(expect.stringMatching(words));
-    });
-  });
-
-  it("names the note whose typing went with the agent's words it took back", async () => {
-    const said = vi.spyOn(toast, "warning");
-    const cell = createFakeCell();
-    const note = cell.seed.item({ title: "Plans" });
-    const { library } = fakePageLibrary({
-      answer: ({ path }) => {
-        if (path === "library.agent.undoable") {
-          return { turns: [1] };
-        }
-        return path === "library.agent.undo"
-          ? { ...NOTHING_LEFT, lostText: [note], reverted: [note] }
-          : undefined;
-      },
-      cell,
-      events: oneFinishedTurn,
-      threads: [thread],
-    });
-    renderOnLibrary(panel(), onThread(library));
-    fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
-    await waitFor(() => {
-      expect(said).toHaveBeenCalledWith("Undone.", {
-        description: "What was typed inside the agent's words in “Plans” went with them.",
-      });
     });
   });
 

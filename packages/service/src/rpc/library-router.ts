@@ -1,5 +1,5 @@
 // The library's rows under `/v1/rpc`: the reading side's and the writing side's, merged where both
-// route a row under `items`.
+// route rows under one key.
 
 import { libraryReadRows } from "../library/library-read-rows";
 import { libraryWriteRows } from "../library/library-write-rows";
@@ -7,5 +7,6 @@ import { libraryWriteRows } from "../library/library-write-rows";
 export const libraryRouter = {
   ...libraryReadRows,
   ...libraryWriteRows,
+  agent: { ...libraryReadRows.agent, ...libraryWriteRows.agent },
   items: { ...libraryReadRows.items, ...libraryWriteRows.items },
 };

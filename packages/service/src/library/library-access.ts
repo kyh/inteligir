@@ -17,18 +17,13 @@ import {
 import { implement, ORPCError, os } from "@orpc/server";
 
 import { changesLibrary, libraryActorOf } from "./library-principal";
-import type { LibraryActor, LibraryPrincipal } from "./library-principal";
+import type { LibraryPrincipal } from "./library-principal";
 import type { LibraryRefusal, LibraryResult } from "./library-refusal";
+import type { LibraryWriter } from "./library-store";
 
 // what every door hands the library: `/v1`'s session, the connector's grant, the agent's turn
 export interface LibraryContext {
   readonly principal: LibraryPrincipal;
-}
-
-// whom a call is by, as its rows read it: the account whose library it is, and its writes' actor
-interface LibraryCaller {
-  readonly accountId: string;
-  readonly actor: LibraryActor;
 }
 
 type EditRefusal = Extract<LibraryRefusal, { kind: "edit-refused" }>["refusal"];
@@ -104,7 +99,7 @@ const requireLibrary = (needs: "read" | "write") =>
         message: "This connection reads your library and changes nothing in it.",
       });
     }
-    const library: LibraryCaller = {
+    const library: LibraryWriter = {
       accountId: principal.accountId,
       actor: libraryActorOf(principal),
     };

@@ -4,43 +4,31 @@
 
 import { organized } from "@repo/contract/library/cell-rules";
 import type { OrganizeInput } from "@repo/contract/library/cell-rules";
-import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { fileFields } from "@repo/contract/library/item-makes";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { itemSummarySchema } from "@repo/contract/library/library-wire";
 import { item, purgedItem } from "@repo/db/library-schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
-import { askFill } from "./library-fills";
+import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
-import { landItem } from "./library-landing";
-import type { LiveItemRow } from "./library-landing";
+import { landNewItems } from "./library-landing";
+import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
-import { idTaken, readItem, tagsOf } from "./library-rows";
+import { readItem, tagsOf } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
-
-export interface NewItem {
-  readonly id: string;
-  readonly fields: LibraryItemFields;
-  // its body in reading order
-  readonly blocks: readonly BodyBlock[];
-}
+import { anyOf } from "./set-sql";
 
 // an item the write makes, with its body; an id the library made already is a conflict
 export const landNew = async (scope: WriteScope, made: NewItem): Promise<LiveItemRow> => {
-  if (await idTaken(scope.tx, scope.accountId, made.id)) {
-    refuse({ kind: "conflict" });
+  const [landed] = await landNewItems(scope, [made]);
+  if (landed === undefined) {
+    throw new Error("a landing of one item answered none");
   }
-  return await landItem(scope, {
-    before: null,
-    body: made.blocks,
-    fields: made.fields,
-    itemId: made.id,
-  });
+  return landed.ok ? landed.value : refuse(landed.refusal);
 };
 
 export interface CreateFileInput {
@@ -128,7 +116,7 @@ export const setDeleted = async (
           ...held.fields,
           deletedAt: input.deleted ? scope.now : null,
         });
-        await askFill(scope, landed);
+        await askFills(scope, [landed]);
         changed.push(itemId);
       } catch (error) {
         // refused before anything of the item was written: its address is another live item's
@@ -142,23 +130,37 @@ export const setDeleted = async (
   return { addressHeld, changed, missing };
 };
 
-// Deleted emptied of `ids`: each item goes with every row it holds, its change sets' entries
-// included, its id kept as purged and its files touched, so each one nothing else names goes a day
-// later. It joins no set, since nothing can take it back; an id naming no item in Deleted is missing
+// Deleted emptied of `ids`, in a statement a table: each item goes with every row it holds, its
+// change sets' entries included, its id kept as purged and its files touched, so each one nothing
+// else names goes a day later. It joins no set, since nothing can take it back; an id naming no
+// item in Deleted is missing
 export const purgeItems = async (scope: WriteScope, ids: readonly string[]) => {
   const { accountId, now, tx } = scope;
-  const purged: string[] = [];
-  const missing: string[] = [];
-  for (const id of new Set(ids)) {
-    const held = await readItem(tx, accountId, id);
-    if (held === null || held.fields.deletedAt === null) {
-      missing.push(id);
-    } else {
-      await dropItemFiles(tx, accountId, id, now);
-      await tx.delete(item).where(and(eq(item.accountId, accountId), eq(item.id, id)));
-      await tx.insert(purgedItem).values({ accountId, id, seq: await scope.seq() });
-      purged.push(id);
-    }
+  const unique = [...new Set(ids)];
+  const inDeleted = and(
+    eq(item.accountId, accountId),
+    isNotNull(item.deletedAt),
+    anyOf(item.id, unique),
+  );
+  const rows = await tx.select({ id: item.id }).from(item).where(inDeleted);
+  const held = new Set(rows.map((row) => row.id));
+  if (held.size > 0) {
+    const seq = await scope.seq();
+    await dropItemFiles(tx, accountId, [...held], now);
+    await tx.insert(purgedItem).select(
+      tx
+        .select({
+          accountId: item.accountId,
+          id: item.id,
+          seq: sql<number>`${seq}::bigint`.as("seq"),
+        })
+        .from(item)
+        .where(inDeleted),
+    );
+    await tx.delete(item).where(inDeleted);
   }
-  return { missing, purged };
+  return {
+    missing: unique.filter((id) => !held.has(id)),
+    purged: unique.filter((id) => held.has(id)),
+  };
 };

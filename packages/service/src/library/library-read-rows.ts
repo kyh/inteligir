@@ -12,6 +12,7 @@ import { listingPage, listingScopes, listingTitles, readLibrary } from "./librar
 import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
 import { readItem, readItemWhole } from "./library-rows";
 import type { StoredItem } from "./library-rows";
+import { undoableTurns } from "./library-undo";
 
 // an item's row as the apps read it; one emptied from Deleted is no item
 const itemRow = ({ card, fields, id, seq, updatedAt }: StoredItem) => ({
@@ -23,6 +24,11 @@ const itemRow = ({ card, fields, id, seq, updatedAt }: StoredItem) => ({
 });
 
 export const libraryReadRows = {
+  agent: {
+    undoable: reading.agent.undoable.handler(async ({ context, input }) => ({
+      turns: await undoableTurns(db, context.library.accountId, input.threadId),
+    })),
+  },
   changes: reading.changes.handler(
     async ({ context, input }) => await libraryChanges(db, context.library.accountId, input.after),
   ),

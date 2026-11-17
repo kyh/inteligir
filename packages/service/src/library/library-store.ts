@@ -1,9 +1,11 @@
 // Every write to an account's library, as one Postgres transaction under the account's row lock:
 // writes of one account land in turn, and other accounts' never wait on them. A write takes the
 // library's next sequence once, at its first stamping landing, so a write that lands nothing moves
-// nothing, and keeps its answer under its op id, so a client resending after a lost answer is told
-// what landed. A rule refuses by throwing (`./library-refusal`), which rolls the write back, and
-// `attempt` is a savepoint: a part that lands whole or not at all while the write goes on.
+// nothing, joins its turn's change set at its first landing that changes an item when the built-in
+// agent made it (`./library-change-sets`), and keeps its answer under its op id, so a client
+// resending after a lost answer is told what landed. A rule refuses by throwing
+// (`./library-refusal`), which rolls the write back, and `attempt` is a savepoint: a part that lands
+// whole or not at all while the write goes on.
 
 import { db } from "@repo/db/drizzle-client";
 import type { Tx } from "@repo/db/drizzle-client";
@@ -11,6 +13,8 @@ import { libraryState, opAnswer } from "@repo/db/library-schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
+import { joinTurnSet } from "./library-change-sets";
+import type { LibraryActor } from "./library-principal";
 import { RefusedWriteError } from "./library-refusal";
 import type { LibraryResult } from "./library-refusal";
 
@@ -20,9 +24,10 @@ import type { LibraryResult } from "./library-refusal";
 const LOCK_TIMEOUT = "5s";
 const LOCK_NOT_AVAILABLE = "55P03";
 
-// who a write is by, as far as the store reads it: the account whose library it locks
+// who a write is by: the account whose library it locks, and the actor its landings are by
 export interface LibraryWriter {
   readonly accountId: string;
+  readonly actor: LibraryActor;
 }
 
 // what a write asks around its work: its key in the op ledger, and the schema its answer is read
@@ -40,13 +45,16 @@ export type Built<T> = T extends readonly (infer E)[]
     ? { readonly [K in keyof T]: Built<T[K]> }
     : T;
 
-// what a write's work lands under: its transaction, its one time, and its one sequence number,
-// taken by its first stamping landing
+// what a write's work lands under: its transaction, its one time, its one sequence number, taken by
+// its first stamping landing, and the change set its landings join
 export interface WriteScope {
   readonly tx: Tx;
   readonly accountId: string;
   readonly now: number;
   readonly seq: () => Promise<number>;
+  // the change set of the built-in agent's turn the write is by, made by the turn's first landing;
+  // null for every other writer, whose writes no Undo takes back
+  readonly set: () => Promise<string | null>;
   // a part of the write that lands whole or not at all while the write goes on: what it wrote,
   // the sequence it took included, is taken back when a rule refuses it, and the refusal answered
   readonly attempt: <T>(part: (scope: WriteScope) => Promise<T>) => Promise<LibraryResult<T>>;
@@ -91,32 +99,42 @@ const takeHead = async (tx: Tx, accountId: string): Promise<number> => {
   return row.head;
 };
 
-// the sequence number a write took, null until its first stamping landing
+// the sequence number a write took and the change set it joined, each null until it took one
 interface Taken {
   head: number | null;
+  set: string | null;
 }
 
-const scopeOf = (tx: Tx, accountId: string, now: number, taken: Taken): WriteScope => ({
-  accountId,
+const scopeOf = (tx: Tx, writer: LibraryWriter, now: number, taken: Taken): WriteScope => ({
+  accountId: writer.accountId,
   attempt: async (part) => {
-    const before = taken.head;
+    const before = { ...taken };
     try {
       const value = await tx.transaction(
-        async (nested) => await part(scopeOf(nested, accountId, now, taken)),
+        async (nested) => await part(scopeOf(nested, writer, now, taken)),
       );
       return { ok: true, value };
     } catch (error) {
       if (!(error instanceof RefusedWriteError)) {
         throw error;
       }
-      taken.head = before;
+      taken.head = before.head;
+      taken.set = before.set;
       return { ok: false, refusal: error.refusal };
     }
   },
   now,
   seq: async () => {
-    taken.head ??= await takeHead(tx, accountId);
+    taken.head ??= await takeHead(tx, writer.accountId);
     return taken.head;
+  },
+  set: async () => {
+    const { actor } = writer;
+    if (actor.kind !== "agent") {
+      return null;
+    }
+    taken.set ??= await joinTurnSet(tx, writer.accountId, actor, now);
+    return taken.set;
   },
   tx,
 });
@@ -150,7 +168,7 @@ export const writeLibrary = async <S extends z.ZodType>(
         return prior.value;
       }
       const now = Date.now();
-      const landed = answer.parse(await work(scopeOf(tx, accountId, now, { head: null })));
+      const landed = answer.parse(await work(scopeOf(tx, writer, now, { head: null, set: null })));
       if (opId !== undefined) {
         await tx.insert(opAnswer).values({ accountId, answer: landed, at: now, opId });
       }
