@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(pnpm install)",
+      "Bash(pnpm install:*)",
       "Bash(pnpm verify:*)",
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm lint:*)",
@@ -10,20 +10,30 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm build:*)",
       "Bash(pnpm knip:*)",
-      "Bash(pnpm dev)",
-      "Bash(pnpm dev:web)",
-      "Bash(pnpm cli:*)",
       "Bash(pnpm e2e:*)",
-      "Bash(pnpm --filter @repo/web dev)",
-      "Bash(pnpm --filter @repo/web test)",
-      "Bash(pnpm --filter @repo/web db:push)",
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm bootstrap:*)",
+      "Bash(pnpm turbo run:*)",
+      "Bash(pnpm exec oxlint:*)",
+      "Bash(pnpm exec oxfmt:*)",
+      "Bash(pnpm exec vitest:*)",
+      "Bash(pnpm exec playwright:*)",
+      "Bash(pnpm --filter @repo/db push)",
+      "Bash(pnpm --filter @repo/db ddl:*)",
+      "Bash(pnpm --filter @repo/db bootstrap:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
       "Bash(agent-browser:*)"
     ],
     "deny": [
-      "Bash(pnpm --filter @repo/web db:push:remote)",
-      "Bash(pnpm -F @repo/web db:push:remote)",
-      "Bash(pnpm --filter @repo/web db:studio:remote)",
-      "Bash(pnpm -F @repo/web db:studio:remote)"
+      "Bash(pnpm --filter @repo/db push:remote:*)",
+      "Bash(pnpm -F @repo/db push:remote:*)",
+      "Bash(pnpm --filter @repo/db studio:remote:*)",
+      "Bash(pnpm -F @repo/db studio:remote:*)",
+      "Bash(pnpm push:remote:*)",
+      "Bash(pnpm run push:remote:*)",
+      "Bash(pnpm studio:remote:*)",
+      "Bash(pnpm run studio:remote:*)"
     ]
   },
   "hooks": {
