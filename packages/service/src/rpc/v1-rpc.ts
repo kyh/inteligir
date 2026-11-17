@@ -11,11 +11,12 @@ import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 import { logUnhandled } from "../log";
 import { accountRouter } from "./account-router";
 import { admit } from "./admit";
+import { libraryRouter } from "./library-router";
 import { logRpcFailure } from "./rpc-log";
 import { rpcFault, rpcRefusal } from "./rpc-refusal";
 
 // every contract row this serves; ./unrouted.test.ts names the rest
-export const v1Router = { account: accountRouter };
+export const v1Router = { account: accountRouter, library: libraryRouter };
 
 // the largest call routed: an account's, a password or an id
 const V1_RPC_MAX_BODY_BYTES = 64 * 1024;

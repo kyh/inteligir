@@ -1,7 +1,7 @@
 # Decisions: @repo/service and the cloud
 
 The cloud's code, which `apps/web` serves on Node: the environment it reads,
-accounts and `/v1`. It imports no React and no DOM (`oxlint.config.ts`). Another area's
+accounts, `/v1` and the library. It imports no React and no DOM (`oxlint.config.ts`). Another area's
 decisions port with its code from the tag `cloudflare-last`.
 
 ## The environment
@@ -90,3 +90,43 @@ decisions port with its code from the tag `cloudflare-last`.
   yet.** `os.router(v1Contract)` compiles only once every row is there; the list
   shrinks as each area lands, and goes with the last.
   `packages/service/src/rpc/unrouted.test.ts`.
+
+## The library
+
+- **Every write to an account's library is one transaction holding the
+  account's `library_state` row, made by its first write.** It keeps every
+  guarantee one object per account gave: writes of one account land in turn,
+  its sequence has no gaps, and other accounts never wait.
+  `packages/service/src/library/library-store.ts`.
+- **Nothing inside a library write awaits anything but its transaction.** A
+  lock held across a fetch, a file store or a model stalls every write of the
+  account; that work runs after the commit.
+  `packages/service/src/library/library-store.ts`.
+- **A write waits 5 s for the account's lock, set inside its transaction, and
+  is refused as busy past it.** Waiters hold pooled connections, so one
+  account's queue would take them all and stall every account, and Supabase's
+  pooler drops a connection's startup parameters.
+  `packages/service/src/library/library-store.ts`.
+- **A write takes the library's next sequence once, at its first stamping
+  landing, and keeps its answer under its op id.** A write that lands nothing
+  moves nothing, and a resend after a lost answer is told what landed.
+  `packages/service/src/library/library-store.ts`.
+- **A part of a write that may be refused alone is an `attempt`, a savepoint
+  that takes back the sequence it took with it.** A refusal rolls back the
+  part, and a sequence kept past its rollback stamps rows the head never
+  reached. `packages/service/src/library/library-store.ts`.
+- **The library's rows split into a reading module and a writing one, merged
+  by the router where both route under `items`.** Reads and writes land apart,
+  and neither side edits the other's file.
+  `packages/service/src/rpc/library-router.ts`.
+
+## Search
+
+- **An item's search vector is a literal built from our own tokenizer, every
+  word beside its stem as `~stem`.** One tokenizer keeps the vector, a query
+  and a passage's matches on one word; a prefix typed against stems dies where
+  the suffix begins, and a stem written only where it differs misses an item
+  holding the root. `packages/service/src/search/search-vector.ts`.
+- **The vector fills its fields in order under Postgres's own cost, and stops
+  at the first word past it.** A long body keeps its opening, and the literal
+  tier still reaches its tail. `packages/service/src/search/search-vector.ts`.

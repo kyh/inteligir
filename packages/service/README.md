@@ -1,7 +1,8 @@
 # @repo/service
 
 The cloud's code, which `apps/web` serves: the environment it reads, one zod
-schema in `src/env.ts`, accounts on Better Auth over Postgres, and `/v1/rpc`.
+schema in `src/env.ts`, accounts on Better Auth over Postgres, `/v1/rpc` and
+the library's writes on Postgres.
 Its decisions are this package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
@@ -20,6 +21,10 @@ src/rpc/admit.ts        the build floor, the door and its session, before a call
 src/rpc/orpc.ts         the contract's implementer, its context the admitted principal
 src/rpc/account-router.ts account.devices.* and account.delete
 src/rpc/rpc-refusal.ts  a refusal or fault outside every row, in the RPC protocol
+src/rpc/library-router.ts the library's rows: library/library-read-rows.ts and library-write-rows.ts
+src/library/library-store.ts every library write: the account's lock, the sequence, the op ledger, attempts
+src/library/library-rows.ts  an item's rows to and from the library model
+src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 ```
 
 `apps/web` mounts the three handlers (`src/app/api/auth/[...all]/route.ts`,
