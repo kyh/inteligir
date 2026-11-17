@@ -48,6 +48,9 @@ export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
 // a note or link note an agent writes as markdown
 export const MARKDOWN_MAX = 1_000_000;
+// a body's blocks, as the UTF-8 bytes of their JSON: half of the 4.5 MB a Vercel function takes
+// in a request, which counts the call around them too, as an answer counts the item's fields
+export const BODY_MAX_BYTES = 2 * 1024 * 1024;
 // the passage selected in the item a message to the built-in agent leaves from
 const AGENT_SELECTION_MAX = 4000;
 // a message to the built-in agent
@@ -137,6 +140,19 @@ export const newBodyBlockSchema = z.strictObject({
   block: storableBlockSchema,
   section: librarySectionSchema,
 });
+
+// a body's version: 1 as its item is made, one more with every write of its blocks and only then
+export const bodyVersionSchema = z.number().int().positive();
+
+// what a body's save answers: `saved` at its new version, beside the item's seq; `stale`, someone
+// saved since the version it was made over, at the version they made; `full`, past the most a body
+// holds; `deleted`, its item in Deleted, which takes no edit
+export const bodyWriteSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("saved"), seq: seqSchema, version: bodyVersionSchema }),
+  z.object({ kind: z.literal("stale"), version: bodyVersionSchema }),
+  z.object({ kind: z.literal("full"), maxBytes: z.number().int().positive() }),
+  z.object({ kind: z.literal("deleted") }),
+]);
 
 // ---- writes beside a property's ops ----
 

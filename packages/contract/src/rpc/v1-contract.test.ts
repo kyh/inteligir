@@ -8,7 +8,9 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { liveItemRowSchema } from "../library/library-wire";
+import { utf8ByteLength } from "../library/canonical-json";
+import type { BodyBlock } from "../library/derive-item";
+import { BODY_MAX_BYTES, liveItemRowSchema } from "../library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
 import { V1_CUSTOM_ERROR_STATUS, V1_ERROR_STATUS_MAP } from "./v1-errors";
@@ -64,8 +66,9 @@ const LIBRARY_READS = new Set([
   "search",
 ]);
 
-// the write that takes none: an undo names turns, and a turn already taken back has nothing left
-const RESENT_UNKEYED = new Set(["agent.undo"]);
+// the writes that take none: an undo names turns, and a turn already taken back has nothing left;
+// a body's save names the version it was made over, which a save landed before has moved
+const RESENT_UNKEYED = new Set(["agent.undo", "items.saveBody"]);
 
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";
@@ -78,6 +81,12 @@ const FILE = {
   sha: SHA,
   tags: [],
 };
+
+// a paragraph of a thousand two-byte letters
+const heavyBlock = (at: number): BodyBlock => ({
+  block: { children: [{ text: "é".repeat(1000) }], id: `b${String(at)}`, type: "p" },
+  section: "note",
+});
 
 interface ErrorCase {
   readonly code: keyof typeof V1_CUSTOM_ERROR_STATUS;
@@ -97,13 +106,18 @@ const refusalOf = async <T, E>(promise: PromiseWithError<T, E>): Promise<Refusal
   return isDefinedError(error) ? { code: error.code, data: error.data } : null;
 };
 
-// a client over a real RPCHandler answering from `router`, and the status its last answer carried
+// a client over a real RPCHandler answering from `router`, the bytes each call sent and the status
+// each answer carried
 const served = (router: AnyRouter) => {
   const handler = new RPCHandler(router, { errorStatusMap: V1_ERROR_STATUS_MAP });
+  const sent: number[] = [];
   const statuses: number[] = [];
   const link = new RPCLink({
     fetch: async (url, init) => {
-      const { response } = await handler.handle(new Request(url, init), {
+      const request = new Request(url, init);
+      const body = await request.clone().arrayBuffer();
+      sent.push(body.byteLength);
+      const { response } = await handler.handle(request, {
         context: {},
         prefix: V1_RPC_PATH,
       });
@@ -114,7 +128,7 @@ const served = (router: AnyRouter) => {
     origin: "http://v1.test",
     url: V1_RPC_PATH,
   });
-  return { client: createORPCClient<V1Client>(link), statuses };
+  return { client: createORPCClient<V1Client>(link), sent, statuses };
 };
 
 describe("/v1's error statuses", () => {
@@ -310,6 +324,38 @@ describe("the library's wire", () => {
       later: true,
     });
     expect(parsed).toStrictEqual(row);
+  });
+
+  // a Vercel function takes 4.5 MB in a request (vercel.com/docs/functions/limitations), the call
+  // around the blocks included
+  it("carries a body as heavy as a body may be in a save a function takes", async () => {
+    const blocks = [];
+    // the array's JSON: its two brackets, each block, and a comma after every block but the last
+    for (let bytes = 1; bytes < BODY_MAX_BYTES; bytes += 1) {
+      const next = heavyBlock(blocks.length);
+      blocks.push(next);
+      bytes += utf8ByteLength(JSON.stringify(next));
+    }
+    expect(utf8ByteLength(JSON.stringify(blocks))).toBeGreaterThanOrEqual(BODY_MAX_BYTES);
+    const os = implement(v1Contract);
+    const received: number[] = [];
+    const { client, sent } = served({
+      library: {
+        items: {
+          saveBody: os.library.items.saveBody.handler(({ input }) => {
+            received.push(input.blocks.length);
+            return { kind: "full", maxBytes: BODY_MAX_BYTES };
+          }),
+        },
+      },
+    });
+    await expect(
+      client.library.items.saveBody({ baseVersion: 1, blocks, id: UUID_V7 }),
+    ).resolves.toStrictEqual({ kind: "full", maxBytes: BODY_MAX_BYTES });
+    expect(received).toStrictEqual([blocks.length]);
+    const [bytes] = sent;
+    expect(bytes).toBeGreaterThan(BODY_MAX_BYTES);
+    expect(bytes).toBeLessThan(4_500_000);
   });
 
   it("refuses a title for many items and a write that changes nothing", () => {

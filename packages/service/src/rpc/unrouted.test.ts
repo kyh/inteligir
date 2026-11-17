@@ -54,6 +54,7 @@ it("names every row not routed yet", () => {
       "library.items.save",
       "library.items.saveLink",
       "library.items.edit",
+      "library.items.saveBody",
       "library.items.organize",
       "library.items.delete",
       "library.items.restore",

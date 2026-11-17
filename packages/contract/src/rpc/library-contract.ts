@@ -25,6 +25,8 @@ import {
 } from "./v1-errors";
 import {
   agentViewContextSchema,
+  bodyVersionSchema,
+  bodyWriteSchema,
   BULK_ITEMS_MAX,
   cursorSchema,
   eventIdSchema,
@@ -318,6 +320,20 @@ const itemsContract = {
       }),
     )
     .output(z.object({ seq: seqSchema })),
+
+  // a note's body as a person's device holds it, whole, over the version it was opened at; a save
+  // made over an older one answers `stale`, and the device merges by block and saves again. An
+  // agent writes a body by passage through `edit` instead, so its turn can be undone
+  saveBody: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(
+      z.strictObject({
+        baseVersion: bodyVersionSchema,
+        blocks: z.array(newBodyBlockSchema),
+        id: idSchema,
+      }),
+    )
+    .output(bodyWriteSchema),
 
   // tags, folder, pin and title for many items in one change
   organize: signedBase
@@ -620,7 +636,7 @@ export const libraryContract = {
 
   // one item's property ops, each guarded by its base, landing whole or not at all. Every other
   // field moves by a verb of `items`, which asks the reading or tells the note with it, and a body
-  // is written live in its note. `write`, not `apply`: a client's path is a function's property,
+  // is saved by `items.saveBody`. `write`, not `apply`: a client's path is a function's property,
   // and `apply` would be Function.prototype's
   write: signedBase
     .errors({
