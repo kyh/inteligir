@@ -33,6 +33,7 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/privacy`                  | —               | Renders `docs/privacy.md` itself (SSR) — never a copy                                                                 |
 | `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                                                                   |
 | `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                                         |
+| `/licenses*`                | —               | Static files: each bundled package's licence, written by the build, and those of what is vendored                     |
 | `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                              |
 | `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                                         |
 | `/app/sign-in`              | —               | Sign-in; the Worker redirects someone already signed in to where they were going (`lib/session-guard.ts`)             |

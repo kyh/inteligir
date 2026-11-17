@@ -10,8 +10,13 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   oxlint or a build is one more table to keep in step. `tools/repo-guards/README.md`.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
-  conflict is no reason; the licences live in `tools/licenses`, and the .app
-  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
+  conflict is no reason; the site serves the licences
+  (`apps/web/public/licenses`), and the .app ships its crates' notices
+  (`apps/desktop/src-tauri/about.toml`).
+- **A bundle's notices are its build's**: Vite's `build.license` writes the
+  licence of each package the site's pages bundle, served as `/licenses.md` and
+  linked from the home page and Settings. Why: a generator of ours is a list to
+  keep in step with the lockfile. `apps/web/vite.config.ts`.
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
   (owner decision), every DOM suite compiles its sources the same way, and a
   hand `useMemo` or `useCallback` stays only as an effect's dependency or where

@@ -1,7 +1,7 @@
 import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { PAGES } from "#lib/page-meta";
-import { siteConfig } from "#lib/site-config";
+import { LICENSES_PATH, siteConfig } from "#lib/site-config";
 
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
 // agent that negotiates text/markdown, so the two representations cannot drift
@@ -73,6 +73,7 @@ shared with a small invited group. The Mac app runs on Macs with Apple silicon.
 - [Contact](${url}/contact)
 - [Privacy](${url}/privacy)
 - [Terms](${url}/terms)
+- [Open-source licenses](${url}${LICENSES_PATH})
 `;
 
 export const aboutMarkdown = `# About ${name}
