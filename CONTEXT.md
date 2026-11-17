@@ -138,7 +138,8 @@ product's, which never says MCP.
 (`packages/service/src/connector/consent-route.ts`); its model runs on its own
 plan, never ours. Each one is a grant on the account, which Settings ›
 Account's Connected assistants lists and disconnects (`assistant-grants.ts`).
-Not the **built-in agent**, though both call the same tools.
+Not the **built-in agent**, though both call the same tools, and it reads as
+a guide the spec the agent's prompt holds.
 
 **built-in agent** — the app's own agent: our loop over Claude, one Durable
 Object for each **thread** (`packages/service/src/agent/agent-thread.ts`),
@@ -192,10 +193,12 @@ frontmatter, which an import reads into the item's fields once
 
 **dialect** — the markdown the library reads and writes: stock CommonMark and
 GFM with directives, item links, pills, alerts and **fence blocks**
-(`packages/editor/src/markdown/md-rules.ts`), which `@repo/agent-skills`
-teaches the agent. The **codec** is the headless converter between an item and
-its dialect (`@repo/editor/codec`), which an import and the agent's reads and
-edits run. Not the editor: the editor edits **blocks**, never markdown.
+(`packages/editor/src/markdown/md-rules.ts`). One spec teaches it
+(`packages/service/src/agent/prompt/`): the built-in agent's prompt holds it,
+and a **connected assistant** reads it as the **connector**'s guide. The
+**codec** is the headless converter between an item and its dialect
+(`@repo/editor/codec`), which an import and the agent's reads and edits run.
+Not the editor: the editor edits **blocks**, never markdown.
 
 **node set** — the one vocabulary of what a body may hold, checked on every
 write (`@repo/contract/library/library-nodes`). Not the editor's kits, which

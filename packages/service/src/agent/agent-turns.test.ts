@@ -470,7 +470,7 @@ describe("the switch and deletion", () => {
       const account = agentAccount();
       const before = await heldSoFar();
       const sent = await send(account, script("stall"));
-      await heldMidReply(account, [sent.threadId], before);
+      await heldMidReply(before);
       // the object's instance gone with nothing left to wake it: no alarm, no call
       await expect(
         runInDurableObject(
@@ -540,7 +540,7 @@ describe("the switch and deletion", () => {
       const account = agentAccount();
       const before = await heldSoFar();
       const sent = await send(account, script("stall"));
-      await heldMidReply(account, [sent.threadId], before);
+      await heldMidReply(before);
       await startsOver(account, sent.threadId);
       // the watch's ask starts a fresh instance, which holds the turn no more, and is handed it
       await watchedLater(account);

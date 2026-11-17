@@ -1,9 +1,7 @@
-// the skills teach an agent the dialect by example, and an example the codec cannot hold is the
-// agent taught to write bytes that lose what they say on a save, or that read as words where it
-// meant a construct. read as files: @repo/agent-skills is content, never imported.
+// The prompt teaches the dialect by example, and an example the codec cannot hold is an agent taught
+// to write bytes that lose what they say on a save, or that read as words where it meant a
+// construct. The examples are read from the prompt as it ships.
 
-import { readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
 import type { TElement } from "platejs";
 import { describe, expect, it } from "vitest";
@@ -18,28 +16,40 @@ import {
 } from "@repo/editor/dialect-node-keys";
 import { lettersKept } from "@repo/editor/markdown/markdown-doc";
 import { alertProp } from "@repo/editor/node-props";
+import {
+  meaningOf,
+  readValue,
+  rewrite,
+  writeValue,
+} from "@repo/editor/test-support/markdown-meaning";
 
-import { meaningOf, readValue, rewrite, writeValue } from "./test-support/markdown-meaning";
-
-const SKILLS_DIR = fileURLToPath(new URL("../../agent-skills/skills", import.meta.url));
+import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
 
 const FENCE_OPEN = /^(?<fence>`{3,}|~{3,})(?<info>[^`\s]*)/u;
+const HEADING = /^(?<level>#{1,6}) (?<title>.+)$/u;
 
 interface Example {
   site: string;
   body: string;
 }
 
-// a fence closes on a run of its own character at least as long as the one that opened it, so a
-// ````markdown example may hold a ``` block of its own.
-const markdownExamples = (file: string, text: string): Example[] => {
+// every `markdown` example, named by the section and the heading it stands under. A fence closes on
+// a run of its own character at least as long as the one that opened it, so a ````markdown example
+// may hold a ``` block of its own.
+const markdownExamples = (text: string): Example[] => {
   const examples: Example[] = [];
-  let open: { fence: string; info: string; line: number; body: string[] } | null = null;
-  for (const [index, line] of text.split("\n").entries()) {
+  let section = "";
+  let heading = "";
+  let open: { fence: string; info: string; body: string[] } | null = null;
+  for (const line of text.split("\n")) {
     if (open === null) {
-      const groups = FENCE_OPEN.exec(line)?.groups;
-      if (groups !== undefined) {
-        open = { body: [], fence: groups.fence ?? "", info: groups.info ?? "", line: index + 1 };
+      const fence = FENCE_OPEN.exec(line)?.groups;
+      const title = HEADING.exec(line)?.groups;
+      if (fence !== undefined) {
+        open = { body: [], fence: fence.fence ?? "", info: fence.info ?? "" };
+      } else if (title !== undefined) {
+        heading = title.title ?? "";
+        section = title.level === "#" ? heading : section;
       }
       continue;
     }
@@ -47,7 +57,10 @@ const markdownExamples = (file: string, text: string): Example[] => {
     const closing = line.trim();
     if (closing.length >= fence.length && [...closing].every((char) => char === fence[0])) {
       if (open.info === "markdown") {
-        examples.push({ body: `${open.body.join("\n")}\n`, site: `${file}:${String(open.line)}` });
+        examples.push({
+          body: `${open.body.join("\n")}\n`,
+          site: section === heading ? section : `${section} › ${heading}`,
+        });
       }
       open = null;
       continue;
@@ -57,14 +70,7 @@ const markdownExamples = (file: string, text: string): Example[] => {
   return examples;
 };
 
-const EXAMPLES = readdirSync(SKILLS_DIR, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .flatMap((entry) =>
-    markdownExamples(
-      `packages/agent-skills/skills/${entry.name}/SKILL.md`,
-      readFileSync(`${SKILLS_DIR}/${entry.name}/SKILL.md`, "utf-8"),
-    ),
-  );
+const EXAMPLES = markdownExamples(AGENT_SYSTEM_PROMPT);
 
 const ALERT = "alert";
 
@@ -127,7 +133,7 @@ const leftAsWords = (md: string): string[] => {
   return escaped === undefined ? words : [...words, escaped];
 };
 
-describe("the skills' markdown examples", () => {
+describe("the prompt's markdown examples", () => {
   it("finds them at all", () => {
     expect(EXAMPLES.length).toBeGreaterThan(5);
   });

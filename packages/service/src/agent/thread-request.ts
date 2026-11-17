@@ -31,7 +31,8 @@ import type {
   BetaTextBlockParam,
   BetaTool,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { sha256Hex } from "@repo/contract/bytes";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
 
 import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
@@ -197,10 +198,11 @@ export const deployedDefinition = (rules: string | null): ThreadDefinition => ({
 });
 
 // the definition as its row keeps it, and the hash a deploy's definition, or the person's edit of
-// their rules, is told apart by
-export const frozenDefinition = async (
+// their rules, is told apart by, hashed without an await so a turn's first rows land with its
+// delivery
+export const frozenDefinition = (
   definition: ThreadDefinition,
-): Promise<FrozenDefinition & { readonly hash: string }> => {
+): FrozenDefinition & { readonly hash: string } => {
   const frozen: FrozenDefinition = {
     effort: definition.effort,
     model: definition.model,
@@ -208,7 +210,7 @@ export const frozenDefinition = async (
     system: JSON.stringify(definition.system),
     tools: JSON.stringify(definition.tools),
   };
-  return { ...frozen, hash: await sha256Hex(JSON.stringify(frozen)) };
+  return { ...frozen, hash: bytesToHex(sha256(utf8ToBytes(JSON.stringify(frozen)))) };
 };
 
 // ---- the request ----

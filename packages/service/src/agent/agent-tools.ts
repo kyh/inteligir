@@ -83,6 +83,8 @@ const agentToolRows = (): AgentToolRow[] => {
   walkProcedureContractsSync(libraryTools, (contract, path) => {
     const meta = getOpenAPIMeta(contract);
     const name = meta?.operationId;
+    // a tool under no name of the contract's table is the connector's alone: its guide, whose
+    // text is this agent's prompt
     if (!isLibraryTool(contract) || name === undefined || !isLibraryToolName(name)) {
       return;
     }

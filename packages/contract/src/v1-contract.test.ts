@@ -50,6 +50,7 @@ const LIBRARY_READS = new Set([
   "agent.rules",
   "agent.status",
   "agent.undoable",
+  "guide",
   "imports.named",
   "imports.settle",
   "items.get",

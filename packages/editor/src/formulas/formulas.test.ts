@@ -14,7 +14,7 @@ const names = (source: string): string[] | null => {
   return tree === null ? null : namesIn(tree);
 };
 
-describe("the formula grammar (the skill's own examples)", () => {
+describe("the formula grammar (the prompt's own examples)", () => {
   it("computes plain arithmetic", () => {
     expect(evaluate("2+2")).toBe(4);
     expect(evaluate("1000*12")).toBe(12_000);

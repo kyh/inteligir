@@ -1,30 +1,22 @@
-// The built-in agent's system prompt: @repo/agent-skills as it stands, the agent's own instructions,
-// the hub, then every skill in the order the hub lists them, with nothing of an account or a request
-// in it, so its bytes change only with those files and every conversation of every account reads
-// one cached prefix; the person's filing rules follow it in a block of their own
-// (`./thread-request`).
+// The built-in agent's system prompt: its own instructions, then the dialect's spec, each a file of
+// `./prompt` read as text. Nothing of an account or a request is in it, so its bytes change only
+// with those files and every conversation of every account reads one cached prefix; the person's
+// filing rules follow it in a block of their own (`./thread-request`).
 
-import builtInAgent from "@repo/agent-skills/built-in-agent.md?raw";
-import canvas from "@repo/agent-skills/skills/inteligir-canvas/SKILL.md?raw";
-import fields from "@repo/agent-skills/skills/inteligir-fields/SKILL.md?raw";
-import formulas from "@repo/agent-skills/skills/inteligir-formulas/SKILL.md?raw";
-import html from "@repo/agent-skills/skills/inteligir-html/SKILL.md?raw";
-import items from "@repo/agent-skills/skills/inteligir-items/SKILL.md?raw";
-import links from "@repo/agent-skills/skills/inteligir-links/SKILL.md?raw";
-import hub from "@repo/agent-skills/skills/inteligir-notes/SKILL.md?raw";
-import writing from "@repo/agent-skills/skills/inteligir-writing/SKILL.md?raw";
+import builtInAgent from "./prompt/built-in-agent.md?raw";
+import canvas from "./prompt/canvas.md?raw";
+import fields from "./prompt/fields.md?raw";
+import formulas from "./prompt/formulas.md?raw";
+import html from "./prompt/html.md?raw";
+import items from "./prompt/items.md?raw";
+import links from "./prompt/links.md?raw";
+import notes from "./prompt/notes.md?raw";
+import writing from "./prompt/writing.md?raw";
 
-// the hub's "Focused Contracts", in its order
-export const FOCUSED_SKILLS = [
-  ["inteligir-writing", writing],
-  ["inteligir-items", items],
-  ["inteligir-fields", fields],
-  ["inteligir-links", links],
-  ["inteligir-formulas", formulas],
-  ["inteligir-canvas", canvas],
-  ["inteligir-html", html],
-] as const;
+const joined = (parts: readonly string[]): string => parts.map((part) => part.trim()).join("\n\n");
 
-export const AGENT_SYSTEM_PROMPT = [builtInAgent, hub, ...FOCUSED_SKILLS.map(([, text]) => text)]
-  .map((part) => part.trim())
-  .join("\n\n");
+// the one order the spec's sections are read in: the hub, whose words lean on the ones after it.
+// A connected assistant, which has no prompt of ours, reads it as the connector's guide
+export const DIALECT_SPEC = joined([notes, writing, items, fields, links, formulas, canvas, html]);
+
+export const AGENT_SYSTEM_PROMPT = joined([builtInAgent, DIALECT_SPEC]);

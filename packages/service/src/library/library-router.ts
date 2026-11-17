@@ -14,6 +14,7 @@ import {
 import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
+import { DIALECT_SPEC } from "../agent/agent-prompt";
 import { agentRouter } from "../agent/agent-router";
 import { noteBlocksSchema } from "../note/note-wire";
 import { landArticle } from "./article-landing";
@@ -89,6 +90,7 @@ export const libraryRouter = os.router({
       })),
     ),
   },
+  guide: os.guide.handler(() => ({ markdown: DIALECT_SPEC })),
   imports: {
     land: os.imports.land.handler(({ context, input }) => {
       const { library } = context;

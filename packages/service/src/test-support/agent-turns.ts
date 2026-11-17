@@ -104,7 +104,8 @@ export const threadStatus = async (
 const SETTLE_MS = 20_000;
 
 // the thread's turns all ended and sealed, its waiting sends with them, and its object's outbox
-// empty: the cell holds no open turn of it and its status is idle
+// empty: the cell holds no open turn of it and its status is idle. Every read only looks, so a
+// thread that comes to rest here came to rest by its own wakes
 export const settled = async (
   account: AgentAccount,
   threadId: string,
@@ -118,8 +119,12 @@ export const settled = async (
         threadId,
       );
       const status = await threadStatus(account, threadId);
-      const inspection = await threadOf(account.accountId, threadId).inspect();
-      if (open.length > 0 || status !== "idle" || inspection.outbox > 0) {
+      const [unsent] = await threadRows(
+        account.accountId,
+        threadId,
+        "SELECT count(*) AS count FROM outbox",
+      );
+      if (open.length > 0 || status !== "idle" || countSchema.parse(unsent).count > 0) {
         throw new Error(`the thread is ${status ?? "gone"}, ${String(open.length)} turn open`);
       }
     },
@@ -142,30 +147,15 @@ export const heldSoFar = async (): Promise<number> => {
   return held;
 };
 
-// the fake holding, mid-reply, one stalled call of each thread more than it had held `before`,
-// each thread's call still streaming: what a cut or a stop then meets is a reply half sent. A
-// call's row is written streaming before its request leaves, and a script's earlier steps stream
-// too, so neither alone says the fake holds the stall
-export const heldMidReply = async (
-  account: AgentAccount,
-  threadIds: readonly string[],
-  before: number,
-): Promise<void> => {
+// the fake holding, mid-reply, `stalls` stalled replies more than it had held `before`: what a cut
+// or a stop then meets is a reply half sent. The suites run one at a time and each script is its
+// own bytes, so the count is this test's threads, one stall each
+export const heldMidReply = async (before: number, stalls = 1): Promise<void> => {
   await vi.waitFor(
     async () => {
       const { held } = await fakeStats();
-      if (held !== before + threadIds.length) {
+      if (held !== before + stalls) {
         throw new Error("the fake holds no stalled reply of every thread yet");
-      }
-      for (const threadId of threadIds) {
-        const streaming = await threadRows(
-          account.accountId,
-          threadId,
-          "SELECT 1 FROM model_calls WHERE status = 'streaming'",
-        );
-        if (streaming.length === 0) {
-          throw new Error(`thread ${threadId} streams no call`);
-        }
       }
     },
     { interval: 50, timeout: 10_000 },

@@ -356,9 +356,9 @@ On production's `/connector`, signed in to an account there.
 
 - **claude.ai**: add the custom connector, consent, read, edit, Disconnect; a
   sign-up from the consent page returns to it.
-- **Claude Code**: `claude mcp add`, the consent page's warning, 9 tools, and
-  `read_item` answering inline.
-- **ChatGPT**: a developer-mode connector, consent, and the four reading tools
+- **Claude Code**: `claude mcp add`, the consent page's warning, 10 tools, and
+  `read_item` and `read_guide` answering inline.
+- **ChatGPT**: a developer-mode connector, consent, and the five reading tools
   alone under read-only.
 
 ### The built-in agent

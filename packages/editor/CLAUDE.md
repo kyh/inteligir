@@ -34,9 +34,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   CommonMark and GFM, an item link as Plate's mention `[Title](mention:<id>)`, `:date`/`:formula`
   pills, `$$` math, GitHub alerts, `inteligir-*` fences and `:::` containers; what markdown cannot
   spell is lost on a write, each loss in the changelog. `packages/editor/src/markdown/md-rules.ts`.
-- **Every fence name lives in `@repo/editor/markdown/fence-langs`, and the skills' examples read as
-  what they show.** A drifted spelling opens the block as plain code, and an example the codec
-  cannot hold teaches the agent to lose words. `packages/editor/src/skill-examples.test.ts`.
+- **Every fence name lives in `@repo/editor/markdown/fence-langs`.** A drifted spelling opens the
+  block as plain code. `packages/editor/src/markdown/fence-langs.ts`.
 - **A directive the dialect does not name is its text, and typed text stays text.** An unknown
   directive is restored to the bytes that wrote it, and a `:` is escaped only before `date` or
   `formula`, so `10:30` stays as typed. `packages/editor/src/markdown/md-text-safety.test.ts`.

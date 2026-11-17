@@ -78,12 +78,13 @@ header gives. `docs/privacy.md` is the user-facing statement of all of it.
 
 Our own loop over the Messages API, one `AgentThreadDO` a conversation
 (`src/agent/agent-thread.ts`), its definition code (`library-agent.ts`), its
-system prompt `@repo/agent-skills`'s files imported as text in the hub's order
-(`agent-prompt.ts`), its tools the library's procedures run by the cell
-(`agent-tools.ts`). The cell admits, queues and seals each turn
-(`agent-turns.ts`), and Claude is reached through the AI Gateway
-(`anthropic-client.ts`). `vite dev` names no production gateway: the root
-`.env` names the scripted Messages API or a gateway of the developer's own.
+system prompt the files of `src/agent/prompt/`, the agent's own instructions
+then the dialect's spec, imported as text in one order (`agent-prompt.ts`), its
+tools the library's procedures run by the cell (`agent-tools.ts`). The cell
+admits, queues and seals each turn (`agent-turns.ts`), and Claude is reached
+through the AI Gateway (`anthropic-client.ts`). `vite dev` names no production
+gateway: the root `.env` names the scripted Messages API or a gateway of the
+developer's own.
 
 ## Testing
 

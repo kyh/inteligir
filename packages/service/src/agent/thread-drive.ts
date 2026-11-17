@@ -1,8 +1,9 @@
 // Where a conversation's work stands in the instance that holds it, as one value both drivers
 // move by `nextDrive`: the object itself (`./agent-thread`), whose Lifecycle job is the durable
 // record that the thread has work, and the suites' stepped host (`../test-support/thread-host`).
-// Resting, the instance runs nothing; driving, it steps the loop (`./thread-loop`) until a step
-// rests, and something new asked for meanwhile has it step once more rather than rest over it;
+// Resting, the instance runs nothing, its job waiting at what the thread's rows wait on
+// (`./thread-loop` `nextWake`); driving, it steps the loop (`./thread-loop`) until a step rests,
+// and something new asked for meanwhile has it step once more rather than rest over it;
 // purged, the conversation is gone and every event lands nothing, so no step, job or model call
 // follows a delete. A call in flight is cut for one of three reasons, which the loop reads off its
 // abort: the person's stop settles it, a silence sends it again, and a purge leaves it untouched.
@@ -26,8 +27,9 @@ export type DriveEvent =
   | { readonly kind: "purge" };
 
 // what the driver does once the drive moved: push the drive job for now, start the work, cut a
-// reply gone silent, take the next step, cancel the drive job, time it for a retry, cut every
-// call and delete what the thread keeps, or nothing
+// reply gone silent, take the next step, rest the drive job at the thread's next wake or cancel it
+// where there is none, time it for a retry, cut every call and delete what the thread keeps, or
+// nothing
 export type DriveEffect = "push" | "start" | "watch" | "step" | "rest" | "retry" | "purge" | "none";
 
 // the drive as an event left it, and what its driver does about that

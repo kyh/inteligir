@@ -245,6 +245,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **The connector is served in the account's cell, a fresh server a request over
   one of two registrars, its principal an assistant's.** A session object per
   client is state nothing needs. `packages/service/src/connector/connector-server.ts`.
+- **A connected assistant reads the dialect's spec by one tool, `read_guide`,
+  the text the built-in agent's prompt holds, and the agent is handed no such
+  tool.** A block spelled wrong lands as literal text with no error, and the
+  server's instructions ride every conversation, their first 512 characters all
+  ChatGPT shows. `packages/service/src/connector/library-tools.ts`.
 
 ## The built-in agent
 
@@ -261,9 +266,13 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **The built-in agent's results fit in 40,000 characters.** A result is
   replayed into every later call of its conversation.
   `packages/service/src/agent/agent-tools.ts`.
-- **An approval waits on the person ten minutes in the thread's own rows, and a
-  cancel denies before it stops.** A tool that waits in memory dies with an
-  eviction. `packages/service/src/agent/thread-loop.ts`.
+- **An approval waits on the person ten minutes in the thread's own rows, its
+  deadline on the call that waits, and a cancel denies before it stops.** A tool
+  that waits in memory dies with an eviction, and a deadline kept as a job of
+  its own is lost between two writes. `packages/service/src/agent/thread-loop.ts`.
+- **A conversation has one job, its drive, timed at rest by what its rows wait
+  on.** A job a wait is a second record of it, which every move must keep in
+  step across an await. `packages/service/src/agent/thread-loop.ts`.
 - **Every turn is counted before it starts and every step capped; the dollars
   are the gateway's spend limit alone, which ends the turn it refuses** (owner
   decision: a daily allowance per account, $5 a day per account behind it). A
@@ -303,12 +312,30 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A conversation's drive is one value, and a purge is a cut, never a stop.** A
   flag per concern lets a purged drive step again over tables being removed.
   `packages/service/src/agent/thread-drive.ts`.
-- **A tool call is one union, moved by one function.** Reading the columns at
-  each site loses the person's no on a stop.
-  `packages/service/src/agent/tool-call.ts`.
+- **A tool call is one union, moved by one function, and its row holds that
+  union's kind, as a turn's row holds its one state.** A column a concern stores
+  pairs no state means, and reading them at each site loses the person's no on a
+  stop. `packages/service/src/agent/tool-call.ts`.
+- **A model call keeps no journal: the transcript says what is sent next, and
+  the turn's row counts the tries that failed.** A table of calls is one only
+  the suites read, and hashing each request for it puts an await between a
+  call's abort and its send. `packages/service/src/agent/thread-loop.ts`.
+- **A step that throws spends the turn's tries, and a push this build cannot
+  read ends its turn.** A row nothing can read would fail every 30 seconds with
+  the turn shown running. `packages/service/src/agent/thread-loop.ts`.
 - **A thread's status is what its open turn and queued sends say, written in one
   place.** Six writers choosing a status let it contradict the rows.
   `packages/service/src/agent/turn-rows.ts`.
+- **The agent's prompt is its own instructions then the dialect's spec, files
+  joined in the one order its module lists, the same bytes for every account.**
+  An index of the sections in their own text is a second order to keep in step,
+  and a byte of an account ends the one cached prefix.
+  `packages/service/src/agent/agent-prompt.ts`.
+- **The spec names a library tool, never a command or a path, and each example
+  in it reads as what it shows.** The agent has no shell and no files, and an
+  example the codec cannot hold teaches it to lose words; a construct lands in
+  the editor's rule table first, then in the words.
+  `packages/service/src/agent/dialect-examples.test.ts`.
 
 ## The program and its suites
 

@@ -1,5 +1,5 @@
 // The rich-block payload parsers: the boundary where a fence's bytes become a
-// render or a stated refusal. Shapes from the vendored skills' own examples.
+// render or a stated refusal. Shapes from the agent's prompt's own examples.
 
 import { assert, describe, expect, it } from "vitest";
 
@@ -7,21 +7,21 @@ import { parseCanvasPayload } from "@repo/editor/nodes/canvas-node";
 import { parseChartPayload } from "@repo/editor/nodes/chart-node";
 
 describe(parseChartPayload, () => {
-  it("accepts the skill's single-series example", () => {
+  it("accepts the prompt's single-series example", () => {
     const verdict = parseChartPayload(
       '{"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}',
     );
     expect(verdict.ok).toBe(true);
   });
 
-  it("accepts the skill's multi-series example", () => {
+  it("accepts the prompt's multi-series example", () => {
     const verdict = parseChartPayload(
       '{"type":"line","series":[{"name":"Desktop","data":[{"label":"Mon","value":12}]},{"name":"Web","data":[{"label":"Mon","value":8}]}]}',
     );
     expect(verdict.ok).toBe(true);
   });
 
-  it("refuses stacked-bar with series (the skill: one data array only)", () => {
+  it("refuses stacked-bar with series (the prompt: one data array only)", () => {
     const verdict = parseChartPayload(
       '{"type":"stacked-bar","series":[{"name":"A","data":[{"label":"x","value":1}]}]}',
     );
@@ -42,11 +42,11 @@ describe(parseChartPayload, () => {
 });
 
 describe(parseCanvasPayload, () => {
-  it("accepts the skill's complete example", () => {
+  it("accepts the prompt's complete example", () => {
     const verdict = parseCanvasPayload(
       '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"research","text":"Research","col":8,"row":4}]]\n....####\n....#..#\n....####',
     );
-    assert(verdict.ok, "the skill's example parses");
+    assert(verdict.ok, "the prompt's example parses");
     expect(verdict.payload.labels[0]?.text).toBe("Research");
     expect(verdict.payload.grid[0]?.[4]).toBe(true);
     expect(verdict.payload.grid[0]?.[0]).toBe(false);
