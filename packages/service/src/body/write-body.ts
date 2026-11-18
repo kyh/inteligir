@@ -7,7 +7,8 @@
 // (`../library/library-landing`): the card, search row, tags and links, the item's sequence, and
 // the agent's turn's change set.
 
-import { sameJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { sameBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
 import type { bodyWriteSchema } from "@repo/contract/library/library-wire";
@@ -19,13 +20,6 @@ import { readItemRow, readItemWhole } from "../library/library-rows";
 import type { WriteScope } from "../library/library-store";
 
 export type BodyWrite = z.output<typeof bodyWriteSchema>;
-
-const sameBlocks = (a: readonly BodyBlock[], b: readonly BodyBlock[]): boolean =>
-  a.length === b.length &&
-  a.every((one, at) => {
-    const other = b[at];
-    return other !== undefined && one.section === other.section && sameJson(one.block, other.block);
-  });
 
 export interface BodySave {
   readonly itemId: string;
@@ -52,7 +46,7 @@ export const writeBody = async (scope: WriteScope, save: BodySave): Promise<Body
   }
   if (bodyVersion !== baseVersion) {
     const whole = await readItemWhole(tx, accountId, itemId);
-    return whole !== null && sameBlocks(whole.blocks, blocks)
+    return whole !== null && sameBody(whole.blocks, blocks)
       ? { kind: "saved", seq: item.seq, version: bodyVersion }
       : { kind: "stale", version: bodyVersion };
   }

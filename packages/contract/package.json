@@ -32,6 +32,7 @@
     "./library/derive-item": "./src/library/derive-item.ts",
     "./library/field-ops": "./src/library/field-ops.ts",
     "./library/file-sha": "./src/library/file-sha.ts",
+    "./library/held-note": "./src/library/held-note.ts",
     "./library/item-makes": "./src/library/item-makes.ts",
     "./library/item-reading": "./src/library/item-reading.ts",
     "./library/library-blobs": "./src/library/library-blobs.ts",

@@ -11,7 +11,7 @@ import { itemNameFromUrl } from "../items/item-name";
 import { urlKey, urlSearchText } from "../items/item-url";
 import { inlineTagSpans } from "../knowledge/tag-grammar";
 import { clipSnippet } from "../text/clip-text";
-import { utf8ByteLength } from "./canonical-json";
+import { sameJson, utf8ByteLength } from "./canonical-json";
 import type { LibraryItemFields } from "./library-item";
 import { collectFileShas } from "./library-nodes";
 import type { LibraryBlock, LibraryElement, LibraryNode, LibrarySection } from "./library-nodes";
@@ -29,6 +29,14 @@ export interface BodyBlock {
   readonly block: LibraryBlock;
   readonly section: LibrarySection;
 }
+
+// two bodies holding the same blocks, in the same sections and order
+export const sameBody = (a: readonly BodyBlock[], b: readonly BodyBlock[]): boolean =>
+  a.length === b.length &&
+  a.every((one, at) => {
+    const other = b[at];
+    return other !== undefined && one.section === other.section && sameJson(one.block, other.block);
+  });
 
 // an item a page link names, or a url's key, so an item saved from that address finds the
 // notes that linked it
