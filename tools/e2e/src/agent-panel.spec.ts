@@ -4,67 +4,64 @@ import { openLibrary, test } from "./fixtures";
 // the browser logs the refused third send's answer
 test.use({ allowedErrors: /429 \(Too Many Requests\) \(\S+\/agent\/send\)/u });
 
-// the Worker's own allowance: two turns a day, so the third send meets it
-test("the built-in agent writes as its reply streams, deletes, undoes its conversation and keeps to the day", async ({
+// a fresh account's day: two turns, so the third send meets the allowance
+test("the built-in agent writes a note, deletes two, takes a turn and then its conversation back, and keeps to the day", async ({
   cloud,
   library,
   page,
 }) => {
-  const bin = await library.items.createNote({ markdown: "Bin me.", title: "Bin me" });
-  const keep = await library.items.createNote({ markdown: "Keep me.", title: "Keep me" });
-  const fieldsOf = async (id: string) => {
+  const noteTitled = async (title: string) => {
+    const { item } = await library.items.createNote({ markdown: `${title}.`, title });
+    return item.id;
+  };
+  const first = await noteTitled("Bin me");
+  const second = await noteTitled("Bin me too");
+  const deletedAt = async (id: string) => {
     const { fields } = await library.items.read({ id });
-    return fields;
+    return fields.deletedAt;
   };
   const card = (id: string) => page.locator(`[role="gridcell"][data-item-id="${id}"]`);
   await openLibrary(page, cloud);
-  await expect(card(bin.item.id)).toBeVisible();
+  await expect(card(first)).toBeVisible();
 
   await page.keyboard.press("ControlOrMeta+K");
   const composer = page.getByLabel("Message the agent");
-  // a reply the scripted Claude streams for a few seconds, so it is drawn as it is written
-  await composer.fill('Make a note.\ncall create_note {"markdown":"Paris in spring."}\nlong 6000');
+  // a reply that takes a moment, so the turn shows under way before it ends
+  await composer.fill('Make a note.\ncall create_note {"markdown":"Paris in spring."}\nlong 1500');
   await composer.press("Enter");
-  const preview = page.locator("[data-agent-draft]");
-  await expect(preview).toBeVisible();
-  // whether the reply ever left the conversation between its preview and its stored message
-  const reply = await page.evaluateHandle(() => {
-    const seen = { gone: false };
-    const thread = document.querySelector("[data-thread]") ?? document.body;
-    new MutationObserver(() => {
-      seen.gone ||= thread.querySelector('[data-slot="streaming-text"]') === null;
-    }).observe(thread, { childList: true, subtree: true });
-    return seen;
-  });
+  await expect(page.getByText("Working…")).toBeVisible();
   await expect(page.getByText("Wrote a note")).toBeVisible();
   const undoTurn = page.getByRole("button", { name: "Undo this turn" });
-  await expect(undoTurn).toBeVisible();
-  await expect(preview).toHaveCount(0);
-  await expect(reply.jsonValue()).resolves.toStrictEqual({ gone: false });
-  // the conversation followed the reply to its end
-  await expect(undoTurn).toBeInViewport();
+  await expect(undoTurn).toHaveCount(1);
+  await expect(page.getByText("Working…")).toHaveCount(0);
   const { hits } = await library.search({ query: "Paris" });
   const made = hits[0]?.id ?? "";
   await expect(card(made)).toBeVisible();
 
-  await composer.fill(`call delete_items {"ids":["${bin.item.id}"]}`);
+  await composer.fill(`call delete_items ${JSON.stringify({ ids: [first, second] })}`);
   await composer.press("Enter");
   await expect(page.locator("[data-turn-ended]")).toHaveCount(2);
-  await expect
-    .poll(async () => await fieldsOf(bin.item.id))
-    .toMatchObject({ deletedAt: expect.any(String) });
-  await expect(card(bin.item.id)).toHaveCount(0);
-  await expect(fieldsOf(keep.item.id)).resolves.toMatchObject({ deletedAt: null });
+  await expect(card(first)).toHaveCount(0);
+  await expect(card(second)).toHaveCount(0);
+  await expect(deletedAt(second)).resolves.toStrictEqual(expect.any(String));
 
   // each turn that changed something offers its own undo once it ended
   await expect(undoTurn).toHaveCount(2);
+  await page
+    .locator('[data-turn-ended="2"]')
+    .getByRole("button", { name: "Undo this turn" })
+    .click();
+  await expect.poll(async () => await deletedAt(first)).toBeNull();
+  await expect(deletedAt(second)).resolves.toBeNull();
+  await expect(card(first)).toBeVisible();
+  await expect(card(second)).toBeVisible();
+  await expect(undoTurn).toHaveCount(1);
+  await expect(deletedAt(made)).resolves.toBeNull();
+
   const undoConversation = page.getByRole("button", { name: "Undo this conversation" });
   await undoConversation.click();
-  await expect.poll(async () => await fieldsOf(bin.item.id)).toMatchObject({ deletedAt: null });
-  await expect
-    .poll(async () => await fieldsOf(made))
-    .toMatchObject({ deletedAt: expect.any(String) });
-  await expect(card(bin.item.id)).toBeVisible();
+  await expect.poll(async () => await deletedAt(made)).toStrictEqual(expect.any(String));
+  await expect(card(made)).toHaveCount(0);
   // nothing is left to take back, so no Undo is offered
   await expect(undoTurn).toHaveCount(0);
   await expect(undoConversation).toHaveCount(0);

@@ -16,10 +16,6 @@ import { z } from "zod";
 import { openLibrary, signInOnSite, test } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
 
-// Settings' Account section, where an assistant is disconnected, asks the built-in agent's status,
-// a row not routed yet (packages/service/src/rpc/unrouted.test.ts)
-test.use({ allowedErrors: /404 \(Not Found\) \(\S+\/library\/agent\/status\)/u });
-
 const CLIENT_INFO = { name: "e2e-assistant", version: "1.0.0" } as const;
 
 // the tools a grant lists, by name: the library's rows routed so far and tagged a tool

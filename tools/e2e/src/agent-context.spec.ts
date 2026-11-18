@@ -37,19 +37,23 @@ const send = async (page: Page, text: string) => {
   await composer.press("Enter");
 };
 
-test("a message names the screen it left from: the open item, the grid's selection, or none from Deleted", async ({
+// what the person sent last, once its turn ended, as the thread keeps it: a fresh account's day
+// takes two turns, so each test sends two at most
+const lastSentFrom = (page: Page, library: V1Client["library"]) => async (count: number) => {
+  await expect(page.locator("[data-thread] [data-turn-ended]")).toHaveCount(count);
+  const messages = await sentMessages(library);
+  expect(messages).toHaveLength(count);
+  return messages.at(-1)?.viewContext;
+};
+
+test("a message names the screen it left from: the open item, then the grid's selection", async ({
   cloud,
   library,
   page,
 }) => {
   const plans = await library.items.createNote({ markdown: "A trip in spring.", title: "Plans" });
   const groceries = await library.items.createNote({ markdown: "Apples.", title: "Groceries" });
-  const lastSent = async (count: number) => {
-    await expect(page.locator("[data-thread] [data-turn-ended]")).toHaveCount(count);
-    const messages = await sentMessages(library);
-    expect(messages).toHaveLength(count);
-    return messages.at(-1)?.viewContext;
-  };
+  const lastSent = lastSentFrom(page, library);
   await openLibrary(page, cloud, `?item=${plans.item.id}`);
   await page.keyboard.press("ControlOrMeta+K");
   await send(page, "Make this shorter.");
@@ -67,13 +71,17 @@ test("a message names the screen it left from: the open item, the grid's selecti
     selected: 1,
     surface: "library",
   });
+});
 
+test("a message sent from Deleted names no screen", async ({ cloud, library, page }) => {
+  await openLibrary(page, cloud);
   await page
     .getByRole("list", { name: "Deleted" })
     .getByRole("button", { name: "Deleted" })
     .click();
+  await page.keyboard.press("ControlOrMeta+K");
   await send(page, "Anything here?");
-  expect(await lastSent(3)).toBeUndefined();
+  expect(await lastSentFrom(page, library)(1)).toBeUndefined();
 });
 
 test("Undo this turn takes the agent's line back and keeps what was typed, in the cell and both tabs", async ({
