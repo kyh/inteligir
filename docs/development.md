@@ -191,7 +191,10 @@ presets, is `pnpm turbo run //#lint` on its own for the same reason: its
 type-aware pass reads the site's route types and the extension's
 `.wxt/tsconfig.json`, which their `generate` tasks write.
 
-CI then runs what `verify` cannot: it installs Playwright's Chromium
+CI then runs what `verify` cannot: on the schema it pushed, it runs
+`pnpm db:seed` twice, the second run having to find the dev account signing in
+and `DEV-INVITE` there, so a Better Auth change that breaks a fresh clone's
+first sign-in goes red; it installs Playwright's Chromium
 (`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
 and runs `pnpm e2e`, two Playwright workers on its four cores, so a green
 `verify` is not a green CI; run `pnpm e2e` too before claiming one. CI's
