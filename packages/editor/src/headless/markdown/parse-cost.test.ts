@@ -1,41 +1,44 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { mdastOf } from "../../test-support/mdast-of";
 
-const LONG_LINES = 20_000;
+const LONG_LINES = 4000;
 const SHORT_LINES = LONG_LINES / 8;
-// a ratio rather than a wall-clock ceiling, so a slow or loaded runner cannot fail it: linear, eight
+// steps counted rather than milliseconds timed, so no runner's load can move it: linear, eight
 // times the lines costs about 8x; with micromark merging a paragraph's text by one splice per line
-// (patches/micromark@4.0.3.patch undoes that), 30-70x
+// (patches/micromark@4.0.3.patch undoes that), about 64x
 const GROWTH_CEILING = 20;
-const ROUNDS = 5;
 
 const paragraph = (lines: number): string => "Entry about quokkas.\n".repeat(lines);
 
-const parseMs = (content: string): number => {
-  const began = performance.now();
-  mdastOf(content);
-  return performance.now() - began;
-};
-
-// the sizes alternate, so a stretch of contention on a shared runner lands on both rather than
-// one; the fastest of each, so one GC pause or scheduler stall cannot stand for the cost
-const growth = (): number => {
-  const short = paragraph(SHORT_LINES);
-  const long = paragraph(LONG_LINES);
-  parseMs(short);
-  let fastestShort = Number.POSITIVE_INFINITY;
-  let fastestLong = Number.POSITIVE_INFINITY;
-  for (let round = 0; round < ROUNDS; round += 1) {
-    fastestShort = Math.min(fastestShort, parseMs(short));
-    fastestLong = Math.min(fastestLong, parseMs(long));
+// what the parse's splices cost: a step for each call and one for each element it moves to close or
+// open its gap, which a splice per line makes quadratic in the lines
+const spliceSteps = (content: string): number => {
+  const { splice } = Array.prototype;
+  let steps = 0;
+  const counted = vi.spyOn(Array.prototype, "splice").mockImplementation(function countSteps(
+    this: unknown[],
+    ...args
+  ) {
+    const before = this.length;
+    const removed = splice.apply(this, args);
+    const [start] = args;
+    const at = start < 0 ? Math.max(before + start, 0) : Math.min(start, before);
+    const inserted = Math.max(args.length - 2, 0);
+    steps += 1 + (this.length === before ? 0 : this.length - at - inserted);
+    return removed;
+  });
+  try {
+    mdastOf(content);
+  } finally {
+    counted.mockRestore();
   }
-  return fastestLong / fastestShort;
+  return steps;
 };
 
 describe("parsing one long paragraph", () => {
-  // a 20,000-line paragraph, five times, on purpose: the cost is the claim
-  it("costs time linear in its lines", { timeout: 120_000 }, () => {
-    expect(growth()).toBeLessThan(GROWTH_CEILING);
+  it("costs steps linear in its lines", () => {
+    const growth = spliceSteps(paragraph(LONG_LINES)) / spliceSteps(paragraph(SHORT_LINES));
+    expect(growth).toBeLessThan(GROWTH_CEILING);
   });
 });

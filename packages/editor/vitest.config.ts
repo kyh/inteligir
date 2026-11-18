@@ -40,7 +40,7 @@ export default defineConfig({
           name: "editor",
           // a corpus written through real Plate editors takes 2s alone, and a full run shares the
           // runner's cores with every suite turbo starts beside it, so the 5s default is a
-          // coin-flip; parse-cost's ratios hold the time instead.
+          // coin-flip; parse-cost holds the parse's cost in counted steps, not time.
           testTimeout: 20_000,
         },
       },
