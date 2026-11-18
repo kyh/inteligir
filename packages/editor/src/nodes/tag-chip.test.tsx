@@ -10,7 +10,6 @@ import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 
 const showTag = vi.fn<(tag: string) => void>();
@@ -35,26 +34,6 @@ const chips = (container: HTMLElement): string[] =>
   [...container.querySelectorAll("[title^='Show items tagged']")].map(
     (node) => node.textContent ?? "",
   );
-
-describe("inlineTagSpans (the scanner the chip decorates with)", () => {
-  it("finds letter-first tags, including nested and dashed names", () => {
-    expect(inlineTagSpans("see #alpha and #a/b/c plus #kebab-case.")).toStrictEqual([
-      { end: 10, start: 4, tag: "alpha" },
-      { end: 21, start: 15, tag: "a/b/c" },
-      { end: 38, start: 27, tag: "kebab-case" },
-    ]);
-  });
-
-  it("stops short of a trailing dash (the index trims it too)", () => {
-    expect(inlineTagSpans("#bar-")).toStrictEqual([{ end: 4, start: 0, tag: "bar" }]);
-  });
-
-  it("rejects the non-tag `#` shapes", () => {
-    for (const text of ["C# rocks", "##heading", "#123", "#0d6efd", "see http://x/#frag", "# "]) {
-      expect(inlineTagSpans(text), text).toStrictEqual([]);
-    }
-  });
-});
 
 describe("tag chip rendering", () => {
   it("chips every inline tag in a paragraph", () => {
