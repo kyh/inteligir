@@ -16,9 +16,10 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
 - **Online-first.** Devices cache what they read (TanStack Query); only a save
   from the extension or the share sheet waits offline, and editing, the agent
   and import say they need a connection. Why: offline copies would be most of the code.
-- **A note's body is live**: every device and the agent edit one Yjs 13.x
-  document, one `y-partyserver` Durable Object per note, with no presence and
-  no version history. Why: a live document removes merge logic.
+- **A note's body is saved whole**, a second after typing stops, over the
+  version its device read; a stale save merges by block, a block changed on
+  both sides apart asks, and the agent's edit holds the open note. Why: a save
+  is one request, with no live document to serve.
 - **Each account's library is one SQLite Durable Object, its cell**, holding
   fields, folders, tags, search, links, change sets and quota; R2 holds bytes,
   D1 accounts. Why: one object guards every write.
@@ -59,7 +60,7 @@ apps/extension         * the Chromium extension: Save to /v1 on the browser's ow
 packages/contract      * the client-safe /v1 contract and the library model every end parses
 packages/service       * the cloud's code apps/web serves: its environment and accounts; each other area ports from the tag cloudflare-last
 packages/db            * Postgres: accounts' tables, the drizzle client, the schema's push, local Supabase and the suites' databases
-packages/editor        * the Plate editor on a note's live document, and the markdown dialect
+packages/editor        * the Plate editor saving a note whole, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over linkedom on every host
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads; a waiting save, the extension's too
 packages/ui            * the shared components on Base UI

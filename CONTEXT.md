@@ -18,10 +18,9 @@ that reach it.
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO` (`packages/service/src/library/library-do.ts`), named only from a
 verified **principal** or by what the cell itself gave out. It holds the
-items' fields, a **seed** for each body no note holds yet, folders, tags,
-links, threads and change sets, and every `/v1` library
-call and every **connector** call reaches it; a note's body is its **note
-object**'s. The **file store** holds the bytes it names by hash, and D1 only the accounts. Not
+items' fields and bodies, folders, tags, links, threads and change sets, and
+every `/v1` library call and every **connector** call reaches it. The **file
+store** holds the bytes it names by hash, and D1 only the accounts. Not
 what a device shows: a device keeps at most a cache of what it last read.
 
 **door** — where a request enters the cloud: a Start server route hands it to
@@ -36,8 +35,8 @@ method of its paths.
 **door**: the account and the actor its writes are by (a **session**, or a
 **connected assistant** under one grant, the only actor with scopes). The
 Worker hands it to the cell beside the call, an argument no request can name
-(`packages/service/src/library/library-principal.ts`); the rate limits and
-the socket's **ticket** key on it. Not a credential: the cell never sees one.
+(`packages/service/src/library/library-principal.ts`); the rate limits key
+on it. Not a credential: the cell never sees one.
 
 **change set** — the unit of undo: what one **turn** of the **built-in agent**
 changed, each item it touched kept as the ops that take its fields' changes
@@ -49,8 +48,8 @@ reading land with nothing to undo. The library keeps each for the undo window
 what is left to take back: an entry goes as an **Undo** settles it.
 Not a version: an undo writes forward and keeps no set of its own.
 
-**block** — one top-level element of a note's **live document**, named by its
-id and its **section**. The agent edits a body by passage, made on the body as
+**block** — one top-level element of a note's body, named by its id and its
+**section**. The agent edits a body by passage, made on the body as
 it stands and made again over a save that lands meanwhile (`packages/service/src/body/edit-body.ts`).
 A list item is a block, since lists are flat indent lists. Not a Plate node at
 any depth: a block's children are inside it
@@ -70,38 +69,6 @@ for its device to merge (`packages/service/src/body/write-body.ts`). Not the
 item's sequence, which every write to the item moves, and not a history: the
 library keeps the body it holds alone.
 
-**live document** — a note's body as one Yjs document, each top-level
-**block** carrying its **section**, which every device's editor and the agent
-edit at once (`packages/editor/src/item/yjs-binding.ts`). An
-editor's ⌘Z takes back its own changes alone. Not an offline copy: a device
-holds it only while the note's socket is open, and no presence crosses it.
-
-**note object** — `NoteDO`, one Durable Object per item holding its **live
-document** (`packages/service/src/note/note-do.ts`), reached by a device on
-a **ticket** and by the agent through the cell, by block id.
-Its first load takes the cell's **seed**, and each save pushes a
-**projection**. Its standing is open, full or gone
-(`packages/service/src/note/note-standing.ts`): a full note opens read-only, as
-an item in Deleted does, which the cell tells its door, and a purged one is
-gone for good. Not the **library cell**: typing never passes through it.
-
-**seed** — the body the **library cell** keeps for an item until its **note
-object** first opens, written by a save, a fill, an import or a new note, and
-dropped once the note's first **projection** lands
-(`packages/service/src/library/cell-body.ts`). Not a cache: once the note
-holds the body, the cell never takes it back.
-
-**projection** — what a **note object** tells the **library cell** of its
-body as it saves: the digest a listing and search read, its text, its links
-and its size, a late push stale (`packages/service/src/note/note-wire.ts`). It
-joins no **change set**. Not the body: the cell keeps what it derives, never
-the note's blocks.
-
-**turn log** — a **note object**'s record of each agent **turn** that edited
-it, from which Undo this turn takes the turn back as a forward edit, keeping
-every later edit (`packages/service/src/note/turn-log.ts`). Not a version
-history: it holds only agent turns.
-
 **head** — the sequence an account's library last took: every write takes the
 next and stamps each row it touches with it, so the rows past a head are what
 moved since (`packages/db/src/library-schema.ts`).
@@ -114,11 +81,6 @@ while in front and at once on focus and reconnect, its first ask learning the
 head alone (`@repo/client/library-changes`), and asks again for what it shows
 of those (`@repo/client/library-cache`). A hint, never the state: an answer
 carries no row, so one missed loses nothing.
-
-**ticket** — the minute-long pass an authenticated `/v1` call mints for its
-**principal**, which opens a note's socket, since a browser's socket carries no
-header (`packages/service/src/library/socket-ticket.ts`). Not a credential a
-device keeps.
 
 **waiting save** — a save a device keeps before its first call and sends until
 the cloud answers it, through a relaunch too. One queue
@@ -187,8 +149,7 @@ a conversation.
 ## The library
 
 **item** — one card the library lists, whatever its kind: a row of fields in
-the cell and a body of Plate **blocks**, its **note object**'s **live
-document** (`@repo/contract/library/library-item`). A link, a video, an image,
+the cell and a body of Plate **blocks** (`@repo/contract/library/library-item`). A link, a video, an image,
 a PDF and a note the person wrote are each one, and "item" is the only word for
 them: a page is a web page, and a bookmark Raindrop's. The library's listing
 follows `@repo/contract/library/library-index`'s rules, in SQL in the cloud,

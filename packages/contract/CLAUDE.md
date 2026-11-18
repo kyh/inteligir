@@ -25,8 +25,8 @@ random bytes and fresh ids are injected.
   `packages/contract/src/library/derive-item.ts`.
 - **A base guards only what a device computed away from the cell, a property's
   op, and a body is no op.** A verb of the cell's reads the fields it changes in
-  the transaction that lands them, where a base cannot fail, and a body is its
-  note's live document. `packages/contract/src/library/field-ops.ts`.
+  the transaction that lands them, where a base cannot fail, and a body is
+  saved over its own version. `packages/contract/src/library/field-ops.ts`.
 - **`/v1`'s write takes a property's op alone.** Every other field moves by a
   verb of the cell's, which asks the reading or tells the note with it.
   `packages/contract/src/rpc/library-contract.ts`.
