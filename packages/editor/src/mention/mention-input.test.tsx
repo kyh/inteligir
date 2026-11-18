@@ -144,13 +144,22 @@ describe("the [[ picker's keys", () => {
     expect(markdown()).toBe(`see [Plan](mention:${PLAN})\n`);
   });
 
-  it("typing ]] links the item the words name, whatever their case, the first of two", () => {
+  it("typing ]] links the item the words name, whatever their case", () => {
+    const { markdown } = openPicker([
+      { id: PLAN, title: "Q3/Q4 plan" },
+      { id: PLANTS, title: "Plants" },
+    ]);
+    typeQuery("q3/q4 PLAN]]");
+    expect(markdown()).toBe(`see [Q3/Q4 plan](mention:${PLAN})\n`);
+  });
+
+  it("typing ]] after a title two items go by links neither, as the library's own link does", () => {
     const { markdown } = openPicker([
       { id: PLAN, title: "Q3/Q4 plan" },
       { id: PLANTS, title: "Q3/Q4 Plan" },
     ]);
     typeQuery("q3/q4 plan]]");
-    expect(markdown()).toBe(`see [Q3/Q4 plan](mention:${PLAN})\n`);
+    expect(markdown()).toBe("see \\[\\[q3/q4 plan]]\n");
   });
 
   it("typing ]] after words no item is titled leaves them the text they are", () => {

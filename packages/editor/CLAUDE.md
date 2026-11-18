@@ -119,8 +119,9 @@ arrive as `unknown` and become domain values there alone.
 - **A paste of more than half of what a note holds is refused whole.** The note's next save would
   be refused as full, taking the typing around the paste with it.
   `packages/editor/src/item/paste-cap.ts`.
-- **A `[[` typed on a device names an item by the title its card shows, never an alias.** The
-  picker lists and ranks each item by that title, so `]]` links only what a row would show; an
+- **A `[[` typed on a device names an item by the title its card shows, never an alias, and a
+  title two items show links neither.** The picker lists and ranks each item by that title, so
+  `]]` links only what a row would show, and only where the cloud's own `[[Title]]` would; an
   alias names an item for text an import or an assistant writes, which the cloud reads.
   `packages/editor/src/mention/mention-input.tsx`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,

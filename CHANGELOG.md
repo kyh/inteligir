@@ -220,6 +220,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
 - **Typing `md` in the `[[` picker matches titles alone.**
+- **Typing `]]` after a title two items share leaves the words as text**, as `[[Title]]` in an assistant's writing or an import does, instead of linking one of them.
 - **An equation keeps the text on its `$$` line.**
 - **An empty bullet keeps the list nested under it.**
 - **A table cell keeps its second line and its bars.**

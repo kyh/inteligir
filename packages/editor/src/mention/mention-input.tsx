@@ -36,10 +36,10 @@ export const MentionInputElement = (props: PlateElementProps) => {
 
   const typed = value.trim();
 
-  // typing `]]` links the item the words name, or leaves them the text they are
+  // typing `]]` links the one item the words name, or leaves them the text they are
   const linkWords = (words: string) => {
     const named = byKey.get(titleKey(words));
-    if (named === undefined) {
+    if (named === undefined || named === null) {
       editor.tf.insertText(`[${words}]]`);
       return;
     }

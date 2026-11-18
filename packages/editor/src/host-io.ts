@@ -24,8 +24,9 @@ export interface LibraryTitles {
   readonly targets: readonly (LinkTarget & FoldedTitle)[];
   // the name an item goes by now, the one its card shows
   readonly byId: ReadonlyMap<string, string>;
-  // the item words name by `titleKey`, the first the library lists; an untitled one goes by none
-  readonly byKey: ReadonlyMap<string, LinkTarget>;
+  // the item words name by `titleKey`, and null for words two or more items go by, which the
+  // library's own `[[Title]]` leaves as text; an untitled one goes by none
+  readonly byKey: ReadonlyMap<string, LinkTarget | null>;
 }
 
 // Beside the host rather than in it: the titles move with the library while the host never
@@ -44,11 +45,11 @@ export const libraryTitles: Pick<
 
 // what a host hands the editor each time its listing of the library's titles answers
 export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
-  const byKey = new Map<string, LinkTarget>();
+  const byKey = new Map<string, LinkTarget | null>();
   for (const target of targets) {
     const key = titleKey(target.title);
-    if (key !== "" && !byKey.has(key)) {
-      byKey.set(key, target);
+    if (key !== "") {
+      byKey.set(key, byKey.has(key) ? null : target);
     }
   }
   titles.setState({
