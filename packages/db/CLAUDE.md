@@ -60,3 +60,7 @@ and the suites' databases it ships into.
   files and the rows naming them in an order Postgres picks, which an immediate
   check fails, and drizzle declares no deferred one; a release asks after names
   itself, under the account's lock. `packages/db/src/library-schema.ts`.
+- **`item_search`'s GIN indexes run with `fastupdate` off.** Every body save
+  rewrites its item's row there, and a pending list flushed every few saves
+  stalls one of them for most of a second; push recreates an index whose
+  storage parameters changed under its own name. `packages/db/src/library-schema.ts`.

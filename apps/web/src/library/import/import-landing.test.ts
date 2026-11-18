@@ -38,7 +38,7 @@ describe(createBatcher, () => {
     const { batches, cell } = keepingCell();
     const tally = freshTally();
     const batcher = createBatcher(cell, tally, () => {});
-    // five blocks of 450,000 three-byte characters: well past 2 MiB of UTF-8, under it in UTF-16
+    // five blocks of 150,000 three-byte characters: past 1 MiB of UTF-8, under it in UTF-16
     await batcher.add(noteOf("1", 5, "語".repeat(150_000)));
     await batcher.add(noteOf("2", 1, "Short."));
     await batcher.flush();
@@ -51,11 +51,11 @@ describe(createBatcher, () => {
   it("sends a batch before its UTF-8 bytes pass 4 MiB", async () => {
     const { batches, cell } = keepingCell();
     const batcher = createBatcher(cell, freshTally(), () => {});
-    // each about 1.3 MB of UTF-8 and 0.45 MB of UTF-16: three to a batch, not nine
-    for (let at = 1; at <= 4; at += 1) {
-      await batcher.add(noteOf(String(at), 3, "語".repeat(150_000)));
+    // each about 0.96 MB of UTF-8 and 0.32 MB of UTF-16: four to a batch, not thirteen
+    for (let at = 1; at <= 5; at += 1) {
+      await batcher.add(noteOf(String(at), 2, "語".repeat(160_000)));
     }
     await batcher.flush();
-    expect(batches.map((batch) => batch.length)).toStrictEqual([3, 1]);
+    expect(batches.map((batch) => batch.length)).toStrictEqual([4, 1]);
   });
 });

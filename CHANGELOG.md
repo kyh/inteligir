@@ -117,7 +117,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
 - **What another device changed shows within 15 seconds**: a save, move, tag or delete made elsewhere appears in the window or app you have in front within 15 seconds, and at once when you come back to it or your connection returns.
 - **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
-- **A full note says so**: a note holds about 8 MB, and a single paste of more than about 1 MB doesn't go in.
+- **A note holds about 1 MB**, where it held about 8 MB: split a longer one into several notes.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
 - **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.
 - **A formula reads the other formulas in its note by name**: type `{{price=5}}` and `{{qty=3}}`, then `{{price*qty}}`, or name the result with `{{total=price*qty}}`; one that only names another shows what it shows, so `{{time=9am}}` repeats as `{{time}}`.

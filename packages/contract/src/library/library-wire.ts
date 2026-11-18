@@ -48,9 +48,10 @@ export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
 // a note or link note an agent writes as markdown
 export const MARKDOWN_MAX = 1_000_000;
-// a body's blocks, as the UTF-8 bytes of their JSON: half of the 4.5 MB a Vercel function takes
-// in a request, which counts the call around them too, as an answer counts the item's fields
-export const BODY_MAX_BYTES = 2 * 1024 * 1024;
+// a body's blocks, as the UTF-8 bytes of their JSON. Every save writes the whole body and derives
+// its search row again, which past 1 MiB holds a save over a second on a Vercel function; it also
+// leaves room in a function's 4.5 MB request for the call around the blocks
+export const BODY_MAX_BYTES = 1024 * 1024;
 // the passage selected in the item a message to the built-in agent leaves from
 const AGENT_SELECTION_MAX = 4000;
 // a message to the built-in agent

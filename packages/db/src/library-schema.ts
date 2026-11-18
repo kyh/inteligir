@@ -179,8 +179,12 @@ export const itemSearch = pgTable.withRLS(
   (table) => [
     primaryKey({ columns: [table.accountId, table.itemId] }),
     itemFk("item_search_item_fk", [table.accountId, table.itemId]),
-    index("item_search_vec").using("gin", table.vec),
-    index("item_search_text").using("gin", sql`lower(${table.text}) gin_trgm_ops`),
+    // every body save rewrites its item's row here, and a GIN pending list flushed every few
+    // saves stalls one of them for most of a second
+    index("item_search_vec").using("gin", table.vec).with({ fastupdate: false }),
+    index("item_search_text")
+      .using("gin", sql`lower(${table.text}) gin_trgm_ops`)
+      .with({ fastupdate: false }),
   ],
 );
 
