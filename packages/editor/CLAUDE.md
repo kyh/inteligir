@@ -23,9 +23,10 @@ arrive as `unknown` and become domain values there alone.
   that runs out, is `too-deep` and a throwing rule `failed`, and every caller refuses either, so no
   platform reads what another refuses. `packages/editor/src/headless/markdown/md-read.ts`.
 - **The markdown runs headless, and what runs headless sits in `headless/`.** The folder reaches
-  no React, `@repo/ui`, stylesheet or node and nothing of the editor outside it, and the service and
-  the page reader import the editor from it alone, so the codec runs wherever the library does, and
-  a body read back from what it wrote is that body, ids aside. `oxlint.config.ts`.
+  no React, `@repo/ui`, stylesheet, node or `test-support/` and nothing of the editor outside it,
+  and the service, the page reader and the tab's import worker import the editor from it alone, so
+  the codec runs wherever the library does, and a body read back from what it wrote is that body,
+  ids aside. `oxlint.config.ts`.
 - **The editor ships its behaviour CSS, and the appearance dials are one declaration.** Every hook
   is spelled once, since a missing sheet fails no other test; the tokens are declared in
   `apps/web/src/library/styles/globals.css`, and the phone's editor sets `--editor-size` 16px or

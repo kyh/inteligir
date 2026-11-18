@@ -21,9 +21,10 @@ const SERVER_ONLY = {
   message: "MCP and OpenAPI meta live in @repo/service alone",
   regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
+const REACT_OR_UI = "^(?:react(?:-dom)?|@repo/ui)(?:/|$)";
 const SERVICE_PLATFORM = {
   message: "@repo/service runs on the server: no DOM and no React",
-  regex: "^(?:react(?:-dom)?|@repo/ui)(?:/|$)",
+  regex: REACT_OR_UI,
 };
 // Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
 const NO_ORPC_IN_PAGE = {
@@ -36,6 +37,11 @@ const RPC_FOLDER = "packages/contract/src/rpc/**";
 const ORPC_IN_RPC_FOLDER = {
   message: "only packages/contract/src/rpc/ reaches oRPC: a page loads the rest of the contract",
   regex: "^@orpc/|(?:^|/)rpc/",
+};
+// the tests glob exempts test-support/ itself, whose fakes reach oRPC and node
+const SUITES_ONLY = {
+  message: "only a suite imports test-support/: its fakes reach oRPC and node",
+  regex: "(?:^|/)test-support/",
 };
 const CONTRACT_PLATFORM = {
   message: "@repo/contract loads on every client and the server",
@@ -61,7 +67,7 @@ const HEADLESS_WALL = {
 // a group, for its negation
 const HEADLESS_ALONE = {
   group: ["@repo/editor/**", "!@repo/editor/headless/**"],
-  message: "the server and the page reader load @repo/editor/headless/ alone",
+  message: "the server, the page reader and the import worker load @repo/editor/headless/ alone",
 };
 // the phone's note page runs in its web view and reaches the phone only through its props
 const NOTE_PAGE_PLATFORM = {
@@ -82,6 +88,12 @@ const SHELL_API = {
 const LIBRARY_IMPORTS = [
   { message: "the library runs in a browser, where no node module loads", regex: NODE },
 ];
+// the import runs in a module worker, which has no DOM; import-run.ts starts it from the page
+const IMPORT_RUN = "apps/web/src/library/import/import-run.ts";
+const IMPORT_WORKER_PLATFORM = {
+  message: "the import runs in a module worker: no React and no @repo/ui",
+  regex: REACT_OR_UI,
+};
 
 // an override's options replace the base's, so each restates the repo-wide row
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
@@ -169,7 +181,11 @@ export default defineConfig({
       excludeFiles: [...tests, RPC_FOLDER],
       files: ["packages/contract/src/**"],
       rules: {
-        "no-restricted-imports": restrictedImports([CONTRACT_PLATFORM, ORPC_IN_RPC_FOLDER]),
+        "no-restricted-imports": restrictedImports([
+          CONTRACT_PLATFORM,
+          ORPC_IN_RPC_FOLDER,
+          SUITES_ONLY,
+        ]),
       },
     },
     {
@@ -191,6 +207,7 @@ export default defineConfig({
           HEADLESS_WALL,
           HEADLESS_ALONE,
           NO_ORPC_IN_PAGE,
+          SUITES_ONLY,
         ]),
       },
     },
@@ -239,6 +256,18 @@ export default defineConfig({
     {
       files: [DESKTOP_BRIDGE],
       rules: { "no-restricted-imports": restrictedImports(LIBRARY_IMPORTS) },
+    },
+    {
+      excludeFiles: [...tests, IMPORT_RUN],
+      files: ["apps/web/src/library/import/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          ...LIBRARY_IMPORTS,
+          SHELL_API,
+          IMPORT_WORKER_PLATFORM,
+          HEADLESS_ALONE,
+        ]),
+      },
     },
     {
       // MCP and OpenAPI meta are this package's, so the repo-wide row is left out
