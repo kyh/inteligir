@@ -1,12 +1,12 @@
 // The item surface as a host mounts it: one note and one editor per item, drawn once the note is
 // read, over notes held in memory as the cloud answers them.
 
-import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout as delay, setImmediate as nextTask } from "node:timers/promises";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 import { Node } from "slate";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferred } from "@repo/contract/deferred";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
@@ -22,6 +22,7 @@ import { memoryNotes } from "../test-support/memory-notes";
 import type { MemoryNotes } from "../test-support/memory-notes";
 import { ItemEditor, KEEP_MINE, MISSING_ITEM, NOTICES, SHOW_LATEST } from "./item-editor";
 import type { OpenNote } from "./item-editor";
+import { SAVE_PAUSE_MS } from "./note-save";
 import { PASTE_MAX_BYTES, PASTE_REFUSED } from "./paste-cap";
 
 vi.mock("@repo/ui/components/sonner", () => ({
@@ -239,6 +240,88 @@ describe("an item's surface", () => {
     });
     expect(screen.queryByText(NOTICES.agent)).toBeNull();
     expect(editable()).not.toBeNull();
+  });
+});
+
+// slate-react reads the page's selection on this throttle, which these suites hold open on fake
+// timers; jsdom fires selectionchange on a real task
+const SELECTION_READ_MS = 100;
+
+// the page's caret put at `offset` in the drawn text `text`, as a click or a key puts it, and its
+// selectionchange heard
+const putCaret = async (text: string, offset: number): Promise<void> => {
+  const shown = screen.getByText(text).firstChild;
+  if (!(shown instanceof Text)) {
+    throw new TypeError(`"${text}" is drawn as no text`);
+  }
+  getSelection()?.collapse(shown, offset);
+  await act(async () => {
+    await nextTask();
+    vi.advanceTimersByTime(1);
+  });
+};
+
+describe("the caret in an open item", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stays where End moved it when the agent's edit lands before the editor reads it", async () => {
+    const { notes } = serve({ [A]: [p("a1", "Line one."), p("a2", "Line two.")] });
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("Line two.")).resolves.toBeDefined();
+    const target = editable();
+    if (!(target instanceof HTMLElement)) {
+      throw new TypeError("the surface drew no editor");
+    }
+    // jsdom focuses only an element with a tab stop
+    target.tabIndex = 0;
+    act(() => {
+      target.focus();
+    });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+
+    act(() => {
+      lastNote().agentEditing("call-1");
+    });
+    typeInto(A, " Typed.");
+    act(() => {
+      notes.saveElsewhere(A, [
+        p("a0", "The agent's line."),
+        p("a1", "Line one."),
+        p("a2", "Line two."),
+      ]);
+    });
+    notes.gate("hold");
+    await act(async () => {
+      lastNote().agentEdited("call-1");
+      await nextTask();
+      vi.advanceTimersByTime(SAVE_PAUSE_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(2 * SELECTION_READ_MS);
+    });
+
+    await putCaret("Line two.", 4);
+    await putCaret("Line two.", "Line two.".length);
+    notes.gate("answer");
+    await act(async () => {
+      notes.release();
+      await nextTask();
+    });
+    expect(screen.getByText("The agent's line.")).toBeDefined();
+    act(() => {
+      vi.advanceTimersByTime(2 * SELECTION_READ_MS);
+    });
+    act(() => {
+      editorOf(A).tf.insertText("!");
+    });
+
+    expect(editorOf(A).children.map((block) => Node.string(block))).toStrictEqual([
+      "The agent's line.",
+      "Line one. Typed.",
+      "Line two.!",
+    ]);
   });
 });
 

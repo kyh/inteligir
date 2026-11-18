@@ -31,6 +31,7 @@ import { NoteSaver, takesNoEdit } from "./note-save";
 import type { NoteNotice } from "./note-save";
 import { Notice } from "./notice";
 import { PasteCapPlugin } from "./paste-cap";
+import { readCaret } from "./read-caret";
 
 // a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
@@ -230,7 +231,10 @@ const SavedSurface = ({ itemId, note, blocks, notice }: SavedSurfaceProps) => {
   useLayoutEffect(
     () =>
       note.saver.bind({
-        lay: (next) => layBody(editor, next),
+        lay: (next) => {
+          readCaret(editor);
+          return layBody(editor, next);
+        },
         mine: () => blocksOfValue(editor.children),
       }),
     [editor, note],

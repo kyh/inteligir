@@ -105,9 +105,11 @@ arrive as `unknown` and become domain values there alone.
   in flight, at most 5 s after the first unsaved edit, over the version it was read at, and a stale
   answer merges by block, since a body's version is all of a note's concurrency; a leave asks the
   saver's `holds`, which also says what is unsaved. `packages/editor/src/item/note-save.ts`.
-- **A body saved elsewhere is laid into the open editor, not drawn anew.** Its block changes land
-  outside undo with every guard let by, so the caret, the scroll and undo stay; only a body that
-  can't be laid redraws. `packages/editor/src/headless/body/lay-body.ts`.
+- **A body saved elsewhere is laid into the open editor, not drawn anew, over the caret the page
+  shows.** Its block changes land outside undo with every guard let by, so the caret, the scroll
+  and undo stay; the caret is read off the page first, since slate-react reads a moved one on a
+  throttle and writes back the one it read last; only a body that can't be laid redraws.
+  `packages/editor/src/headless/body/lay-body.ts`.
 - **A save small enough to outlive the page goes as a keepalive request, one at a time, its answer
   read.** A browser holds 64 KiB for all of a page's keepalive requests, so a larger unsaved note
   arms the browser's unload ask instead (`unloadLoses`). `packages/editor/src/item/note-save.ts`.
