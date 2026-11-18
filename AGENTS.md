@@ -116,7 +116,7 @@ pushes the PRODUCTION Postgres. Drive the site with agent-browser
 
 ```sh
 pnpm format:fix && pnpm verify          # typecheck, lint, knip, format, test, build; check-only
-pnpm e2e                                # Playwright over the build, a next start per worker on its own database; a flow waits in PENDING until its area lands
+pnpm e2e                                # Playwright over the build, a next start per worker on its own database
 pnpm smoke                              # the legs a deployment passes, against the app on 5174 (SMOKE_URL for a deployment)
 TURBO_SCM_BASE=<base> pnpm verify:affected   # a work stream: only what it reaches
 ```

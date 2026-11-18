@@ -1,9 +1,7 @@
 # @repo/e2e — the end-to-end flows
 
 Playwright Test over the built app and the browser extension's dev build.
-Outside `pnpm verify`; turbo builds both first. A flow whose area does not run
-on Next yet waits in `playwright.config.ts`'s `PENDING_FILES`, or by its title
-in `PENDING_TESTS`, and leaves as its area lands.
+Outside `pnpm verify`; turbo builds both first.
 
 ```sh
 pnpm bootstrap                    # once: local Postgres and its schema

@@ -142,7 +142,7 @@ test("Undo this turn takes the agent's line back where nothing changed since, an
   }
 });
 
-test("the filing rules start from the starter's and save, and Tidy my library files from Unsorted", async ({
+test("the filing rules start from the starter's and save, Tidy my library files from Unsorted, and the agent reads them", async ({
   cloud,
   library,
   page,
@@ -181,4 +181,7 @@ test("the filing rules start from the starter's and save, and Tidy my library fi
   expect(asked).toMatch(/^Tidy my library:[\s\S]*organize_items/u);
   const [reply] = await textsOf(library, "agent.message");
   expect(screenIn(reply)).toMatchObject({ scope: { kind: "unsorted" } });
+
+  await send(page, "rules");
+  await expect(page.getByText("Filing rules: File birds under Birds.")).toBeVisible();
 });
