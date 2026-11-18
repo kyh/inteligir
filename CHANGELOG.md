@@ -174,6 +174,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **A note nested deeper than an item holds is refused as that, not as too large**: the agent, a connected assistant and a link saved with a note are told to nest its lists and quotes fewer levels deep, instead of shortening it.
 - **A PDF opened in your library shows the name you added it with**, and its viewer's download, or saving a picture or recording from its item, keeps that name instead of a string of letters and numbers.
 - **On your iPhone, the sign-in form stays above the keyboard**, and Return moves to the next field, then signs in or creates the account.
 - **Deleting an account with many files goes through the first time**: its files go from our cloud within a day after, a batch at a time.

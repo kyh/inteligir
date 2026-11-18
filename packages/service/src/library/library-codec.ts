@@ -131,9 +131,10 @@ const logUnanswered = (asks: LookupAsks): void => {
   }
 };
 
-// A person's or an agent's markdown as note blocks, every block of it or none: text past what the
-// codec reads, or holding a block no body can store, is refused as too large. A rule that failed
-// reading it is the codec's fault and not the text's, so it is said here
+// A person's or an agent's markdown as note blocks, every block of it or none: text nested past
+// what the codec reads, or holding a block no body can store, is refused for that. A rule that
+// failed reading it is the codec's fault and not the text's, so it is logged here and refused as a
+// block the library cannot keep, as an edit's new text is
 export const noteBlocksOf = async (
   scope: Pick<WriteScope, "accountId" | "tx">,
   markdown: string,
@@ -150,7 +151,8 @@ export const noteBlocksOf = async (
     console.error({ event: "markdown-read-failed", ...errorFields(read.reason.error) });
   }
   if (!read.ok || read.refused > 0) {
-    return refuse({ kind: "too-large" });
+    const fault = !read.ok && read.reason.kind === "too-deep" ? "too-deep" : "unstorable";
+    return refuse({ fault, kind: "markdown-refused" });
   }
   return read.blocks.map((block) => ({ block, section: "note" }));
 };

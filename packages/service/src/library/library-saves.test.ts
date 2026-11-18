@@ -24,6 +24,14 @@ const FACTS = { author: null, description: null, lang: null, published: null, si
 
 const newId = (): string => mintLibraryId(Date.now());
 
+// words nested deeper than an item holds, and what the refusal tells their writer to change
+const TOO_DEEP_NOTE = `${"> ".repeat(12_000)}too deep`;
+const NESTS_TOO_DEEP = {
+  code: "PAYLOAD_TOO_LARGE",
+  message:
+    "That new text nests deeper than an item holds. Nest its lists and quotes fewer levels deep.",
+};
+
 // the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {
   try {
@@ -137,7 +145,7 @@ dbSuite("saving a web address", () => {
       expect(items).toHaveLength(1);
     });
 
-    it("refuses an id another item holds as a conflict, a folder it lacks and words no body holds", async () => {
+    it("refuses an id another item holds as a conflict, a folder it lacks and words nested too deep", async () => {
       const { library } = await personalLibrary();
       const { item: held } = await library.items.saveLink({ url: "https://example.com/held" });
       await expect(
@@ -149,13 +157,8 @@ dbSuite("saving a web address", () => {
         ),
       ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true });
       await expect(
-        refusalOf(
-          library.items.saveLink({
-            note: `${"> ".repeat(12_000)}too deep`,
-            url: "https://example.com/deep",
-          }),
-        ),
-      ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE", defined: true });
+        library.items.saveLink({ note: TOO_DEEP_NOTE, url: "https://example.com/deep" }),
+      ).rejects.toMatchObject({ ...NESTS_TOO_DEEP, defined: true });
     });
 
     it("asks for its reading again when it comes back from Deleted still waiting, and not once read", async () => {
@@ -192,6 +195,15 @@ dbSuite("saving a web address", () => {
         },
       ]);
       await expect(fillJobs(accountId)).resolves.toStrictEqual([]);
+    });
+
+    it("refuses words nested too deep as that, landing no item", async () => {
+      const { accountId, library } = await personalLibrary();
+      const head = await headOf(accountId);
+      await expect(
+        library.items.save({ ...pageSave("https://example.com/deep-page"), note: TOO_DEEP_NOTE }),
+      ).rejects.toMatchObject({ ...NESTS_TOO_DEEP, defined: true });
+      expect(await headOf(accountId)).toBe(head);
     });
 
     it("lands on a held link still waiting or whose reading failed, after its note, and on none already read", async () => {

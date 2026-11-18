@@ -27,6 +27,11 @@ export type LibraryRefusal =
   | { readonly kind: "url-held" }
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
+  // a new note's markdown no body can hold, for the reason an edit's new text would be refused
+  | {
+      readonly kind: "markdown-refused";
+      readonly fault: Extract<EditRefusal["kind"], "too-deep" | "unstorable">;
+    }
   // the built-in agent's turn the write is one of is no longer open
   | { readonly kind: "turn-ended" }
   // another write held the account's lock past the wait, so this one landed nothing and may go again

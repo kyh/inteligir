@@ -31,9 +31,18 @@ export interface LibraryContext {
 }
 
 type EditRefusal = Extract<LibraryRefusal, { kind: "edit-refused" }>["refusal"];
+type MarkdownFault = Extract<LibraryRefusal, { kind: "markdown-refused" }>["fault"];
 
-// what a refused edit's writer does next, said in the message, since an agent is handed a
-// refusal's message alone
+// what the writer of markdown no body can hold changes, a new note's or an edit's new text, said in
+// the message, since an agent is handed a refusal's message alone
+const MARKDOWN_REFUSED: Record<MarkdownFault, string> = {
+  "too-deep":
+    "That new text nests deeper than an item holds. Nest its lists and quotes fewer levels deep.",
+  unstorable:
+    "That new text holds a block the library can't keep. Split that part up or write it more plainly.",
+};
+
+// what a refused edit's writer does next
 const EDIT_REFUSED: Record<EditRefusal["kind"], string> = {
   ambiguous:
     "That old text stands more than once in the note. Quote more of the passage, so it stands once.",
@@ -41,8 +50,7 @@ const EDIT_REFUSED: Record<EditRefusal["kind"], string> = {
     "That old text isn't in the item's note. Read the item again and quote the passage exactly.",
   section:
     "That passage is in the article, the page as it was read, which no edit changes. Write in the note: an empty old text adds its new text after the note.",
-  "too-deep": "That new text nests deeper than an item holds.",
-  unstorable: "That edit holds a block the library can't keep.",
+  ...MARKDOWN_REFUSED,
 };
 
 const refusalError = (refusal: LibraryRefusal): Error => {
@@ -75,6 +83,10 @@ const refusalError = (refusal: LibraryRefusal): Error => {
     }
     case "gone": {
       return new AccountGoneError();
+    }
+    // every row that takes markdown declares this code, so only its message changes with the fault
+    case "markdown-refused": {
+      return new PayloadTooLargeError({ message: MARKDOWN_REFUSED[refusal.fault] });
     }
     case "edit-refused": {
       return new EditRefusedError({
