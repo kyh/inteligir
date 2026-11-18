@@ -7,10 +7,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
+import { refusalResponse } from "../test-support/refusal-response.test-utils";
 import {
   BlobMismatchError,
   ClientOutdatedError,
   QuotaError,
+  TooManyRequestsError,
   V1_ERROR_STATUS_MAP,
 } from "./v1-errors";
 import { outcomeOf, sessionEndOf, sharedFailure, uploadBlob } from "./call-outcome";
@@ -52,7 +54,18 @@ interface Script {
   readonly reserve?: () => Reserved;
   readonly store?: () => Response;
   readonly settle?: () => Settled;
+  readonly busy?: () => Response;
 }
+
+const spentMinute = (retryAfter: string | null) => () => {
+  const refused = refusalResponse(new TooManyRequestsError());
+
+  if (retryAfter !== null) {
+    refused.headers.set("retry-after", retryAfter);
+  }
+
+  return refused;
+};
 
 const cloudOf = (script: Script) => {
   const asked: string[] = [];
@@ -80,9 +93,15 @@ const cloudOf = (script: Script) => {
   const transport: V1Transport = {
     fetch: async (request) => {
       const { pathname } = new URL(request.url);
-      asked.push(`${request.method} ${pathname}`);
+      const call = `${request.method} ${pathname}`;
+      const firstTry = !asked.includes(call);
+      asked.push(call);
 
       if (pathname.startsWith(V1_RPC_PATH)) {
+        if (firstTry && script.busy !== undefined) {
+          return script.busy();
+        }
+
         const { response } = await handler.handle(request, { prefix: V1_RPC_PATH });
 
         return response ?? new Response(null, { status: 404 });
@@ -187,6 +206,20 @@ describe(uploadBlob, () => {
       );
       expect(cloud.asked).not.toContain(SETTLE);
     }
+  });
+
+  it("waits out each busy answer that names its wait, sending the call again, and lands", async () => {
+    const cloud = cloudOf({ busy: spentMinute("0") });
+    await expect(uploadBlob(cloud.transport, FILE)).resolves.toBeUndefined();
+    expect(cloud.asked).toStrictEqual([RESERVE, RESERVE, "PUT /store/upload-1", SETTLE, SETTLE]);
+  });
+
+  it("throws a busy answer that names no wait, as a budget to wait out", async () => {
+    const cloud = cloudOf({ busy: spentMinute(null) });
+    await expect(uploadBlob(cloud.transport, FILE)).rejects.toSatisfy(
+      (thrown: Error) => sharedFailure(thrown)?.kind === "busy",
+    );
+    expect(cloud.asked).toStrictEqual([RESERVE]);
   });
 
   it("tells the hook a sign-in it ended", async () => {

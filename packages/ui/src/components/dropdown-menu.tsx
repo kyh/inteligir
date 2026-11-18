@@ -61,6 +61,8 @@ const MARKS = [HIGHLIGHTED];
 const highlightedRow = (popup: HTMLElement, last: RowBox | null) =>
   rowBox(popup.querySelector<HTMLElement>(`[${HIGHLIGHTED}]`), last);
 
+const ENABLED_ROW = '[role^="menuitem"]:not([data-disabled])';
+
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
 
 interface DropdownMenuContentProps {
@@ -71,6 +73,7 @@ interface DropdownMenuContentProps {
   sideOffset?: number | undefined;
   alignOffset?: number | undefined;
   anchor?: MenuPositionerProps["anchor"];
+  openedByKey?: boolean | undefined;
 }
 
 const DropdownMenuContent = ({
@@ -81,6 +84,7 @@ const DropdownMenuContent = ({
   sideOffset = 6,
   alignOffset = 0,
   anchor,
+  openedByKey = false,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
   const [popup, setPopup] = useState<HTMLDivElement | null>(null);
@@ -125,6 +129,16 @@ const DropdownMenuContent = ({
               setRinged(false);
             }}
             onFocus={(e) => {
+              const opening =
+                e.target === e.currentTarget &&
+                !(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget));
+
+              if (openedByKey && opening) {
+                e.currentTarget.querySelector<HTMLElement>(ENABLED_ROW)?.focus();
+
+                return;
+              }
+
               setRinged(e.target.matches(":focus-visible"));
             }}
             className={cn(

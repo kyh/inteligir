@@ -116,24 +116,64 @@ describe("the Mac app's update", () => {
     });
   });
 
-  it("says why a download didn't go through, and checks again on Try again", async () => {
+  it("says why a download didn't go through, and downloads again on Try again until it does", async () => {
+    const answers = new Map<string, DesktopUpdateState>([
+      ["check_for_updates", { status: "available", version: "1.2.3" }],
+      [
+        "download_update",
+        { message: "The connection dropped.", status: "download-failed", version: "1.2.3" },
+      ],
+    ]);
+
+    const asked = underShell(answers);
+    await shown();
+    const update = await banner();
+    fireEvent.click(within(update).getByRole("button", { name: "Download" }));
+    expect(await within(update).findByText("The download didn't go through")).toBeDefined();
+    expect(within(update).getByText("The connection dropped.")).toBeDefined();
+    expect(screen.getByText("Inteligir 1.2.3 didn't download.")).toBeDefined();
+
+    answers.set("download_update", {
+      message: "The feed is offline.",
+      status: "download-failed",
+      version: "1.2.3",
+    });
+    fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
+    expect(await within(update).findByText("The feed is offline.")).toBeDefined();
+    expect(within(update).getByText("The download didn't go through")).toBeDefined();
+    expect(asked).toStrictEqual(["check_for_updates", "download_update", "download_update"]);
+
+    answers.set("download_update", { downloadPercent: 0, status: "downloading" });
+    fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
+    expect(await within(update).findByText("Downloading the update")).toBeDefined();
+    expect(asked).toStrictEqual([
+      "check_for_updates",
+      "download_update",
+      "download_update",
+      "download_update",
+    ]);
+  });
+
+  it("says why an update didn't install, and restarts again on Try again", async () => {
     const asked = underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { status: "available", version: "1.2.3" }],
-        ["download_update", { message: "The signature didn't match.", status: "error" }],
+        [
+          "check_for_updates",
+          { message: "The disk is full.", status: "install-failed", version: "1.2.3" },
+        ],
+        ["install_update", { status: "downloaded", version: "1.2.3" }],
       ]),
     );
 
     await shown();
     const update = await banner();
-    fireEvent.click(within(update).getByRole("button", { name: "Download" }));
-    expect(await within(update).findByText("The update didn't go through")).toBeDefined();
-    expect(within(update).getByText("The signature didn't match.")).toBeDefined();
+    expect(within(update).getByText("The update didn't install")).toBeDefined();
+    expect(within(update).getByText("The disk is full.")).toBeDefined();
+    expect(screen.getByText("Inteligir 1.2.3 didn't install.")).toBeDefined();
 
     fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
-    await vi.waitFor(() => {
-      expect(asked).toStrictEqual(["check_for_updates", "download_update", "check_for_updates"]);
-    });
+    expect(await within(update).findByText("Update ready")).toBeDefined();
+    expect(asked).toStrictEqual(["check_for_updates", "install_update"]);
   });
 
   it("says a check that failed in Settings alone", async () => {

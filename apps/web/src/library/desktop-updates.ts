@@ -9,7 +9,7 @@ const ASKS = {
   check: async (bridge: DesktopBridge) => await bridge.checkForUpdates(),
   download: async (bridge: DesktopBridge) => await bridge.downloadUpdate(),
   install: async (bridge: DesktopBridge) => await bridge.installUpdate(),
-} satisfies Record<string, (bridge: DesktopBridge) => Promise<DesktopUpdateState>>;
+} satisfies Record<string, (bridge: DesktopBridge) => Promise<DesktopUpdateState | null>>;
 
 export type UpdateMove = keyof typeof ASKS;
 
@@ -31,14 +31,10 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
       return;
     }
 
-    try {
-      adopt(await ASKS[next](bridge));
-    } catch (error) {
-      console.warn("[desktop] the updater did not answer", error);
-      adopt({
-        message: "The updater did not answer.",
-        status: next === "check" ? "check-failed" : "error",
-      });
+    const state = await ASKS[next](bridge);
+
+    if (state !== null) {
+      adopt(state);
     }
   };
 

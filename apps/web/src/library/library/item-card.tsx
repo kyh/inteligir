@@ -17,6 +17,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, fileExtensionLabel } from "./item-labels";
+import type { MenuOpener } from "./item-menu";
 import type { ListedItem } from "./listing";
 
 export interface ItemCardProps {
@@ -26,7 +27,7 @@ export interface ItemCardProps {
   readonly nowMs: number;
   readonly onPress: (row: ListedItem, event: MouseEvent<HTMLDivElement>) => void;
   readonly onOpen: (row: ListedItem) => void;
-  readonly onMenu: (row: ListedItem, anchor: HTMLElement) => void;
+  readonly onMenu: (row: ListedItem, anchor: HTMLElement, openedBy: MenuOpener) => void;
 }
 
 const hueOf = (text: string) => {
@@ -180,7 +181,7 @@ export const ItemCard = ({
       onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
         if (landedInside(event) && event.key === "ContextMenu") {
           event.preventDefault();
-          onMenu(row, event.currentTarget);
+          onMenu(row, event.currentTarget, "key");
         }
       }}
       onContextMenu={(event) => {
@@ -189,7 +190,7 @@ export const ItemCard = ({
         }
 
         event.preventDefault();
-        onMenu(row, event.currentTarget);
+        onMenu(row, event.currentTarget, "pointer");
       }}
     >
       <MediaCardCover>

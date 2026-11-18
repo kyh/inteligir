@@ -1,8 +1,9 @@
+import { savesWaiting } from "@repo/client/waiting-saves";
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { Suspense, use, useState, useTransition } from "react";
 
-import type { Outcome, RefusedSave, Status, WorkerAsks } from "../../messages";
+import type { HeldSaves, Outcome, Status, WorkerAsks } from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 
 const UNSUPPORTED: Outcome = { kind: "refused", reason: "unsupported-page" };
@@ -10,12 +11,14 @@ const UNSUPPORTED: Outcome = { kind: "refused", reason: "unsupported-page" };
 interface OpenedSave {
   answer: Outcome;
   status: Status | null;
-  refused: readonly RefusedSave[];
+  held: HeldSaves;
 }
+
+const NONE_HELD: HeldSaves = { refused: [], waiting: 0 };
 
 export const saveOpenedTab = async (
   activeTabId: () => Promise<number | null>,
-  ask: Pick<WorkerAsks, "save" | "status" | "refused">,
+  ask: Pick<WorkerAsks, "save" | "status" | "saves">,
 ) => {
   const tabId = await activeTabId();
 
@@ -24,7 +27,7 @@ export const saveOpenedTab = async (
     ask.status(),
   ]);
 
-  return { answer, refused: (await ask.refused()) ?? [], status } satisfies OpenedSave;
+  return { answer, held: (await ask.saves()) ?? NONE_HELD, status } satisfies OpenedSave;
 };
 
 type RefusedAsks = Pick<WorkerAsks, "retry" | "discard">;
@@ -76,61 +79,68 @@ const Headline = ({ outcome, status }: { outcome: Outcome; status: Status | null
   );
 };
 
-const RefusedSaves = ({ ask, first }: { ask: RefusedAsks; first: readonly RefusedSave[] }) => {
-  const [saves, setSaves] = useState(first);
+const HeldSavesList = ({ ask, first }: { ask: RefusedAsks; first: HeldSaves }) => {
+  const [held, setHeld] = useState(first);
   const [asking, startAsking] = useTransition();
 
-  const act = (asked: () => Promise<readonly RefusedSave[] | null>) => {
+  const act = (asked: () => Promise<HeldSaves | null>) => {
     startAsking(async () => {
       const left = await asked();
 
       if (left !== null) {
-        setSaves(left);
+        setHeld(left);
       }
     });
   };
 
-  if (saves.length === 0) {
+  if (held.refused.length === 0 && held.waiting === 0) {
     return null;
   }
 
   return (
     <section className="flex flex-col gap-3 border-t border-border pt-3">
-      <h2 className="text-body text-muted-foreground">Didn&rsquo;t reach your library</h2>
-      <ul className="flex flex-col gap-3">
-        {saves.map((save) => (
-          <li className="flex flex-col gap-1" key={save.opId}>
-            <p className="truncate text-body text-foreground">{save.name}</p>
-            <p className="text-body text-muted-foreground">{save.message}</p>
-            <div className="flex gap-2">
-              <Button
-                disabled={asking}
-                variant="tertiary"
-                onClick={() => {
-                  act(async () => await ask.retry(save.opId));
-                }}
-              >
-                Try again
-              </Button>
-              <Button
-                disabled={asking}
-                variant="ghost"
-                onClick={() => {
-                  act(async () => await ask.discard(save.opId));
-                }}
-              >
-                Let it go
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {held.refused.length === 0 ? null : (
+        <>
+          <h2 className="text-body text-muted-foreground">Didn&rsquo;t reach your library</h2>
+          <ul className="flex flex-col gap-3">
+            {held.refused.map((save) => (
+              <li className="flex flex-col gap-1" key={save.opId}>
+                <p className="truncate text-body text-foreground">{save.name}</p>
+                <p className="text-body text-muted-foreground">{save.message}</p>
+                <div className="flex gap-2">
+                  <Button
+                    disabled={asking}
+                    variant="tertiary"
+                    onClick={() => {
+                      act(async () => await ask.retry(save.opId));
+                    }}
+                  >
+                    Try again
+                  </Button>
+                  <Button
+                    disabled={asking}
+                    variant="ghost"
+                    onClick={() => {
+                      act(async () => await ask.discard(save.opId));
+                    }}
+                  >
+                    Let it go
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {held.waiting === 0 ? null : (
+        <output className="text-body text-muted-foreground">{savesWaiting(held.waiting)}</output>
+      )}
     </section>
   );
 };
 
 const Opened = ({ ask, opened }: PopupProps) => {
-  const { answer, refused, status } = use(opened);
+  const { answer, held, status } = use(opened);
   const account = status?.account ?? null;
 
   return (
@@ -149,7 +159,7 @@ const Opened = ({ ask, opened }: PopupProps) => {
           </a>
         </>
       )}
-      <RefusedSaves ask={ask} first={refused} />
+      <HeldSavesList ask={ask} first={held} />
     </>
   );
 };

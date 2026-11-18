@@ -47,7 +47,9 @@ export const libraryWriteRows = {
   },
   files: {
     reserve: writing.files.reserve.handler(async ({ context, input }) => {
-      if (!(await spendHolderBudget("fileReserve", context.library.accountId))) {
+      const spent = await spendHolderBudget("fileReserve", context.library.accountId);
+
+      if (spent.kind === "refused") {
         throw new TooManyRequestsError();
       }
 

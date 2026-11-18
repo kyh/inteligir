@@ -111,6 +111,14 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await expect(page.getByRole("dialog")).toContainText("Start here.");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(cardOf(page, "Welcome")).toBeFocused();
+  await page.keyboard.press("ContextMenu");
+  await expect(page.getByRole("menuitem", { name: "Open" })).toHaveAttribute(
+    "data-highlighted",
+    "",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
 
   await page.keyboard.press("]");
   await page.getByRole("tabpanel", { name: "Info" }).getByRole("button", { name: "Tag…" }).click();

@@ -23,7 +23,7 @@ right cell
 :::
 :::
 
-Meet on @2026-07-01 at noon.
+Meet on :date[2026-07-01] at noon.
 
 <!-- an html comment the editor shows but never touches -->
 
@@ -43,7 +43,7 @@ A-->B;
 > [!NOTE]
 > An alert body.
 
-- [ ] a task with [[wiki]] and @2026-07-02
+- [ ] a task with [[wiki]] and :date[2026-07-02]
 - [x] done task
 
 | col | math  |

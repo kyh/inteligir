@@ -12,6 +12,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { mutationOptions, notifyManager } from "@tanstack/react-query";
 import type {
   InfiniteData,
+  Mutation,
   MutationFunctionContext,
   MutationOptions,
   QueryClient,
@@ -41,6 +42,9 @@ type FolderOp = Inputs["folders"]["write"]["ops"][number];
 type Folder = ScopesAnswer["folders"][number];
 
 const LIBRARY_WRITES = { id: "library" };
+
+const inLibraryQueue = (mutation: Mutation<unknown, unknown>) =>
+  mutation.options.scope?.id === LIBRARY_WRITES.id;
 
 interface Overlay {
   readonly row: (row: ListedItem) => ListedItem | null;
@@ -327,12 +331,20 @@ export const libraryWrites = ({
   readonly cloud: FileCloud;
   readonly wire: CloudWire;
 }) => {
-  const readAgain: Settled = async (_data, _error, _input, _held, { client: queryClient }) => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: orpc.library.listing.key() }),
-      queryClient.invalidateQueries({ queryKey: orpc.library.items.row.key() }),
-    ]);
-  };
+  const readAgainAfter = (queued: boolean) =>
+    (async (_data, _error, _input, _held, { client: queryClient }) => {
+      if (queryClient.isMutating({ predicate: inLibraryQueue }) > (queued ? 1 : 0)) {
+        return;
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.library.listing.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.library.items.row.key() }),
+      ]);
+    }) satisfies Settled;
+
+  const readAgain = readAgainAfter(true);
+  const readAgainSaved = readAgainAfter(false);
 
   const overlaid = <I>(
     idsOf: (input: I) => readonly string[],
@@ -439,9 +451,9 @@ export const libraryWrites = ({
 
           return item.id;
         },
-        onSettled: readAgain,
+        onSettled: readAgainSaved,
       }),
-    saveLink: () => orpc.library.items.saveLink.mutationOptions({ onSettled: readAgain }),
+    saveLink: () => orpc.library.items.saveLink.mutationOptions({ onSettled: readAgainSaved }),
     addFile: () =>
       mutationOptions({
         mutationFn: async ({ file, into }: { file: File; into: SaveInto }) => {
@@ -462,7 +474,7 @@ export const libraryWrites = ({
 
           return item;
         },
-        onSettled: readAgain,
+        onSettled: readAgainSaved,
       }),
     sweep: () => orpc.library.items.sweep.mutationOptions({ scope: LIBRARY_WRITES }),
   };

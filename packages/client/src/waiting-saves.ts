@@ -231,6 +231,9 @@ export const waitingSaves = <P>(args: {
   } satisfies WaitingSaves<P>;
 };
 
+export const savesWaiting = (count: number) =>
+  count === 1 ? "1 save waiting" : `${String(count)} saves waiting`;
+
 type Pass = { readonly kind: "idle" } | { readonly kind: "running"; readonly again: boolean };
 
 const passAfter = (pass: Pass, event: "asked" | "finished" | "failed") => {

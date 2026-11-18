@@ -11,12 +11,15 @@ import { dropItemFiles, fileOf } from "../files/file-names";
 import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
+import { compareText } from "@repo/contract/library/order-key";
+
 import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
 import { landNewItems } from "./library-landing";
 import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
 import { readItem, tagsOf } from "./library-rows";
+import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
 import { anyOf } from "./set-sql";
@@ -110,6 +113,9 @@ interface BulkAnswer {
   readonly addressHeld: string[];
 }
 
+const deletedLastFirst = (a: StoredItem, b: StoredItem) =>
+  (b.fields.deletedAt ?? 0) - (a.fields.deletedAt ?? 0) || compareText(a.id, b.id);
+
 export const setDeleted = async (
   scope: WriteScope,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
@@ -117,13 +123,24 @@ export const setDeleted = async (
   const changed: string[] = [];
   const missing: string[] = [];
   const addressHeld: string[] = [];
+  const read: StoredItem[] = [];
 
   for (const itemId of new Set(input.ids)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
 
     if (held === null) {
       missing.push(itemId);
-    } else if ((held.fields.deletedAt !== null) === input.deleted) {
+    } else {
+      read.push(held);
+    }
+  }
+
+  const ordered = input.deleted ? read : read.toSorted(deletedLastFirst);
+
+  for (const held of ordered) {
+    const itemId = held.id;
+
+    if ((held.fields.deletedAt !== null) === input.deleted) {
       changed.push(itemId);
     } else {
       try {

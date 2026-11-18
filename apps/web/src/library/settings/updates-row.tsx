@@ -53,8 +53,18 @@ const rowWords = (state: DesktopUpdateState) => {
       return { button: CHECK, status: "Inteligir couldn't check for updates." } satisfies RowWords;
     }
 
-    case "error": {
-      return { button: CHECK, status: "The last update didn't go through." } satisfies RowWords;
+    case "download-failed": {
+      return {
+        button: { label: "Try again", move: "download" },
+        status: `Inteligir ${state.version} didn't download.`,
+      } satisfies RowWords;
+    }
+
+    case "install-failed": {
+      return {
+        button: { label: "Try again", move: "install" },
+        status: `Inteligir ${state.version} didn't install.`,
+      } satisfies RowWords;
     }
 
     default: {

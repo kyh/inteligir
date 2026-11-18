@@ -34,7 +34,9 @@ const forwardSignUp = async (request: Request, body: SignUpRequest) => {
 };
 
 export const handleInviteSignUp = async (request: Request) => {
-  if (!(await spendCallerBudget("inviteSignUp", request))) {
+  const spent = await spendCallerBudget("inviteSignUp", request);
+
+  if (spent.kind === "refused") {
     return formRefusal(429, "Too many attempts — wait a minute.");
   }
 

@@ -427,6 +427,19 @@ const VALUE_ROWS: ValueRow[] = [
       { ...code("sh", ["npm i"]), indent: 3 },
     ],
   },
+  {
+    node: "list lines after a block nested deeper, in a quote",
+    value: [
+      el("blockquote", [
+        li("a", bullet(1)),
+        li("b", bullet(2)),
+        el("p", [t("under b")], { indent: 3 }),
+        li("c", bullet(2)),
+        li("c.1", { indent: 3, listStart: 1, listStyleType: "decimal" }),
+        li("d", bullet(1)),
+      ]),
+    ],
+  },
 ];
 
 const MARKDOWN_ROWS: MarkdownRow[] = [
@@ -524,6 +537,19 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     expected: [li("Title", bullet(1)), li("next", bullet(1))],
     md: "- # Title\n- next",
     node: "list item opened by a heading",
+  },
+  {
+    expected: [
+      li("Lay out.", { indent: 1, listStart: 1, listStyleType: "decimal" }),
+      el("p", [t("Seeing it all.")], { indent: 2 }),
+      li("Sleeping bag", bullet(2)),
+      li("Clothes", bullet(2)),
+      li("shirt", bullet(3)),
+      li("Check off.", { indent: 1, listStart: 2, listStyleType: "decimal" }),
+      li("Weigh.", { indent: 1, listStart: 3, listStyleType: "decimal" }),
+    ],
+    md: "1. Lay out.\n\n   Seeing it all.\n\n   - Sleeping bag\n   - Clothes\n     - shirt\n2. Check off.\n3. Weigh.\n",
+    node: "list after a list item's continuation paragraph",
   },
   {
     expected: [

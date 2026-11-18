@@ -32,9 +32,11 @@ import type { LibrarySelectionStore } from "./library-selection";
 import type { ListingView } from "@repo/client/listing-view";
 import type { CellStanding } from "../cloud/needs-connection";
 
+export type ListingPlaceholder = "same-scope" | "other-scope" | null;
+
 interface LibraryListing {
   readonly standing: CellStanding<ListingView>;
-  readonly placeholder: boolean;
+  readonly placeholder: ListingPlaceholder;
   readonly more: () => void;
 }
 
@@ -205,11 +207,19 @@ const SortMenu = ({
   </DropdownMenu>
 );
 
+const Skeleton = () => (
+  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
+    {SKELETON_CARDS.map((key) => (
+      <MediaCardSkeleton key={key} />
+    ))}
+  </div>
+);
+
 type LibraryBodyProps = Pick<LibraryViewProps, "scope" | "listing" | "kind" | "selection">;
 
 const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
   const commands = useLibraryCommands();
-  const { standing, more } = listing;
+  const { standing, more, placeholder } = listing;
 
   switch (standing.kind) {
     case "needs-connection": {
@@ -230,13 +240,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
     }
 
     case "loading": {
-      return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
-          {SKELETON_CARDS.map((key) => (
-            <MediaCardSkeleton key={key} />
-          ))}
-        </div>
-      );
+      return <Skeleton />;
     }
 
     case "answered": {
@@ -249,17 +253,24 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
   }
 
   const page = standing.data;
+
+  if (placeholder !== null && page.total === 0) {
+    return <Skeleton />;
+  }
+
   const empty = emptyWords(scope);
 
   return (
     <>
-      <KindChips
-        counts={page.kindCounts}
-        kind={kind}
-        onKindChange={(next) => {
-          commands.showKind(next);
-        }}
-      />
+      {placeholder === "other-scope" ? null : (
+        <KindChips
+          counts={page.kindCounts}
+          kind={kind}
+          onKindChange={(next) => {
+            commands.showKind(next);
+          }}
+        />
+      )}
       {page.total === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
           <p className="m-0 text-subtitle font-medium">{empty.title}</p>
@@ -268,7 +279,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
       ) : (
         <LibraryGrid
           listing={page}
-          shown={listing.placeholder ? null : { kind, scope }}
+          shown={placeholder === null ? { kind, scope } : null}
           selection={selection}
           onNearEnd={more}
         />
@@ -289,7 +300,11 @@ export const LibraryView = ({
   const commands = useLibraryCommands();
   const counts = useQuery(useLibraryQueries().scopes()).data;
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
-  const total = listing.standing.kind === "answered" ? listing.standing.data.total : null;
+
+  const total =
+    listing.standing.kind === "answered" && listing.placeholder !== "other-scope"
+      ? listing.standing.data.total
+      : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>

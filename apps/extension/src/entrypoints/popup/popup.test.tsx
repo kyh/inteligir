@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, test } from "vitest";
 import { OUTCOME_REASONS } from "../../messages";
 import type {
   ExtensionRequest,
+  HeldSaves,
   Outcome,
   OutcomeReason,
   RefusedSave,
@@ -36,37 +37,60 @@ const signedOut: Status = { account: null, signInUrl: SIGN_IN_URL };
 const LATER: RefusedSave = { message: FULL, name: "Read it later", opId: "later" };
 const OVER: RefusedSave = { message: FULL, name: "File over app", opId: "over" };
 
+type Retried = "lands" | "refused" | "unanswered";
+
 const worker = (
   status: Status | null,
   answers: Outcome[] = [],
-  held: { refused?: readonly RefusedSave[]; stillRefused?: boolean } = {},
+  kept: { refused?: readonly RefusedSave[]; waiting?: number; retried?: Retried } = {},
 ) => {
   const asked: ExtensionRequest[] = [];
-  let parked = held.refused ?? [];
-  const without = (opId: string) => parked.filter((save) => save.opId !== opId);
+  let held: HeldSaves = { refused: kept.refused ?? [], waiting: kept.waiting ?? 0 };
+  const without = (opId: string) => held.refused.filter((save) => save.opId !== opId);
 
   const ask: WorkerAsks = {
     discard: async (opId) => {
       asked.push({ opId, type: "discard" });
-      parked = without(opId);
+      held = { ...held, refused: without(opId) };
 
-      return parked;
-    },
-    refused: async () => {
-      asked.push({ type: "refused" });
-
-      return parked;
+      return held;
     },
     retry: async (opId) => {
       asked.push({ opId, type: "retry" });
-      parked = held.stillRefused === true ? parked : without(opId);
 
-      return parked;
+      const retried = kept.retried ?? "lands";
+
+      switch (retried) {
+        case "lands": {
+          held = { ...held, refused: without(opId) };
+          break;
+        }
+
+        case "unanswered": {
+          held = { refused: without(opId), waiting: held.waiting + 1 };
+          break;
+        }
+
+        case "refused": {
+          break;
+        }
+
+        default: {
+          throw new Error(`unexpected ${String(retried satisfies never)}`);
+        }
+      }
+
+      return held;
     },
     save: async (tabId) => {
       asked.push({ tabId, type: "save" });
 
       return answers.shift() ?? refused("failed");
+    },
+    saves: async () => {
+      asked.push({ type: "saves" });
+
+      return held;
     },
     status: async () => {
       asked.push({ type: "status" });
@@ -105,7 +129,7 @@ describe("the popup", () => {
     expect(asked).toStrictEqual([
       { tabId: 7, type: "save" },
       { type: "status" },
-      { type: "refused" },
+      { type: "saves" },
     ]);
   });
 
@@ -174,7 +198,7 @@ describe("the popup", () => {
     await expect(
       screen.findByText(outcomeLine(refused("unsupported-page")).text),
     ).resolves.toBeTruthy();
-    expect(asked).toStrictEqual([{ type: "status" }, { type: "refused" }]);
+    expect(asked).toStrictEqual([{ type: "status" }, { type: "saves" }]);
   });
 });
 
@@ -216,10 +240,29 @@ describe("the popup's refused saves", () => {
     ]);
 
     cleanup();
-    const refusing = worker(signedIn, [saved(true)], { refused: [LATER], stillRefused: true });
+    const refusing = worker(signedIn, [saved(true)], { refused: [LATER], retried: "refused" });
     await openPopup(refusing.ask);
     await press("Try again", await screen.findByRole("listitem"));
     expect(screen.getByRole("listitem").textContent).toContain("Read it later");
+  });
+
+  it("says a save tried again that the cloud does not answer waits, and keeps saying so", async () => {
+    const { ask } = worker(signedIn, [saved(true)], { refused: [LATER], retried: "unanswered" });
+    await openPopup(ask);
+    expect(screen.queryByText("1 save waiting")).toBeNull();
+    await press("Try again", await screen.findByRole("listitem"));
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("1 save waiting");
+  });
+
+  it("counts the saves that wait beside those the library refused", async () => {
+    await openPopup(worker(signedIn, [saved(true)], { refused: [LATER], waiting: 2 }).ask);
+    await screen.findByRole("listitem");
+    expect(screen.getByText("2 saves waiting")).toBeTruthy();
+    cleanup();
+    await openPopup(worker(signedIn, [saved(true)], { waiting: 1 }).ask);
+    await screen.findByText("1 save waiting");
+    expect(screen.queryByRole("list")).toBeNull();
   });
 
   it("lets one go as Let it go is pressed", async () => {

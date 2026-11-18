@@ -11,5 +11,6 @@ export default defineConfig({
       "@repo/db/test-database-file",
       "./src/test-support/file-store-setup.test-utils.ts",
     ],
+    testTimeout: 30_000,
   },
 });

@@ -5,7 +5,7 @@ import { z } from "zod";
 export const extensionRequestSchema = z.discriminatedUnion("type", [
   z.strictObject({ tabId: z.number().int(), type: z.literal("save") }),
   z.strictObject({ type: z.literal("status") }),
-  z.strictObject({ type: z.literal("refused") }),
+  z.strictObject({ type: z.literal("saves") }),
   z.strictObject({ opId: z.string().min(1), type: z.literal("retry") }),
   z.strictObject({ opId: z.string().min(1), type: z.literal("discard") }),
 ]);
@@ -46,9 +46,14 @@ const refusedSaveSchema = z.object({ message: z.string(), name: z.string(), opId
 
 export type RefusedSave = z.infer<typeof refusedSaveSchema>;
 
-const refusedSavesSchema = z.array(refusedSaveSchema);
+const heldSavesSchema = z.object({
+  refused: z.array(refusedSaveSchema).readonly(),
+  waiting: z.number().int().nonnegative(),
+});
 
-export type WorkerAnswer = Outcome | Status | readonly RefusedSave[];
+export type HeldSaves = z.infer<typeof heldSavesSchema>;
+
+export type WorkerAnswer = Outcome | Status | HeldSaves;
 
 const SAVE_FAILED: Outcome = { kind: "refused", reason: "failed" };
 
@@ -66,15 +71,15 @@ const answerTo = async <T, U>(request: ExtensionRequest, schema: z.ZodType<T>, u
 export interface WorkerAsks {
   readonly save: (tabId: number) => Promise<Outcome>;
   readonly status: () => Promise<Status | null>;
-  readonly refused: () => Promise<readonly RefusedSave[] | null>;
-  readonly retry: (opId: string) => Promise<readonly RefusedSave[] | null>;
-  readonly discard: (opId: string) => Promise<readonly RefusedSave[] | null>;
+  readonly saves: () => Promise<HeldSaves | null>;
+  readonly retry: (opId: string) => Promise<HeldSaves | null>;
+  readonly discard: (opId: string) => Promise<HeldSaves | null>;
 }
 
 export const askWorker: WorkerAsks = {
-  discard: async (opId) => await answerTo({ opId, type: "discard" }, refusedSavesSchema, null),
-  refused: async () => await answerTo({ type: "refused" }, refusedSavesSchema, null),
-  retry: async (opId) => await answerTo({ opId, type: "retry" }, refusedSavesSchema, null),
+  discard: async (opId) => await answerTo({ opId, type: "discard" }, heldSavesSchema, null),
+  retry: async (opId) => await answerTo({ opId, type: "retry" }, heldSavesSchema, null),
   save: async (tabId) => await answerTo({ tabId, type: "save" }, outcomeSchema, SAVE_FAILED),
+  saves: async () => await answerTo({ type: "saves" }, heldSavesSchema, null),
   status: async () => await answerTo({ type: "status" }, statusSchema, null),
 };

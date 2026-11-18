@@ -170,7 +170,8 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
 - **The Mac app's update is a toast that stays while there is something to do, and Settings says
   every state.** One of the toasts, so it stacks with them and their live region announces it; a
   check that failed found no update, so only Settings says it; the updater is the shell's, so one
-  store mirrors what it pushes and nothing downloads or restarts without a click.
+  store mirrors what it pushes, keeps its last state over an answer it cannot read, a command's or
+  an event's, and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
 - **The agent's composer is one state the tab's store keeps, its words with it.** Moved by
   `composerAfter`, a passage quoted by the event that asks about it, since a `useState` per concern

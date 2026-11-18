@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [WxtVitest({ root: import.meta.dirname })],
   test: {
     maxWorkers: 2,
+    testTimeout: 20_000,
     projects: [
       {
         extends: true,

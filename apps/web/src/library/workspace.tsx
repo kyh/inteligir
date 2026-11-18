@@ -21,6 +21,7 @@ import { useWindowCapture } from "./library/capture/window-capture";
 import { useLibraryCommands } from "./library/library-commands";
 import { createLibrarySelection, selectedIn } from "./library/library-selection";
 import { LibraryView } from "./library/library-view";
+import type { ListingPlaceholder } from "./library/library-view";
 import { listingQuery } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
@@ -56,10 +57,22 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
+  const scopeKey = JSON.stringify(scope);
+  const [listedScope, setListedScope] = useState(scopeKey);
+
+  if (!listing.isPlaceholderData && listedScope !== scopeKey) {
+    setListedScope(scopeKey);
+  }
+
+  let placeholder: ListingPlaceholder = null;
+
+  if (listing.isPlaceholderData) {
+    placeholder = listedScope === scopeKey ? "same-scope" : "other-scope";
+  }
+
   const selected = useStore(selection.store, (state) => state.selected);
   const picked = selectedIn(selected, view ?? NOTHING_LISTED);
 
-  const scopeKey = JSON.stringify(scope);
   const selectedUnder = useRef(scopeKey);
   useEffect(() => {
     if (selectedUnder.current !== scopeKey) {
@@ -117,13 +130,16 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
     onCapture: commands.save,
   });
 
-  const viewContext = () =>
-    viewContextOf({
+  const viewContext = () => {
+    const told = placeholder === null ? picked : selectedIn(selected, NOTHING_LISTED);
+
+    return viewContextOf({
       kind,
       openItem,
       scope,
-      selected: { count: picked.count, ids: picked.rows.map((row) => row.id) },
+      selected: { count: told.count, ids: told.rows.map((row) => row.id) },
     });
+  };
 
   const panelItem = openItem ?? (picked.count === 1 ? (picked.rows[0]?.id ?? null) : null);
 
@@ -163,7 +179,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
                           void listing.fetchNextPage();
                         }
                       },
-                      placeholder: listing.isPlaceholderData,
+                      placeholder,
                       standing: cellStanding({
                         data: view,
                         error: listing.error,

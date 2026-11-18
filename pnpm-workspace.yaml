@@ -126,10 +126,11 @@ catalog:
   postcss: ^8.5.29
   # exact: the patch below keys this release
   postgres: 3.4.9
-  # held under 19.3: the Expo SDK names React 19.2, the minor react-native's renderer is built on,
-  # and the react-dom patch below keys 19.2.8 exactly
-  react: ~19.2.8
-  react-dom: ~19.2.8
+  # exact: the react-dom patch below keys this release, so a resolution without the lockfile would
+  # take the next patch and leave it unused; and the Expo SDK names React 19.2, the minor
+  # react-native's renderer is built on
+  react: 19.2.8
+  react-dom: 19.2.8
   react-native: ~0.86.3
   # the web runtime the phone's DOM component renders on, which Expo's DOM components need outside
   # Expo Web

@@ -1,7 +1,7 @@
 {
   "name": "@repo/desktop",
   "private": true,
-  "description": "The Inteligir Mac app: a Tauri window on the library's page the site serves, with the stock updater.",
+  "description": "The Inteligir Mac app: a Tauri window on the site's library tab, with the stock updater.",
   "author": "kyh",
   "type": "module",
   "scripts": {

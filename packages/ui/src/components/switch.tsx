@@ -113,6 +113,7 @@ const Switch = ({
       }
 
       dragging.current = true;
+      motionX.stop();
     }
 
     const dragMin = THUMB_OFFSET;

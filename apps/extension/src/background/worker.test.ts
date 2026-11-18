@@ -56,6 +56,7 @@ const GET_SESSION = "/api/auth/get-session";
 const SAVE_LINK = "/v1/rpc/library/items/saveLink";
 
 const FULL = "Your library is full.";
+const NONE_HELD = { refused: [], waiting: 0 };
 
 const refusesFull = () =>
   Response.json(
@@ -246,13 +247,18 @@ describe("the worker", () => {
     let answer = refusesFull;
     const { asked } = cloudAnswers(() => answer());
     worker.main();
-    const parked = [{ message: FULL, name: "File over app", opId: WAITING.opId }];
+
+    const parked = {
+      refused: [{ message: FULL, name: "File over app", opId: WAITING.opId }],
+      waiting: 0,
+    };
+
     await vi.waitFor(async () => {
-      await expect(ask({ type: "refused" })).resolves.toStrictEqual(parked);
+      await expect(ask({ type: "saves" })).resolves.toStrictEqual(parked);
     });
     await expect(ask({ opId: WAITING.opId, type: "retry" })).resolves.toStrictEqual(parked);
     answer = lands;
-    await expect(ask({ opId: WAITING.opId, type: "retry" })).resolves.toStrictEqual([]);
+    await expect(ask({ opId: WAITING.opId, type: "retry" })).resolves.toStrictEqual(NONE_HELD);
     expect(asked.filter((pathname) => pathname === SAVE_LINK)).toHaveLength(3);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
@@ -263,12 +269,12 @@ describe("the worker", () => {
     cloudAnswers(refusesFull);
     worker.main();
     await vi.waitFor(async () => {
-      await expect(ask({ type: "refused" })).resolves.toHaveLength(1);
+      await expect(ask({ type: "saves" })).resolves.toMatchObject({ refused: [{}] });
     });
     jarHolds(false);
-    await expect(ask({ type: "refused" })).resolves.toStrictEqual([]);
+    await expect(ask({ type: "saves" })).resolves.toStrictEqual(NONE_HELD);
     jarHolds(true);
-    await expect(ask({ opId: WAITING.opId, type: "discard" })).resolves.toStrictEqual([]);
+    await expect(ask({ opId: WAITING.opId, type: "discard" })).resolves.toStrictEqual(NONE_HELD);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 });

@@ -112,6 +112,7 @@ const restrictedImports = (patterns: readonly ImportPattern[]) => [
 const BROWSER_STAND_INS = [
   "apps/extension/src/background/worker.test.ts",
   "apps/web/src/library/desktop-update-banner.test.tsx",
+  "apps/web/src/library/desktop-updates.test.tsx",
   "apps/web/src/library/item/item-stages.test.tsx",
   "apps/web/src/library/shell/desktop-bridge.test.tsx",
   "apps/web/src/library/test-support/card-grid-layout.test-utils.ts",
@@ -141,15 +142,10 @@ const SLOW_SUITES = {
   "packages/editor/src/headless/codec/item-markdown.test.ts": 3,
   "packages/editor/src/headless/codec/link-resolve-oracle.test.ts": 1,
   "packages/editor/src/long-note-chunks.test.tsx": 1,
-  "packages/page-reader/src/extract-page.heap.test.ts": 1,
-  "packages/page-reader/src/extract-page.test.ts": 3,
   "packages/service/src/files/file-store.contract.test.ts": 1,
-  "packages/service/src/fill/fill-run.test.ts": 2,
   "packages/service/src/library/library-imports.test.ts": 1,
   "packages/service/src/library/library-parity.test.ts": 1,
-  "packages/service/src/library/library-store.test.ts": 1,
   "packages/service/src/library/library-sweeps.test.ts": 2,
-  "packages/service/src/search/search-vector.test.ts": 1,
 };
 
 const WAITED_OUT = {

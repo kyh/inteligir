@@ -4,11 +4,7 @@ import {
   parseClientBuildHeader,
 } from "@repo/contract/client-build";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import {
-  ClientOutdatedError,
-  TooManyRequestsError,
-  UnauthorizedError,
-} from "@repo/contract/rpc/v1-errors";
+import { ClientOutdatedError, UnauthorizedError } from "@repo/contract/rpc/v1-errors";
 
 import { readSession } from "../auth/auth";
 import { env } from "../env";
@@ -69,9 +65,13 @@ export const admit = async (
   }
 
   const sessionId = signedIn.session.id;
+  const spent = await spendHolderBudget(budget, sessionId);
 
-  if (!(await spendHolderBudget(budget, sessionId))) {
-    return { kind: "refused", refusal: new TooManyRequestsError() } satisfies Admission;
+  if (spent.kind === "refused") {
+    return {
+      kind: "refused",
+      refusal: { retryAfterSeconds: spent.retryAfterSeconds },
+    } satisfies Admission;
   }
 
   return {

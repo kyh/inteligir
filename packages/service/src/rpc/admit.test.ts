@@ -161,7 +161,7 @@ dbSuite("the extension's bearer", () => {
 });
 
 dbSuite("the session's minute", () => {
-  it("answers a session's calls up to the minute's max and refuses the next, its session live and its account's others answered", async () => {
+  it("answers a session's calls up to the minute's max and refuses the next until its window opens, its session live and its account's others answered", async () => {
     const { cookie, phone } = await signedIn("minute-spent@example.test");
     const phoneSession = await sessionOf({ cookie: phone });
 
@@ -180,6 +180,10 @@ dbSuite("the session's minute", () => {
       devices: [{ current: false }, { current: true }],
     });
     await expect(refusalOfList(phoneHeaders(phone))).resolves.toStrictEqual(TOO_MANY);
+    const refused = await v1Post("account/devices/list", phoneHeaders(phone));
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThanOrEqual(59);
+    expect(Number(refused.headers.get("retry-after"))).toBeLessThanOrEqual(61);
 
     await expect(sessionOf({ cookie: phone })).resolves.not.toBeNull();
     await expect(v1Link(pageHeaders(cookie)).account.devices.list()).resolves.toMatchObject({

@@ -77,9 +77,18 @@ const say = (state: DesktopUpdateState | null) => {
       return;
     }
 
-    case "error": {
-      toast.error("The update didn't go through", {
-        ...step({ move: { label: "Try again", move: "check" } }),
+    case "download-failed": {
+      toast.error("The download didn't go through", {
+        ...step({ move: { label: "Try again", move: "download" } }),
+        description: state.message,
+      });
+
+      return;
+    }
+
+    case "install-failed": {
+      toast.error("The update didn't install", {
+        ...step({ move: { label: "Try again", move: "install" } }),
         description: state.message,
       });
 

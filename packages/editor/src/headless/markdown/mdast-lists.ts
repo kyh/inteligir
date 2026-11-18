@@ -45,16 +45,28 @@ const itemAt = (list: List, depth: number) => {
   return item;
 };
 
+const continues = (list: RootContent | undefined, line: List): list is List =>
+  isList(list) && list.ordered === line.ordered;
+
 export const nestInLists = <Node extends RootContent>(children: readonly Node[]) => {
   const out: Node[] = [];
-  let nested = false;
 
   for (const child of children) {
     const depth = child.data?.listDepth ?? null;
     const last = out.at(-1);
     const item = depth !== null && isList(last) ? itemAt(last, depth - 1) : null;
 
-    if (item !== null && isFlow(child)) {
+    if (depth === 1 && isList(child) && continues(last, child)) {
+      last.children.push(...child.children);
+    } else if (depth !== 1 && item !== null && isList(child)) {
+      const tail = item.children.at(-1);
+
+      if (continues(tail, child)) {
+        tail.children.push(...child.children);
+      } else {
+        item.children.push(child);
+      }
+    } else if (item !== null && !isList(child) && isFlow(child)) {
       const [head, ...rest] = item.children;
 
       const wordless =
@@ -64,12 +76,8 @@ export const nestInLists = <Node extends RootContent>(children: readonly Node[])
 
       item.children = wordless ? [child] : [...item.children, child];
       item.spread = true;
-      nested = true;
-    } else if (nested && isList(child) && isList(last) && last.ordered === child.ordered) {
-      last.children.push(...child.children);
     } else {
       out.push(child);
-      nested = false;
     }
   }
 

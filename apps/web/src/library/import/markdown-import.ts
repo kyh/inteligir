@@ -71,6 +71,9 @@ const bytesOf = async (entry: FileEntry) => {
   }
 };
 
+const fileBytesOf = async (entry: FileEntry) =>
+  entry.uncompressedSize > BLOB_MAX_BYTES ? null : await bytesOf(entry);
+
 const textOf = async (entry: FileEntry) => {
   const bytes = await bytesOf(entry);
 
@@ -83,11 +86,37 @@ const frontmatterOf = (text: string) => {
   return lines.slice(0, frontmatterEnd(lines) ?? 0);
 };
 
+const heldFiles = async (cell: ImportCell, listing: readonly Listed[]) => {
+  const files = listing.filter(({ path }) => importPathKind(path) === "file");
+
+  const hashed = await inPool(files, PATHS_AT_ONCE, async ({ entry, path }) => {
+    const bytes = await fileBytesOf(entry);
+
+    return bytes === null ? [] : [{ path, sha: fileSha(bytes) }];
+  });
+
+  const shas = hashed.flat();
+
+  const named = new Set(
+    await inChunks([...new Set(shas.map(({ sha }) => sha))], async (chunk) => {
+      const answer = await cell.named(chunk);
+
+      return answer.named;
+    }),
+  );
+
+  return new Map(
+    shas.flatMap(({ path, sha }) => (named.has(sha) ? [[path, sha]] : [])),
+  ) satisfies ReadonlyMap<string, string>;
+};
+
 const readListed: (
   cell: ImportCell,
+  held: ReadonlyMap<string, string>,
   listed: Listed,
 ) => Promise<ImportEntry | "skipped" | "unreadable"> = async (
   cell: ImportCell,
+  held: ReadonlyMap<string, string>,
   { entry, path }: Listed,
 ) => {
   const kind = importPathKind(path);
@@ -107,7 +136,13 @@ const readListed: (
     }
 
     case "file": {
-      const bytes = entry.uncompressedSize > BLOB_MAX_BYTES ? null : await bytesOf(entry);
+      const heldSha = held.get(path);
+
+      if (heldSha !== undefined) {
+        return { kind, path, sha: heldSha } satisfies ImportEntry | "skipped" | "unreadable";
+      }
+
+      const bytes = await fileBytesOf(entry);
       const sha = bytes === null ? null : await cell.keep(bytes, fileTypeOf(path));
 
       return (sha === null ? "unreadable" : { kind, path, sha }) satisfies
@@ -158,10 +193,12 @@ export const readMarkdownZip = async (
   const ids: PlanIds = { newItemId: (path) => importItemId(fingerprint, path) };
   const entries: ImportEntry[] = [];
   const notes = new Map<string, FileEntry>();
+  const unwrapped = unwrapExport(listing);
+  const held = await heldFiles(cell, unwrapped);
 
-  const reads = await inPool(unwrapExport(listing), PATHS_AT_ONCE, async (listed) => ({
+  const reads = await inPool(unwrapped, PATHS_AT_ONCE, async (listed) => ({
     entry: listed.entry,
-    read: await readListed(cell, listed),
+    read: await readListed(cell, held, listed),
   }));
 
   for (const { entry, read } of reads) {

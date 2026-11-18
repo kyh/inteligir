@@ -284,10 +284,11 @@ export const handleConnectorRequest: (request: Request) => Promise<Response> = a
   }
 
   const { principal } = authenticated;
+  const spent = await spendHolderBudget("connectorCall", principal.actor.grantId);
 
-  if (!(await spendHolderBudget("connectorCall", principal.actor.grantId))) {
+  if (spent.kind === "refused") {
     return jsonRpcError(429, "Too many requests. Try again in a minute.", {
-      headers: { "retry-after": "60" },
+      headers: { "retry-after": String(spent.retryAfterSeconds) },
     });
   }
 

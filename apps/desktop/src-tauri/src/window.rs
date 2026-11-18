@@ -1,6 +1,6 @@
-//! The one window, on the library's page the site serves: `devUrl` under `tauri dev`,
+//! The one window, on the site's library tab: `devUrl` under `tauri dev`,
 //! `frontendDist` in a build. It opens no second window and gets no device permission, and closing
-//! it hides it, so the page keeps its state for the Dock's next click.
+//! it hides it, so the tab keeps its state for the Dock's next click.
 
 use tauri::utils::config::FrontendDist;
 use tauri::webview::{DownloadEvent, NewWindowResponse, PermissionResponse};

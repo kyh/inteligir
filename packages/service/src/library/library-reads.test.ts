@@ -179,7 +179,7 @@ dbSuite("what the library answers a read of one item", () => {
     });
   });
 
-  it("writes a page link under its item's title as it stands, and names the items linking in and out", async () => {
+  it("writes an item link under its item's title as it stands, and names the items linking in and out", async () => {
     const { accountId, library } = await personalLibrary();
     const renamed = await seedItem(accountId, { fields: noteFixture({ title: "New name" }) });
 

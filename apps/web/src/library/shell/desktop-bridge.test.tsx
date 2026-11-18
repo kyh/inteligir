@@ -1,7 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ZodError } from "zod";
 
 import { desktopBridge } from "./desktop-bridge";
 import type { DesktopUpdateState } from "./desktop-bridge";
@@ -9,6 +8,7 @@ import type { DesktopUpdateState } from "./desktop-bridge";
 afterEach(() => {
   clearMocks();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 type ShellAnswer = {
@@ -16,6 +16,8 @@ type ShellAnswer = {
   readonly status: string;
   readonly version?: string;
 } | null;
+
+const silenced = () => vi.spyOn(console, "warn").mockImplementation(() => {});
 
 const underShell = (answer: (command: string) => ShellAnswer) => {
   vi.stubGlobal("isTauri", true);
@@ -52,11 +54,16 @@ describe("the Mac app's door", () => {
     expect(asked).toStrictEqual(["check_for_updates", "download_update", "install_update"]);
   });
 
-  it("tells a check that failed from an update that did", async () => {
-    const bridge = underShell((command) => ({
-      message: "offline",
-      status: command === "check_for_updates" ? "check-failed" : "error",
-    }));
+  it("tells a check that failed from a download and an install that did", async () => {
+    const bridge = underShell((command) =>
+      command === "check_for_updates"
+        ? { message: "offline", status: "check-failed" }
+        : {
+            message: "offline",
+            status: command === "download_update" ? "download-failed" : "install-failed",
+            version: "1.2.3",
+          },
+    );
 
     await expect(bridge.checkForUpdates()).resolves.toStrictEqual({
       message: "offline",
@@ -64,16 +71,34 @@ describe("the Mac app's door", () => {
     });
     await expect(bridge.downloadUpdate()).resolves.toStrictEqual({
       message: "offline",
-      status: "error",
+      status: "download-failed",
+      version: "1.2.3",
+    });
+    await expect(bridge.installUpdate()).resolves.toStrictEqual({
+      message: "offline",
+      status: "install-failed",
+      version: "1.2.3",
     });
   });
 
-  it("refuses an answer it does not know", async () => {
-    const bridge = underShell(() => ({ status: "ready" }));
-    await expect(bridge.checkForUpdates()).rejects.toBeInstanceOf(ZodError);
+  it("answers none, and says so, for an answer it does not know or a command the shell refused", async () => {
+    const warned = silenced();
+
+    const bridge = underShell((command) => {
+      if (command === "install_update") {
+        throw new Error("not allowed");
+      }
+
+      return { status: "ready" };
+    });
+
+    await expect(bridge.checkForUpdates()).resolves.toBeNull();
+    await expect(bridge.installUpdate()).resolves.toBeNull();
+    expect(warned).toHaveBeenCalledTimes(2);
   });
 
   it("hands a listener every state the shell pushes, and drops a frame it does not know", async () => {
+    const warned = silenced();
     const bridge = underShell(() => null);
     const heard: DesktopUpdateState[] = [];
 
@@ -88,6 +113,7 @@ describe("the Mac app's door", () => {
     await emit("update-state", { status: "ready" });
     expect(heard.at(-1)).toStrictEqual({ downloadPercent: 40, status: "downloading" });
     expect(heard.every((state) => state.status === "downloading")).toBe(true);
+    expect(warned).toHaveBeenCalledOnce();
     stop();
   });
 });

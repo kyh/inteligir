@@ -1,33 +1,35 @@
+import { emit } from "@tauri-apps/api/event";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { desktopBridge } from "./shell/desktop-bridge";
 import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 import { createUpdatesStore } from "./desktop-updates";
 
+afterEach(() => {
+  clearMocks();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 const AVAILABLE: DesktopUpdateState = { status: "available", version: "1.2.3" };
 
-type Ask = () => Promise<DesktopUpdateState>;
+type Ask = () => Promise<DesktopUpdateState | null>;
 
-const DOWNLOADING: DesktopUpdateState = { downloadPercent: 0, status: "downloading" };
-
-const refused = async () => await Promise.reject(new Error("not allowed"));
-
-const fakeBridge = (check: Ask, download: Ask = async () => await Promise.resolve(DOWNLOADING)) => {
+const fakeBridge = (check: Ask) => {
   const pushes: ((state: DesktopUpdateState) => void)[] = [];
 
   const bridge = {
-    checkForUpdates: check,
-    downloadUpdate: download,
-    installUpdate: async () => await Promise.resolve(AVAILABLE),
+    checkForUpdates: vi.fn<Ask>(check),
+    downloadUpdate: vi.fn<Ask>(async () => ({ downloadPercent: 0, status: "downloading" })),
+    installUpdate: vi.fn<Ask>(async () => AVAILABLE),
     onUpdateState: (listener: (state: DesktopUpdateState) => void) => {
       pushes.push(listener);
 
       return () => {};
     },
   } satisfies DesktopBridge;
-
-  vi.spyOn(bridge, "checkForUpdates");
-  vi.spyOn(bridge, "downloadUpdate");
 
   const push = (state: DesktopUpdateState) => {
     for (const listener of pushes) {
@@ -71,24 +73,59 @@ describe("the updates store", () => {
     expect(result.current).toStrictEqual({ downloadPercent: 0, status: "downloading" });
   });
 
-  it("names the step the shell refused: a check that failed, or an update that didn't go through", async () => {
-    const warned = vi.spyOn(console, "warn");
-    const { bridge } = fakeBridge(refused, refused);
+  it("keeps the last state when a command's answer can't be read", async () => {
+    const { bridge } = fakeBridge(async () => null);
+    bridge.downloadUpdate.mockResolvedValueOnce(null);
     const store = createUpdatesStore(bridge);
     const { result } = renderHook(store.use);
-    await vi.waitFor(() => {
-      expect(result.current).toStrictEqual({
-        message: "The updater did not answer.",
-        status: "check-failed",
-      });
+    expect(bridge.checkForUpdates).toHaveBeenCalledOnce();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current).toStrictEqual({ status: "idle" });
+    bridge.checkForUpdates.mockResolvedValueOnce(AVAILABLE);
+    await act(async () => {
+      await store.move("check");
     });
     await act(async () => {
       await store.move("download");
     });
-    expect(result.current).toStrictEqual({
-      message: "The updater did not answer.",
-      status: "error",
+    expect(bridge.downloadUpdate).toHaveBeenCalledOnce();
+    expect(result.current).toStrictEqual(AVAILABLE);
+  });
+
+  it("treats an answer it can't read alike from the shell's commands and its event", async () => {
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const answers = new Map<string, unknown>([["check_for_updates", AVAILABLE]]);
+    vi.stubGlobal("isTauri", true);
+    mockIPC(
+      (command) => {
+        if (command === "install_update") {
+          throw new Error("not allowed");
+        }
+
+        return answers.get(command) ?? { status: "ready" };
+      },
+      { shouldMockEvents: true },
+    );
+    const store = createUpdatesStore(desktopBridge());
+    const { result } = renderHook(store.use);
+    await vi.waitFor(() => {
+      expect(result.current).toStrictEqual(AVAILABLE);
     });
-    expect(warned).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await store.move("download");
+    });
+    expect(result.current).toStrictEqual(AVAILABLE);
+    await act(async () => {
+      await store.move("install");
+    });
+    expect(result.current).toStrictEqual(AVAILABLE);
+    await act(async () => {
+      await emit("update-state", { status: "ready" });
+    });
+    expect(result.current).toStrictEqual(AVAILABLE);
+    expect(warned).toHaveBeenCalledTimes(3);
   });
 });

@@ -379,18 +379,24 @@ export const createFakeCell = () => {
     return target.id;
   };
 
+  const deletedAtOf = (id: string) => items.get(id)?.fields.deletedAt ?? 0;
+
   const setDeleted = (ids: readonly string[], deleted: boolean) => {
     const at = NOW + head + 1;
     const changed: string[] = [];
-    const missing: string[] = [];
     const addressHeld: string[] = [];
+    const unique = [...new Set(ids)];
+    const missing = unique.filter((id) => !items.has(id));
+    const present = unique.filter((id) => items.has(id));
 
-    for (const id of new Set(ids)) {
-      const item = items.get(id);
+    const ordered = deleted
+      ? present
+      : present.toSorted((a, b) => deletedAtOf(b) - deletedAtOf(a) || compareText(a, b));
 
-      if (item === undefined) {
-        missing.push(id);
-      } else if ((item.fields.deletedAt !== null) === deleted) {
+    for (const id of ordered) {
+      const item = holding(id);
+
+      if ((item.fields.deletedAt !== null) === deleted) {
         changed.push(id);
       } else if (!deleted && item.fields.url !== null && holderOf(item.fields.url) !== null) {
         addressHeld.push(id);
@@ -437,19 +443,11 @@ export const createFakeCell = () => {
     return refused.toSorted();
   };
 
-  const restoreSwept = (ids: readonly string[]) => {
-    const inDeleted = ids.flatMap((id) => {
-      const { deletedAt } = holding(id).fields;
-
-      return deletedAt === null ? [] : [{ deletedAt, id }];
-    });
-
-    const deletedLast = inDeleted
-      .toSorted((a, b) => b.deletedAt - a.deletedAt || compareText(a.id, b.id))
-      .map(({ id }) => id);
-
-    return setDeleted(deletedLast, false).addressHeld.toSorted();
-  };
+  const restoreSwept = (ids: readonly string[]) =>
+    setDeleted(
+      ids.filter((id) => holding(id).fields.deletedAt !== null),
+      false,
+    ).addressHeld.toSorted();
 
   const purge = (ids: readonly string[]) => {
     const unique = [...new Set(ids)];

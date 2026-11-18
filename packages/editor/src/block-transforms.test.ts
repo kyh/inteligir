@@ -85,6 +85,25 @@ describe("turnIntoAt round-trips", () => {
     expect(out(tip)).toBe("> [!TIP]\n> hello\n");
   });
 
+  it.each(["> One.\n>\n> Two.\n", "> [!TIP]\n> One.\n>\n> Two.\n"])(
+    "a quote of two paragraphs turned into another block keeps both (%j)",
+    (md) => {
+      const text = makeEditor(md);
+      turnIntoAt(text, [0], opt("text"));
+      expect(out(text)).toBe("One.\n\nTwo.\n");
+
+      const heading = makeEditor(md);
+      turnIntoAt(heading, [0], opt("heading-2"));
+      expect(out(heading)).toBe("## One.\n\n## Two.\n");
+    },
+  );
+
+  it("a quote inside a quote comes out whole", () => {
+    const editor = makeEditor("> > nested\n");
+    turnIntoAt(editor, [0], opt("text"));
+    expect(out(editor)).toBe("nested\n");
+  });
+
   it.each<[TurnIntoId, string]>([
     ["quote", "## Heading\n\n> item typed\n"],
     ["callout", "## Heading\n\n> [!NOTE]\n> item typed\n"],
@@ -146,6 +165,47 @@ describe("turnIntoOptionFor (toolbar type indicator)", () => {
       turnIntoOptionFor({ alert: "TIP", children: [{ text: "hi" }], type: "blockquote" }).id,
     ).toBe("callout");
     expect(turnIntoOptionFor({ children: [{ text: "" }], type: "toggle" }).id).toBe("toggle");
+  });
+
+  it.each([
+    ["> [!NOTE]\n> One.\n>\n> Two.\n", "Callout"],
+    ["> One.\n>\n> Two.\n", "Quote"],
+  ])("a caret inside %j reads as the block it sits in", (md, label) => {
+    const editor = makeEditor(md);
+    editor.tf.select(editor.api.end([0, 1]));
+    const entry = effectiveBlockEntry(editor);
+    expect(entry && turnIntoOptionFor(entry[0]).label).toBe(label);
+  });
+});
+
+describe("turn into from inside a quote", () => {
+  it.each<[string, TurnIntoId, string]>([
+    ["> hi\n", "quote", "> hi typed\n"],
+    ["> [!TIP]\n> hi\n", "callout", "> [!TIP]\n> hi typed\n"],
+    ["> [!TIP]\n> hi\n", "quote", "> hi typed\n"],
+    ["> hi\n", "callout", "> [!NOTE]\n> hi typed\n"],
+    ["> [!TIP]\n> One.\n>\n> Two.\n", "text", "One.\n\nTwo. typed\n"],
+  ])("%j turned into %s converts the quote, never nests one", (md, id, expected) => {
+    const editor = makeEditor(md);
+    editor.tf.select(editor.api.end([]));
+    turnIntoSelection(editor, opt(id));
+    editor.tf.insertText(" typed");
+    expect(out(editor)).toBe(expected);
+  });
+
+  it("a selection from a quote's paragraph converts it as the block menu does, for every target", () => {
+    const quoteThenP = "> One.\n>\n> Two.\n\np\n";
+
+    for (const target of TURN_INTO) {
+      const viaMenu = makeEditor(quoteThenP);
+      turnIntoBlocks(viaMenu, [[0], [1]], target);
+      const viaSelection = makeEditor(quoteThenP);
+      turnIntoSelection(viaSelection, target, {
+        anchor: { offset: 0, path: [0, 1, 0] },
+        focus: { offset: 1, path: [1, 0] },
+      });
+      expect(out(viaSelection), target.label).toBe(out(viaMenu));
+    }
   });
 });
 

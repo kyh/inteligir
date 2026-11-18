@@ -43,9 +43,15 @@ export const callerRateKey = (family: CallerRateFamily, request: Request) =>
 export const holderRateKey = (family: HolderRateFamily, holderId: string) =>
   `${HOLDER_RATE_KEY_PREFIXES[family]}${holderId}`;
 
+type BudgetSpend =
+  | { readonly kind: "allowed" }
+  | { readonly kind: "refused"; readonly retryAfterSeconds: number };
+
+const ALLOWED: BudgetSpend = { kind: "allowed" };
+
 const allowInWindow = async (key: string, window: RateWindow) => {
   if (env.RATE_LIMIT_DISABLED) {
-    return true;
+    return ALLOWED;
   }
 
   const nowMs = Date.now();
@@ -61,9 +67,18 @@ const allowInWindow = async (key: string, window: RateWindow) => {
       },
       target: rateLimit.key,
     })
-    .returning({ count: rateLimit.count });
+    .returning({ count: rateLimit.count, opened: rateLimit.lastRequest });
 
-  return settled === undefined || settled.count <= window.max;
+  if (settled === undefined || settled.count <= window.max) {
+    return ALLOWED;
+  }
+
+  const untilOpen = settled.opened + window.windowMs + 1 - nowMs;
+
+  return {
+    kind: "refused",
+    retryAfterSeconds: Math.max(1, Math.ceil(untilOpen / 1000)),
+  } satisfies BudgetSpend;
 };
 
 export const spendCallerBudget = async (family: CallerRateFamily, request: Request) =>

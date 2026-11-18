@@ -20,7 +20,9 @@ export const accountRouter = {
     }),
   },
   delete: os.account.delete.handler(async ({ context, errors, input }) => {
-    if (!(await spendHolderBudget("accountDelete", context.principal.actor.sessionId))) {
+    const spent = await spendHolderBudget("accountDelete", context.principal.actor.sessionId);
+
+    if (spent.kind === "refused") {
       throw errors.TOO_MANY_REQUESTS();
     }
 

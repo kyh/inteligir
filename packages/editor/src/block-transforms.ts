@@ -98,16 +98,19 @@ const turnIntoTarget = (editor: PlateEditor, entry: [TElement, Path]) => {
     node.type === editor.getType(KEYS.codeLine) ? (parentElement(editor, path) ?? entry) : entry;
 
   const [, blockPath] = block;
+  const parent = parentElement(editor, blockPath);
 
-  if (blockPath.at(-1) === 0) {
-    const toggle = parentElement(editor, blockPath);
-
-    if (toggle !== null && toggle[0].type === editor.getType(KEYS.toggle)) {
-      return toggle;
-    }
+  if (parent === null) {
+    return block;
   }
 
-  return block;
+  const [container] = parent;
+
+  const standsForParent =
+    container.type === editor.getType(KEYS.blockquote) ||
+    (container.type === editor.getType(KEYS.toggle) && blockPath.at(-1) === 0);
+
+  return standsForParent ? parent : block;
 };
 
 export const effectiveBlockEntry = (editor: PlateEditor, at?: TRange) => {
@@ -249,6 +252,21 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption) =
 
       for (let i = texts.length - 1; i >= 0; i -= 1) {
         applyTarget(editor, [...at.slice(0, -1), index + i], opt);
+      }
+
+      return;
+    } else if (node.type === editor.getType(KEYS.blockquote) && opt.type !== KEYS.blockquote) {
+      const index = at.at(-1);
+
+      if (index === undefined) {
+        return;
+      }
+
+      const count = node.children.length;
+      editor.tf.unwrapNodes({ at });
+
+      for (let i = count - 1; i >= 0; i -= 1) {
+        turnIntoAt(editor, [...at.slice(0, -1), index + i], opt);
       }
 
       return;

@@ -1,5 +1,6 @@
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { RetryAfterLinkPlugin } from "@orpc/client/plugins";
 
 import { refusalText } from "./refusal-text";
 import { V1_RPC_PATH } from "./v1-contract";
@@ -72,6 +73,7 @@ export const v1Client = (transport: V1Transport, onSessionEnd?: (end: SessionEnd
         }),
       ],
       origin: transport.origin,
+      plugins: [new RetryAfterLinkPlugin()],
       url: V1_RPC_PATH,
     }),
   );

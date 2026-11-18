@@ -1,13 +1,11 @@
 import { Alert, Text, View } from "react-native";
 import { useSyncExternalStore } from "react";
+import { savesWaiting } from "@repo/client/waiting-saves";
 import type { WaitingShare } from "@/items/share-outbox";
 import { useLibrary } from "@/lib/library-hooks";
 import { TextButton } from "@/ui/text-button";
 
 const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";
-
-const savesWaiting = (count: number) =>
-  count === 1 ? "1 save waiting" : `${String(count)} saves waiting`;
 
 const shareName = (share: WaitingShare) =>
   share.payload.kind === "link" ? share.payload.url : share.payload.text;

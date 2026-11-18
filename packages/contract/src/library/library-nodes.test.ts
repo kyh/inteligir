@@ -159,7 +159,7 @@ describe("the persisted node set", () => {
       { children: [{ children: leaf, type: "tag", value: "work" }], id: "p", type: "p" },
     ],
     [
-      "a page link to no item",
+      "an item link to no item",
       {
         children: [{ children: leaf, key: "", type: "mention", value: "Note" }],
         id: "p",
@@ -167,7 +167,7 @@ describe("the persisted node set", () => {
       },
     ],
     [
-      "a wiki link, which a page link stands for",
+      "a wiki link, which an item link stands for",
       {
         children: [{ children: leaf, itemId: "i", title: "N", type: "wikiLink" }],
         id: "p",

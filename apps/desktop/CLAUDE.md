@@ -37,9 +37,12 @@ carries, and updates.
 - **An update waits for a click to download and another to restart** (owner decision). Rust drives
   Tauri's updater behind three commands and one event, its session one phase moved by one pure step,
   so an ask that does not fit the phase is a no-op. `apps/desktop/src-tauri/src/updater.rs`.
-- **A check that failed is a state of its own, apart from a download or an install that did.** The
-  page checks each time it loads, so a feed it could not read is no update to act on, and one state
-  for both would put the update's toast up over nothing. `apps/desktop/src-tauri/src/updater.rs`.
+- **A check, a download and an install that failed are each a state of their own.** The page checks
+  each time it loads, so a feed it could not read is no update to act on, and puts no toast up over
+  nothing. `apps/desktop/src-tauri/src/updater.rs`.
+- **A failed download keeps its release, and a failed install its verified bytes too.** Try again
+  reruns that step, since a new check after a download cut off offline fails as well and leaves
+  nothing to retry. `apps/desktop/src-tauri/src/updater.rs`.
 - **Only the page asks for a check, and the menu holds no update item** (owner decision). Settings
   words every answer a check gives, and a menu item's commonest one, up to date, has no screen of
   its own to say it. `apps/desktop/src-tauri/src/menu.rs`.

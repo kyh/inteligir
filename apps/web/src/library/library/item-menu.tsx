@@ -12,9 +12,12 @@ import { targetCount } from "./library-selection";
 import type { Target } from "./library-selection";
 import type { ListedItem } from "./listing";
 
+export type MenuOpener = "pointer" | "key";
+
 export interface ItemMenuState {
   readonly row: ListedItem;
   readonly anchor: HTMLElement;
+  readonly openedBy: MenuOpener;
   readonly target: Target;
   readonly subjects: readonly ListedItem[];
 }
@@ -175,7 +178,12 @@ export const ItemMenu = ({
       }}
     >
       {menu === null ? null : (
-        <DropdownMenuContent anchor={menu.anchor} side="bottom" align="start">
+        <DropdownMenuContent
+          anchor={menu.anchor}
+          side="bottom"
+          align="start"
+          openedByKey={menu.openedBy === "key"}
+        >
           {menu.row.fields.deletedAt === null ? (
             <LibraryVerbs menu={menu} onQuickLook={onQuickLook} run={run} />
           ) : (

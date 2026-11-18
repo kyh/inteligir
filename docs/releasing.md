@@ -337,8 +337,9 @@ The unpacked store build, against production, with no dev build loaded.
 - **A large picture**: right-click Save on a picture over 4.5 MB, on a slow
   link with DevTools closed, lands as its item.
 - **A refused save**: one a full library refuses says so in the library's
-  words and stays in the popup under Didn't reach your library, where Try again
-  lands it once there is room and Let it go drops it.
+  words and stays in the popup under Didn't reach your library, listed once
+  however often its page is saved, where Try again lands it once there is room,
+  or offline leaves it counted as waiting, and Let it go drops it.
 
 ### The iPhone app, on the internal build
 
@@ -579,7 +580,11 @@ Only once every check in § 5 has passed, and the three close together.
   bar, Settings › About says `Inteligir <version> installs when it restarts.`,
   and Restart to update relaunches the app; About Inteligir names `<version>`,
   with the library as it was. Again from the previous build, type in a note and choose Restart to
-  update at once. Passing: the words just typed are still in the note.
+  update at once. Passing: the words just typed are still in the note. Again from the previous
+  build, choose Download and turn Wi-Fi off before the bar fills. Passing: the toast says the
+  download didn't go through, with the reason, and Settings › About says
+  `Inteligir <version> didn't download.`; Try again while still offline keeps the toast up with
+  its reason, and Try again once Wi-Fi is back fills the bar with no new check.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
   build loaded. Passing: the install prompt names inteligir.com as the one

@@ -5,6 +5,7 @@ import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
+import type { HeldSaves } from "../messages";
 import type { Cloud, LinkSave } from "./cloud";
 import { forgetConnection, readConnection } from "./connection";
 import type { Session, SignIn } from "./sign-in";
@@ -62,9 +63,34 @@ export const linkOf = (save: QueuedSave) => {
 const trying = new Set<string>();
 let unanswered = 0;
 
+const joinRefused = async (save: QueuedSave, outcome: CallOutcome<unknown>) => {
+  const { email, url } = save.payload;
+  const all = await saves.list();
+
+  const [held, ...also] = all.filter(
+    (kept) =>
+      kept.refused !== null &&
+      kept.opId !== save.opId &&
+      kept.payload.email === email &&
+      kept.payload.url === url,
+  );
+
+  if (held === undefined) {
+    return;
+  }
+
+  for (const joined of [save, ...also]) {
+    await saves.discard(joined.opId);
+  }
+
+  await saves.settle(held.opId, outcome);
+};
+
 const met = async <T>(save: QueuedSave, outcome: CallOutcome<T>) => {
   if (outcome.kind === "gone") {
     await accountGone(save.payload.email);
+  } else if (outcome.kind === "refused") {
+    await joinRefused(save, outcome);
   } else if (outcome.kind === "wait" && outcome.for === "connection") {
     unanswered += 1;
   }
@@ -142,14 +168,18 @@ const sendPass = async (deps: SendDeps) => {
 
 export const sendQueued = oneAtATime(sendPass);
 
-export const refusedSaves = async (email: string) => {
-  const kept = await saves.list();
+export const heldSaves = async (email: string) => {
+  const all = await saves.list();
+  const kept = all.filter(({ payload }) => payload.email === email);
 
-  return kept.flatMap(({ opId, payload, refused }) =>
-    refused === null || payload.email !== email
-      ? []
-      : [{ message: refused, name: payload.title === "" ? payload.url : payload.title, opId }],
-  );
+  return {
+    refused: kept.flatMap(({ opId, payload, refused }) =>
+      refused === null
+        ? []
+        : [{ message: refused, name: payload.title === "" ? payload.url : payload.title, opId }],
+    ),
+    waiting: kept.filter(({ refused }) => refused === null).length,
+  } satisfies HeldSaves;
 };
 
 export const retrySave = saves.retry;

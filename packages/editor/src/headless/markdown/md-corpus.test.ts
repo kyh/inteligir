@@ -41,6 +41,8 @@ const KEPT_BELOW_ALL = new Map([
 ]);
 
 const VOIDS_HELD = new Map<string, readonly string[]>([
+  ["date-edges.md", [KEYS.date]],
+  ["date-only-paragraph.md", [KEYS.date]],
   ["escaped-constructs.md", []],
   ["list-soft-break-beside-void.md", [FORMULA_PILL_KEY, KEYS.mention]],
   ["soft-break-beside-void.md", [KEYS.date, FORMULA_PILL_KEY, KEYS.img, KEYS.mention]],

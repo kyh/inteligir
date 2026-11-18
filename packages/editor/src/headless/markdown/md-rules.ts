@@ -123,10 +123,24 @@ const CONTAINER_TYPES: ReadonlySet<string> = new Set([
 export const writtenInList = (block: TElement) =>
   isListLine(block) || numberProp(block, "indent") !== undefined;
 
-export const markListNesting = (blocks: readonly Descendant[]) =>
-  blocks.map((block) => {
+type ListPlace = "outside" | "run" | "nested";
+
+const markedAt = (block: TElement, depth: number) =>
+  ({
+    children: [block],
+    [LIST_DEPTH_KEY]: depth,
+    type: LIST_NESTED_KEY,
+  }) satisfies TElement;
+
+export const markListNesting = (blocks: readonly Descendant[]) => {
+  const marked: Descendant[] = [];
+  let place: ListPlace = "outside";
+
+  for (const block of blocks) {
     if (!ElementApi.isElement(block)) {
-      return block;
+      marked.push(block);
+      place = "outside";
+      continue;
     }
 
     const inner: TElement = CONTAINER_TYPES.has(block.type)
@@ -135,14 +149,21 @@ export const markListNesting = (blocks: readonly Descendant[]) =>
 
     const indent = numberProp(inner, "indent");
 
-    if (isListLine(inner) || indent === undefined) {
-      return inner;
+    if (indent === undefined) {
+      marked.push(inner);
+      place = "outside";
+    } else if (isListLine(inner)) {
+      marked.push(place === "nested" ? markedAt(inner, indent) : inner);
+      place = place === "nested" ? "nested" : "run";
+    } else {
+      const { indent: _indent, listStyleType: _style, checked: _checked, ...rest } = inner;
+      marked.push(markedAt(rest, indent));
+      place = place === "outside" ? "outside" : "nested";
     }
+  }
 
-    const { indent: _indent, listStyleType: _style, checked: _checked, ...rest } = inner;
-
-    return { children: [rest], [LIST_DEPTH_KEY]: indent, type: LIST_NESTED_KEY };
-  });
+  return marked;
+};
 
 const isEmptyInlineEquation = (node: Descendant) =>
   ElementApi.isElement(node) &&
@@ -536,7 +557,8 @@ const readBlockquote = (node: Blockquote, deco: MdDecoration, options: Deseriali
 };
 
 const writeBlockquote = (node: TElement, options: SerializeMdOptions) => {
-  const quote = defaultBlockquote(node, options);
+  const stock = defaultBlockquote(node, options);
+  const quote = { ...stock, children: nestInLists(stock.children) };
   const alert = alertProp(node);
 
   if (alert === undefined) {

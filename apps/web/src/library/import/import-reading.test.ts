@@ -208,6 +208,28 @@ describe("a zip of notes read on the device", () => {
     expect([...library.items.keys()]).toStrictEqual(ids);
   });
 
+  it("sends up no file again that an item holds when the same zip is read again", async () => {
+    const library = fakeCell();
+    const kept: string[] = [];
+
+    const counting: ImportCell = {
+      ...library.cell,
+      keep: async (bytes, mime) => {
+        kept.push(fileSha(bytes));
+
+        return await library.cell.keep(bytes, mime);
+      },
+    };
+
+    const zip = await zipOf(VAULT);
+    await read(counting, zip, "markdown");
+    expect(kept).toHaveLength(2);
+    kept.length = 0;
+
+    expect(await read(counting, zip, "markdown")).toMatchObject({ kind: "done" });
+    expect(kept).toStrictEqual([]);
+  });
+
   it("counts a note too long to read, and lands the rest", async () => {
     const library = fakeCell();
     const long = `# Long\n\n${"A line of plain words in a long note.\n\n".repeat(30_000)}`;
