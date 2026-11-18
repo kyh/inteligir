@@ -7,7 +7,7 @@ import {
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import nextConfig from "../next.config";
+import { siteConfig as nextConfig } from "../next.config";
 import { SITE_POLICY } from "./lib/document-policy";
 import { config, proxy } from "./proxy";
 

@@ -35,7 +35,8 @@ const NAMED_REFERENCES_TABLE = `./${path.relative(
   require.resolve("decode-named-character-reference"),
 )}`;
 
-const config: NextConfig = {
+// the site's own config, which its suites read without eve's mount
+export const siteConfig: NextConfig = {
   // Else `next dev` writes its own `apps/web/AGENTS.md`; the guidance is the root's.
   agentRules: false,
   cacheComponents: true,
@@ -63,4 +64,4 @@ const config: NextConfig = {
 // outermost, as eve's own wrapper: off Vercel it serves the agent (apps/web/agent) under /eve/v1
 // from eve's build, on EVE_NEXT_PRODUCTION_PORT, which `next build` writes into its rewrite, so
 // build and start name one port
-export default withEve(config);
+export default withEve(siteConfig);
