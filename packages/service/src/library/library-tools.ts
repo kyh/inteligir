@@ -70,7 +70,7 @@ export const libraryTools = {
       tagTool({
         annotations: READ,
         description:
-          "Lists items by folder, tag, kind or pin, newest saved first unless sorted otherwise, 50 at most per page, with a cursor for the next.",
+          "Lists items by folder, tag, kind or pin, newest saved first unless sorted otherwise, 50 at most per page, with a cursor for the next. An item's tags include each #tag written in its text, which organize_items cannot remove: only edit_item takes one out of the text.",
         name: "list_items",
         title: "List items",
       }),
@@ -79,7 +79,7 @@ export const libraryTools = {
       tagTool({
         annotations: { ...CHANGES, idempotentHint: true },
         description:
-          "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one write.",
+          "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one write. A #tag written in an item's text, which its answer and list_items name among the item's tags, stays after a remove: only edit_item takes one out of the text.",
         name: "organize_items",
         title: "Organize items",
       }),

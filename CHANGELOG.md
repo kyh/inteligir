@@ -63,7 +63,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A new property can't be named title, tags, folder or pinned**, or take a name the item already has; Add property says so and stays open.
 - **⌘P searches your library and runs a few commands**: New note, Save a link…, Ask the agent, Tidy my library and Settings.
 - **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
-- **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too.
+- **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too, which they know only an edit of the note takes out.
 - **⌘P answers sooner when its words name a long item only by its title, tags or address**: it reads an item's text for the passage only when its words are in it.
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
 - **Pinning, moving, deleting or restoring a selection lands sooner**, saved pages most: what search reads of an item is written again only when its text changed.

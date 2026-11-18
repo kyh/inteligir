@@ -44,3 +44,15 @@ it("tags the guide as the one tool beyond the table, the connector's alone", () 
     ["guide", "read_guide"],
   ]);
 });
+
+it("says on every tool answering an item's tags that a #tag in its text changes only by edit_item", () => {
+  const answering = new Set(["list_items", "organize_items", "read_item"]);
+  const described = TAGGED_ROWS.flatMap(({ tool: { description, name } }) =>
+    name !== undefined && answering.has(name) ? [{ description, name }] : [],
+  );
+  expect(described.map(({ name }) => name).toSorted()).toStrictEqual([...answering]);
+  for (const { description, name } of described) {
+    expect(description, name).toMatch(/#tag written in (?:its|an item's) text/u);
+    expect(description, name).toMatch(/only by edit_item|only edit_item/u);
+  }
+});
