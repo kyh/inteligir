@@ -387,8 +387,8 @@ Specifically, in our cloud:
   in a new session. As a session ends, the agent asks Vercel to delete what it
   carried; Vercel keeps a record of each of its runs (their ids, times,
   statuses, step names and attributes), without what was said, for the time
-  Vercel sets. Deleting the account does not end a session: each ends on its
-  own, as above.
+  Vercel sets. Deleting the account ends every session at once, and one our
+  cloud can't reach then at a later try, made every 15 minutes.
 - **What the built-in agent spent**, each turn, model call and web search with
   its cost, the conversation's id and the time, is kept 35 days, to hold your
   account to its daily allowance; deleting a conversation leaves it, and
@@ -578,12 +578,13 @@ which stays used. It then deletes, at once, your account, your password hash,
 your sessions, everything in your library (every item, its text and what Undo
 keeps), your conversations with the built-in agent and what it spent, and every
 assistant's access with its tokens. If any step fails, the account stays and you
-can delete it again. Your files go from our file store within a day after, a
-batch at a time, and nothing can read them once the account is gone. Each of
-your devices erases its copy the next time our cloud refuses it. The agent's
-sessions of your conversations, the throttling counts, an unused reset link,
-what an assistant registered and Vercel's request log lapse as
-[Retention](#retention) says.
+can delete it again. Then it ends the agent's session of each conversation, at
+once or at a later try, keeping only the session's, the conversation's and the
+account's ids until it has. Your files go from our file store within a day
+after, a batch at a time, and nothing can read them once the account is gone.
+Each of your devices erases its copy the next time our cloud refuses it. The
+throttling counts, an unused reset link, what an assistant registered and
+Vercel's request log lapse as [Retention](#retention) says.
 
 ## Other sites and services
 

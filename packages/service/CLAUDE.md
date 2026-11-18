@@ -27,7 +27,8 @@ DOM (`oxlint.config.ts`).
 - **An account is deleted from any signed-in device, the password asked again,
   through Better Auth's `deleteUser`** (owner decision: whoever lost their Mac
   deletes from any Mac). Its rows go by cascade and its `beforeDelete` forgets
-  the invite's redeemer; a session alone never deletes, since a stolen one could.
+  the invite's redeemer and keeps its agent's sessions for the deletion to end
+  (§ The built-in agent); a session alone never deletes, since a stolen one could.
   `packages/service/src/auth/delete-account.ts`.
 - **Sign-up is invite-gated by `POST /api/sign-up`, which claims the code in one
   update, forwards to a second Better Auth instance and releases the claim if
@@ -412,6 +413,12 @@ DOM (`oxlint.config.ts`).
   recorded but couldn't deliver, or a landing after one, leaves a turn every
   device shows running and a set Undo and the prune never reach.
   `packages/service/src/agent/eve-agent.ts`.
+- **A deleted account's eve sessions are kept apart by Better Auth's
+  `beforeDelete`, ended once its `deleteUser` returns and by the agent's cron
+  where that failed; one whose thread stood still past eve's idle week is not
+  kept.** eve runs a session past the rows the delete takes by cascade, the
+  account is gone whatever its ends answer, and eve already ended an idle one.
+  `packages/service/src/agent/deleted-account-sessions.ts`.
 - **A deleted thread is a tombstone at once, purged after the response, and
   by the agent's cron every 15 minutes where that failed, those it never tried
   first.** Ending its eve session can fail, and a row gone first would leave

@@ -3,8 +3,9 @@
 // preferences. eve keeps its own stream on Vercel Workflow; these rows are what a device reads, what
 // a turn's change set is keyed by and what the day's limits count. A thread's account cascades from
 // Better Auth's `user`, and every other row of a thread hangs off it by a composite foreign key, so
-// deleting a user or a thread takes the rest; what the agent spent hangs off the account alone.
-// Times are unix milliseconds and ids text, as the library spells them.
+// deleting a user or a thread takes the rest; what the agent spent hangs off the account alone, and
+// a deleted account's eve sessions still to end off nothing. Times are unix milliseconds and ids
+// text, as the library spells them.
 
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
@@ -186,3 +187,20 @@ export const agentPreference = pgTable.withRLS("agent_preference", {
   enabled: boolean("enabled").notNull(),
   filingRules: text("filing_rules"),
 });
+
+// An eve session of an account being deleted, kept until it is ended: eve runs it on Vercel past the
+// rows the delete takes, so the delete keeps it before the account's row goes and ends it after, and
+// the agent's cron ends one that couldn't be then, those never tried first. It names its account
+// and thread only to sign the end, so it hangs off neither
+export const agentDeletedAccountSession = pgTable.withRLS(
+  "agent_deleted_account_session",
+  {
+    accountId: text("account_id").notNull(),
+    eveSessionId: text("eve_session_id").primaryKey(),
+    eveSessionNumber: integer("eve_session_number").notNull(),
+    keptAt: ms("kept_at").notNull(),
+    threadId: text("thread_id").notNull(),
+    triedAt: ms("tried_at"),
+  },
+  (table) => [index("agent_deleted_account_session_account").on(table.accountId)],
+);

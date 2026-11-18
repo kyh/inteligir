@@ -36,7 +36,7 @@ const TITLE_MAX_CHARS = 80;
 
 // eve records a session's events on the Vercel deployment that started it for as long as the
 // session lives, and Vercel deletes a production deployment 30 days on, once 20 newer exist: a
-// week's age plus eve's week of idle (apps/web/agent/agent.ts) keeps every session well inside
+// week's age plus eve's week of idle (`EVE_SESSION_IDLE_MS`) keeps every session well inside
 const EVE_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const threadAnswerSchema = z.object({ status: z.enum(THREAD_STATUSES), threadId: z.string() });

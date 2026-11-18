@@ -10,6 +10,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins/bearer";
 
+import { keepDeletedAccountSessions } from "../agent/deleted-account-sessions";
 import { APP_URL } from "../app-url";
 import { startBackground } from "../background";
 import { env } from "../env";
@@ -125,9 +126,11 @@ const createAuth = (disableSignUp: boolean) =>
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
         // retry. Its rows go with the user's by cascade, its files with housekeeping's next runs
-        // (`../files/deleted-account-files`); the invite it was made with only names it.
+        // (`../files/deleted-account-files`); the invite it was made with only names it, and its
+        // agent's sessions are kept past its rows for the deletion to end (./delete-account.ts).
         beforeDelete: async (user) => {
           await forgetInviteRedeemer(user.email);
+          await keepDeletedAccountSessions(user.id, Date.now());
         },
         enabled: true,
       },

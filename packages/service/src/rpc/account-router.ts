@@ -3,6 +3,7 @@
 // `../auth/connected-assistants` and `../auth/delete-account`; signing in and out is Better Auth's
 // own.
 
+import { deploymentAgentRuntime } from "../agent/runtime";
 import { getAuth } from "../auth/auth";
 import { listAssistants, revokeAssistant } from "../auth/connected-assistants";
 import { deleteAccountUnderSession } from "../auth/delete-account";
@@ -27,7 +28,11 @@ export const accountRouter = {
     if (!(await spendHolderBudget("accountDelete", context.principal.actor.sessionId))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const deletion = await deleteAccountUnderSession(context.headers, input.password);
+    const deletion = await deleteAccountUnderSession(deploymentAgentRuntime(), {
+      accountId: context.principal.accountId,
+      headers: context.headers,
+      password: input.password,
+    });
     switch (deletion) {
       case "signed-out": {
         throw errors.UNAUTHORIZED();

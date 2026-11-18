@@ -1,9 +1,6 @@
-import { AGENT_MODEL_ID } from "@repo/service/agent/agent-model";
+import { AGENT_MODEL_ID, EVE_SESSION_IDLE_MS } from "@repo/service/agent/agent-model";
 import { agentMockModelOn } from "@repo/service/agent/availability";
 import { defineAgent, defineDynamic } from "eve";
-
-// a thread idle this long goes on in a new eve session (@repo/service/agent/agent-sessions)
-const SESSION_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // not in the gateway's catalog, so its window is given: eve's own mock reports a million
 const MOCK_CONTEXT_WINDOW_TOKENS = 1_000_000;
@@ -14,7 +11,7 @@ const MOCK_CONTEXT_WINDOW_TOKENS = 1_000_000;
 // limits are the app's, so eve's own usage limit is off.
 export default defineAgent({
   defaultTools: false,
-  limits: { sessionTimeoutMs: SESSION_IDLE_MS, sessionUsage: false },
+  limits: { sessionTimeoutMs: EVE_SESSION_IDLE_MS, sessionUsage: false },
   model: defineDynamic(async () => {
     if (agentMockModelOn()) {
       const { mockAgentModel } = await import("./lib/mock-model");
