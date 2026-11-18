@@ -19,8 +19,11 @@ export interface ShareOutbox {
   readonly clear: () => Promise<void>;
 }
 
+const sameShare = (a: ShareSave, b: ShareSave) =>
+  a.kind === "link" && b.kind === "link" && a.url === b.url && a.note === b.note;
+
 const sharesIn = (storage: KvStorage) =>
-  waitingSaves({ payload: shareSaveSchema, prefix: "share:", storage });
+  waitingSaves({ payload: shareSaveSchema, prefix: "share:", sameSave: sameShare, storage });
 
 export const clearStoredShares = async (storage: KvStorage) => {
   await sharesIn(storage).clear();

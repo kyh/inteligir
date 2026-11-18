@@ -11,7 +11,10 @@ export const ClientOutdatedError = error("CLIENT_OUTDATED", {
   message: "This version of the app is too old. Update it to keep going.",
 });
 
+export const retryAfterSchema = z.object({ retryAfterSeconds: z.number().int().positive() });
+
 export const TooManyRequestsError = error("TOO_MANY_REQUESTS", {
+  data: retryAfterSchema.optional(),
   message: "Too many requests. Try again in a minute.",
 });
 

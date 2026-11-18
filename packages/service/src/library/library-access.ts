@@ -104,6 +104,7 @@ const refusalError = (refusal: LibraryRefusal) => {
 
     case "busy": {
       return new TooManyRequestsError({
+        data: { retryAfterSeconds: 1 },
         message: "Your library is busy with another change. Try again.",
       }) satisfies Error;
     }

@@ -24,7 +24,9 @@ const jsonBytes = (value: JsonValue) => utf8ByteLength(canonicalJson(value));
 
 const text = z.string().min(1).max(ITEM_FIELD_CAPS.line);
 
-export const propertyKeySchema = text;
+export const propertyKeySchema = text.refine((key) => key !== "__proto__", {
+  error: "is no property's key",
+});
 
 const listOf = (entry: z.ZodString) =>
   z

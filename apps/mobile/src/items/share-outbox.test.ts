@@ -147,6 +147,28 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     expect([...storage.held.keys()]).toStrictEqual([]);
   });
 
+  it("lists a link the library refuses once however often it is shared, and a link shared with other words apart", async () => {
+    const cell = createFakeCell();
+    const { shares } = phoneOver(cell.device("phone"));
+    const link = { kind: "link", note: null, title: null, url: "ftp://files" } as const;
+    const first = await shares.keep(link);
+    const again = await shares.keep(link);
+    const worded = await shares.keep({ ...link, note: "For Tuesday." });
+
+    if (first === null || again === null || worded === null) {
+      throw new Error("the outbox refused a share while signed in");
+    }
+
+    expect(shares.waiting.get().map(({ opId }) => opId)).toStrictEqual([again.opId, worded.opId]);
+    await shares.flush();
+    await shares.keep(link);
+    await shares.flush();
+    expect(shares.waiting.get()).toMatchObject([
+      { opId: again.opId, refused: WEB_URL_RULE },
+      { opId: worded.opId, refused: WEB_URL_RULE },
+    ]);
+  });
+
   it("stops a pass at a sign-in the cloud ended, sending nothing after it", async () => {
     const cell = createFakeCell();
     const { ended, shares } = phoneOver(cell.device("phone"));

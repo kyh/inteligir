@@ -333,7 +333,8 @@ The unpacked store build, against production, with no dev build loaded.
   saves a link and an image, the badge shows ! and ✓, and a home-network page
   the cloud can't reach saves as the extension read it.
 - **A waiting save**: one made offline or across a browser restart lands later
-  with no click, and one made signed out lands as you sign in on the site.
+  with no click, a page saved three times offline counts as 1 save waiting and
+  lands as one item, and one made signed out lands as you sign in on the site.
 - **A large picture**: right-click Save on a picture over 4.5 MB, on a slow
   link with DevTools closed, lands as its item.
 - **A refused save**: one a full library refuses says so in the library's
@@ -374,7 +375,8 @@ The unpacked store build, against production, with no dev build loaded.
   within 1 s, 20 times; 18 or more saves must land, or take the fallback in
   issue 1041.
 - **An offline launch**: items read-only, Needs a connection, and "1 save
-  waiting", which lands once back online.
+  waiting", which lands once back online; one link shared twice offline is
+  still 1 save waiting, and shared twice to a full library one refused row.
 - **Shares** from Safari, YouTube, Mail, X and Notes (text, Japanese, a bit.ly
   link, `https://en.wikipedia.org/wiki/Oklahoma!`); a duplicate share opens the
   item; Page not read says why.
@@ -584,7 +586,8 @@ Only once every check in § 5 has passed, and the three close together.
   build, choose Download and turn Wi-Fi off before the bar fills. Passing: the toast says the
   download didn't go through, with the reason, and Settings › About says
   `Inteligir <version> didn't download.`; Try again while still offline keeps the toast up with
-  its reason, and Try again once Wi-Fi is back fills the bar with no new check.
+  its reason and never shows the bar, and Try again once Wi-Fi is back fills the bar with no new
+  check.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
   build loaded. Passing: the install prompt names inteligir.com as the one

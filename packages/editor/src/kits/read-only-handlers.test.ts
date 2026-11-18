@@ -26,9 +26,8 @@ const hasDomHandlers = (plugin: AnyEditorPlatePlugin) =>
 
 const KITS = Object.entries(PROFILE_KITS);
 
-const pluginsOf: (kit: (typeof KITS)[number][1]) => AnyEditorPlatePlugin[] = (
-  kit: (typeof KITS)[number][1],
-) => createPlateEditor({ plugins: kit }).meta.pluginList;
+const pluginsOf: (kit: (typeof KITS)[number][1]) => AnyEditorPlatePlugin[] = (kit) =>
+  createPlateEditor({ plugins: kit }).meta.pluginList;
 
 const liveKeys = (kit: (typeof KITS)[number][1]) =>
   pluginsOf(kit)
@@ -59,6 +58,22 @@ describe("a read-only editor's DOM handlers", () => {
   it("are named in LIVE_READ_ONLY only while one runs read-only", () => {
     const live = new Set(KITS.flatMap(([, kit]) => liveKeys(kit)));
     expect(Object.keys(LIVE_READ_ONLY).filter((key) => !live.has(key))).toStrictEqual([]);
+  });
+});
+
+const CHORDS_THAT_TRANSFORM = [
+  "bold.toggle",
+  "italic.toggle",
+  "p.toggleParagraph",
+  "underline.toggle",
+];
+
+describe("a read-only editor's chords", () => {
+  it.each(KITS)("in the %s kit are only chords the model refuses", (_profile, kit) => {
+    expect(
+      Object.keys(createPlateEditor({ plugins: kit }).meta.shortcuts).toSorted(),
+      "a chord no editOnly gates: name it in CHORDS_THAT_TRANSFORM once it only transforms, or gate its handler on editor.dom.readOnly",
+    ).toStrictEqual(CHORDS_THAT_TRANSFORM);
   });
 });
 

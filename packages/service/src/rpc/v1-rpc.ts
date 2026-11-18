@@ -5,6 +5,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import type { RPCHandlerOptions } from "@orpc/server/fetch";
 import {
   RequestLimitHandlerPlugin,
+  ResponseHeadersHandlerPlugin,
   SignalSyncHandlerPlugin,
   TimeoutHandlerPlugin,
 } from "@orpc/server/plugins";
@@ -18,7 +19,7 @@ import { libraryRouter } from "./library-router";
 import { os } from "./orpc";
 import type { RpcContext } from "./orpc";
 import { logRpcFailure } from "./rpc-log";
-import { rpcFault, rpcRefusal } from "./rpc-refusal";
+import { retryAfterOf, rpcFault, rpcRefusal } from "./rpc-refusal";
 
 const v1Router = os.router({ account: accountRouter, library: libraryRouter });
 
@@ -26,13 +27,26 @@ type HandlerPlugins = NonNullable<RPCHandlerOptions<RpcContext>["plugins"]>;
 
 const handlerOf = (plugins: HandlerPlugins) =>
   new RPCHandler(v1Router, {
+    clientInterceptors: [
+      onError((cause, { context }) => {
+        const retryAfter = retryAfterOf(cause);
+
+        if (retryAfter !== null) {
+          context.resHeaders?.set("retry-after", String(retryAfter));
+        }
+      }),
+    ],
     errorStatusMap: V1_ERROR_STATUS_MAP,
     interceptors: [
       onError((cause, { path }) => {
         logRpcFailure("v1-rpc-failed", path, cause);
       }),
     ],
-    plugins: [new RequestLimitHandlerPlugin({ maxBodySize: FUNCTION_MAX_BODY_BYTES }), ...plugins],
+    plugins: [
+      new RequestLimitHandlerPlugin({ maxBodySize: FUNCTION_MAX_BODY_BYTES }),
+      new ResponseHeadersHandlerPlugin(),
+      ...plugins,
+    ],
   });
 
 const STREAM_MS = 280_000;

@@ -1,8 +1,11 @@
+import { rateLimit } from "@repo/db/auth-schema";
+import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { getAuth } from "../auth/auth";
-import { signInPhone, signUpUser } from "../test-support/auth-requests.test-utils";
+import { holderRateKey, RATE_WINDOWS } from "../rate-limit";
+import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import { buildHeaders, phoneHeaders, v1Link, v1Post } from "../test-support/v1-link.test-utils";
 
 afterEach(() => {
@@ -36,8 +39,34 @@ dbSuite("the wire past admission", () => {
     }
   });
 
+  it("answers a row's refusal that names its wait with that wait as `retry-after`", async () => {
+    await signUpUser("wire-wait@example.test");
+    const cookie = await signInPhone("wire-wait@example.test");
+    await db.insert(rateLimit).values({
+      count: RATE_WINDOWS.fileReserve.max,
+      id: crypto.randomUUID(),
+      key: holderRateKey("fileReserve", await userIdOf(cookie)),
+      lastRequest: Date.now(),
+    });
+    const reserve = { bytes: 3, mime: "text/plain", sha: "a".repeat(64) };
+
+    const refused = await v1Post(
+      "library/files/reserve",
+      phoneHeaders(cookie),
+      JSON.stringify({ json: reserve }),
+    );
+
+    expect(refused.status).toBe(429);
+    const retryAfter = Number(refused.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThanOrEqual(59);
+    expect(retryAfter).toBeLessThanOrEqual(61);
+    await expect(refused.json()).resolves.toMatchObject({
+      json: { code: "TOO_MANY_REQUESTS", data: { retryAfterSeconds: retryAfter }, defined: true },
+    });
+  });
+
   it("answers a throw as the protocol's fault, never Next's own 500, and logs it", async () => {
-    const logged = vi.spyOn(console, "error");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(getAuth().api, "getSession").mockRejectedValueOnce(new Error("Postgres is down"));
     const phone = v1Link({ ...buildHeaders(), cookie: "any", "expo-origin": "inteligir://" });
     await expect(phone.refusalOf(phone.account.devices.list())).resolves.toStrictEqual({

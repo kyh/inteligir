@@ -1,10 +1,31 @@
 import { expect } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { deferred } from "@repo/contract/deferred";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./app.fixture";
 
 const SAVE_BODY = `**${V1_RPC_PATH}/library/items/saveBody`;
 const CONFLICT = "This note changed somewhere else while you were typing";
+
+const SELECTION_READ_MS = 300;
+
+const caretAfter = async (page: Page, line: string) => {
+  const drawn = page.locator(EDITOR).getByText(line, { exact: true });
+  const box = await drawn.boundingBox();
+
+  if (box === null) {
+    throw new Error(`"${line}" is not drawn`);
+  }
+
+  await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
+  await page.waitForTimeout(SELECTION_READ_MS);
+};
+
+const pressFrom = async (page: Page, focus: Locator, key: string) => {
+  await focus.focus();
+  await page.keyboard.press(key);
+};
 
 test("what one tab types shows in another once that one comes to the front", async ({
   cloud,
@@ -134,4 +155,54 @@ test("every key typed while the agent edits the open note is saved beside its ed
     .toMatch(
       /The agent's own line\.[\s\S]*Line five\. Typed key by key while the agent wrote, every one kept\./u,
     );
+});
+
+test("a note with no connection takes no key: a mark's chord, Tab, a list's chord and Enter leave it as the library holds it", async ({
+  cloud,
+  context,
+  library,
+  page,
+}) => {
+  const video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+
+  const { item } = await library.items.createNote({
+    markdown: [
+      "Bold words sit beside [a link](https://example.com/page).",
+      "- A first item\n- An item to indent",
+      "A line to list",
+      video.replace("://", "\\://"),
+    ]
+      .map((block) => `${block}\n`)
+      .join("\n"),
+    title: "Plans",
+  });
+
+  const { seq } = await library.items.row({ id: item.id });
+  const held = await markdownOf(library, item.id);
+  await openLibrary(page, cloud, `?item=${item.id}`);
+  const editor = page.locator(EDITOR);
+  await expect(editor).toContainText(video);
+
+  await context.setOffline(true);
+  await expect(page.getByText(NEEDS_CONNECTION).first()).toBeVisible();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  const link = editor.getByRole("link", { name: "a link" });
+  await editor.getByText("Bold words sit beside", { exact: true }).dblclick({
+    position: { x: 2, y: 2 },
+  });
+  await page.waitForTimeout(SELECTION_READ_MS);
+  await pressFrom(page, link, "ControlOrMeta+b");
+  await caretAfter(page, "An item to indent");
+  await pressFrom(page, link, "Tab");
+  await caretAfter(page, "A line to list");
+  await pressFrom(page, link, "ControlOrMeta+l");
+  await caretAfter(page, video);
+  await pressFrom(page, link, "Enter");
+  await expect(editor.locator("strong")).toHaveCount(0);
+
+  await context.setOffline(false);
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.waitForTimeout(2500);
+  await expect(library.items.row({ id: item.id })).resolves.toMatchObject({ seq });
+  expect(await markdownOf(library, item.id)).toBe(held);
 });

@@ -1,7 +1,7 @@
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { changeSet, changeSetBody, changeSetItem, item, itemBody } from "@repo/db/library-schema";
-import { and, asc, desc, eq, exists, isNotNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, isNotNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { dropEntries, ENTRY_COLUMNS, entryOf } from "./library-change-sets";
@@ -9,10 +9,11 @@ import { askFills } from "./library-fills";
 import { landItem } from "./library-landing";
 import type { LiveItemRow } from "./library-landing";
 import { refuse } from "./library-refusal";
-import type { LibraryRefusal } from "./library-refusal";
+import type { LibraryRefusal, LibraryResult } from "./library-refusal";
 import { STORED_ITEM_COLUMNS } from "./library-rows";
 import type { StoredItem } from "./library-rows";
-import type { WriteScope } from "./library-store";
+import { writeLibrary } from "./library-store";
+import type { LibraryWriter, WriteScope } from "./library-store";
 import { revertChangeSets } from "./revert-change";
 import type { BodyEntry, HeldEntry } from "./revert-change";
 import { anyOf } from "./set-sql";
@@ -24,12 +25,25 @@ type UndoTarget =
   | { readonly threadId: string; readonly turn: number }
   | { readonly threadId: string; readonly before?: number | undefined };
 
-export const undoneSchema = z.object({
+const undoneSchema = z.object({
   kept: z.array(z.string()),
   next: z.number().nullable(),
   refused: z.array(z.string()),
   reverted: z.array(z.string()),
 });
+
+type Undone = z.output<typeof undoneSchema>;
+
+interface SetWindow {
+  readonly setId: string;
+  readonly after: string | null;
+}
+
+const lotSchema = undoneSchema.extend({
+  more: z.object({ after: z.string(), setId: z.string() }).nullable(),
+});
+
+type Lot = z.output<typeof lotSchema>;
 
 const undoable = (db: DbExecutor, accountId: string, threadId: string) =>
   and(
@@ -72,7 +86,11 @@ interface SetEntries {
   readonly items: ReadonlyMap<string, HeldEntry>;
 }
 
-const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
+const entriesOf = async (
+  scope: WriteScope,
+  setIds: readonly string[],
+  itemIds: readonly string[] | null,
+) => {
   const { accountId, tx } = scope;
 
   const [fields, bodies] = await Promise.all([
@@ -92,7 +110,13 @@ const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
         itemBody,
         and(eq(itemBody.accountId, changeSetItem.accountId), eq(itemBody.itemId, item.id)),
       )
-      .where(and(eq(changeSetItem.accountId, accountId), anyOf(changeSetItem.changeSetId, setIds))),
+      .where(
+        and(
+          eq(changeSetItem.accountId, accountId),
+          anyOf(changeSetItem.changeSetId, setIds),
+          itemIds === null ? undefined : anyOf(changeSetItem.itemId, itemIds),
+        ),
+      ),
     tx
       .select({
         blocksBefore: changeSetBody.blocksBefore,
@@ -102,7 +126,13 @@ const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
         versionBefore: changeSetBody.versionBefore,
       })
       .from(changeSetBody)
-      .where(and(eq(changeSetBody.accountId, accountId), anyOf(changeSetBody.changeSetId, setIds))),
+      .where(
+        and(
+          eq(changeSetBody.accountId, accountId),
+          anyOf(changeSetBody.changeSetId, setIds),
+          itemIds === null ? undefined : anyOf(changeSetBody.itemId, itemIds),
+        ),
+      ),
   ]);
 
   const bodyOf = new Map<string, BodyEntry>(
@@ -177,9 +207,48 @@ const pickSets = async (scope: WriteScope, target: UndoTarget) => {
   };
 };
 
-export const undoTurns = async (scope: WriteScope, target: UndoTarget) => {
-  const { next, setIds } = await pickSets(scope, target);
-  const { items, sets } = await entriesOf(scope, setIds);
+const windowOf = async (scope: WriteScope, { after, setId }: SetWindow) => {
+  const { accountId, tx } = scope;
+
+  const rows = await tx
+    .select({ itemId: changeSetItem.itemId })
+    .from(changeSetItem)
+    .where(
+      and(
+        eq(changeSetItem.accountId, accountId),
+        eq(changeSetItem.changeSetId, setId),
+        after === null ? undefined : gt(changeSetItem.itemId, after),
+      ),
+    )
+    .orderBy(asc(changeSetItem.itemId))
+    .limit(UNDO_ENTRIES_MAX + 1);
+
+  const itemIds = rows.slice(0, UNDO_ENTRIES_MAX).map(({ itemId }) => itemId);
+  const last = itemIds.at(-1);
+
+  return {
+    itemIds,
+    more: rows.length > UNDO_ENTRIES_MAX && last !== undefined ? { after: last, setId } : null,
+  };
+};
+
+const undoLot = async (
+  scope: WriteScope,
+  target: UndoTarget,
+  window: SetWindow | null,
+  refuseHeldBack: boolean,
+) => {
+  const { next, setIds } =
+    window === null ? await pickSets(scope, target) : { next: null, setIds: [window.setId] };
+
+  const [only] = setIds;
+
+  const cut =
+    setIds.length === 1 && only !== undefined
+      ? await windowOf(scope, window ?? { after: null, setId: only })
+      : { itemIds: null, more: null };
+
+  const { items, sets } = await entriesOf(scope, setIds, cut.itemIds);
   const verdict = revertChangeSets({ at: scope.now, sets });
   const reverted: LiveItemRow[] = [];
   const refused = new Map<string, LibraryRefusal>();
@@ -203,7 +272,7 @@ export const undoTurns = async (scope: WriteScope, target: UndoTarget) => {
 
   const [first] = refused.values();
 
-  if (first !== undefined && reverted.length === 0) {
+  if (first !== undefined && reverted.length === 0 && refuseHeldBack) {
     refuse(first);
   }
 
@@ -223,8 +292,53 @@ export const undoTurns = async (scope: WriteScope, target: UndoTarget) => {
     kept: [...new Set(verdict.kept.map((kept) => kept.itemId))]
       .filter((id) => !refused.has(id))
       .toSorted(),
+    more: cut.more,
     next,
     refused: [...refused.keys()].toSorted(),
     reverted: reverted.map((row) => row.id).toSorted(),
-  } satisfies z.input<typeof undoneSchema>;
+  } satisfies z.input<typeof lotSchema>;
+};
+
+export const undoTurns = async (writer: LibraryWriter, target: UndoTarget) => {
+  const land = async (window: SetWindow | null, refuseHeldBack: boolean) =>
+    await writeLibrary(
+      writer,
+      { answer: lotSchema, opId: undefined },
+      async (scope) => await undoLot(scope, target, window, refuseHeldBack),
+    );
+
+  const first = await land(null, true);
+
+  if (!first.ok) {
+    return first;
+  }
+
+  const lots: Lot[] = [first.value];
+
+  for (let lot: Lot = first.value; lot.more !== null;) {
+    const landed = await land(
+      lot.more,
+      lots.every(({ reverted }) => reverted.length === 0),
+    );
+
+    if (!landed.ok) {
+      return landed;
+    }
+
+    lot = landed.value;
+    lots.push(lot);
+  }
+
+  const all = (pick: (lot: Undone) => readonly string[]) =>
+    [...new Set(lots.flatMap(pick))].toSorted();
+
+  return {
+    ok: true,
+    value: {
+      kept: all((lot) => lot.kept),
+      next: first.value.next,
+      refused: all((lot) => lot.refused),
+      reverted: all((lot) => lot.reverted),
+    },
+  } satisfies LibraryResult<Undone>;
 };

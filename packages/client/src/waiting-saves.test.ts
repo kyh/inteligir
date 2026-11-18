@@ -18,7 +18,12 @@ const pageSchema = z.object({ url: z.string() });
 type Page = z.infer<typeof pageSchema>;
 
 const queueOver = (storage: MemoryKv = memoryKv()) => ({
-  saves: waitingSaves({ payload: pageSchema, prefix: "save:", storage }),
+  saves: waitingSaves({
+    payload: pageSchema,
+    prefix: "save:",
+    sameSave: (a, b) => a.url === b.url,
+    storage,
+  }),
   storage,
 });
 
@@ -220,6 +225,34 @@ describe("a waiting save", () => {
     stop();
     await saves.keep(stampOf(THIRD), pageOf(THIRD));
     expect(told).toStrictEqual([["1"], ["1", "2"], ["1!", "2"], ["1!"], []]);
+  });
+
+  it("takes the place of one the same that waits, so a page saved again waits once, and leaves one parked", async () => {
+    const { saves } = queueOver();
+    const page = pageOf(FIRST);
+    await saves.keep(stampOf(FIRST), page);
+    await saves.settle(FIRST, FULL);
+    await saves.keep(stampOf(SECOND), page);
+    const third = await saves.keep(stampOf(THIRD), page);
+    await expect(saves.list()).resolves.toStrictEqual([
+      { ...stampOf(FIRST), payload: page, refused: FULL.message },
+      third,
+    ]);
+  });
+
+  it("joins a refusal of one the same already parked, which keeps its op id and takes the newest words", async () => {
+    const { saves } = queueOver();
+    const page = pageOf(FIRST);
+    const parked = await saves.keep(stampOf(FIRST), page);
+    await saves.settle(FIRST, FULL);
+    await saves.keep(stampOf(SECOND), page);
+    await saves.keep(stampOf(THIRD), pageOf(THIRD));
+    const again = { ...FULL, message: "Your library is still full." };
+    await saves.pass(sending({ [SECOND]: again, [THIRD]: FULL }).send);
+    await expect(saves.list()).resolves.toStrictEqual([
+      { ...parked, refused: again.message },
+      { ...stampOf(THIRD), payload: pageOf(THIRD), refused: FULL.message },
+    ]);
   });
 
   it("says a store that would not write, and keeps nothing", async () => {

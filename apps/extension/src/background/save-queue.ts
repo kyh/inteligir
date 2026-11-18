@@ -37,7 +37,12 @@ const storage: KvStorage = {
   },
 };
 
-const saves = waitingSaves({ payload: keptSchema, prefix: "save:", storage });
+const saves = waitingSaves({
+  payload: keptSchema,
+  prefix: "save:",
+  sameSave: (a, b) => a.email === b.email && a.url === b.url,
+  storage,
+});
 
 export const queuedSaves = saves.list;
 
@@ -63,34 +68,9 @@ export const linkOf = (save: QueuedSave) => {
 const trying = new Set<string>();
 let unanswered = 0;
 
-const joinRefused = async (save: QueuedSave, outcome: CallOutcome<unknown>) => {
-  const { email, url } = save.payload;
-  const all = await saves.list();
-
-  const [held, ...also] = all.filter(
-    (kept) =>
-      kept.refused !== null &&
-      kept.opId !== save.opId &&
-      kept.payload.email === email &&
-      kept.payload.url === url,
-  );
-
-  if (held === undefined) {
-    return;
-  }
-
-  for (const joined of [save, ...also]) {
-    await saves.discard(joined.opId);
-  }
-
-  await saves.settle(held.opId, outcome);
-};
-
 const met = async <T>(save: QueuedSave, outcome: CallOutcome<T>) => {
   if (outcome.kind === "gone") {
     await accountGone(save.payload.email);
-  } else if (outcome.kind === "refused") {
-    await joinRefused(save, outcome);
   } else if (outcome.kind === "wait" && outcome.for === "connection") {
     unanswered += 1;
   }

@@ -17,7 +17,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
 - **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, a save made offline lands once you're back online, and one made signed out lands the moment you sign in again, in the account it was saved for.
-- **A save your library refuses stays in the extension's popup**: it is listed once under "Didn't reach your library" in your library's words, however often you save that page, with Try again and Let it go, and the popup counts the saves still waiting to be sent ("1 save waiting").
+- **A save your library refuses stays in the extension's popup**: it is listed once under "Didn't reach your library" in your library's words, however often you save that page, with Try again and Let it go, and the popup counts the pages still waiting to be sent ("1 save waiting"), a page saved several times while offline once.
 - **The extension says a refusal in your library's words** ("Your library is full."), the same sentence your iPhone shows, in the popup and on the toolbar button.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.
@@ -39,7 +39,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An import is read on your device**: keep the window open until it says what it added, and your browser asks before you close or reload it mid-import; if it closes, choose the same file again and it carries on, adding nothing twice.
 - **Your library on your iPhone**: covers, kinds, search, every file, editing, and what you last opened readable offline.
 - **Create your account on your iPhone** with the invite code you were sent.
-- **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back.
+- **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back, a link shared twice waiting once, and one your library refuses is listed once however often you share it.
 - **Ask the agent on your iPhone**, in the same conversations as your Mac and your browser.
 - **Photos on your iPhone are pictures of their own**: Add a photo in the library, at most 2048 pixels and with no location.
 - **Deleted brings everything back**, an item's files included; Delete forever… and Empty Deleted… remove them for good.
@@ -51,7 +51,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 ### Changed
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
-- **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed, which tries that step again with no new check, so a download cut off while you were offline finishes from the notice once you're back.
+- **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed, which tries that step again with no new check, so a download cut off while you were offline finishes from the notice once you're back, and Try again while still offline keeps the notice on its reason rather than flashing the download's progress.
 - **The privacy policy reads plainly, each practice stated once**: your library in your account, who runs our cloud and its model (Vercel, Supabase, Resend and Anthropic), what each device and the agent send, and how to ask for a copy, a correction or a deletion.
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since and any you made while it worked, a pin or a new name included; a note you typed in after the agent wrote it stays as you left it, text and all, and Undo says it kept changes made since.
 - **Only the agent's changes are kept for Undo**: what you, a connected assistant or an import change is not, and Undo this turn and Undo this conversation work as before.
@@ -187,6 +187,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Add property closes as Info moves to another item**, so what you typed in it can't land on the wrong one, and its name stops at 1,000 characters as you type.
 - **A change that doesn't go through puts back only its own items**: a pin, move, tag, delete, property or folder change you made just after it is no longer undone with it on screen until your library is read again.
 - **A pin, move, tag or delete you make just after another stays on screen while the first one goes through**, instead of blinking off until it goes through too.
+- **Undo this turn takes back a turn that changed more than 100 items in steps**, so a note you save or an item you move meanwhile goes through instead of waiting on it or failing as busy.
+- **A pin, move, tag or delete stays on screen while it goes through when another device's change arrives meanwhile**, which then shows once yours has gone through, instead of blinking yours off.
 - **inteligir.com's home page opens in a browser that can't draw 3D graphics**, without its spinning shape, where it showed an error in place of the whole page.
 - **A search hit in ⌘P fits its row**: its title and the passage under it sit inside the highlight instead of spilling into the next hit.
 - **A switch you drag across springs back when the change doesn't go through**, instead of resting on the wrong side, and the built-in agent's stays where you let it go while it switches.
@@ -204,7 +206,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Deleting an account with many files goes through the first time**: its files go from our cloud within a day after, a batch at a time.
 - **Deleting your account ends the built-in agent's session of each conversation at once.**
 - **What an assistant registered is forgotten a day after it registered or you last disconnected it, once no account has it connected**: one you disconnect connects again that day as it is; after that, if connecting it fails, remove the connector in your assistant and add it again.
-- **An import of a folder of more than about a thousand files goes on to its end**, where it stopped partway, and choosing the same file again sends up none of the files your library already has; when you ask more of your library in a minute than it takes, the window, the apps and the extension wait the moment out rather than saying it can't be reached.
+- **An import of a folder of more than about a thousand files goes on to its end**, where it stopped partway, and choosing the same file again sends up none of the files your library already has; when you ask more of your library in a minute than it takes, the window, the apps and the extension wait the moment out rather than saying it can't be reached, as they do when you add files faster than it takes them or your library is busy with another change.
 - **An import of notes written in Chinese, Japanese, Korean or emoji no longer stops partway**: a note too long to be one item is counted under "couldn't be read" and the rest come in.
 - **inteligir.com's pages hold still as they load**: the text no longer jumps when the font arrives, the library's title bar stands before its items do, and a sign-in error no longer moves the form.
 - **Password changed says what happened**: every device and browser that was signed in is signed out.
@@ -241,6 +243,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A file added while the library clears out another lands the first time**: an upload, a saved page's cover or an imported note's picture is no longer sent again or dropped because a different file was being removed just then.
 - **Importing a zip of notes no longer stops on a note whose frontmatter names a YAML anchor that isn't there**: that note comes in with the block as text, as any block that isn't YAML does, and a long `title` or `site` line is cut between characters, never through an emoji.
 - **An imported note whose frontmatter holds a date before 1970, a tag or key longer than 1,000 characters, or more aliases or tags than an item holds comes in** rather than counting under "couldn't be read": a `saved` before 1970 is the day you import, a `fetched` before 1970 and the tags and aliases the item can't hold stay properties, and what properties can't hold, such as a key that long, stays in a YAML block at the top of the note.
+- **An imported note's `id` or `saved` that can't be read, and a key named `__proto__`, stay in the YAML block at the top of the note**, where they were dropped with no trace, and a property whose value names a `__proto__` key keeps it as written.
 - **A folded heading stays folded when you rename it**, and a fold no longer jumps to another heading with the same words.
 - **Leaving a note with the `/`, `[[` or `{{` menu open no longer leaves its character behind** in the note on your other devices.
 - **A note waiting for a connection shows its outline beside its text** on your Mac and in your browser, as an open note does.

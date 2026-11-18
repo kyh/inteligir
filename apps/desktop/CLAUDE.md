@@ -43,6 +43,9 @@ carries, and updates.
 - **A failed download keeps its release, and a failed install its verified bytes too.** Try again
   reruns that step, since a new check after a download cut off offline fails as well and leaves
   nothing to retry. `apps/desktop/src-tauri/src/updater.rs`.
+- **A download reads as under way only once its first bytes arrive.** Until then the page goes on
+  showing the step it was asked from, since a retry offline fails at once and a progress bar
+  between two failures is a flash. `apps/desktop/src-tauri/src/updater.rs`.
 - **Only the page asks for a check, and the menu holds no update item** (owner decision). Settings
   words every answer a check gives, and a menu item's commonest one, up to date, has no screen of
   its own to say it. `apps/desktop/src-tauri/src/menu.rs`.

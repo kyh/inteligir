@@ -123,7 +123,7 @@ const pageReading = (kind: ItemKind, at: number | null, error: string | null) =>
   ) satisfies Reading;
 };
 
-const holdLeft = (left: KeyValues) => {
+const holdLeft = (left: KeyValues, own: ReadonlySet<string>) => {
   const held = new Map<string, PropertyValue>();
   const unheld = new Map<string, PropertyValue>();
   let bytes = 2;
@@ -131,7 +131,11 @@ const holdLeft = (left: KeyValues) => {
   for (const [key, value] of left) {
     const more = jsonBytes(key) + 1 + jsonBytes(value) + (held.size > 0 ? 1 : 0);
 
-    if (propertyKeySchema.validate(key) && bytes + more <= ITEM_FIELD_CAPS.propertiesBytes) {
+    if (
+      !own.has(key) &&
+      propertyKeySchema.validate(key) &&
+      bytes + more <= ITEM_FIELD_CAPS.propertiesBytes
+    ) {
       held.set(key, value);
       bytes += more;
     } else {
@@ -147,6 +151,7 @@ const holdLeft = (left: KeyValues) => {
 
 const readKeys = (file: KeyValues) => {
   const left = new Map(file);
+  const ownKeys = new Set<string>();
 
   const whole = <T>(key: string, read: (value: PropertyValue) => T | null) => {
     const value = file.get(key);
@@ -160,10 +165,9 @@ const readKeys = (file: KeyValues) => {
   };
 
   const own = <T>(key: string, read: (value: PropertyValue) => T | null) => {
-    const took = whole(key, read);
-    left.delete(key);
+    ownKeys.add(key);
 
-    return took;
+    return whole(key, read);
   };
 
   const list = (key: string, spell: (entry: string) => string | null) => {
@@ -225,7 +229,7 @@ const readKeys = (file: KeyValues) => {
     title: whole("title", written),
   };
 
-  const { properties, unheld } = holdLeft(left);
+  const { properties, unheld } = holdLeft(left, ownKeys);
 
   return { facts: { ...facts, properties }, unheld } satisfies ReadKeys;
 };
@@ -237,9 +241,12 @@ const valueOf = (node: ParsedNode | null, doc: Document.Parsed, yaml: string) =>
     return null;
   }
 
-  const json = jsonValue.safeParse(node.toJS(doc));
+  const value: unknown = node.toJS(doc);
+  const json = jsonValue.safeParse(value);
 
-  return json.success ? json.data : yaml.slice(node.range[0], node.range[1]).trimEnd();
+  return json.success && JSON.stringify(json.data) === JSON.stringify(value)
+    ? json.data
+    : yaml.slice(node.range[0], node.range[1]).trimEnd();
 };
 
 const keyValues = (yaml: string) => {

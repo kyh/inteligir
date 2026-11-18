@@ -62,8 +62,9 @@ export const waitingSaves = <P>(args: {
   readonly storage: KvStorage;
   readonly prefix: string;
   readonly payload: z.ZodType<P>;
+  readonly sameSave: (a: P, b: P) => boolean;
 }) => {
-  const { prefix, storage } = args;
+  const { prefix, sameSave, storage } = args;
 
   const schema = z.object({
     id: z.uuidv7(),
@@ -149,7 +150,25 @@ export const waitingSaves = <P>(args: {
         return false;
       }
 
-      await (next === null ? storage.removeItem(keyOf(opId)) : write(next));
+      if (next === null) {
+        await storage.removeItem(keyOf(opId));
+
+        return true;
+      }
+
+      const saves = await list();
+
+      const parked = saves.find(
+        (kept) =>
+          kept.refused !== null && kept.opId !== opId && sameSave(kept.payload, next.payload),
+      );
+
+      if (parked === undefined) {
+        await write(next);
+      } else {
+        await storage.removeItem(keyOf(opId));
+        await write({ ...parked, refused: next.refused });
+      }
 
       return true;
     });
@@ -178,6 +197,12 @@ export const waitingSaves = <P>(args: {
       };
 
       await change(async () => {
+        for (const kept of await list()) {
+          if (kept.refused === null && sameSave(kept.payload, payload)) {
+            await storage.removeItem(keyOf(kept.opId));
+          }
+        }
+
         await write(save);
 
         return true;

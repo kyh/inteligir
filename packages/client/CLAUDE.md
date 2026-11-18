@@ -11,6 +11,10 @@ say one thing of one library.
   focus and reconnect are TanStack's own, so the host drives one focus and one online manager; the
   cloud holds no socket, and refetching every screen instead reads the whole library each time and
   never tells an open note its item moved. `packages/client/src/library-changes.ts`.
+- **What a write waiting in the library's queue is laid over is read again once the queue is
+  empty.** An answer of what moved reads an item's body and the threads at once, and the listings
+  and rows only after every write that waits has landed and read again, since a read while one
+  waits takes it off the screen until it lands. `packages/client/src/library-cache.ts`.
 - **One module says what an answer of what moved reads again, for the tab and the phone alike.** An
   item's read goes again only when the copy held is older than the answer's sequence, and a
   thread's by its key, since a copy per device drifts. `packages/client/src/library-cache.ts`.
@@ -21,6 +25,11 @@ say one thing of one library.
   one way.** One record shape and one pass for the phone's shares and the extension's saves, and
   one the library refuses is parked with its words, since a queue per host lets one drop what
   another parks. `packages/client/src/waiting-saves.ts`.
+- **Two saves that land as one item are kept as one: a save kept while one the same waits takes
+  its place, and a refusal of one the same as a parked one joins that row.** The host says which
+  are the same (one page for one account, one link with the same words), so a page saved three
+  times offline waits and is counted once, and is listed once while the library refuses it.
+  `packages/client/src/waiting-saves.ts`.
 - **The queue reads its store at every step and changes it one step at a time.** Nothing rests on
   memory a stopped host loses, and a try's answer never brings back a save let go while its call
   was on its way, since a read and a write a clear can land between is a save that returns.

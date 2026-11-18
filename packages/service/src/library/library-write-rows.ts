@@ -25,7 +25,7 @@ import { libraryHead } from "./library-rows";
 import { savedSchema, saveLink, savePage } from "./library-saves";
 import { writeLibrary } from "./library-store";
 import { sweepItems, sweptAnswerSchema } from "./library-sweeps";
-import { undoneSchema, undoTurns } from "./library-undo";
+import { undoTurns } from "./library-undo";
 import { landedSchema, landPropertyOps } from "./library-writes";
 
 const ids = z.array(z.string());
@@ -36,13 +36,7 @@ const purgedSchema = z.object({ missing: ids, purged: ids });
 export const libraryWriteRows = {
   agent: {
     undo: writing.agent.undo.handler(async ({ context, input }) =>
-      answer(
-        await writeLibrary(
-          context.library,
-          { answer: undoneSchema, opId: undefined },
-          async (scope) => await undoTurns(scope, input),
-        ),
-      ),
+      answer(await undoTurns(context.library, input)),
     ),
   },
   files: {
@@ -50,7 +44,8 @@ export const libraryWriteRows = {
       const spent = await spendHolderBudget("fileReserve", context.library.accountId);
 
       if (spent.kind === "refused") {
-        throw new TooManyRequestsError();
+        const { retryAfterSeconds } = spent;
+        throw new TooManyRequestsError({ data: { retryAfterSeconds } });
       }
 
       return answer(await reserveFile(context.library, input));

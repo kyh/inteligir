@@ -1,3 +1,4 @@
+import { createLibraryChanges } from "@repo/client/library-changes";
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
@@ -283,6 +284,65 @@ describe("a write waiting behind another", () => {
     });
     expect(pinned()).toStrictEqual(new Set([first, second]));
     expect(cell.item(second)?.fields.pinnedAt).not.toBeNull();
+    unwatch();
+  });
+});
+
+describe("what moved, asked while a write waits", () => {
+  it("leaves the write laid over a watched listing until it lands, then reads what moved", async () => {
+    const cell = createFakeCell();
+    const mine = cell.seed.item({ title: "Mine" });
+    const theirs = cell.seed.item({ title: "Theirs" });
+    const turn = deferred();
+
+    const { library } = fakePageLibrary({
+      answer: async (call) => {
+        if (call.path === "library.items.organize") {
+          await turn.promise;
+        }
+      },
+      cell,
+    });
+
+    const queryClient = createPageQueryClient();
+
+    const changes = createLibraryChanges({
+      client: library.wire.client,
+      queries: library.wire.orpc,
+      queryClient,
+    });
+
+    await changes.poll();
+    const listing = libraryQueries(library.wire).listing({ scope: { kind: "all" } });
+
+    const unwatch = new InfiniteQueryObserver(queryClient, listing).subscribe(() => {});
+
+    const rows = () =>
+      queryClient.getQueryData(listing.queryKey)?.pages.flatMap((page) => page.items) ?? [];
+
+    await vi.waitFor(() => {
+      expect(rows()).toHaveLength(2);
+    });
+
+    const landing = new MutationObserver(queryClient, libraryWrites(library).organize()).mutate({
+      ids: [mine],
+      pinned: true,
+    });
+
+    await vi.waitFor(() => {
+      expect(pinnedIn(rows())).toStrictEqual([mine]);
+    });
+    await cell.device("phone").client.library.items.organize({ ids: [theirs], title: "Renamed" });
+    await changes.poll();
+
+    expect(queryClient.isFetching()).toBe(0);
+    expect(pinnedIn(rows())).toStrictEqual([mine]);
+    turn.resolve();
+    await landing;
+    await vi.waitFor(() => {
+      expect(rows().find((row) => row.id === theirs)?.card.title).toBe("Renamed");
+    });
+    expect(pinnedIn(rows())).toStrictEqual([mine]);
     unwatch();
   });
 });
