@@ -111,7 +111,8 @@ export interface FakeCell {
   readonly device: (name: string) => FakeDevice;
   // rows put in place without a call, each landing as a write lands, under a fresh id
   readonly seed: {
-    // a note filed nowhere, unless `fields` says otherwise, holding `blocks`
+    // a note filed nowhere, unless `fields` says otherwise, holding `blocks`; never a live one at
+    // an address a live item holds
     readonly item: (fields?: Partial<LibraryItemFields>, blocks?: readonly BodyBlock[]) => string;
     // a folder at the top, after the live ones there
     readonly folder: (name: string) => string;
@@ -612,7 +613,9 @@ export const createFakeCell = (): FakeCell => {
         saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
-            needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
+            // checked only where the save lands, as the cell checks a landing's files: a held item
+            // answered as it stands names no new one
+            const cover = input.coverSha === null ? [] : [input.coverSha];
             const article = input.article.map((block): BodyBlock => ({
               block,
               section: "article",
@@ -620,11 +623,14 @@ export const createFakeCell = (): FakeCell => {
             const holder = holderOf(input.url);
             if (holder !== null) {
               const item = holding(holder);
-              return takesRead(item.fields.reading, deriveBody(item.blocks).digest.article, input)
-                ? { created: false, ...landRead(holder, item, input, article) }
-                : answerHeld(holder);
+              if (!takesRead(item.fields.reading, deriveBody(item.blocks).digest.article, input)) {
+                return answerHeld(holder);
+              }
+              needsBlobs(cover);
+              return { created: false, ...landRead(holder, item, input, article) };
             }
             made(input.id);
+            needsBlobs(cover);
             return {
               created: true,
               ...land(input.id, pageFields(input, NOW), [
@@ -788,8 +794,12 @@ export const createFakeCell = (): FakeCell => {
         return id;
       },
       item: (fields = {}, blocks = []) => {
+        const seeded = { ...blankItemFields(NOW), ...fields };
+        if (seeded.deletedAt === null && seeded.url !== null && holderOf(seeded.url) !== null) {
+          throw new Error(`a live item holds ${seeded.url} already`);
+        }
         const id = mintId();
-        land(id, { ...blankItemFields(NOW), ...fields }, blocks);
+        land(id, seeded, blocks);
         return id;
       },
     },

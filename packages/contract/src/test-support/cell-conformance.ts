@@ -1,9 +1,10 @@
 // The cases every cell answers alike: the account's own, which the service runs them over in
 // Postgres (`packages/service/src/library/cell-conformance.test.ts`), and the fake cell a client's
-// suites drive (`./fake-cell.test.ts`). Each is written over the library's procedures as a laptop
-// calls them and nothing one host alone has, so a fake that drifts from the cell fails here, in
-// its own package. A search's ranking, a folder filed by its path, an item's markdown, a new item's
-// pills settled and a sweep's landing, which is a job's, are the real cell's alone.
+// suites drive (`./fake-cell.test.ts`). Each is written over what a laptop reaches a cell by, the
+// library's procedures, a file's bytes sent up and the jobs its writes leave due, and nothing one
+// host alone has, so a fake that drifts from the cell fails here, in its own package. A search's
+// ranking, a folder filed by its path, an item's markdown, a new item's pills settled and a change
+// of tags too large for one write, which lands as lots, are the real cell's alone.
 
 import { describe, expect, it } from "vitest";
 
@@ -16,13 +17,33 @@ import { paragraph } from "./library-items";
 
 type Library = V1Client["library"];
 
-// a fresh library for as long as `run` takes: the real cell's client cannot leave its object
-type WithLibrary = (run: (library: Library) => Promise<void>) => Promise<void>;
+// a fresh library as a host reaches it: its procedures, a file's bytes sent up as a device sends
+// them, answering their sha, and every job its writes left due run to its end
+interface CellHost {
+  readonly library: Library;
+  readonly upload: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<string>;
+  readonly runDue: () => Promise<void>;
+}
+
+// a fresh host for as long as `run` takes: the real cell's client cannot leave its account
+type WithHost = (run: (host: CellHost) => Promise<void>) => Promise<void>;
 
 const SAVED_AT = 1_700_000_000_000;
+// a sha whose bytes no case sends up
 const SHA = "a".repeat(64);
 const OP_ID = "0190a000-0000-7000-8000-0000000000aa";
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
+const PNG = "image/png";
+
+// a file's bytes, told apart by `text`
+const bytesOf = (text: string): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(new TextEncoder().encode(text));
+
+// a picture block naming its bytes by `sha`
+const pictureOf = (id: string, sha: string): BodyBlock => ({
+  block: { children: [{ text: "" }], id, sha, type: "img" },
+  section: "note",
+});
 
 const idOf = (n: number): string => `0190a000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
 
@@ -50,7 +71,8 @@ interface Filing {
 }
 
 // what a laptop makes in a library: fresh ids, a note of lines of text, and a page it read
-const laptopOn = (library: Library) => {
+const laptopOn = (host: CellHost) => {
+  const { library } = host;
   let next = 0;
   const newId = (): string => {
     next += 1;
@@ -86,15 +108,15 @@ const laptopOn = (library: Library) => {
     title: "A page",
     url,
   });
-  return { library, newId, note, noteOf, page };
+  return { ...host, newId, note, noteOf, page };
 };
 
 type Laptop = ReturnType<typeof laptopOn>;
 
-export const cellConformance = (withLibrary: WithLibrary): void => {
+export const cellConformance = (withHost: WithHost): void => {
   const withLaptop = async (act: (laptop: Laptop) => Promise<void>): Promise<void> => {
-    await withLibrary(async (library) => {
-      await act(laptopOn(library));
+    await withHost(async (host) => {
+      await act(laptopOn(host));
     });
   };
 
@@ -142,6 +164,23 @@ export const cellConformance = (withLibrary: WithLibrary): void => {
         });
         expect(live.items.map(({ id }) => id)).toStrictEqual([kept]);
         expect(live.items[0]?.snippet).toContain("fox");
+      });
+    });
+
+    it("searches Deleted for an item's exact text in any case, apart from the live side", async () => {
+      await withLaptop(async ({ library, note }) => {
+        const gone = await note(["A fox long gone."]);
+        const dog = await note(["A dog long gone."]);
+        await note(["The fox naps in the sun."]);
+        await library.items.delete({ ids: [gone, dog] });
+
+        const deleted = await library.listing.page({
+          limit: 10,
+          scope: { kind: "deleted" },
+          words: "FOX",
+        });
+        expect(deleted.items.map(({ id }) => id)).toStrictEqual([gone]);
+        expect(deleted.items[0]?.snippet).toContain("fox");
       });
     });
   });
@@ -297,6 +336,54 @@ export const cellConformance = (withLibrary: WithLibrary): void => {
       });
     });
 
+    it("answers a save of a held address it has read with that item, though the save names a cover never sent up", async () => {
+      await withLaptop(async ({ library, page }) => {
+        const url = "https://example.com/read";
+        const first = await library.items.save(page(url, [paragraph("p1", "The fox jumps.")]));
+
+        await expect(
+          library.items.save({
+            ...page(url, [paragraph("p2", "Now the fox naps.")]),
+            coverSha: SHA,
+          }),
+        ).resolves.toStrictEqual({ created: false, item: first.item });
+      });
+    });
+
+    it("saves a page with its cover once the cover's bytes are up, and refuses one whose bytes never were", async () => {
+      await withLaptop(async ({ library, page, upload }) => {
+        const url = "https://example.com/covered";
+        const read = page(url, [paragraph("p1", "The fox jumps.")]);
+        await expect(
+          refusalOf(library.items.save({ ...read, coverSha: SHA })),
+        ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] } });
+
+        const cover = await upload(bytesOf("a cover"), PNG);
+        await expect(library.items.save({ ...read, coverSha: cover })).resolves.toMatchObject({
+          created: true,
+          item: { fields: { coverSha: cover, url }, id: read.id },
+        });
+      });
+    });
+
+    it("lands a device's read with its cover on a held link waiting for its page, the cover's bytes checked as it lands", async () => {
+      await withLaptop(async ({ library, page, upload }) => {
+        const url = "https://example.com/covered-later";
+        const stub = await library.items.saveLink({ url });
+        const read = page(url, [paragraph("p1", "The fox jumps.")]);
+        await expect(
+          refusalOf(library.items.save({ ...read, coverSha: SHA })),
+        ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] } });
+        await expect(library.items.row({ id: stub.item.id })).resolves.toMatchObject(stub.item);
+
+        const cover = await upload(bytesOf("a cover"), PNG);
+        await expect(library.items.save({ ...read, coverSha: cover })).resolves.toMatchObject({
+          created: false,
+          item: { fields: { coverSha: cover, reading: { state: "read" } }, id: stub.item.id },
+        });
+      });
+    });
+
     it("lands a device's read on a held link still waiting for its page, the name the person gave kept", async () => {
       await withLaptop(async ({ library, page }) => {
         const url = "https://example.com/saved-later";
@@ -334,20 +421,52 @@ export const cellConformance = (withLibrary: WithLibrary): void => {
       });
     });
 
-    it("refuses a file whose bytes were never uploaded", async () => {
-      await withLaptop(async ({ library, newId }) => {
+    it("makes a file of bytes sent up first, its kind by the type they were sent as, and refuses one whose bytes never were", async () => {
+      await withLaptop(async ({ library, newId, upload }) => {
+        const fileOf = (sha: string) => ({
+          folderId: null,
+          id: newId(),
+          name: "pier.png",
+          savedAt: SAVED_AT,
+          sha,
+          tags: [],
+        });
+        await expect(refusalOf(library.items.createFile(fileOf(SHA)))).resolves.toStrictEqual({
+          code: "BLOB_MISSING",
+          data: { shas: [SHA] },
+        });
+
+        const sha = await upload(bytesOf("a photo of the pier"), PNG);
+        const made = fileOf(sha);
+        await library.items.createFile(made);
+        await expect(library.items.get({ id: made.id })).resolves.toMatchObject({
+          blocks: [],
+          fields: {
+            coverSha: sha,
+            kind: "image",
+            originalName: "pier.png",
+            originalSha: sha,
+            title: "pier",
+          },
+        });
+      });
+    });
+
+    it("makes a note whose block names a file sent up first, and refuses one naming bytes never sent", async () => {
+      await withLaptop(async ({ library, noteOf, upload }) => {
+        const unsent = noteOf([]);
         await expect(
           refusalOf(
-            library.items.createFile({
-              folderId: null,
-              id: newId(),
-              name: "photo.png",
-              savedAt: SAVED_AT,
-              sha: SHA,
-              tags: [],
-            }),
+            library.items.create({ ...unsent, blocks: [pictureOf(`${unsent.id}-0`, SHA)] }),
           ),
         ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] } });
+
+        const sha = await upload(bytesOf("a picture in a note"), PNG);
+        const made = noteOf([]);
+        await library.items.create({ ...made, blocks: [pictureOf(`${made.id}-0`, sha)] });
+        await expect(library.items.get({ id: made.id })).resolves.toMatchObject({
+          blocks: [{ block: { id: `${made.id}-0`, sha, type: "img" }, section: "note" }],
+        });
       });
     });
 
@@ -358,6 +477,77 @@ export const cellConformance = (withLibrary: WithLibrary): void => {
         await expect(library.items.create({ ...made, opId: OP_ID })).resolves.toStrictEqual(first);
         await expect(codeOf(library.items.create(made))).resolves.toBe("CONFLICT");
         await expect(library.listing.scopes()).resolves.toMatchObject({ total: 1 });
+      });
+    });
+  });
+
+  describe("a sweep of a cell, read once its jobs ran", () => {
+    it("organizes every item its scope lists but those left out", async () => {
+      await withLaptop(async ({ library, newId, note, runDue }) => {
+        const reading = newId();
+        await library.folders.write({
+          ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
+        });
+        const kept = await note(["Left out."], { tags: ["field"] });
+        const swept = await note(["Swept."], { tags: ["field", "Spring"] });
+
+        await expect(
+          library.items.sweep({
+            except: [kept],
+            scope: { kind: "all" },
+            verb: {
+              addTags: ["done"],
+              folder: { id: reading },
+              kind: "organize",
+              pinned: true,
+              removeTags: ["FIELD"],
+            },
+          }),
+        ).resolves.toStrictEqual({ items: 1, refused: [] });
+        await runDue();
+
+        await expect(library.items.get({ id: swept })).resolves.toMatchObject({
+          fields: { folderId: reading, pinnedAt: expect.any(Number), tags: ["Spring", "done"] },
+        });
+        await expect(library.items.get({ id: kept })).resolves.toMatchObject({
+          fields: { folderId: null, pinnedAt: null, tags: ["field"] },
+        });
+      });
+    });
+
+    it("moves a scope to Deleted, back, and out of it for good, leaving in Deleted an item whose address another holds now", async () => {
+      await withLaptop(async ({ library, note, page, runDue }) => {
+        const kept = await note(["Left out."]);
+        const swept = await note(["Swept."]);
+        const url = "https://example.com/swept";
+        const { item: first } = await library.items.save(page(url, [paragraph("p1", "First.")]));
+
+        await expect(
+          library.items.sweep({ except: [kept], scope: { kind: "all" }, verb: { kind: "delete" } }),
+        ).resolves.toStrictEqual({ items: 2, refused: [] });
+        await runDue();
+        await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 2, total: 1 });
+
+        await library.items.save(page(url, [paragraph("p2", "Second.")]));
+        await expect(
+          library.items.sweep({
+            except: [],
+            scope: { kind: "deleted" },
+            verb: { kind: "restore" },
+          }),
+        ).resolves.toStrictEqual({ items: 2, refused: [first.id] });
+        await runDue();
+        await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 1, total: 3 });
+        await expect(library.items.row({ id: swept })).resolves.toMatchObject({
+          fields: { deletedAt: null },
+        });
+
+        await expect(
+          library.items.sweep({ except: [], scope: { kind: "deleted" }, verb: { kind: "purge" } }),
+        ).resolves.toStrictEqual({ items: 1, refused: [] });
+        await runDue();
+        await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0, total: 3 });
+        await expect(codeOf(library.items.get({ id: first.id }))).resolves.toBe("NOT_FOUND");
       });
     });
   });
