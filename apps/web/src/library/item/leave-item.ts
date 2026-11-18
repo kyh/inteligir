@@ -1,9 +1,11 @@
 // CLAUDE.md § The tab asks before it loses the open item's edit. The open item rides the URL, so
 // every way off it is guarded: a move the tab makes and Back or Forward through the address's
 // history (`library-history.ts`), and the tab's close or reload through the browser's own ask. The
-// open note is asked whether it stored every edit made here, and one it couldn't save is given up
-// only on the person's word.
+// open note is asked whether it stored every edit made here, and one it couldn't save, or didn't
+// say it saved in time, is given up only on the person's word.
 
+import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
+import { deferred } from "@repo/contract/deferred";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
@@ -14,12 +16,26 @@ import { usePageLibrary } from "../cloud/library-context";
 import type { TabSession } from "../cloud/library-context";
 import { guardLeaves } from "../library-history";
 
+// whether the note holds every edit, a note that hasn't said so in time counting as not holding,
+// since its save may wait on a connection for as long as the browser lets it
+const holdsInTime = async (note: Pick<OpenNote, "holds">): Promise<boolean> => {
+  const late = deferred<false>();
+  const timer = setTimeout(() => {
+    late.resolve(false);
+  }, HOLDS_ANSWER_MS);
+  try {
+    return await Promise.race([note.holds(), late.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 // whether the page may leave the item
 export const leaveItem = async (
   note: Pick<OpenNote, "holds"> | null,
   ask: (options: ConfirmOptions) => Promise<boolean>,
 ): Promise<boolean> => {
-  if (note === null || (await note.holds())) {
+  if (note === null || (await holdsInTime(note))) {
     return true;
   }
   return await ask({

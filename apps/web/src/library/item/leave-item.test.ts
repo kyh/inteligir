@@ -1,5 +1,7 @@
+import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
+import { deferred } from "@repo/contract/deferred";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { leaveItem, unloadAsks } from "./leave-item";
 
@@ -28,6 +30,26 @@ describe("leaving the open item", () => {
     ask.mockResolvedValue(true);
     await expect(leaveItem(note, ask)).resolves.toBe(true);
     await expect(leaveItem(note, STAYS)).resolves.toBe(false);
+  });
+
+  describe("over a save that never answers", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("asks as for an edit the note couldn't save once the wait runs out, and not before", async () => {
+      vi.useFakeTimers();
+      const stalled = { holds: async () => await deferred<boolean>().promise };
+      const ask = vi.fn<(options: ConfirmOptions) => Promise<boolean>>(async () => true);
+
+      const leaving = leaveItem(stalled, ask);
+      await vi.advanceTimersByTimeAsync(HOLDS_ANSWER_MS - 1);
+      expect(ask).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(leaving).resolves.toBe(true);
+      expect(ask.mock.calls[0]?.[0]).toMatchObject({ title: "Leave without saving?" });
+    });
   });
 });
 

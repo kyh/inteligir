@@ -12,6 +12,10 @@ import type { V1Queries } from "./library-cache";
 
 type ItemAnswer = Awaited<ReturnType<V1Client["library"]["items"]["get"]>>;
 
+// how long a leave waits for the open note to say it holds every edit made here: one that hasn't
+// said by then counts as not holding, so a stalled save asks the person instead of holding the leave
+export const HOLDS_ANSWER_MS = 5000;
+
 const heldOf = (item: ItemAnswer): HeldNote => ({
   blocks: item.blocks,
   deleted: item.fields.deletedAt !== null,

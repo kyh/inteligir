@@ -1,5 +1,7 @@
+import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { notePageLife, SETTLE_ANSWER_MS } from "./note-page-life";
+
+import { notePageLife } from "./note-page-life";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -82,7 +84,7 @@ describe("a note page's life", () => {
 
     back();
     expect(settle()).toBe(2);
-    vi.advanceTimersByTime(SETTLE_ANSWER_MS - 1);
+    vi.advanceTimersByTime(HOLDS_ANSWER_MS - 1);
     expect(heard.asked).toBe(1);
     vi.advanceTimersByTime(1);
     expect(heard).toStrictEqual({ asked: 2, left: 0 });
@@ -108,7 +110,7 @@ describe("a note page's life", () => {
     expect(kind()).toBe("editing");
 
     back();
-    vi.advanceTimersByTime(SETTLE_ANSWER_MS);
+    vi.advanceTimersByTime(HOLDS_ANSWER_MS);
     back();
     life.answer({ ask: 1, holds: true });
     expect(kind()).toBe("asking");
@@ -142,7 +144,7 @@ describe("a note page's life", () => {
     const { kind, life, settle } = lifeOver();
     life.report("editing");
     life.place(true);
-    vi.advanceTimersByTime(SETTLE_ANSWER_MS);
+    vi.advanceTimersByTime(HOLDS_ANSWER_MS);
     expect(kind()).toBe("editing");
     life.reconnected();
     expect(settle()).toBe(2);

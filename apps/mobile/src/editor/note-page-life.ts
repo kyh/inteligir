@@ -6,9 +6,9 @@
 // (`lifeAfter`) moves it on the page's report, the screen's depth, the connection coming back, a
 // leave and an answer.
 
-import type { NoteState, Settled } from "./page/page-host";
+import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
 
-export const SETTLE_ANSWER_MS = 5000;
+import type { NoteState, Settled } from "./page/page-host";
 
 type NotePageLife =
   | { readonly kind: "reading" }
@@ -158,7 +158,7 @@ export const notePageLife = ({ deep }: { readonly deep: boolean }): NotePageLife
         const ask = page.asked;
         timer = setTimeout(() => {
           again({ ask, holds: false, kind: "answered" });
-        }, SETTLE_ANSWER_MS);
+        }, HOLDS_ANSWER_MS);
         break;
       }
       case "leave": {
