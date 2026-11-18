@@ -245,17 +245,20 @@ describe(listingPageOf, () => {
 
   it("lists what a scope names: every item, Unsorted, a folder with what is under it, a tag, or Deleted", () => {
     const index = answering();
+    // a scope names a folder by its id, as the library mints one
+    const fruit = "01a0f4c2-c400-78d9-a955-7935ec13d6d5";
+    const red = "01a0f4c2-c400-78d9-a955-7935ec13d6d6";
     index.setFolders([
-      { id: "fruit", name: "Fruit", parentId: null, sort: "a0" },
-      { id: "red", name: "Red", parentId: "fruit", sort: "a0" },
+      { id: fruit, name: "Fruit", parentId: null, sort: "a0" },
+      { id: red, name: "Red", parentId: fruit, sort: "a0" },
     ]);
-    index.upsert(listing("apple", { folderId: "red", savedAt: 2, title: "Apple" }, ["Fruit"]));
+    index.upsert(listing("apple", { folderId: red, savedAt: 2, title: "Apple" }, ["Fruit"]));
     index.upsert(listing("elder", { deletedAt: 9, savedAt: 5, title: "Elder" }));
     const titles = (scope: LibraryScope) =>
       pageOf(index, { limit: 10, scope }).items.map(({ card }) => card.title);
     expect(titles({ kind: "all" })).toStrictEqual(["durian", "Banana", "Apple", "Cherry"]);
     expect(titles({ kind: "unsorted" })).toStrictEqual(["durian", "Banana", "Cherry"]);
-    expect(titles({ folderId: "fruit", kind: "folder" })).toStrictEqual(["Apple"]);
+    expect(titles({ folderId: fruit, kind: "folder" })).toStrictEqual(["Apple"]);
     expect(titles({ kind: "tag", tag: "fruit" })).toStrictEqual(["Apple"]);
     expect(titles({ kind: "deleted" })).toStrictEqual(["Elder"]);
   });

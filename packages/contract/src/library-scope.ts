@@ -1,17 +1,19 @@
 // The one spelling of which part of the library a screen shows: the library tab's address, the
 // cell's listing and the view context a message to the built-in agent carries all read it, a folder
-// named by its id as the account's cell keeps it. zod alone: a tag no item carries lists nothing,
-// so its name is held to no grammar here.
+// named by its id as the account's cell keeps it. A tag no item carries lists nothing, so its name
+// is held to no grammar here, only to the line a tag's length is.
 
 import { z } from "zod";
+
+import { ITEM_FIELD_CAPS } from "./library/library-item";
 
 // a scope that lists items in the library: every one but Deleted, which lists what is gone, so a
 // view context names one of these and nothing there is an item an agent acts on
 const ITEM_SCOPES = [
   z.object({ kind: z.literal("all") }),
   z.object({ kind: z.literal("unsorted") }),
-  z.object({ kind: z.literal("tag"), tag: z.string().min(1) }),
-  z.object({ folderId: z.string().min(1), kind: z.literal("folder") }),
+  z.object({ kind: z.literal("tag"), tag: z.string().min(1).max(ITEM_FIELD_CAPS.line) }),
+  z.object({ folderId: z.uuid(), kind: z.literal("folder") }),
 ] as const;
 
 export const itemScopeSchema = z.discriminatedUnion("kind", ITEM_SCOPES);

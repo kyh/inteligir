@@ -19,6 +19,19 @@ describe("a library scope", () => {
     expect(libraryScopeSchema.validate({ kind: "folder", path: "Reading" })).toBe(false);
   });
 
+  it("refuses a tag past a line and a folder by anything but its id, wherever a scope is read", () => {
+    const refused = [
+      { kind: "tag", tag: "t".repeat(1001) },
+      { folderId: "Reading", kind: "folder" },
+      { folderId: "01a0f4c2-c400-78d9-a955", kind: "folder" },
+    ];
+    for (const scope of refused) {
+      expect(libraryScopeSchema.validate(scope)).toBe(false);
+      expect(itemScopeSchema.validate(scope)).toBe(false);
+    }
+    expect(itemScopeSchema.validate({ kind: "tag", tag: "t".repeat(1000) })).toBe(true);
+  });
+
   it("never names Deleted where it lists items, since nothing there is a library item", () => {
     expect(itemScopeSchema.validate({ kind: "deleted" })).toBe(false);
     expect(itemScopeSchema.validate({ kind: "unsorted" })).toBe(true);

@@ -5,7 +5,7 @@
 import { isItemKind } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
-import { listedScope } from "@repo/contract/library-scope";
+import { libraryScopeSchema, listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { z } from "zod";
 
@@ -23,6 +23,19 @@ export interface LibraryAddress {
 
 const itemId = z.uuid();
 
+const EVERY_ITEM: LibraryScope = { kind: "all" };
+
+// the scope one parameter names, as the listing would read it
+const namedScope = (named: string | null, folderId: string | null, tag: string | null) => {
+  if (folderId !== null && folderId !== "") {
+    return { folderId, kind: "folder" };
+  }
+  if (tag !== null && tag !== "") {
+    return { kind: "tag", tag };
+  }
+  return { kind: named };
+};
+
 const scopeOf = (search: URLSearchParams): LibraryScope => {
   const named = search.get("scope");
   const folderId = search.get("folder");
@@ -30,15 +43,10 @@ const scopeOf = (search: URLSearchParams): LibraryScope => {
   // two scopes at once name neither
   const given = [named, folderId, tag].filter((value) => value !== null && value !== "");
   if (given.length !== 1) {
-    return { kind: "all" };
+    return EVERY_ITEM;
   }
-  if (folderId !== null && folderId !== "") {
-    return { folderId, kind: "folder" };
-  }
-  if (tag !== null && tag !== "") {
-    return { kind: "tag", tag };
-  }
-  return named === "unsorted" || named === "deleted" ? { kind: named } : { kind: "all" };
+  const scope = libraryScopeSchema.safeParse(namedScope(named, folderId, tag));
+  return scope.success ? scope.data : EVERY_ITEM;
 };
 
 // anything an address carries that names nothing is no part of it
