@@ -15,10 +15,11 @@
   "scripts": {
     "build": "pnpm with-env eve build && pnpm with-env next build",
     "dev": "pnpm with-env next dev -p 5174",
+    "generate": "next typegen",
     "prebuild": "node scripts/write-licenses.ts",
     "start": "pnpm with-env next start -p 5174",
     "test": "vitest run",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "with-env": "dotenv -e ../../.env.local -e ../../.env --"
   },
   "dependencies": {

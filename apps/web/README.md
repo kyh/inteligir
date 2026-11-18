@@ -56,5 +56,6 @@ then `start` serve the built app there; both read the root `.env.local`, then
 partial prerender writes its shell's scripts without the nonce. This app's
 suites are three vitest projects (`vitest.config.ts`): `site`, under node, and
 the tab's `library` (node, `*.test.ts`) and `library-dom` (jsdom,
-`*.test.tsx`), compiled by the React Compiler as it ships. `typecheck` runs
-`next typegen`, then the app's program.
+`*.test.tsx`), compiled by the React Compiler as it ships. `generate` runs
+`next typegen`, whose route types the app's program, its `typecheck` and the
+root's lint read.

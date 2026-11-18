@@ -14,9 +14,9 @@
         "public/licenses.md"
       ]
     },
-    "typecheck": {
-      // next typegen writes the route types and next-env.d.ts the program includes
-      "outputs": [".cache/tsbuildinfo*.json", ".next/types/**", "next-env.d.ts"]
+    // next typegen writes the route types and next-env.d.ts the program includes
+    "generate": {
+      "outputs": [".next/types/**", "next-env.d.ts"]
     }
   }
 }

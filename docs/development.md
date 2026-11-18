@@ -187,8 +187,8 @@ knip runs once, over every workspace. On its own it is
 fresh checkout sees none of the extension's suites and calls the exports they
 use unused. Lint, oxlint over ultracite's core, react, tanstack and anti-slop
 presets, is `pnpm turbo run //#lint` on its own for the same reason: its
-type-aware pass reads the Env types and the `.wxt/tsconfig.json` the
-Worker's, the service's and the extension's `generate` tasks write.
+type-aware pass reads the site's route types and the extension's
+`.wxt/tsconfig.json`, which their `generate` tasks write.
 
 CI then runs what `verify` cannot: it installs Playwright's Chromium
 (`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
