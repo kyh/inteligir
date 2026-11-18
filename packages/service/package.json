@@ -21,6 +21,7 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/editor": "workspace:*",
+    "@vercel/blob": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "next": "catalog:",

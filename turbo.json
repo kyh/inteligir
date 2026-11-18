@@ -81,9 +81,11 @@
   "globalEnv": [
     "APP_URL",
     "BETTER_AUTH_SECRET",
+    "BLOB_READ_WRITE_TOKEN",
     "CRON_SECRET",
     "EMAIL_FROM",
     "EMAIL_MODE",
+    "FILE_STORE_DIR",
     "LIBRARY_STORAGE_CAP_BYTES",
     "MIN_CLIENT_BUILD",
     "NODE_ENV",

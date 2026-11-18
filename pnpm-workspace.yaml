@@ -55,6 +55,9 @@ catalog:
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.2
+  # exact, the build sp-presigned-put and sp-ranged-stream proved: a ranged read of a private blob
+  # is passed through `get`'s headers, which its docs do not promise
+  "@vercel/blob": 2.9.0
   # exact, and the same as the @better-auth/core override: they are released in lockstep, and a
   # pair one patch apart resolves a second core
   "@better-auth/drizzle-adapter": 1.7.25

@@ -19,6 +19,9 @@ apps/web/public/licenses.md
 # vercel
 .vercel
 
+# the files a server off Vercel keeps (FILE_STORE_DIR)
+.data/
+
 # build output
 dist/
 .output/

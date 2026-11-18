@@ -5,6 +5,6 @@ export default defineConfig({
     globalSetup: ["@repo/db/test-database"],
     include: ["src/**/*.test.ts"],
     maxWorkers: 2,
-    setupFiles: ["@repo/db/test-database-file"],
+    setupFiles: ["@repo/db/test-database-file", "./src/test-support/file-store-setup.ts"],
   },
 });

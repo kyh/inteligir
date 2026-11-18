@@ -63,6 +63,10 @@ const envSchema = z
 
     BETTER_AUTH_SECRET: optionalText,
 
+    // the private Blob store's key, which Vercel sets on a project the store is connected to: set,
+    // files are kept there (`files/file-store-of.ts`), and @vercel/blob reads it on its own
+    BLOB_READ_WRITE_TOKEN: optionalText,
+
     CRON_SECRET: optionalText,
 
     // the reset mail's sender, an address on a domain Resend has verified: `Name <address>`
@@ -71,6 +75,9 @@ const envSchema = z
     // unset, production sends nothing and anywhere else logs (`auth/send-email.ts`): `log` writes
     // a live reset link to the server's log, which production's must never hold
     EMAIL_MODE: optionalText.pipe(z.enum(["resend", "log", "off"]).optional()),
+
+    // off Vercel with no Blob key, the folder files are kept in, from the server's working folder
+    FILE_STORE_DIR: optionalText.transform((dir) => dir ?? ".data/files"),
 
     LIBRARY_STORAGE_CAP_BYTES: byteCount(GIB),
 
