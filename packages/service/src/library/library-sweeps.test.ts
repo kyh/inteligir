@@ -1,5 +1,6 @@
 // Sweeps over Postgres: a scope's every item, thousands of them, landed by one call as the tab asks
-// it, and a change of tags too large for one write left as lots that land as writes of their own.
+// it, and a change of tags too large for one write left as lots the drain lands as writes of their
+// own.
 
 import { randomUUID } from "node:crypto";
 
@@ -12,12 +13,13 @@ import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
+import { drainJobs } from "../jobs/drain-jobs";
 import { personalLibrary } from "../test-support/library-fixture";
 import { mintLibraryId } from "./library-ids";
 import { landNewItems } from "./library-landing";
 import type { NewItem } from "./library-landing";
 import { writeLibrary } from "./library-store";
-import { landSweepLot, sweepLotSchema } from "./library-sweeps";
+import { sweepLotSchema } from "./library-sweeps";
 
 const PERSON = { kind: "person" } as const;
 const SAVED_AT = 1_700_000_000_000;
@@ -153,7 +155,7 @@ dbSuite("a sweep over a scope", () => {
   });
 
   it(
-    "leaves a change of tags over 1,000 items as lots, each landing as a write of its own",
+    "leaves a change of tags over 1,000 items as lots, which the drain lands each as a write of its own",
     { timeout: 60_000 },
     async () => {
       const { accountId, library } = await personalLibrary();
@@ -180,15 +182,18 @@ dbSuite("a sweep over a scope", () => {
       expect(parsed.map((lot) => lot.ids.length).toSorted((a, b) => a - b)).toStrictEqual([
         1, 1000,
       ]);
-      for (const lot of parsed) {
-        const landed = await writeLibrary(
-          { accountId, actor: PERSON },
-          { answer: z.array(z.string()), opId: undefined },
-          async (scope) => await landSweepLot(scope, lot),
-        );
-        expect(landed).toStrictEqual({ ok: true, value: [] });
-      }
+      const head = await headOf(accountId);
+
+      await expect(drainJobs({ accountId, budgetMs: 50_000 })).resolves.toStrictEqual({
+        dropped: 0,
+        failed: 0,
+        ran: 2,
+      });
       await expect(taggedWith(accountId, "lot")).resolves.toBe(1001);
+      await expect(
+        db.select({ id: job.id }).from(job).where(eq(job.accountId, accountId)),
+      ).resolves.toStrictEqual([]);
+      await expect(headOf(accountId)).resolves.toBe(head + 2);
     },
   );
 

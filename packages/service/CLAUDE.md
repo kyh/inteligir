@@ -289,6 +289,30 @@ decisions port with its code from the tag `cloudflare-last`.
   device's revalidations then cost no store read.
   `packages/service/src/files/file-read-route.ts`.
 
+## Background work
+
+- **Work a write asks for after it is a row of the one `job` table, written in
+  the write's transaction.** A job is never asked by a write that rolled back
+  nor lost by one that landed, and a row outlives any function the platform
+  cuts. `packages/service/src/jobs/job-queue.ts`.
+- **A drain leases one row at a time under `for update skip locked` and holds
+  it 300 s, the longest a draining route runs; a failed run waits 30 s,
+  doubling to an hour.** Drains at once never share a row, and a drain cut
+  mid-job, where no catch runs, leaves its row due again only once nothing can
+  still be running it. `packages/service/src/jobs/job-queue.ts`.
+- **A run's end, done or put off, touches its row only while the row holds that
+  run's lease.** An ask made while the job ran keeps a run of its own.
+  `packages/service/src/jobs/job-queue.ts`.
+- **A write from `/v1` or the connector kicks a drain of its account after its
+  response; Vercel Cron drains every account every minute.** A save's job
+  starts at once inside its route's 300 s, and the cron takes what a cut drain,
+  the agent's tool steps and the suites leave.
+  `packages/service/src/jobs/drain-jobs.ts`.
+- **Each kind's run is an entry of a record over the table's kinds, its payload
+  read through the kind's schema when it runs; one that no longer reads is
+  dropped.** A kind with no entry fails to compile, and a payload an older build
+  wrote never wedges the drain. `packages/service/src/jobs/job-kinds.ts`.
+
 ## The built-in agent
 
 - **The agent is eve's, served by the deployment under `/eve/v1`, and only the

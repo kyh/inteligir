@@ -5,11 +5,8 @@
 // for nothing.
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { job } from "@repo/db/library-schema";
-import { sql } from "drizzle-orm";
 
 import type { WriteScope } from "./library-store";
-import { chunksOf } from "./set-sql";
 
 // what a fill reads, by its job's payload: the item waiting, the address it waits at, and an image
 // an import named as its cover, which the page's own may yield to
@@ -31,29 +28,13 @@ interface Landed {
 // a second ask before the first ran takes its place, since one reading of the page as it is now
 // answers both
 export const askFills = async (scope: WriteScope, items: readonly Landed[]): Promise<void> => {
-  const rows = items.flatMap(({ cover = null, fields, id }) => {
-    if (fields.reading.state !== "pending" || fields.url === null || fields.deletedAt !== null) {
-      return [];
-    }
-    const payload: FillAsk = { coverHint: cover, itemId: id, url: fields.url };
-    return [
-      {
-        accountId: scope.accountId,
-        createdAt: scope.now,
-        id: `fill:${id}`,
-        kind: "fill" as const,
-        payload,
-        runAt: scope.now,
-      },
-    ];
-  });
-  for (const chunk of chunksOf(rows, 1000)) {
-    await scope.tx
-      .insert(job)
-      .values(chunk)
-      .onConflictDoUpdate({
-        set: { attempts: 0, payload: sql`excluded.payload`, runAt: scope.now },
-        target: [job.accountId, job.id],
-      });
-  }
+  await scope.askJobs(
+    items.flatMap(({ cover = null, fields, id }) => {
+      if (fields.reading.state !== "pending" || fields.url === null || fields.deletedAt !== null) {
+        return [];
+      }
+      const payload: FillAsk = { coverHint: cover, itemId: id, url: fields.url };
+      return [{ id: `fill:${id}`, kind: "fill" as const, payload }];
+    }),
+  );
 };

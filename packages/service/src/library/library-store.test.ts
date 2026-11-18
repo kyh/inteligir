@@ -277,6 +277,39 @@ dbSuite("a library write", () => {
     );
     expect(next).toStrictEqual({ ok: true, value: 2 });
   });
+
+  it("kicks its jobs once a write that asked one commits, and never one that asked none or took its ask back", async () => {
+    const accountId = await makeAccount();
+    const kickJobs = vi.fn<(kicked: string) => void>();
+    const writer = { accountId, actor: PERSON, kickJobs };
+    const lot = { kind: "sweep" as const, payload: { ids: [] } };
+    const jobsOf = async () =>
+      await db.select({ id: job.id }).from(job).where(eq(job.accountId, accountId));
+
+    const landed = await writeLibrary(writer, { answer: z.null(), opId: NO_OP }, async (scope) => {
+      await scope.askJobs([{ ...lot, id: "sweep:kept" }]);
+      return null;
+    });
+    expect(landed).toStrictEqual({ ok: true, value: null });
+    expect(kickJobs.mock.calls).toStrictEqual([[accountId]]);
+
+    kickJobs.mockClear();
+    await writeLibrary(writer, { answer: z.null(), opId: NO_OP }, async (scope) => {
+      await scope.askJobs([]);
+      await scope.attempt(async (part) => {
+        await part.askJobs([{ ...lot, id: "sweep:taken-back" }]);
+        return refuse({ kind: "not-found" });
+      });
+      return null;
+    });
+    const refused = await writeLibrary(writer, { answer: z.null(), opId: NO_OP }, async (scope) => {
+      await scope.askJobs([{ ...lot, id: "sweep:refused" }]);
+      return refuse({ kind: "not-found" });
+    });
+    expect(refused).toStrictEqual({ ok: false, refusal: { kind: "not-found" } });
+    expect(kickJobs).not.toHaveBeenCalled();
+    await expect(jobsOf()).resolves.toStrictEqual([{ id: "sweep:kept" }]);
+  });
 });
 
 const LIBRARY_TABLES = Object.values(librarySchema).filter((value) => is(value, PgTable));

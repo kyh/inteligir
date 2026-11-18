@@ -251,6 +251,13 @@ change of tags over 1,000 items a lot at a time from its jobs
 (`packages/service/src/library/library-sweeps.ts`). Not a bulk change, which
 names its items by id, a hundred a call.
 
+**job** — work a library write asked for, run once it commits: a row of the
+job table, one per subject, which a drain leases and runs
+(`packages/service/src/jobs/job-queue.ts`), after the response of the write
+that asked it and by the cron every minute. A **fill**, a lot of a **sweep** and
+a file's release from the **file store** are jobs. Not a cron: the crons drain
+jobs and keep house.
+
 **filing rules** — what the person wrote for the agent about their library,
 written only from Settings › Account
 (`packages/service/src/library/library-rules.ts`). Every turn is sent under

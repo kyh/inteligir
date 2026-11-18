@@ -44,6 +44,7 @@ import {
   CONNECTOR_SCOPES,
 } from "../auth/oauth-auth";
 import { FUNCTION_MAX_BODY_BYTES } from "../function-limits";
+import { kickJobs } from "../jobs/drain-jobs";
 import { changesLibrary } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
 import { spendHolderBudget } from "../rate-limit";
@@ -93,7 +94,7 @@ const connectorServer = async (principal: ConnectorPrincipal): Promise<McpServer
     instructions: CONNECTOR_INSTRUCTIONS,
   });
   const registrar = changesLibrary(principal) ? REGISTRARS.changes : REGISTRARS.reads;
-  await registrar.register(server, { context: { principal } });
+  await registrar.register(server, { context: { kickJobs, principal } });
   return server;
 };
 

@@ -20,12 +20,14 @@ import { implement, ORPCError, os } from "@orpc/server";
 import { changesLibrary, libraryActorOf } from "./library-principal";
 import type { LibraryPrincipal } from "./library-principal";
 import type { LibraryRefusal, LibraryResult } from "./library-refusal";
-import type { LibraryWriter } from "./library-store";
+import type { JobKick, LibraryWriter } from "./library-store";
 import { libraryTools } from "./library-tools";
 
-// what every door hands the library: `/v1`'s session, the connector's grant, the agent's turn
+// what every door hands the library: `/v1`'s session, the connector's grant, the agent's turn; and,
+// from a door that serves a request, the kick a write's jobs get after its response
 export interface LibraryContext {
   readonly principal: LibraryPrincipal;
+  readonly kickJobs?: JobKick;
 }
 
 type EditRefusal = Extract<LibraryRefusal, { kind: "edit-refused" }>["refusal"];
@@ -112,6 +114,7 @@ const requireLibrary = (needs: "read" | "write") =>
     const library: LibraryWriter = {
       accountId: principal.accountId,
       actor: libraryActorOf(principal),
+      kickJobs: context.kickJobs,
     };
     return await next({ context: { library } });
   });

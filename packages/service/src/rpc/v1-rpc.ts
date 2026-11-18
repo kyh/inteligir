@@ -14,6 +14,7 @@ import {
 } from "@orpc/server/plugins";
 
 import { FUNCTION_MAX_BODY_BYTES } from "../function-limits";
+import { kickJobs } from "../jobs/drain-jobs";
 import { logUnhandled } from "../log";
 import { accountRouter } from "./account-router";
 import { admit } from "./admit";
@@ -55,7 +56,7 @@ const serving =
         return rpcRefusal(admission.refusal);
       }
       const { matched, response } = await handler.handle(request, {
-        context: { headers: request.headers, principal: admission.principal },
+        context: { headers: request.headers, kickJobs, principal: admission.principal },
         prefix: V1_RPC_PATH,
       });
       return matched ? response : new Response("not found", { status: 404 });

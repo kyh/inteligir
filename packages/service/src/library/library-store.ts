@@ -5,7 +5,9 @@
 // agent made it (`./library-change-sets`), and keeps its answer under its op id, so a client
 // resending after a lost answer is told what landed. A rule refuses by throwing
 // (`./library-refusal`), which rolls the write back, and `attempt` is a savepoint: a part that lands
-// whole or not at all while the write goes on.
+// whole or not at all while the write goes on. Work a write asks for after it, a page's reading or
+// a lot of a sweep, is a job row it writes (`../jobs/job-queue`), and a write a request's door made
+// kicks the drain once it commits.
 
 import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
@@ -13,6 +15,8 @@ import { libraryState, opAnswer } from "@repo/db/library-schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
+import { askJobs } from "../jobs/job-queue";
+import type { JobAsk } from "../jobs/job-queue";
 import { joinTurnSet } from "./library-change-sets";
 import type { LibraryActor } from "./library-principal";
 import { RefusedWriteError, refuse } from "./library-refusal";
@@ -25,10 +29,16 @@ const LOCK_TIMEOUT = "5s";
 const LOCK_NOT_AVAILABLE = "55P03";
 const FOREIGN_KEY_VIOLATION = "23503";
 
-// who a write is by: the account whose library it locks, and the actor its landings are by
+// runs the jobs an account's write asked, after the response it answered (`../jobs/drain-jobs`)
+export type JobKick = (accountId: string) => void;
+
+// who a write is by: the account whose library it locks, the actor its landings are by, and, from a
+// door that serves a request, the kick its jobs get once it commits; a writer without one leaves
+// them to the per-minute cron
 export interface LibraryWriter {
   readonly accountId: string;
   readonly actor: LibraryActor;
+  readonly kickJobs?: JobKick;
 }
 
 // what a write asks around its work: its key in the op ledger, and the schema its answer is read
@@ -59,6 +69,8 @@ export interface WriteScope {
   // a part of the write that lands whole or not at all while the write goes on: what it wrote,
   // the sequence it took included, is taken back when a rule refuses it, and the refusal answered
   readonly attempt: <T>(part: (scope: WriteScope) => Promise<T>) => Promise<LibraryResult<T>>;
+  // work to run once the write commits, each due at once
+  readonly askJobs: (asks: readonly Omit<JobAsk, "accountId">[]) => Promise<void>;
 }
 
 // whether Postgres raised `code` anywhere down the error's causes, which drizzle wraps
@@ -115,14 +127,27 @@ const takeHead = async (tx: Tx, accountId: string): Promise<number> => {
   return row.head;
 };
 
-// the sequence number a write took and the change set it joined, each null until it took one
+// the sequence number a write took and the change set it joined, each null until it took one, and
+// whether it asked for a job
 interface Taken {
   head: number | null;
+  jobs: boolean;
   set: string | null;
 }
 
 const scopeOf = (tx: Tx, writer: LibraryWriter, now: number, taken: Taken): WriteScope => ({
   accountId: writer.accountId,
+  askJobs: async (asks) => {
+    if (asks.length === 0) {
+      return;
+    }
+    await askJobs(
+      tx,
+      asks.map((ask) => ({ ...ask, accountId: writer.accountId })),
+      now,
+    );
+    taken.jobs = true;
+  },
   attempt: async (part) => {
     const before = { ...taken };
     try {
@@ -136,6 +161,7 @@ const scopeOf = (tx: Tx, writer: LibraryWriter, now: number, taken: Taken): Writ
       }
       taken.head = before.head;
       taken.set = before.set;
+      taken.jobs = before.jobs;
       return { ok: false, refusal: error.refusal };
     }
   },
@@ -170,7 +196,8 @@ export const priorAnswer = async <S extends z.ZodType>(
   return row === undefined ? null : { value: answer.parse(row.answer) };
 };
 
-// one write: answered from its op's record when it already landed, else run whole or not at all
+// one write: answered from its op's record when it already landed, else run whole or not at all,
+// and its jobs kicked once it committed
 export const writeLibrary = async <S extends z.ZodType>(
   writer: LibraryWriter,
   request: WriteRequest<S>,
@@ -178,6 +205,7 @@ export const writeLibrary = async <S extends z.ZodType>(
 ): Promise<LibraryResult<z.output<S>>> => {
   const { accountId } = writer;
   const { answer, opId } = request;
+  const taken: Taken = { head: null, jobs: false, set: null };
   try {
     const value = await withAccountLock(accountId, async (tx): Promise<z.output<S>> => {
       const prior = opId === undefined ? null : await priorAnswer(tx, accountId, opId, answer);
@@ -185,12 +213,15 @@ export const writeLibrary = async <S extends z.ZodType>(
         return prior.value;
       }
       const now = Date.now();
-      const landed = answer.parse(await work(scopeOf(tx, writer, now, { head: null, set: null })));
+      const landed = answer.parse(await work(scopeOf(tx, writer, now, taken)));
       if (opId !== undefined) {
         await tx.insert(opAnswer).values({ accountId, answer: landed, at: now, opId });
       }
       return landed;
     });
+    if (taken.jobs) {
+      writer.kickJobs?.(accountId);
+    }
     return { ok: true, value };
   } catch (error) {
     if (error instanceof RefusedWriteError) {

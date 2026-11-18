@@ -57,6 +57,8 @@ export const runAgentTool = async (
   if (turn === null || (await threadOf(accountId, threadId)) === null) {
     return { kind: "failed", text: "This conversation was deleted." };
   }
+  // no kick: a tool runs in eve's step, which no request's after() keeps alive, so what its write
+  // asks waits for the per-minute cron
   return await callAgentTool(
     { principal: { accountId, actor: { kind: "agent", threadId, turn: turn.number } } },
     tool,

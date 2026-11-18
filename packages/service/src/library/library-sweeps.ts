@@ -4,7 +4,7 @@
 // statement over every item it takes, and a change of tags a chunk at a time, deriving each item's
 // tags and search row again in JS. A change of tags over SWEEP_LOT items would hold the account's
 // lock past every other write's wait, so it goes to lots, each a write of its own after the answer
-// (`landSweepLot`). Only the apps ask one, on a person's press, so a sweep joins no change set.
+// (`SWEEP_RUN`). Only the apps ask one, on a person's press, so a sweep joins no change set.
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { organized } from "@repo/contract/library/cell-rules";
@@ -14,17 +14,19 @@ import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { sweptSchema } from "@repo/contract/library/library-wire";
 import type { sweepVerbSchema } from "@repo/contract/rpc/library-contract";
-import { item, itemBody, itemSearch, itemTag, job } from "@repo/db/library-schema";
+import { item, itemBody, itemSearch, itemTag } from "@repo/db/library-schema";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
+import type { JobRun } from "../jobs/job-kinds";
 import { searchVectorOf } from "../search/search-vector";
 import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
 import { purgeItems, restoreDeleted } from "./library-items";
 import { sweptItems } from "./library-listing";
 import { STORED_ITEM_COLUMNS, tagRowsOf } from "./library-rows";
+import { writeLibrary } from "./library-store";
 import type { WriteScope } from "./library-store";
 import { anyOf, chunksOf, textArray } from "./set-sql";
 
@@ -202,17 +204,14 @@ const askLots = async (
   ids: readonly string[],
   change: TagChange,
 ): Promise<void> => {
-  const { accountId, now, tx } = scope;
-  const sweep = mintLibraryId(now);
-  const lots = chunksOf(ids, SWEEP_LOT).map((lot, at) => ({
-    accountId,
-    createdAt: now,
-    id: `sweep:${sweep}:${String(at)}`,
-    kind: "sweep" as const,
-    payload: { ...change, ids: lot },
-    runAt: now,
-  }));
-  await tx.insert(job).values(lots);
+  const sweep = mintLibraryId(scope.now);
+  await scope.askJobs(
+    chunksOf(ids, SWEEP_LOT).map((lot, at) => ({
+      id: `sweep:${sweep}:${String(at)}`,
+      kind: "sweep" as const,
+      payload: { ...change, ids: lot },
+    })),
+  );
 };
 
 const organizeSwept = async (
@@ -269,9 +268,18 @@ export const sweepItems = async (
   }
 };
 
-// one lot of a change of tags, landed as a write of its own: an item gone since the ask is passed
-// over, and those past the tags' cap are answered, left as they were
-export const landSweepLot = async (
-  scope: WriteScope,
-  lot: z.output<typeof sweepLotSchema>,
-): Promise<string[]> => await retag(scope, lot.ids, lot);
+// One lot of a change of tags, its job's run: a write of its own as the person who asked the sweep,
+// again after its backoff while the account is busy. An item gone since the ask is passed over, and
+// one past the tags' cap is left as it was, as the sweep's own answer would have said
+export const SWEEP_RUN: JobRun<z.output<typeof sweepLotSchema>> = {
+  payload: sweepLotSchema,
+  run: async (lot, { accountId }) => {
+    const landed = await writeLibrary(
+      { accountId, actor: { kind: "person" } },
+      { answer: z.array(z.string()), opId: undefined },
+      async (scope) => await retag(scope, lot.ids, lot),
+    );
+    return !landed.ok && landed.refusal.kind === "busy" ? "retry" : "done";
+  },
+  tries: { kind: "until-done" },
+};

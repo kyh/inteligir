@@ -39,6 +39,7 @@ vercel.json      the functions' region
 | `/api/sign-up`                                     | sign-up behind the invite gate, POST alone                                  |
 | `/api/markdown/*`                                  | what `proxy.ts` rewrites a markdown request to; no public address           |
 | `/api/health`                                      | `{"ok":true}` once the database answers, else 503                           |
+| `/api/cron/jobs`                                   | Vercel Cron, every minute: drains every account's due jobs                  |
 | `/api/*`                                           | a JSON 404                                                                  |
 | `/v1/rpc/*`                                        | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`)            |
 | `/connector`                                       | the library's tools for a connected assistant, POST alone (`mcp/`)          |
