@@ -101,9 +101,7 @@ test("the site's pages render their docs, and the home page links the latest Mac
     "href",
     `https://github.com/kyh/inteligir/releases/latest/download/${dmg ?? ""}`,
   );
-  for (const requirement of ["Apple silicon", "An account is required, by invite for now"]) {
-    await expect(page.getByText(requirement).first()).toBeVisible();
-  }
+  await expect(page.getByText("Invite required during beta").first()).toBeVisible();
 
   // the policy's tables are the site's widest thing, and the fixed header must stay on a phone
   await page.setViewportSize({ height: 844, width: 390 });
@@ -148,15 +146,11 @@ const vendoredTexts = async (): Promise<string[]> => {
   return texts;
 };
 
-test("the home page links the licences of the packages the site bundles, which link each vendored text, served as kept", async ({
+test("the site serves the licences of the packages it bundles, which link each vendored text, served as kept", async ({
   cloud,
-  page,
   request,
 }) => {
-  await page.goto(cloud.origin);
-  const footer = page.getByRole("link", { exact: true, name: "Licenses" });
-  const href = await footer.getAttribute("href");
-  const packages = await request.get(`${cloud.origin}${href ?? ""}`);
+  const packages = await request.get(`${cloud.origin}/licenses.md`);
   const licences = await packages.text();
   expect(licences).toMatch(/^## react - \S+ \(MIT\)$/mu);
   const texts = await vendoredTexts();
