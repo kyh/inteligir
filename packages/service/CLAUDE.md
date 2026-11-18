@@ -259,6 +259,10 @@ decisions port with its code from the tag `cloudflare-last`.
   folder at `FILE_STORE_DIR` otherwise, and none on Vercel without the token.**
   Development and the suites need no cloud account, and a deployment never
   writes to a function's disk. `packages/service/src/files/file-store-of.ts`.
+- **One contract suite holds both stores, the folder on every run and Blob only
+  on a run given its key, which reaches no other suite.** CI holds no secret,
+  and every other suite reads the folder's own upload route.
+  `packages/service/src/files/file-store.contract.test.ts`.
 - **An upload is named by a sealed id, its sha, size, type and nonce under an
   HMAC, with no expiry of its own.** Settle trusts nothing a device sends back,
   and an object no settle kept expires in the store a day on, which bounds the

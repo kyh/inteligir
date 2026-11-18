@@ -46,8 +46,12 @@ export const blobFileStore = (token: string): FileStore => ({
       throw error;
     }
   },
+  // a list of one, since only a list's answer says when no object was there to keep
   keep: async (pathname) => {
-    await setTtl(pathname, { token, ttlDays: null });
+    const [kept] = await setTtl([pathname], { token, ttlDays: null });
+    if (kept === undefined || "error" in kept) {
+      throw new Error(`Blob kept nothing at ${pathname}: ${kept?.error.code ?? "no answer"}`);
+    }
   },
   put: async (pathname, bytes, mime) => {
     await put(pathname, Buffer.from(bytes), {

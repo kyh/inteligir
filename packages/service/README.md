@@ -64,3 +64,14 @@ and mail in log mode, where a test reads the reset link off the log.
 ```bash
 TEST_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:54622/wt_<name> pnpm --filter @repo/service test
 ```
+
+Every suite keeps its files in a folder of its own. The file store's contract
+(`src/files/file-store.contract.test.ts`) runs against private Vercel Blob as
+well when the run is given the store's key, which reaches that suite alone:
+under a root of the run's own, which it removes at the end, about 2,000 Blob
+operations over a minute, a prefix past one page of 1,000 among them. CI is
+never given it.
+
+```bash
+BLOB_READ_WRITE_TOKEN=<the store's key> pnpm --filter @repo/service test -- files/file-store.contract
+```

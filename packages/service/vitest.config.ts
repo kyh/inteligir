@@ -7,6 +7,10 @@ export default defineConfig({
     globalSetup: ["@repo/db/test-database"],
     include: ["src/**/*.test.ts"],
     maxWorkers: 2,
+    // the Blob store's key a run is given, for the store's contract alone
+    // (src/files/file-store.contract.test.ts): src/test-support/file-store-setup.ts takes it from
+    // every suite's environment
+    provide: { blobReadWriteToken: process.env.BLOB_READ_WRITE_TOKEN ?? "" },
     setupFiles: ["@repo/db/test-database-file", "./src/test-support/file-store-setup.ts"],
   },
 });
