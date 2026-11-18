@@ -12,8 +12,16 @@ import { and, asc, eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
-import { libraryAs, makeAccount, seedFile, seedItem } from "../test-support/library-fixture";
-import { pruneChangeSets, pruneOpAnswers, sealTurnSet } from "./library-change-sets";
+import { openThread } from "../agent/agent-threads";
+import {
+  libraryAs,
+  makeAccount,
+  personalLibrary,
+  seedFile,
+  seedItem,
+} from "../test-support/library-fixture";
+import { sealTurnSet } from "./library-change-sets";
+import { pruneChangeSets, pruneOpAnswers } from "./library-prunes";
 import { mintLibraryId } from "./library-ids";
 import { landItem } from "./library-landing";
 import { readItem } from "./library-rows";
@@ -108,6 +116,21 @@ dbSuite("housekeeping's prunes", () => {
     await prune(later);
     await expect(turnsOf(accountId)).resolves.toStrictEqual([{ sealed: null, turn: 3 }]);
     await expect(touchedAt(accountId)).resolves.toBe(later);
+  });
+
+  it("names a thread to every device once its turn's set goes past Undo's reach", async () => {
+    const { accountId, library } = await personalLibrary();
+    await seedFile(accountId, SHA);
+    const threadId = randomUUID();
+    await openThread(accountId, { id: threadId, now: Date.now(), title: "Tidy up" });
+    await coverTakenBy(accountId, threadId, 1);
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+
+    const { head } = await library.changes({});
+    await prune(Date.now() + 8 * DAY_MS);
+    const { moved } = await library.changes({ after: head });
+    expect(moved?.threads).toStrictEqual([threadId]);
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
   });
 
   it("passes over an account a write holds, and takes it on its next run", async () => {

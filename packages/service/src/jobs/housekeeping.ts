@@ -11,7 +11,7 @@ import { serveCron } from "../cron";
 import { env } from "../env";
 import { emptyDeletedAccounts } from "../files/deleted-account-files";
 import { releaseUnnamedFiles } from "../files/file-release";
-import { pruneChangeSets, pruneOpAnswers } from "../library/library-change-sets";
+import { pruneChangeSets, pruneOpAnswers } from "../library/library-prunes";
 
 // how long a run spends emptying deleted accounts' files, inside its route's 300 s
 const STORE_SWEEP_MS = 240_000;

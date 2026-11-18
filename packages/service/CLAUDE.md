@@ -229,7 +229,7 @@ DOM (`oxlint.config.ts`).
 - **Housekeeping prunes change sets and op answers inside its own
   transaction, skipping an account a write holds.** It locks each account's
   row as a write does, so a prune never races an Undo, and a busy account
-  waits for the next run. `packages/service/src/library/library-change-sets.ts`.
+  waits for the next run. `packages/service/src/library/library-prunes.ts`.
 - **Only a new item is refused past the account's cap, which counts the sum of
   its files' and bodies' rows.** A person never loses a word mid-note and a full
   library can still be tidied; fields and the search rows are small beside them.

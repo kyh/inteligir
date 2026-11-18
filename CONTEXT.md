@@ -47,7 +47,7 @@ back, or as the turn last left one it made, with its body as it stood before the
 turn, keyed by the turn and sealed as the turn ends. No other writer keeps one:
 a person's, a connected assistant's, an import's, a **sweep**'s and a page's
 reading land with nothing to undo. The library keeps each for the undo window
-(`packages/service/src/library/library-change-sets.ts`), and a set holds only
+(`packages/service/src/library/library-prunes.ts`), and a set holds only
 what is left to take back: an entry goes as an **Undo** settles it.
 Not a version: an undo writes forward and keeps no set of its own.
 
