@@ -9,7 +9,6 @@ const PENDING_FILES = [
   "agent-panel.spec.ts",
   "connector.spec.ts",
   "editor.spec.ts",
-  "extension.spec.ts",
   "import.spec.ts",
   "note-links.spec.ts",
   "saving.spec.ts",

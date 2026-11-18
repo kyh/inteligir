@@ -21,6 +21,8 @@ import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { uploadBlob } from "@repo/contract/rpc/call-outcome";
+import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import postgres from "postgres";
@@ -197,6 +199,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
             APP_URL: origin,
             BETTER_AUTH_SECRET: "e2e-better-auth-secret-000000000000",
             EMAIL_MODE: "log",
+            // the worker's own folder of files, which its uploads go to on the app's own origin
+            FILE_STORE_DIR: path.join(project.outputDir, `files-${String(workerIndex)}`),
             HOME: process.env.HOME,
             MIN_CLIENT_BUILD: build,
             NEXT_TELEMETRY_DISABLED: "1",
@@ -338,16 +342,18 @@ export const upload = async (
   type: string,
 ): Promise<string> => {
   const sha = createHash("sha256").update(bytes).digest("hex");
-  const response = await fetch(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
-    body: bytes,
-    headers: {
-      ...buildHeaders(cloud),
-      authorization: `Bearer ${account.bearer}`,
-      "content-type": type,
+  const signed = { ...buildHeaders(cloud), authorization: `Bearer ${account.bearer}` };
+  const transport: V1Transport = {
+    fetch: async (request) => {
+      const headers = new Headers(request.headers);
+      for (const [name, value] of Object.entries(signed)) {
+        headers.set(name, value);
+      }
+      return await fetch(new Request(request, { headers }));
     },
-    method: "PUT",
-  });
-  expect(response.status, "the upload").toBe(201);
+    origin: cloud.origin,
+  };
+  await uploadBlob(transport, { bytes, mime: type, sha });
   return sha;
 };
 

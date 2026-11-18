@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium, expect } from "@playwright/test";
@@ -5,7 +6,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
-import { newId, signInOnSite, test as base, watchErrors } from "./fixtures";
+import { download, newId, signInOnSite, test as base, watchErrors } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
 
 // WXT's output for the dev flavor, whose one cloud host is localhost and which may script a
@@ -27,8 +28,8 @@ const QueuedSchema = z.array(
   z.looseObject({ payload: z.looseObject({ email: z.string(), url: z.string() }) }),
 );
 
-const pageOf = (title: string, script = ""): string =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title></head><body><article><h1>${title}</h1><p>If you want digital artifacts that last, they must be files you can control.</p><div id="later"></div><p>The file is the one thing every app agrees on.</p></article>${script}</body></html>`;
+const pageOf = (title: string, script = "", head = ""): string =>
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>${head}</head><body><article><h1>${title}</h1><p>If you want digital artifacts that last, they must be files you can control.</p><div id="later"></div><p>The file is the one thing every app agrees on.</p></article>${script}</body></html>`;
 
 const PAGE_BODIES = new Map([
   [
@@ -66,6 +67,32 @@ const signIn = async (page: Page, cloud: Cloud, account: Account) => {
   await expect(page).toHaveURL(`${cloud.origin}${QUIET_PAGE}`);
 };
 
+// the extension's own page, which asks its worker as the popup does, pointed at this run's cloud
+const openPanel = async (extension: BrowserContext, cloud: Cloud) => {
+  const panel = await extension.newPage();
+  await panel.goto(`${EXTENSION_ORIGIN}/welcome.html`);
+  // from an extension page, as the popup asks its worker; a string, since this program holds no
+  // types for `chrome`
+  const ask = async <T>(schema: z.ZodType<T>, source: string): Promise<T> =>
+    schema.parse(await panel.evaluate(source));
+  // the dev build's cloud is `pnpm dev:web`'s unless its storage names another, as the one this
+  // run booted on a port of its own
+  await panel.evaluate(
+    `chrome.storage.local.set({ "cloud-origin": ${JSON.stringify(cloud.origin)} })`,
+  );
+  const save = async (pathname: string) => {
+    const url = `${PAGES}${pathname}`;
+    const tab = await extension.newPage();
+    await tab.goto(url);
+    return await ask(
+      OutcomeSchema,
+      `chrome.tabs.query({ url: ${JSON.stringify(url)} }).then(([tab]) =>
+        chrome.runtime.sendMessage({ tabId: tab.id, type: "save" }))`,
+    );
+  };
+  return { ask, panel, save };
+};
+
 test("the extension rides the browser's sign-in, saves the page as shown, and holds saves until they can land", async ({
   account,
   cloud,
@@ -80,17 +107,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     await route.fulfill({ body: PAGE_BODIES.get(pathname) ?? "", contentType: "text/html" });
   });
   const site = await extension.newPage();
-  const panel = await extension.newPage();
-  await panel.goto(`${EXTENSION_ORIGIN}/welcome.html`);
-  // from an extension page, as the popup asks its worker; a string, since this program holds no
-  // types for `chrome`
-  const ask = async <T>(schema: z.ZodType<T>, source: string): Promise<T> =>
-    schema.parse(await panel.evaluate(source));
-  // the dev build's cloud is `pnpm dev:web`'s unless its storage names another local Worker, as
-  // the one this run booted on a port of its own
-  await panel.evaluate(
-    `chrome.storage.local.set({ "cloud-origin": ${JSON.stringify(cloud.origin)} })`,
-  );
+  const { ask, panel, save } = await openPanel(extension, cloud);
   const signedInAs = async () => {
     const status = await ask(StatusSchema, `chrome.runtime.sendMessage({ type: "status" })`);
     return status.account?.email ?? null;
@@ -101,16 +118,6 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
       `chrome.storage.local.get(null).then((stored) =>
         Object.entries(stored).filter(([key]) => key.startsWith("save:")).map(([, save]) => JSON.parse(save)))`,
     );
-  const save = async (pathname: string) => {
-    const url = `${PAGES}${pathname}`;
-    const tab = await extension.newPage();
-    await tab.goto(url);
-    return await ask(
-      OutcomeSchema,
-      `chrome.tabs.query({ url: ${JSON.stringify(url)} }).then(([tab]) =>
-        chrome.runtime.sendMessage({ tabId: tab.id, type: "save" }))`,
-    );
-  };
   const landed = async (pathname: string) => {
     const { items } = await library.items.list({ kinds: ["link"] });
     return items.find((item) => item.url === `${PAGES}${pathname}`)?.id;
@@ -218,6 +225,50 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect(refused).toHaveCount(0);
   expect(await queued()).toEqual([]);
   expect(await landed("/let-go")).toBeUndefined();
+});
+
+// a PNG's signature and header naming a cover's size, then bytes to past what one request to the
+// cloud carries: a cover's sniff and size read the head alone
+const LARGE_COVER = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]),
+  Buffer.from("IHDR"),
+  Buffer.from([0, 0, 0x06, 0x40, 0, 0, 0x03, 0x84]),
+  randomBytes(5 * 1024 * 1024),
+]);
+
+test("the extension keeps a page's cover larger than one request carries", async ({
+  account,
+  cloud,
+  extension,
+  library,
+}) => {
+  await extension.route(`${PAGES}/**`, async (route) => {
+    const { pathname } = new URL(route.request().url());
+    await (pathname === "/cover.png"
+      ? route.fulfill({ body: LARGE_COVER, contentType: "image/png" })
+      : route.fulfill({
+          body: pageOf(
+            "A large cover",
+            "",
+            `<meta property="og:image" content="${PAGES}/cover.png">`,
+          ),
+          contentType: "text/html",
+        }));
+  });
+  const site = await extension.newPage();
+  const { save } = await openPanel(extension, cloud);
+  await signIn(site, cloud, account);
+  expect(await save("/large-cover")).toEqual({
+    created: true,
+    kind: "saved",
+    title: "A large cover",
+  });
+  const { items } = await library.items.list({ kinds: ["link"] });
+  const saved = items.find((item) => item.url === `${PAGES}/large-cover`);
+  const { fields } = await library.items.row({ id: saved?.id ?? "" });
+  expect(fields.coverSha).toBe(createHash("sha256").update(LARGE_COVER).digest("hex"));
+  const kept = await download(cloud, account, fields.coverSha ?? "");
+  expect(kept.equals(LARGE_COVER)).toBe(true);
 });
 
 test("the build carries the licence of a package only one of WXT's builds bundles", async () => {

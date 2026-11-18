@@ -162,7 +162,42 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await expect(page).toHaveURL(itemParam(field.item.id));
   await page.getByRole("button", { name: "Back to the library" }).click();
 
-  // a paste and a drop as the browser hands them over, where no field claims them
+  // Empty Deleted is one ask, which the cell lands by itself while the grid follows it
+  await cardOf(page, "pier").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await page
+    .getByRole("list", { name: "Deleted" })
+    .getByRole("button", { name: "Deleted" })
+    .click();
+  await expect(grid.getByRole("gridcell")).toHaveText([/pier/u]);
+  await page.getByRole("button", { name: "Empty Deleted…" }).click();
+  await page.getByRole("button", { name: "Delete forever" }).click();
+  await expect(page.getByText("Nothing deleted")).toBeVisible();
+  await expect.poll(async () => await library.listing.scopes()).toMatchObject({ deleted: 0 });
+});
+
+// the tab learns of it by asking what moved, on its beat
+// a paste and a drop as the browser hands them over, where no field claims them: the picture is
+// one the library holds, so only the PDF's bytes go to the store
+test("a paste and a drop on the grid land a link, a picture and a PDF", async ({
+  account,
+  cloud,
+  library,
+  page,
+}) => {
+  const sha = await upload(cloud, account, new Uint8Array(PIXEL), "image/png");
+  await library.items.createFile({
+    folderId: null,
+    id: newId(),
+    name: "pier.png",
+    savedAt: Date.now(),
+    sha,
+    tags: [],
+  });
+  await openLibrary(page, cloud);
+  const grid = page.getByRole("grid", { name: "Library" });
+  await expect(grid.getByRole("gridcell")).toHaveCount(1);
+
   await grid.evaluate(
     (target, { pasted, pixel }) => {
       const text = new DataTransfer();
@@ -195,22 +230,8 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
         expect.objectContaining({ kind: "pdf", title: expect.stringContaining("Lecture") }),
       ]),
     );
-
-  // Empty Deleted is one ask, which the cell lands by itself while the grid follows it
-  await cardOf(page, "pier").click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
-  await page
-    .getByRole("list", { name: "Deleted" })
-    .getByRole("button", { name: "Deleted" })
-    .click();
-  await expect(grid.getByRole("gridcell")).toHaveText([/pier/u]);
-  await page.getByRole("button", { name: "Empty Deleted…" }).click();
-  await page.getByRole("button", { name: "Delete forever" }).click();
-  await expect(page.getByText("Nothing deleted")).toBeVisible();
-  await expect.poll(async () => await library.listing.scopes()).toMatchObject({ deleted: 0 });
 });
 
-// the tab learns of it by asking what moved, on its beat
 test("a write from another device appears", async ({ cloud, library, page }) => {
   await openLibrary(page, cloud);
   await expect(page.getByRole("grid", { name: "Library" }).getByRole("gridcell")).toHaveCount(0);
