@@ -1,8 +1,16 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { Fragment, createContext, useContext, useId, useState } from "react";
-import type { ButtonHTMLAttributes, LiHTMLAttributes, ReactNode, RefAttributes } from "react";
+import { Fragment, createContext, useContext, useId, useLayoutEffect, useState } from "react";
+import type {
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  LiHTMLAttributes,
+  ReactNode,
+  RefAttributes,
+} from "react";
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
@@ -16,6 +24,14 @@ import { splitLeadingText } from "@repo/ui/lib/text-children";
 
 // the row id of the button Tab lands on: the current row's, else the list's first
 const TabStopContext = createContext<string | null>(null);
+// a row's id, which its button and its action find the list's tab stop by
+const RowContext = createContext<string | null>(null);
+
+const useHoldsTabStop = (): boolean => {
+  const rowId = useContext(RowContext);
+  const tabStop = useContext(TabStopContext);
+  return rowId !== null && tabStop === rowId;
+};
 
 const MENU_ITEM = '[data-sidebar="menu-item"]';
 const MENU_BUTTON = '[data-sidebar="menu-button"]';
@@ -46,6 +62,10 @@ const UNREAD: MenuReading = { active: null, focus: null, hover: null, tabStop: n
 
 // a row that turns current with no render of its list says so by this attribute alone
 const MARKS = ["aria-current"];
+
+// The row under the hover pill carries this attribute, which its tone and its action read. The
+// list writes it to the row's element, so the pill's travel re-renders no row.
+const LIT = "data-lit";
 
 const onKeyDown = (e: React.KeyboardEvent) => {
   // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
@@ -94,6 +114,16 @@ const useMenuScope = (list: HTMLElement | null): MenuScope => {
   const [lit, setLit] = useState<HTMLElement | null>(null);
   const [focused, setFocused] = useState<HTMLElement | null>(null);
   const [session, setSession] = useState(0);
+
+  useLayoutEffect(() => {
+    if (lit === null) {
+      return;
+    }
+    lit.setAttribute(LIT, "");
+    return () => {
+      lit.removeAttribute(LIT);
+    };
+  }, [lit]);
 
   const reading = useLayoutReading(
     list,
@@ -153,8 +183,9 @@ const useMenuScope = (list: HTMLElement | null): MenuScope => {
       onMouseEnter: () => {
         setSession((entered) => entered + 1);
       },
+      // the pill goes back to the row the keyboard holds, if any
       onMouseLeave: () => {
-        setLit(null);
+        setLit(focused);
       },
       onMouseMove,
       // clicking the already-focused row never re-fires focus, so without this the keyboard ring
@@ -211,22 +242,27 @@ const SidebarMenuItem = ({
   className,
   ref,
   ...props
-}: SidebarMenuItemProps & RefAttributes<HTMLLIElement>) => (
-  <li
-    ref={ref}
-    data-sidebar="menu-item"
-    className={cn(
-      "group/menu-item relative before:absolute before:inset-x-0 before:-inset-y-px",
-      className,
-    )}
-    {...props}
-  />
-);
+}: SidebarMenuItemProps & RefAttributes<HTMLLIElement>) => {
+  const rowId = useId();
+  return (
+    <RowContext value={rowId}>
+      <li
+        ref={ref}
+        data-sidebar="menu-item"
+        className={cn(
+          "group/menu-item relative before:absolute before:inset-x-0 before:-inset-y-px",
+          className,
+        )}
+        {...props}
+      />
+    </RowContext>
+  );
+};
 
-// A row reads lit under the pointer and under keyboard focus; the current row is lit for good.
-const LIT_TONE =
-  "text-muted-foreground group-hover/menu-item:text-foreground group-has-focus-visible/menu-item:text-foreground";
-const LIT_STROKE = "group-hover/menu-item:stroke-2 group-has-focus-visible/menu-item:stroke-2";
+// A row reads lit where the hover pill is, which the pointer or the keyboard put there; the current
+// row is lit for good.
+const LIT_TONE = "text-muted-foreground group-data-lit/menu-item:text-foreground";
+const LIT_STROKE = "group-data-lit/menu-item:stroke-2";
 
 // element children render outside the text-box-trimmed span, which would clip an inline SVG
 const MenuRowLabel = ({
@@ -287,83 +323,116 @@ const MenuRowLabel = ({
   );
 };
 
-interface SidebarMenuButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type SidebarMenuButtonProps = useRender.ComponentProps<"button"> & {
   isActive?: boolean;
   icon?: IconComponent;
-}
+};
 
 // The row: leading text is the label, drawn semibold while active without the row widening;
-// anything after it lands at the trailing edge as given.
+// anything after it lands at the trailing edge as given. A button, or what `render` makes it, such
+// as a link to the row's place.
 const SidebarMenuButton = ({
   isActive = false,
   icon: Icon,
   className,
   children,
+  render,
   ref,
   ...props
-}: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
-  const rowId = useId();
-  const tabStop = useContext(TabStopContext);
+}: SidebarMenuButtonProps) => {
+  const rowId = useContext(RowContext);
+  const holdsTabStop = useHoldsTabStop();
 
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps<"button">(
+      {
+        "aria-current": isActive ? "page" : undefined,
+        children: (
+          <>
+            {Icon ? (
+              <Icon
+                size={14}
+                strokeWidth={1.5}
+                className={cn(
+                  "shrink-0 transition-[color,stroke-width] duration-80",
+                  isActive ? "stroke-2 text-foreground" : `${LIT_STROKE} ${LIT_TONE}`,
+                )}
+              />
+            ) : null}
+            <MenuRowLabel content={children} emphasized={isActive} textClass="text-body" />
+          </>
+        ),
+        className: cn(
+          "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
+          radius.item,
+          className,
+        ),
+        tabIndex: isActive || holdsTabStop ? 0 : -1,
+        type: render === undefined ? "button" : undefined,
+      },
+      props,
+    ),
+    ref,
+    render,
+    state: { active: isActive, row: rowId, sidebar: "menu-button" },
+  });
+};
+
+// A 24px button over the row's trailing edge, a sibling of the row button rather than a child,
+// since a button cannot nest a button. It shows while its row is lit, while it holds the keyboard's
+// focus and while its popup is open, and the row's badge gives it the edge then.
+const SidebarMenuAction = ({
+  className,
+  ref,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>) => {
+  // one Tab stop per row, so Tab leaves the list after the current row and its action; set over
+  // the props, since a menu trigger rendering the action hands it a tabIndex of 0
+  const tabIndex = useHoldsTabStop() ? 0 : -1;
   return (
     <button
       ref={ref}
       type="button"
-      data-sidebar="menu-button"
-      data-row={rowId}
-      data-active={isActive ? "true" : undefined}
-      aria-current={isActive ? "page" : undefined}
-      tabIndex={isActive || tabStop === rowId ? 0 : -1}
+      data-sidebar="menu-action"
       className={cn(
-        "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
+        "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
+        "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "opacity-0 group-data-lit/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
         radius.item,
         className,
       )}
       {...props}
-    >
-      {Icon ? (
-        <Icon
-          size={14}
-          strokeWidth={1.5}
-          className={cn(
-            "shrink-0 transition-[color,stroke-width] duration-80",
-            isActive ? "stroke-2 text-foreground" : `${LIT_STROKE} ${LIT_TONE}`,
-          )}
-        />
-      ) : null}
-      <MenuRowLabel content={children} emphasized={isActive} textClass="text-body" />
-    </button>
+      tabIndex={tabIndex}
+    />
   );
 };
 
-interface SidebarMenuActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  // hidden until the row is hovered or holds focus, or its popup is open
-  showOnHover?: boolean;
-}
+// when the row's action shows, in a row that has one
+const YIELDS_TO_ACTION = [
+  "group-has-data-[sidebar=menu-action]/menu-item:group-data-lit/menu-item:opacity-0",
+  "group-has-[[data-sidebar=menu-action]:focus-visible]/menu-item:opacity-0",
+  "group-has-[[data-sidebar=menu-action][data-popup-open]]/menu-item:opacity-0",
+].join(" ");
 
-// A 24px button over the row's trailing edge, a sibling of the row button rather than a child,
-// since a button cannot nest a button. The row reserves the width with its own trailing padding.
-const SidebarMenuAction = ({
-  showOnHover = false,
+// A row's count, at its trailing edge. It gives the edge to the row's action while that shows, so
+// the two never overlap and every list's counts keep one column.
+const SidebarMenuBadge = ({
   className,
   ref,
   ...props
-}: SidebarMenuActionProps & RefAttributes<HTMLButtonElement>) => (
-  <button
+}: HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>) => (
+  <span
     ref={ref}
-    type="button"
-    data-sidebar="menu-action"
+    data-sidebar="menu-badge"
     className={cn(
-      "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
-      "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
-      "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-      showOnHover &&
-        "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
-      radius.item,
+      "ml-auto shrink-0 text-caption text-muted-foreground tabular-nums transition-opacity duration-80",
+      YIELDS_TO_ACTION,
       className,
     )}
     {...props}
   />
 );
 
-export { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction };
+export { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction, SidebarMenuBadge };

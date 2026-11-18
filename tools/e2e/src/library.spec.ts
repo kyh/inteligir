@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { V1_BLOBS_NAME_PARAM, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { EDITOR, newId, openLibrary, skipScriptedPaste, test, typeAfter, upload } from "./fixtures";
@@ -67,13 +67,13 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
 
   await page
     .getByRole("list", { name: "Folders" })
-    .getByRole("button", { name: /^Reading/u })
+    .getByRole("link", { name: /^Reading/u })
     .click();
   await expect(scopeTitle(page)).toHaveText("Reading");
   await expect(grid.getByRole("gridcell")).toHaveText([/Field notes/u]);
   await page
     .getByRole("list", { name: "Tags" })
-    .getByRole("button", { name: /^field/u })
+    .getByRole("link", { name: /^field/u })
     .click();
   await expect(scopeTitle(page)).toHaveText("#field");
   await expect(grid.getByRole("gridcell")).toHaveText([/Field notes/u]);
@@ -82,7 +82,7 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
 
   await page
     .getByRole("list", { name: "Library" })
-    .getByRole("button", { name: /^All items/u })
+    .getByRole("link", { name: /^All items/u })
     .click();
   await expect(scopeTitle(page)).toHaveText("All items");
   const images = page.getByLabel("Kind").getByRole("button", { name: /^Images/u });
@@ -165,10 +165,7 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   // Empty Deleted is one ask, which the cell lands by itself while the grid follows it
   await cardOf(page, "pier").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
-  await page
-    .getByRole("list", { name: "Deleted" })
-    .getByRole("button", { name: "Deleted" })
-    .click();
+  await page.getByRole("list", { name: "Deleted" }).getByRole("link", { name: "Deleted" }).click();
   await expect(grid.getByRole("gridcell")).toHaveText([/pier/u]);
   await page.getByRole("button", { name: "Empty Deleted…" }).click();
   await page.getByRole("button", { name: "Delete forever" }).click();
@@ -248,6 +245,102 @@ test("a write from another device appears", async ({ cloud, library, page }) => 
     title: "Written elsewhere",
   });
   await expect(cardOf(page, "Written elsewhere")).toBeVisible({ timeout: 20_000 });
+});
+
+// a rail row's toned label, beside the hidden copy that holds its semibold width
+const labelOf = (row: Locator): Locator => row.locator('span[aria-hidden="true"] + span');
+const colorOf = async (element: Locator): Promise<string> =>
+  await element.evaluate((node) => getComputedStyle(node).color);
+// how far apart two boxes' tops sit, the pills placed by whole pixels over a row's laid-out box
+const topsApart = async (one: Locator, other: Locator): Promise<number> => {
+  const [a, b] = await Promise.all([one.boundingBox(), other.boundingBox()]);
+  return a === null || b === null ? Number.POSITIVE_INFINITY : Math.abs(a.y - b.y);
+};
+
+test("the rail's rows are links, and a folder row answers the pointer and the keyboard as one", async ({
+  library,
+  cloud,
+  page,
+}) => {
+  for (const name of ["Archive", "Projects", "Reading"]) {
+    await library.items.createNote({ folder: { path: name }, markdown: "Notes.\n", title: name });
+  }
+  const { folders: outline } = await library.organize.outline();
+  const reading = outline.find((folder) => folder.name === "Reading");
+  await openLibrary(page, cloud);
+  const folders = page.getByRole("list", { name: "Folders" });
+  const rowOf = (name: string) =>
+    folders.getByRole("listitem").filter({ has: page.getByRole("link", { name }) });
+  const linkOf = (name: string) => folders.getByRole("link", { name: new RegExp(`^${name}`, "u") });
+  const moreOf = (name: string) => page.getByRole("button", { name: `More for ${name}` });
+
+  await expect(linkOf("Reading")).toHaveAttribute("href", `/library?folder=${String(reading?.id)}`);
+  await expect(
+    page.getByRole("list", { name: "Library" }).getByRole("link", { name: /^All items/u }),
+  ).toHaveAttribute("href", "/library");
+  await expect(
+    page.getByRole("list", { name: "Deleted" }).getByRole("link", { name: "Deleted" }),
+  ).toHaveAttribute("href", "/library?scope=deleted");
+  const [opened] = await Promise.all([
+    page.context().waitForEvent("page"),
+    linkOf("Reading").click({ modifiers: ["ControlOrMeta"] }),
+  ]);
+  await expect(opened).toHaveURL((url) => url.searchParams.get("folder") === reading?.id);
+  await expect(opened.getByRole("heading", { level: 1 })).toHaveText("Reading");
+  await opened.close();
+  await expect(scopeTitle(page)).toHaveText("All items");
+  // a right-click on a row is still its folder's menu, not the browser's menu for a link
+  await linkOf("Archive").click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Rename…" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  await expect(scopeTitle(page)).toHaveText("All items");
+
+  // the count gives the row's trailing edge to More while More shows
+  await linkOf("Projects").click();
+  await expect(scopeTitle(page)).toHaveText("Projects");
+  const count = rowOf("Projects").locator('[data-sidebar="menu-badge"]');
+  await expect(moreOf("Projects")).toHaveCSS("opacity", "1");
+  await expect(count).toHaveCSS("opacity", "0");
+  await linkOf("Archive").hover();
+  await expect(count).toHaveCSS("opacity", "1");
+  await expect(moreOf("Projects")).toHaveCSS("opacity", "0");
+
+  // Tab leaves the list after the current row and its More, with a row after them, and More opens
+  // on its first item
+  await linkOf("Projects").focus();
+  await page.keyboard.press("Tab");
+  await expect(moreOf("Projects")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(async () => await folders.evaluate((list) => list.contains(document.activeElement)))
+    .toBe(false);
+  await page.keyboard.press("Shift+Tab");
+  await expect(moreOf("Projects")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem").first()).toHaveAttribute("data-highlighted", "");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+
+  // the pointer rests on Archive while the arrows walk to Reading: the pill, the lit label and the
+  // ring all sit on Reading
+  await linkOf("Archive").hover();
+  await linkOf("Projects").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(linkOf("Reading")).toBeFocused();
+  const muted = await colorOf(labelOf(page.getByRole("link", { name: /^Unsorted/u })));
+  await expect.poll(async () => await colorOf(labelOf(linkOf("Archive")))).toBe(muted);
+  await expect.poll(async () => await colorOf(labelOf(linkOf("Reading")))).not.toBe(muted);
+  const pill = folders.locator(".bg-hover");
+  const ring = folders.locator(".border-focus-ring");
+  await expect.poll(async () => await topsApart(pill, rowOf("Reading"))).toBeLessThan(1);
+  // the ring stands 2px out from its row
+  await expect.poll(async () => await topsApart(ring, rowOf("Reading"))).toBeCloseTo(2, 0);
+
+  // and stay there once the pointer leaves the rail
+  await page.mouse.move(800, 400);
+  await expect.poll(async () => await colorOf(labelOf(linkOf("Reading")))).not.toBe(muted);
+  await expect.poll(async () => await topsApart(pill, rowOf("Reading"))).toBeLessThan(1);
 });
 
 test.describe(() => {

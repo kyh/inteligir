@@ -79,10 +79,7 @@ test("a message names the grid's selection it left from, and none from Deleted",
     surface: "library",
   });
 
-  await page
-    .getByRole("list", { name: "Deleted" })
-    .getByRole("button", { name: "Deleted" })
-    .click();
+  await page.getByRole("list", { name: "Deleted" }).getByRole("link", { name: "Deleted" }).click();
   expect(await asked(2)).toBeUndefined();
 });
 

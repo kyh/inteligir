@@ -302,8 +302,9 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   invite sign-up, still signed in after Quit; a dev build keeps a store of its
   own; the Mac app shows in Settings › Account as This device.
 - **Window**: the system title bar, close hides it, a link to another site
-  and Settings › About's Licenses open in the browser, offline it says so, and
-  View › Reload recovers.
+  and Settings › About's Licenses open in the browser, a ⌘-click on a sidebar
+  folder opens it in the browser with the window left where it was, offline it
+  says so, and View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
 - **Outline and find**: in a long note, a heading picked from the outline and a
   ⌘F match a screen away glide there, and one far off lands at once and stays.

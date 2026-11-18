@@ -133,7 +133,32 @@ const OwnRow = ({ name }: { name: string }) => {
   );
 };
 
+const MenuWithActions = ({ keys, active }: { keys: readonly string[]; active?: string }) => (
+  <SidebarMenu aria-label="Rows">
+    {keys.map((key) => (
+      <SidebarMenuItem key={key}>
+        <SidebarMenuButton isActive={key === active}>{key}</SidebarMenuButton>
+        <SidebarMenuAction aria-label={`More for ${key}`} />
+      </SidebarMenuItem>
+    ))}
+  </SidebarMenu>
+);
+
+const litRows = (names: readonly string[]): string[] =>
+  names.filter((name) => row(name).closest("li")?.dataset.lit === "");
+
 describe("the sidebar's tab stop", () => {
+  it("takes the current row's action with it, and no other row's", async () => {
+    const { rerender } = render(<MenuWithActions keys={["a", "b", "c"]} active="b" />);
+    const actions = ["More for a", "More for b", "More for c"];
+    expect(tabStops(actions)).toStrictEqual(["More for b"]);
+
+    await act(async () => {
+      rerender(<MenuWithActions keys={["a", "b", "c"]} />);
+    });
+    expect(tabStops(actions)).toStrictEqual(["More for a"]);
+  });
+
   it("is the current row, else the list's first", async () => {
     const { rerender } = render(<Menu keys={["a", "b", "c"]} active="b" />);
     expect(tabStops(["a", "b", "c"])).toStrictEqual(["b"]);
@@ -205,6 +230,22 @@ describe("the sidebar's hover pill", () => {
     });
     await settled(() => {
       expect(pillTop("hover")).toBeNull();
+    });
+  });
+
+  // jsdom's :focus-visible follows a heuristic of its own, so a ring and the pill's return to the
+  // keyboard's row are held in Chromium (tools/e2e/src/library.spec.ts)
+  it("marks the row it sits on lit, and only that row, when focus moves it off the pointer's", async () => {
+    render(<Menu keys={["a", "b", "c"]} />);
+    fireEvent.mouseMove(row("a"));
+    expect(litRows(["a", "b", "c"])).toStrictEqual(["a"]);
+
+    act(() => {
+      row("c").focus();
+    });
+    expect(litRows(["a", "b", "c"])).toStrictEqual(["c"]);
+    await settled(() => {
+      expect(pillTop("hover")).toBe(top(2));
     });
   });
 

@@ -100,7 +100,9 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Choosing a new password looks like the rest of the website.**
 - **Dragging across the window selects only text you would copy.**
 - **In a menu, the highlight sits only on the row Enter acts on**: nothing is lit while the pointer is over a divider, a heading or a row that is off.
-- **A folder's More button stays visible while its menu is open.**
+- **A folder's More button stays visible while its menu is open**, and takes the place of the folder's count while it shows, so the two never overlap.
+- **A sidebar row is a link**: on inteligir.com, ⌘-click or middle-click a folder, a tag, All items, Unsorted or Deleted to open it in a new tab. Press Enter to choose a row from the keyboard; Space no longer does.
+- **The sidebar lights one row at a time**: the arrow keys move the highlight off the row under the pointer, and Tab leaves a list after its current row and that row's More button, which opens on its first item from the keyboard.
 - **Long notes open, scroll and type faster.**
 - **Diagrams draw as you type, in the app's own colours.**
 - **A very long page keeps its first part.**

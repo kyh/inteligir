@@ -11,7 +11,7 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { useSyncExternalStore } from "react";
 
-import { libraryHref, parseLibraryAddress } from "./library-address";
+import { libraryHref, parseLibraryAddress, scopeAddress } from "./library-address";
 import type { LibraryAddress } from "./library-address";
 
 interface Shown {
@@ -160,7 +160,7 @@ export const libraryGoes = {
   },
   // a new entry with no kind and no item, so Back walks scopes and the leave guard asks once
   showScope: (scope: LibraryScope): void => {
-    void go({ find: null, kind: null, openItem: null, scope, settings: false });
+    void go(scopeAddress(scope));
   },
 };
 

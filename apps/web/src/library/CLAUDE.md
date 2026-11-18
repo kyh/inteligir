@@ -74,9 +74,10 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   change each answer a promise as `confirm()` does, the form mounted with its ask, since a dialog
   state per verb lets two stand at once and a draft outlive the ask it was typed for.
   `apps/web/src/library/library/ask.ts`.
-- **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
-  with the cell's count, and a waiting call is the layout's one notice, since an online tab has
-  nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
+- **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a link to
+  a scope with the cell's count, a plain click moving the tab and any other the browser's, and a
+  waiting call is the layout's one notice, since an online tab has nothing queued to report.
+  `apps/web/src/library/sidebar/rail.tsx`.
 - **A library scope has one spelling, `@repo/contract/library-scope`.** The address, a listing's
   page on the wire and a view context read one set of zod arms, a folder by its id, since a scope
   per surface drifts and a folder by path breaks every link to it on a rename.

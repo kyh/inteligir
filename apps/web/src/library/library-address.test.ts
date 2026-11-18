@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { libraryHref, parseLibraryAddress } from "./library-address";
+import { libraryHref, parseLibraryAddress, scopeAddress } from "./library-address";
 
 const FOLDER = "01a0f4c2-c400-78d9-a955-7935ec13d6d5";
 
@@ -13,6 +13,14 @@ describe("the tab's address", () => {
       const address = parseLibraryAddress("/library", new URLSearchParams(search));
       expect(libraryHref(address)).toBe(`/library?${search}`);
     }
+  });
+
+  it("links a scope with nothing open over it by its one parameter, All items by none", () => {
+    expect(libraryHref(scopeAddress({ folderId: FOLDER, kind: "folder" }))).toBe(
+      `/library?folder=${FOLDER}`,
+    );
+    expect(libraryHref(scopeAddress({ kind: "deleted" }))).toBe("/library?scope=deleted");
+    expect(libraryHref(scopeAddress({ kind: "all" }))).toBe("/library");
   });
 
   it("reads a scope the listing would refuse as no scope", () => {

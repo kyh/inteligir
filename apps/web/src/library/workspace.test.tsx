@@ -316,7 +316,7 @@ describe("an open item holding typing it couldn't save", () => {
     const { id } = await pageOverASavedNote("", dropsSaves);
     await typeInto(id, " And here.");
 
-    fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
+    fireEvent.click(screen.getByRole("link", { name: "Deleted" }));
     await answer("Stay");
     expect(window.location.search).toBe(`?item=${id}`);
 
@@ -392,7 +392,7 @@ const shows = async (title: string) =>
   await screen.findByRole("heading", { level: 1, name: title });
 
 const railRow = (list: string, name: RegExp): HTMLElement =>
-  within(screen.getByRole("list", { name: list })).getByRole("button", { name });
+  within(screen.getByRole("list", { name: list })).getByRole("link", { name });
 
 // a folder of a tagged note and an image, so the folder offers a kind to narrow by
 const readingFolder = () => {

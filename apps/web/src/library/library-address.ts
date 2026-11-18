@@ -83,6 +83,15 @@ const scopeParams = (scope: LibraryScope) => {
   }
 };
 
+// a scope with nothing open over it and no kind, where the rail's rows and `showScope` go
+export const scopeAddress = (scope: LibraryScope): LibraryAddress => ({
+  find: null,
+  kind: null,
+  openItem: null,
+  scope,
+  settings: false,
+});
+
 // All items with nothing open is the bare address, which a fresh tab opens on
 export const libraryHref = (address: LibraryAddress): string => {
   const search = new URLSearchParams(scopeParams(address.scope));

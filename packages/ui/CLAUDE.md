@@ -42,6 +42,10 @@ The shared component vocabulary, its type roles and its motion.
   marks `data-highlighted`, the sidebar the row under the pointer and the one marked `aria-current`,
   and a row registers nothing, since a row named by its index needs an order registry and a measure
   of every row to find one. `packages/ui/src/hooks/use-layout-reading.ts`.
+- **The sidebar marks the row under its pill `data-lit`, and the row's tone and action read it.**
+  The list writes the attribute to the row's element, so pointer and keyboard light one row, where
+  CSS hover and focus would light two, and the pill's travel re-renders no row.
+  `packages/ui/src/components/sidebar-menu.tsx`.
 - **The card grid is virtualized by uniform rows, and its one component is the React Compiler's one
   exception.** Every cell is `cellHeight(cellWidth)` tall, so nothing is measured, and
   `useVirtualizer` is read in render, so the compiler skips that component alone.

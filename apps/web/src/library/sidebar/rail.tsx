@@ -1,6 +1,6 @@
 // CLAUDE.md § The rail chooses the library's scope. Stacked groups over the one grid (the library,
-// its folders, its tags, Deleted), each row a scope with the count the cell answers for it, and
-// Settings at its foot.
+// its folders, its tags, Deleted), each row a link to a scope with the count the cell answers for
+// it, and Settings at its foot.
 
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { Button } from "@repo/ui/components/button";
@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import {
   SidebarContent,
@@ -22,6 +23,7 @@ import {
 import {
   SidebarMenu,
   SidebarMenuAction,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar-menu";
@@ -41,11 +43,14 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
+import type { ComponentProps, MouseEvent } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
+import { libraryHref, scopeAddress } from "../library-address";
 import { useLibraryCommands } from "../library/library-commands";
 import { usePref, windowLayout } from "../prefs";
 import { folderPaths } from "./folder-paths";
+import type { FolderRow } from "./folder-paths";
 
 export interface RailProps {
   readonly scope: LibraryScope;
@@ -54,9 +59,7 @@ export interface RailProps {
 }
 
 const Count = ({ count }: { count: number }) => (
-  <span className="ml-auto shrink-0 text-caption text-muted-foreground tabular-nums">
-    {formatCount(count)}
-  </span>
+  <SidebarMenuBadge>{formatCount(count)}</SidebarMenuBadge>
 );
 
 const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope): boolean => {
@@ -72,122 +75,147 @@ const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope): boole
   return true;
 };
 
-interface FolderMenu {
-  readonly anchor: HTMLElement;
-  readonly id: string;
-  readonly name: string;
-}
+// a click the browser opens elsewhere, in a new tab or window, is left to the browser
+const opensElsewhere = (event: MouseEvent): boolean =>
+  event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
-const FolderRows = ({ scope, itemOpen }: RailProps) => {
+type ScopeLinkProps = RailProps &
+  Omit<ComponentProps<typeof SidebarMenuButton>, "isActive" | "onClick" | "render"> & {
+    readonly target: LibraryScope;
+  };
+
+// A row is a link to its scope, so it has an address to copy and a modified or middle click opens
+// it in a new tab; a plain click moves this tab, so the leave guard asks once and Back walks scopes.
+const ScopeLink = ({ target, scope, itemOpen, ...props }: ScopeLinkProps) => {
   const commands = useLibraryCommands();
-  const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
-  const [menu, setMenu] = useState<FolderMenu | null>(null);
-  const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
   return (
-    <>
-      <SidebarMenu aria-label="Folders">
-        {folderPaths(folders).map((row) => {
-          const target: LibraryScope = { folderId: row.id, kind: "folder" };
-          return (
-            <SidebarMenuItem key={row.id}>
-              <SidebarMenuButton
-                icon={FolderIcon}
-                isActive={isLit(scope, itemOpen, target)}
-                style={{ paddingLeft: `${String(8 + row.depth * 12)}px` }}
-                data-folder-id={row.id}
-                onClick={() => {
-                  commands.showScope(target);
-                }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setMenu({ anchor: event.currentTarget, id: row.id, name: row.name });
-                }}
-              >
-                {row.name}
-                <Count count={counts.get(row.id) ?? 0} />
-              </SidebarMenuButton>
-              <SidebarMenuAction
-                showOnHover
-                data-popup-open={menu?.id === row.id ? "" : undefined}
-                aria-label={`More for ${row.name}`}
-                onClick={(event) => {
-                  setMenu({ anchor: event.currentTarget, id: row.id, name: row.name });
-                }}
-              >
-                <EllipsisIcon />
-              </SidebarMenuAction>
-            </SidebarMenuItem>
-          );
-        })}
-      </SidebarMenu>
+    <SidebarMenuButton
+      {...props}
+      isActive={isLit(scope, itemOpen, target)}
+      render={(link) => (
+        <a {...link} href={libraryHref(scopeAddress(target))}>
+          {link.children}
+        </a>
+      )}
+      onClick={(event) => {
+        if (opensElsewhere(event)) {
+          return;
+        }
+        event.preventDefault();
+        commands.showScope(target);
+      }}
+    />
+  );
+};
+
+// the menu drops under More when More opened it, and under the row when a right-click on it did
+type FolderMenu = { readonly under: "more" } | { readonly under: "row"; readonly row: HTMLElement };
+
+const FolderItem = ({
+  row,
+  count,
+  scope,
+  itemOpen,
+}: RailProps & { readonly row: FolderRow; readonly count: number }) => {
+  const commands = useLibraryCommands();
+  const [menu, setMenu] = useState<FolderMenu | null>(null);
+  return (
+    <SidebarMenuItem>
+      <ScopeLink
+        target={{ folderId: row.id, kind: "folder" }}
+        scope={scope}
+        itemOpen={itemOpen}
+        icon={FolderIcon}
+        style={{ paddingLeft: `${String(8 + row.depth * 12)}px` }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenu({ row: event.currentTarget, under: "row" });
+        }}
+      >
+        {row.name}
+        <Count count={count} />
+      </ScopeLink>
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setMenu(null);
-          }
+          setMenu(open ? { under: "more" } : null);
         }}
       >
-        {menu === null ? null : (
-          <DropdownMenuContent anchor={menu.anchor} side="bottom" align="start">
-            <DropdownMenuItem
-              onClick={() => {
-                setMenu(null);
-                commands.newFolder(menu.id);
-              }}
-            >
-              New folder inside…
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                setMenu(null);
-                commands.renameFolder(menu.id, menu.name);
-              }}
-            >
-              Rename…
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                setMenu(null);
-                commands.deleteFolder(menu.id, menu.name);
-              }}
-            >
-              Delete folder…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        )}
+        <DropdownMenuTrigger render={<SidebarMenuAction aria-label={`More for ${row.name}`} />}>
+          <EllipsisIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          anchor={menu?.under === "row" ? menu.row : undefined}
+          side="bottom"
+          align="start"
+        >
+          <DropdownMenuItem
+            onClick={() => {
+              commands.newFolder(row.id);
+            }}
+          >
+            New folder inside…
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              commands.renameFolder(row.id, row.name);
+            }}
+          >
+            Rename…
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => {
+              commands.deleteFolder(row.id, row.name);
+            }}
+          >
+            Delete folder…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
       </DropdownMenu>
-    </>
+    </SidebarMenuItem>
+  );
+};
+
+const FolderRows = ({ scope, itemOpen }: RailProps) => {
+  const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
+  const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
+  return (
+    <SidebarMenu aria-label="Folders">
+      {folderPaths(folders).map((row) => (
+        <FolderItem
+          key={row.id}
+          row={row}
+          count={counts.get(row.id) ?? 0}
+          scope={scope}
+          itemOpen={itemOpen}
+        />
+      ))}
+    </SidebarMenu>
   );
 };
 
 const TagRows = ({ scope, itemOpen }: RailProps) => {
-  const commands = useLibraryCommands();
   const tags = useQuery(useLibraryQueries().scopes()).data?.tags ?? [];
   if (tags.length === 0) {
     return <p className="m-0 px-3 py-1 text-caption text-muted-foreground">No tags yet</p>;
   }
   return (
     <SidebarMenu aria-label="Tags">
-      {tags.map(({ items, tag }) => {
-        const target: LibraryScope = { kind: "tag", tag };
-        return (
-          <SidebarMenuItem key={tag}>
-            <SidebarMenuButton
-              icon={HashIcon}
-              isActive={isLit(scope, itemOpen, target)}
-              onClick={() => {
-                commands.showScope(target);
-              }}
-            >
-              {tag}
-              <Count count={items} />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        );
-      })}
+      {tags.map(({ items, tag }) => (
+        <SidebarMenuItem key={tag}>
+          <ScopeLink
+            target={{ kind: "tag", tag }}
+            scope={scope}
+            itemOpen={itemOpen}
+            icon={HashIcon}
+          >
+            {tag}
+            <Count count={items} />
+          </ScopeLink>
+        </SidebarMenuItem>
+      ))}
     </SidebarMenu>
   );
 };
@@ -196,9 +224,6 @@ export const Rail = ({ scope, itemOpen }: RailProps) => {
   const commands = useLibraryCommands();
   const scopes = useQuery(useLibraryQueries().scopes()).data;
   const [tagsOpen, setTagsOpen] = usePref(windowLayout, "railTagsOpen");
-  const all: LibraryScope = { kind: "all" };
-  const unsorted: LibraryScope = { kind: "unsorted" };
-  const deleted: LibraryScope = { kind: "deleted" };
   return (
     <>
       <SidebarHeader>
@@ -222,28 +247,26 @@ export const Rail = ({ scope, itemOpen }: RailProps) => {
           <SidebarGroupLabel>Library</SidebarGroupLabel>
           <SidebarMenu aria-label="Library">
             <SidebarMenuItem>
-              <SidebarMenuButton
+              <ScopeLink
+                target={{ kind: "all" }}
+                scope={scope}
+                itemOpen={itemOpen}
                 icon={LibraryIcon}
-                isActive={isLit(scope, itemOpen, all)}
-                onClick={() => {
-                  commands.showScope(all);
-                }}
               >
                 All items
                 <Count count={scopes?.total ?? 0} />
-              </SidebarMenuButton>
+              </ScopeLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton
+              <ScopeLink
+                target={{ kind: "unsorted" }}
+                scope={scope}
+                itemOpen={itemOpen}
                 icon={InboxIcon}
-                isActive={isLit(scope, itemOpen, unsorted)}
-                onClick={() => {
-                  commands.showScope(unsorted);
-                }}
               >
                 Unsorted
                 <Count count={scopes?.unsorted ?? 0} />
-              </SidebarMenuButton>
+              </ScopeLink>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
@@ -282,15 +305,14 @@ export const Rail = ({ scope, itemOpen }: RailProps) => {
         <SidebarGroup>
           <SidebarMenu aria-label="Deleted">
             <SidebarMenuItem>
-              <SidebarMenuButton
+              <ScopeLink
+                target={{ kind: "deleted" }}
+                scope={scope}
+                itemOpen={itemOpen}
                 icon={Trash2Icon}
-                isActive={isLit(scope, itemOpen, deleted)}
-                onClick={() => {
-                  commands.showScope(deleted);
-                }}
               >
                 Deleted
-              </SidebarMenuButton>
+              </ScopeLink>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
