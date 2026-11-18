@@ -38,7 +38,8 @@ const ORPC_IN_RPC_FOLDER = {
   message: "only packages/contract/src/rpc/ reaches oRPC: a page loads the rest of the contract",
   regex: "^@orpc/|(?:^|/)rpc/",
 };
-// the tests glob exempts test-support/ itself, whose fakes reach oRPC and node
+// every row but the suites' refuses it, test-support/ itself among the suites: its fakes reach
+// oRPC and node, which one import from a page's module would bring onto the page
 const SUITES_ONLY = {
   message: "only a suite imports test-support/: its fakes reach oRPC and node",
   regex: "(?:^|/)test-support/",
@@ -95,10 +96,10 @@ const IMPORT_WORKER_PLATFORM = {
   regex: REACT_OR_UI,
 };
 
-// an override's options replace the base's, so each restates the repo-wide row
+// an override's options replace the base's, so each restates the repo-wide rows
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
   "error",
-  { patterns: [SERVER_ONLY, ...patterns] },
+  { patterns: [SERVER_ONLY, SUITES_ONLY, ...patterns] },
 ];
 const platformPurity = (dir: string, regex: string, message: string, ...more: ImportPattern[]) => ({
   excludeFiles: tests,
@@ -166,9 +167,11 @@ export default defineConfig({
       rules: { "react/forbid-dom-props": "off" },
     },
     {
-      // a stub is `async` to match its port, and vitest types its asymmetric matchers `any`
+      // a stub is `async` to match its port, vitest types its asymmetric matchers `any`, and a
+      // suite reaches its fakes
       files: tests,
       rules: {
+        "no-restricted-imports": ["error", { patterns: [SERVER_ONLY] }],
         "no-empty-function": "off",
         "promise/prefer-await-to-then": "off",
         "typescript/require-await": "off",
@@ -181,11 +184,7 @@ export default defineConfig({
       excludeFiles: [...tests, RPC_FOLDER],
       files: ["packages/contract/src/**"],
       rules: {
-        "no-restricted-imports": restrictedImports([
-          CONTRACT_PLATFORM,
-          ORPC_IN_RPC_FOLDER,
-          SUITES_ONLY,
-        ]),
+        "no-restricted-imports": restrictedImports([CONTRACT_PLATFORM, ORPC_IN_RPC_FOLDER]),
       },
     },
     {
@@ -207,7 +206,6 @@ export default defineConfig({
           HEADLESS_WALL,
           HEADLESS_ALONE,
           NO_ORPC_IN_PAGE,
-          SUITES_ONLY,
         ]),
       },
     },
@@ -270,11 +268,14 @@ export default defineConfig({
       },
     },
     {
-      // MCP and OpenAPI meta are this package's, so the repo-wide row is left out
+      // MCP and OpenAPI meta are this package's, so that repo-wide row is left out
       excludeFiles: tests,
       files: ["packages/service/src/**"],
       rules: {
-        "no-restricted-imports": ["error", { patterns: [SERVICE_PLATFORM, HEADLESS_ALONE] }],
+        "no-restricted-imports": [
+          "error",
+          { patterns: [SUITES_ONLY, SERVICE_PLATFORM, HEADLESS_ALONE] },
+        ],
       },
     },
     {

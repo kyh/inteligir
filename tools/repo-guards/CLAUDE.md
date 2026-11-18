@@ -66,8 +66,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `nodenext`, `erasableSyntaxOnly` and `verbatimModuleSyntax`. Why: a bad
   import fails the typecheck, not the release. `apps/desktop/scripts/tsconfig.json`.
 - **A test sits beside the module it tests, and shared test code in
-  `test-support/`.** Why: those two names are all a config reads to tell a test
-  from a source, as kyh/init does. `oxlint.config.ts`.
+  `test-support/`, which only a suite imports.** Why: those two names are all a
+  config reads to tell a test from a source, as kyh/init does, and a fake
+  reaches oRPC and node, which one import would bring onto a page.
+  `oxlint.config.ts`.
 - **A DOM suite is a `*.test.tsx`**, in `@repo/ui`, the library tab and the
   editor: its vitest project sets jsdom and a setup file unmounts after each
   case, and a `*.test.ts` that needs a document says so in vitest's docblock.
