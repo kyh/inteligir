@@ -1,8 +1,9 @@
 // The library's writes as mutation options beside its reads (`./library-queries.ts`), each mounted
 // by the screen that asks for it. A pin, a move, a tag, a title, a delete or a restore is laid over
-// every listing and item on screen at once, put back if the cell refuses it, and read again once it
-// lands; a folder's write likewise over the rail's scopes. The writes share one scope, so they land
-// in the order they were asked; a save makes an item of its own and waits on none of them.
+// every listing and item on screen at once, its items alone put back if the cell refuses it, and
+// read again once it lands; a folder's write likewise over the rail's folders. The writes share one
+// scope, so they land in the order they were asked; a save makes an item of its own and waits on
+// none of them.
 //
 // CLAUDE.md § A write is mutation options beside the reads, and says how it went once. A write
 // handed the sentence its refusal reads says it from its options, which run with the mutation
@@ -19,7 +20,7 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { toast } from "@repo/ui/components/sonner";
-import { mutationOptions } from "@tanstack/react-query";
+import { mutationOptions, notifyManager } from "@tanstack/react-query";
 import type {
   InfiniteData,
   MutationFunctionContext,
@@ -41,12 +42,10 @@ type ItemAnswer = Outputs["items"]["row"];
 type ScopesAnswer = Outputs["listing"]["scopes"];
 type OrganizeInput = Inputs["items"]["organize"];
 type FolderOp = Inputs["folders"]["write"]["ops"][number];
+type Folder = ScopesAnswer["folders"][number];
 
 // one queue for every write to the library's items and folders
 const LIBRARY_WRITES = { id: "library" };
-
-// what screens held before a write was laid over them, put back if the cell refuses it
-type Held = readonly (readonly [QueryKey, unknown])[];
 
 interface Overlay {
   // a listed row as the write leaves it; null when the write takes it out of every listing
@@ -54,43 +53,146 @@ interface Overlay {
   readonly item: (item: ItemAnswer) => ItemAnswer;
 }
 
+// one entry of a list a write changed, by its id: one the list held, as it stood and where, and as
+// the write left it, undefined where the write took it out; or one the write added
+type Change<T> =
+  | {
+      readonly kind: "held";
+      readonly id: string;
+      readonly at: number;
+      readonly before: T;
+      readonly laid: T | undefined;
+    }
+  | { readonly kind: "added"; readonly id: string; readonly laid: T };
+
+// what a write changed in a list, entry by entry, as the query holds it after: a query shares its
+// data structurally, so an entry the write left alone is still the object it was
+const changesIn = <T extends { readonly id: string }>(
+  before: readonly T[],
+  after: readonly T[],
+): Change<T>[] => {
+  const left = new Map(after.map((entry) => [entry.id, entry]));
+  const had = new Set(before.map((entry) => entry.id));
+  return [
+    ...before.flatMap((entry, at): Change<T>[] => {
+      const laid = left.get(entry.id);
+      return laid === entry ? [] : [{ at, before: entry, id: entry.id, kind: "held", laid }];
+    }),
+    ...after.flatMap((laid): Change<T>[] =>
+      had.has(laid.id) ? [] : [{ id: laid.id, kind: "added", laid }],
+    ),
+  ];
+};
+
+// a list with a refused write's changes taken back, each only where the list still shows it as the
+// write left it: an entry a read or a later write has changed since is theirs. Every write is laid
+// over the screen as it is asked, before those ahead of it land, so undoing more would undo theirs
+const undoneIn = <T extends { readonly id: string }>(
+  list: readonly T[],
+  changes: readonly Change<T>[],
+): T[] => {
+  const next = [...list];
+  for (const change of changes) {
+    const index = next.findIndex((entry) => entry.id === change.id);
+    if ((index === -1 ? undefined : next[index]) !== change.laid) {
+      continue;
+    }
+    if (index !== -1) {
+      next.splice(index, 1);
+    }
+    if (change.kind === "held") {
+      next.splice(index === -1 ? Math.min(change.at, next.length) : index, 0, change.before);
+    }
+  }
+  return next;
+};
+
+// what a write changed on screen, taken back if the cell refuses it: each listing's rows a page at
+// a time, and each item it was laid over
+interface Laid {
+  readonly listings: readonly {
+    readonly queryKey: QueryKey;
+    readonly pages: readonly (readonly Change<ListedItem>[])[];
+  }[];
+  readonly items: readonly {
+    readonly queryKey: QueryKey;
+    readonly before: ItemAnswer;
+    readonly laid: ItemAnswer;
+  }[];
+}
+
 const layOver = async (
   queryClient: QueryClient,
   orpc: V1Queries,
   ids: ReadonlySet<string>,
   overlay: Overlay,
-): Promise<Held> => {
+): Promise<Laid> => {
   const listings = { queryKey: orpc.library.listing.page.key({ type: "infinite" }) };
   const items = { queryKey: orpc.library.items.row.key() };
   await Promise.all([queryClient.cancelQueries(listings), queryClient.cancelQueries(items)]);
-  const held = [...queryClient.getQueriesData(listings), ...queryClient.getQueriesData(items)];
-  queryClient.setQueriesData<InfiniteData<ListingAnswer>>(listings, (data) =>
-    data === undefined
-      ? data
-      : {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            items: page.items.flatMap((row) => {
-              if (!ids.has(row.id)) {
-                return [row];
-              }
-              const laid = overlay.row(row);
-              return laid === null ? [] : [laid];
-            }),
-          })),
-        },
-  );
-  queryClient.setQueriesData<ItemAnswer>(items, (item) =>
-    item === undefined || !ids.has(item.id) ? item : overlay.item(item),
-  );
-  return held;
+  const laidRows = (rows: readonly ListedItem[]): ListedItem[] =>
+    rows.flatMap((row) => {
+      if (!ids.has(row.id)) {
+        return [row];
+      }
+      const laid = overlay.row(row);
+      return laid === null ? [] : [laid];
+    });
+  return notifyManager.batch(() => ({
+    items: queryClient.getQueriesData<ItemAnswer>(items).flatMap(([queryKey, before]) => {
+      if (before === undefined || !ids.has(before.id)) {
+        return [];
+      }
+      const laid = queryClient.setQueryData<ItemAnswer>(queryKey, overlay.item(before));
+      return laid === undefined ? [] : [{ before, laid, queryKey }];
+    }),
+    listings: queryClient
+      .getQueriesData<InfiniteData<ListingAnswer>>(listings)
+      .flatMap(([queryKey, before]) => {
+        if (before === undefined) {
+          return [];
+        }
+        const after = queryClient.setQueryData<InfiniteData<ListingAnswer>>(queryKey, {
+          ...before,
+          pages: before.pages.map((page) => ({ ...page, items: laidRows(page.items) })),
+        });
+        const pages = before.pages.map((page, index) =>
+          changesIn(page.items, after?.pages[index]?.items ?? page.items),
+        );
+        return pages.some((changes) => changes.length > 0) ? [{ pages, queryKey }] : [];
+      }),
+  }));
 };
 
-const putBack = (queryClient: QueryClient, held: Held | undefined): void => {
-  for (const [queryKey, data] of held ?? []) {
-    queryClient.setQueryData(queryKey, data);
-  }
+const putBack = (queryClient: QueryClient, laid: Laid | undefined): void => {
+  notifyManager.batch(() => {
+    for (const { pages, queryKey } of laid?.listings ?? []) {
+      queryClient.setQueryData<InfiniteData<ListingAnswer>>(queryKey, (data) => {
+        if (data === undefined) {
+          return data;
+        }
+        // a row the write took out that a read has listed since, on any page, stays where it is
+        const listed = new Set(data.pages.flatMap((page) => page.items.map((row) => row.id)));
+        return {
+          ...data,
+          pages: data.pages.map((page, index) => ({
+            ...page,
+            items: undoneIn(
+              page.items,
+              (pages[index] ?? []).filter(
+                (change) => change.laid !== undefined || !listed.has(change.id),
+              ),
+            ),
+          })),
+        };
+      });
+    }
+    for (const { before, laid: shown, queryKey } of laid?.items ?? []) {
+      if (queryClient.getQueryData(queryKey) === shown) {
+        queryClient.setQueryData<ItemAnswer>(queryKey, before);
+      }
+    }
+  });
 };
 
 const folderIdAfter = (folder: OrganizeInput["folder"], held: string | null): string | null => {
@@ -229,9 +331,9 @@ export const libraryWrites = ({
     ]);
   };
 
-  // a write in the library's queue, laid over the items it names the moment it is asked, put back
-  // if the cell refuses it, saying `failed` then when no flow says how it went, and read again once
-  // it settles
+  // a write in the library's queue, laid over the items it names the moment it is asked, those
+  // put back if the cell refuses it, saying `failed` then when no flow says how it went, and read
+  // again once it settles
   const overlaid = <I>(
     idsOf: (input: I) => readonly string[],
     overlayOf: (input: I) => Overlay,
@@ -240,15 +342,15 @@ export const libraryWrites = ({
     onError: (
       cause: unknown,
       _input: I,
-      held: Held | undefined,
+      laid: Laid | undefined,
       { client: queryClient }: MutationFunctionContext,
     ): void => {
-      putBack(queryClient, held);
+      putBack(queryClient, laid);
       if (failed !== null) {
         toast.error(refusalText(cause, failed));
       }
     },
-    onMutate: async (input: I, { client: queryClient }: MutationFunctionContext): Promise<Held> =>
+    onMutate: async (input: I, { client: queryClient }: MutationFunctionContext): Promise<Laid> =>
       await layOver(queryClient, orpc, new Set(idsOf(input)), overlayOf(input)),
     onSettled: readAgain,
     scope: LIBRARY_WRITES,
@@ -289,19 +391,24 @@ export const libraryWrites = ({
         ),
       ),
     folders: () =>
-      orpc.library.folders.write.mutationOptions<Held>({
-        onError: (cause, _input, held, { client: queryClient }) => {
-          putBack(queryClient, held);
+      orpc.library.folders.write.mutationOptions<readonly Change<Folder>[]>({
+        onError: (cause, _input, changes, { client: queryClient }) => {
+          queryClient.setQueryData(orpc.library.listing.scopes.queryKey(), (scopes) =>
+            scopes === undefined || changes === undefined
+              ? scopes
+              : { ...scopes, folders: undoneIn(scopes.folders, changes) },
+          );
           toast.error(refusalText(cause, "That folder couldn't be changed."));
         },
         onMutate: async ({ ops }, { client: queryClient }) => {
           const scopesKey = orpc.library.listing.scopes.queryKey();
           await queryClient.cancelQueries({ queryKey: scopesKey });
           const before = queryClient.getQueryData(scopesKey);
-          queryClient.setQueryData(scopesKey, (scopes) =>
-            scopes === undefined ? scopes : foldersAfter(scopes, ops),
-          );
-          return [[scopesKey, before]];
+          if (before === undefined) {
+            return [];
+          }
+          const after = queryClient.setQueryData(scopesKey, foldersAfter(before, ops));
+          return changesIn(before.folders, after?.folders ?? before.folders);
         },
         onSettled: readAgain,
         scope: LIBRARY_WRITES,
