@@ -8,7 +8,7 @@ use tauri::{
     AppHandle, Config, Manager, Runtime, Url, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
-use crate::navigation::{self, Verdict};
+use crate::navigation::{self, NewWindow, Reload, Verdict};
 
 pub const MAIN: &str = "main";
 
@@ -71,9 +71,8 @@ pub fn create_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
             Verdict::Deny => false,
         })
-        // `window.open` and `target="_blank"`: never a second window, a web page in the browser
         .on_new_window(|url, _features| {
-            if navigation::is_web_url(&url) {
+            if navigation::new_window(&url) == NewWindow::OpenExternally {
                 open_externally(&url);
             }
             NewWindowResponse::Deny
@@ -117,8 +116,7 @@ pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// View › Reload: the page the window shows, or the site's own once a launch with no connection
-/// left it on none.
+/// View › Reload.
 pub fn reload_main<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app.get_webview_window(MAIN) else {
         return;
@@ -126,10 +124,9 @@ pub fn reload_main<R: Runtime>(app: &AppHandle<R>) {
     let Some(app_url) = app_url(app.config()) else {
         return;
     };
-    let shown = window.url().ok();
-    let reloaded = match shown {
-        Some(url) if url.origin() == app_url.origin() => window.reload(),
-        _ => window.navigate(app_url),
+    let reloaded = match navigation::reload(window.url().ok().as_ref(), &app_url) {
+        Reload::Shown => window.reload(),
+        Reload::Site => window.navigate(app_url),
     };
     if let Err(error) = reloaded {
         eprintln!("[desktop] could not reload the window: {error}");

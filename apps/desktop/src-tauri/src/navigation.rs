@@ -1,5 +1,6 @@
 //! What the window may show: the site's own pages, its blobs (a file the page saves) and the blank
 //! documents of a frame; any other web page opens in the browser instead, and nothing else loads.
+//! A page never opens a second window, and View › Reload never leaves the site.
 
 use tauri::Url;
 
@@ -16,7 +17,7 @@ fn is_frame_document(target: &Url) -> bool {
     target.scheme() == "about" && matches!(target.path(), "blank" | "srcdoc")
 }
 
-pub fn is_web_url(url: &Url) -> bool {
+fn is_web_url(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https")
 }
 
@@ -32,6 +33,39 @@ pub fn classify(target: &Url, app: &Url) -> Verdict {
         Verdict::OpenExternally
     } else {
         Verdict::Deny
+    }
+}
+
+/// What a page's `window.open` or `target="_blank"` gets: never a second window.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NewWindow {
+    OpenExternally,
+    Deny,
+}
+
+/// A web page opens in the browser, the site's own too, since the window has no second one to
+/// show it in; anything else opens nowhere.
+pub fn new_window(target: &Url) -> NewWindow {
+    if is_web_url(target) {
+        NewWindow::OpenExternally
+    } else {
+        NewWindow::Deny
+    }
+}
+
+/// What View › Reload does.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Reload {
+    /// the site's page the window shows, again
+    Shown,
+    /// the site's own page, once a launch with no connection left the window on none
+    Site,
+}
+
+pub fn reload(shown: Option<&Url>, app: &Url) -> Reload {
+    match shown {
+        Some(url) if url.origin() == app.origin() => Reload::Shown,
+        _ => Reload::Site,
     }
 }
 
@@ -118,5 +152,53 @@ mod tests {
             Verdict::Deny
         );
         assert_eq!(classify(&url("tauri://localhost/"), &site()), Verdict::Deny);
+    }
+
+    #[test]
+    fn opens_no_second_window_and_hands_a_web_page_to_the_browser() {
+        assert_eq!(
+            new_window(&url("https://example.com/")),
+            NewWindow::OpenExternally
+        );
+        assert_eq!(
+            new_window(&url("https://inteligir.com/licenses.md")),
+            NewWindow::OpenExternally
+        );
+        assert_eq!(
+            new_window(&url("blob:https://inteligir.com/065f281d-fbc4")),
+            NewWindow::Deny
+        );
+        assert_eq!(new_window(&url("about:blank")), NewWindow::Deny);
+        assert_eq!(new_window(&url("javascript:alert(1)")), NewWindow::Deny);
+        assert_eq!(new_window(&url("mailto:a@example.com")), NewWindow::Deny);
+    }
+
+    #[test]
+    fn reloads_the_page_shown_while_it_is_the_sites() {
+        assert_eq!(
+            reload(
+                Some(&url("https://inteligir.com/library/settings?scope=all")),
+                &site()
+            ),
+            Reload::Shown
+        );
+        assert_eq!(
+            reload(
+                Some(&url("https://inteligir.com/app/sign-in?next=%2Flibrary")),
+                &site()
+            ),
+            Reload::Shown
+        );
+    }
+
+    #[test]
+    fn goes_to_the_site_when_the_window_shows_none_of_it() {
+        assert_eq!(reload(None, &site()), Reload::Site);
+        assert_eq!(reload(Some(&url("about:blank")), &site()), Reload::Site);
+        let local = url("http://localhost:5174/library");
+        assert_eq!(
+            reload(Some(&url("http://localhost:51740/library")), &local),
+            Reload::Site
+        );
     }
 }
