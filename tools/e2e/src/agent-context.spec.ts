@@ -86,58 +86,59 @@ test("a message names the grid's selection it left from, and none from Deleted",
   expect(await asked(2)).toBeUndefined();
 });
 
-test("Undo this turn takes the agent's line back and keeps what was typed, in the cell and both tabs", async ({
+test("Undo this turn takes the agent's line back where nothing changed since, and keeps a note typed in since whole, in the cell and both tabs", async ({
   cloud,
   library,
   page,
   secondContext,
 }) => {
-  const [one, two, three] = ["Shared line one.", "Shared line two.", "A line the agent rewrites."];
-  const { item } = await library.items.createNote({
-    markdown: `# Plans\n\n${one}\n\n${two}\n\n${three}\n`,
+  const [one, three] = ["A line typed in later.", "A line the agent rewrites."];
+  const plans = await library.items.createNote({
+    markdown: `# Plans\n\n${one}\n\n${three}\n`,
     title: "Plans",
   });
+  const groceries = await library.items.createNote({ markdown: "Apples.\n", title: "Groceries" });
   const other = await secondContext.newPage();
-  await openLibrary(page, cloud, `?item=${item.id}`);
-  await openLibrary(other, cloud, `?item=${item.id}`);
+  await openLibrary(page, cloud, `?item=${plans.item.id}`);
+  await openLibrary(other, cloud, `?item=${plans.item.id}`);
 
-  const edit = { edits: [{ newText: "The agent's own line.", oldText: three }], id: item.id };
-  const sending = library.agent.send({
-    text: `Rewrite it.\ncall edit_item ${JSON.stringify(edit)}`,
+  const rewrite = {
+    edits: [{ newText: "The agent's own line.", oldText: three }],
+    id: plans.item.id,
+  };
+  const swap = { edits: [{ newText: "Pears.", oldText: "Apples." }], id: groceries.item.id };
+  const { threadId } = await library.agent.send({
+    text: `Rewrite them.\ncall edit_item ${JSON.stringify(rewrite)}\ncall edit_item ${JSON.stringify(swap)}`,
   });
-  await typeAfter(page, one, " Typed while the agent wrote.");
-  const { threadId } = await sending;
   for (const tab of [page, other]) {
     await expect(tab.locator(EDITOR)).toContainText("The agent's own line.");
-    await expect(tab.locator(EDITOR)).toContainText(`${one} Typed while the agent wrote.`);
-    await expect(tab.locator(EDITOR)).not.toContainText(three);
   }
+  await typeAfter(page, one, " Typed since.");
+  await expect.poll(async () => await markdownOf(library, plans.item.id)).toContain("Typed since.");
 
   for (const tab of [page, other]) {
     await tab.getByRole("button", { name: "Info and the agent" }).click();
     await tab.getByRole("tab", { name: "Agent" }).click();
     await tab.getByRole("list", { name: "Conversations" }).getByRole("button").click();
   }
-  const thread = page.locator(`[data-thread="${threadId}"]`);
   const undoOn = (tab: Page) =>
     tab.locator(`[data-thread="${threadId}"]`).getByRole("button", { name: "Undo this turn" });
-  await expect(thread.locator("[data-turn-ended]")).toBeVisible();
+  await expect(page.locator(`[data-thread="${threadId}"] [data-turn-ended]`)).toBeVisible();
   await expect(undoOn(other)).toBeVisible();
-  // typed in another paragraph, and the undo pressed before the note saves it
-  await typeAfter(page, two, " Typed since.");
   await undoOn(page).click();
-  const undone = new RegExp(
-    `${one} Typed while the agent wrote\\.[\\s\\S]*${two} Typed since\\.[\\s\\S]*${three}`,
-    "u",
-  );
-  await expect.poll(async () => await markdownOf(library, item.id)).toMatch(undone);
-  expect(await markdownOf(library, item.id)).not.toContain("The agent's own line.");
+
+  await expect(
+    page.getByText("Undone, but changes made since were kept where they overlapped."),
+  ).toBeVisible();
+  await expect.poll(async () => await markdownOf(library, groceries.item.id)).toContain("Apples.");
+  const plansNow = await markdownOf(library, plans.item.id);
+  expect(plansNow).toContain(`${one} Typed since.`);
+  expect(plansNow).toContain("The agent's own line.");
   for (const tab of [page, other]) {
-    await expect(tab.locator(EDITOR)).toContainText(three);
-    await expect(tab.locator(EDITOR)).toContainText(`${two} Typed since.`);
-    await expect(tab.locator(EDITOR)).not.toContainText("The agent's own line.");
-    // the turn has nothing left to take back, so neither tab offers its Undo, pressed or not
-    await expect(undoOn(tab)).toHaveCount(0);
+    await expect(tab.locator(EDITOR)).toContainText(`${one} Typed since.`);
+    await expect(tab.locator(EDITOR)).toContainText("The agent's own line.");
+    // what was kept can still be taken back once the change since goes, so the turn keeps its Undo
+    await expect(undoOn(tab)).toBeVisible();
   }
 });
 
