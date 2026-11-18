@@ -6,7 +6,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// The event the page listens for (`apps/web/src/library/shell/desktop-bridge.ts`).
@@ -33,7 +33,12 @@ pub enum UpdateState {
     CheckFailed {
         message: String,
     },
-    Error {
+    DownloadFailed {
+        version: String,
+        message: String,
+    },
+    InstallFailed {
+        version: String,
         message: String,
     },
 }
@@ -67,8 +72,17 @@ enum Phase<U> {
     CheckFailed {
         message: String,
     },
-    /// A download or an install that did not go through.
-    Failed {
+    /// The release stays held, so a retry downloads it again with no check.
+    DownloadFailed {
+        version: String,
+        update: U,
+        message: String,
+    },
+    /// The verified bytes stay held, so a retry installs them again with no download.
+    InstallFailed {
+        version: String,
+        update: U,
+        bytes: Vec<u8>,
         message: String,
     },
 }
@@ -80,9 +94,11 @@ enum Event<U> {
     Checked(Result<Option<(String, U)>, String>),
     DownloadAsked,
     Progress(u8),
-    DownloadEnded(Result<(U, Vec<u8>), String>),
+    /// The release comes back with the bytes or why they did not arrive.
+    DownloadEnded(U, Result<Vec<u8>, String>),
     InstallAsked,
-    InstallFailed(String),
+    /// What the installer was handed comes back with why it did not install.
+    InstallFailed(U, Vec<u8>, String),
 }
 
 /// What a step hands the shell to run outside the lock.
@@ -95,7 +111,8 @@ enum Work<U> {
 
 /// The one step of the session: an event moves the phase or leaves it as it stands. An ask that
 /// does not fit the phase (a download before a check found one, a second restart) is a no-op, and
-/// a check is refused while one runs, a download is under way or an update waits to install.
+/// a check is refused while one runs, a download is under way or an update waits to install, a
+/// failed install's included.
 fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
     match (phase, event) {
         (
@@ -103,7 +120,7 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
             | Phase::NotAvailable
             | Phase::Available { .. }
             | Phase::CheckFailed { .. }
-            | Phase::Failed { .. },
+            | Phase::DownloadFailed { .. },
             Event::CheckAsked,
         ) => (Phase::Checking, Some(Work::Check)),
         (Phase::Checking, Event::Checked(Ok(Some((version, update))))) => {
@@ -111,7 +128,13 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
         }
         (Phase::Checking, Event::Checked(Ok(None))) => (Phase::NotAvailable, None),
         (Phase::Checking, Event::Checked(Err(message))) => (Phase::CheckFailed { message }, None),
-        (Phase::Available { version, update }, Event::DownloadAsked) => (
+        (
+            Phase::Available { version, update }
+            | Phase::DownloadFailed {
+                version, update, ..
+            },
+            Event::DownloadAsked,
+        ) => (
             Phase::Downloading {
                 version,
                 percent: 0,
@@ -121,11 +144,19 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
         (Phase::Downloading { version, .. }, Event::Progress(percent)) => {
             (Phase::Downloading { version, percent }, None)
         }
-        (Phase::Downloading { version, .. }, Event::DownloadEnded(Ok((update, bytes)))) => (
+        (Phase::Downloading { version, .. }, Event::DownloadEnded(update, Ok(bytes))) => (
             Phase::Downloaded {
                 version,
                 update,
                 bytes,
+            },
+            None,
+        ),
+        (Phase::Downloading { version, .. }, Event::DownloadEnded(update, Err(message))) => (
+            Phase::DownloadFailed {
+                version,
+                update,
+                message,
             },
             None,
         ),
@@ -134,16 +165,27 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
                 version,
                 update,
                 bytes,
+            }
+            | Phase::InstallFailed {
+                version,
+                update,
+                bytes,
+                ..
             },
             Event::InstallAsked,
         ) => (
             Phase::Installing { version },
             Some(Work::Install(update, bytes)),
         ),
-        (Phase::Downloading { .. }, Event::DownloadEnded(Err(message)))
-        | (Phase::Installing { .. }, Event::InstallFailed(message)) => {
-            (Phase::Failed { message }, None)
-        }
+        (Phase::Installing { version }, Event::InstallFailed(update, bytes, message)) => (
+            Phase::InstallFailed {
+                version,
+                update,
+                bytes,
+                message,
+            },
+            None,
+        ),
         (phase, _) => (phase, None),
     }
 }
@@ -170,7 +212,16 @@ impl<U> Phase<U> {
             Self::CheckFailed { message } => UpdateState::CheckFailed {
                 message: message.clone(),
             },
-            Self::Failed { message } => UpdateState::Error {
+            Self::DownloadFailed {
+                version, message, ..
+            } => UpdateState::DownloadFailed {
+                version: version.clone(),
+                message: message.clone(),
+            },
+            Self::InstallFailed {
+                version, message, ..
+            } => UpdateState::InstallFailed {
+                version: version.clone(),
                 message: message.clone(),
             },
         }
@@ -198,10 +249,7 @@ impl Updates {
 
 /// Applies an event under the lock and tells the page when what it shows moved. The work it
 /// returns runs after the lock is dropped.
-fn step<R: Runtime>(
-    app: &AppHandle<R>,
-    event: Event<Update>,
-) -> (UpdateState, Option<Work<Update>>) {
+fn step(app: &AppHandle, event: Event<Update>) -> (UpdateState, Option<Work<Update>>) {
     let updates = app.state::<Updates>();
     let (before, after, work) = {
         let mut phase = updates.lock();
@@ -225,11 +273,12 @@ fn percent(received: u64, total: u64) -> u8 {
     u8::try_from(received.saturating_mul(100) / total).map_or(100, |value| value.min(100))
 }
 
-pub async fn check<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> UpdateState {
     if !app.state::<Updates>().enabled {
         return UpdateState::Idle;
     }
-    let (state, work) = step(app, Event::CheckAsked);
+    let (state, work) = step(&app, Event::CheckAsked);
     let Some(Work::Check) = work else {
         return state;
     };
@@ -240,11 +289,12 @@ pub async fn check<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
     let checked = found
         .map(|found| found.map(|update| (update.version.clone(), update)))
         .map_err(|error| error.to_string());
-    step(app, Event::Checked(checked)).0
+    step(&app, Event::Checked(checked)).0
 }
 
-pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
-    let (state, work) = step(app, Event::DownloadAsked);
+#[tauri::command]
+pub async fn download_update(app: AppHandle) -> UpdateState {
+    let (state, work) = step(&app, Event::DownloadAsked);
     let Some(Work::Download(update)) = work else {
         return state;
     };
@@ -254,19 +304,18 @@ pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
             |chunk, total| {
                 received = received.saturating_add(u64::try_from(chunk).unwrap_or(u64::MAX));
                 if let Some(total) = total {
-                    step(app, Event::Progress(percent(received, total)));
+                    step(&app, Event::Progress(percent(received, total)));
                 }
             },
             || {},
         )
-        .await;
-    let ended = bytes
-        .map(|bytes| (update, bytes))
+        .await
         .map_err(|error| error.to_string());
-    step(app, Event::DownloadEnded(ended)).0
+    step(&app, Event::DownloadEnded(update, bytes)).0
 }
 
-pub fn install<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+#[tauri::command]
+pub fn install_update(app: AppHandle) -> UpdateState {
     let (state, work) = step(&app, Event::InstallAsked);
     let Some(Work::Install(update, bytes)) = work else {
         return state;
@@ -275,25 +324,10 @@ pub fn install<R: Runtime>(app: AppHandle<R>) -> UpdateState {
     tauri::async_runtime::spawn_blocking(move || match update.install(&bytes) {
         Ok(()) => app.restart(),
         Err(error) => {
-            step(&app, Event::InstallFailed(error.to_string()));
+            step(&app, Event::InstallFailed(update, bytes, error.to_string()));
         }
     });
     state
-}
-
-#[tauri::command]
-pub async fn check_for_updates(app: AppHandle) -> UpdateState {
-    check(&app).await
-}
-
-#[tauri::command]
-pub async fn download_update(app: AppHandle) -> UpdateState {
-    download(&app).await
-}
-
-#[tauri::command]
-pub fn install_update(app: AppHandle) -> UpdateState {
-    install(app)
 }
 
 #[cfg(test)]
@@ -312,11 +346,35 @@ mod tests {
         }
     }
 
+    fn downloading() -> Phase<()> {
+        Phase::Downloading {
+            version: "1.2.3".into(),
+            percent: 7,
+        }
+    }
+
     fn downloaded() -> Phase<()> {
         Phase::Downloaded {
             version: "1.2.3".into(),
             update: (),
             bytes: vec![1, 2, 3],
+        }
+    }
+
+    fn download_failed() -> Phase<()> {
+        Phase::DownloadFailed {
+            version: "1.2.3".into(),
+            update: (),
+            message: "offline".into(),
+        }
+    }
+
+    fn install_failed() -> Phase<()> {
+        Phase::InstallFailed {
+            version: "1.2.3".into(),
+            update: (),
+            bytes: vec![1, 2, 3],
+            message: "disk full".into(),
         }
     }
 
@@ -352,10 +410,18 @@ mod tests {
             json!({ "status": "check-failed", "message": "offline" })
         );
         assert_eq!(
-            wire(&UpdateState::Error {
+            wire(&UpdateState::DownloadFailed {
+                version: "1.2.3".into(),
                 message: "cut off".into()
             }),
-            json!({ "status": "error", "message": "cut off" })
+            json!({ "status": "download-failed", "version": "1.2.3", "message": "cut off" })
+        );
+        assert_eq!(
+            wire(&UpdateState::InstallFailed {
+                version: "1.2.3".into(),
+                message: "disk full".into()
+            }),
+            json!({ "status": "install-failed", "version": "1.2.3", "message": "disk full" })
         );
     }
 
@@ -383,7 +449,7 @@ mod tests {
                 download_percent: 42
             }
         );
-        let (phase, _) = apply(phase, Event::DownloadEnded(Ok(((), vec![1, 2, 3]))));
+        let (phase, _) = apply(phase, Event::DownloadEnded((), Ok(vec![1, 2, 3])));
         assert_eq!(phase, downloaded());
         let (phase, work) = apply(phase, Event::InstallAsked);
         assert_eq!(work, Some(Work::Install((), vec![1, 2, 3])));
@@ -407,11 +473,50 @@ mod tests {
                 version: "1.2.3".into()
             }
         );
-        let (phase, _) = apply(phase, Event::InstallFailed("disk full".into()));
+        let (phase, _) = apply(
+            phase,
+            Event::InstallFailed((), vec![1, 2, 3], "disk full".into()),
+        );
+        assert_eq!(phase, install_failed());
         assert_eq!(
             phase.wire(),
-            UpdateState::Error {
+            UpdateState::InstallFailed {
+                version: "1.2.3".into(),
                 message: "disk full".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_failed_download_downloads_again_with_no_check() {
+        let (phase, _) = apply(
+            downloading(),
+            Event::DownloadEnded((), Err("offline".into())),
+        );
+        assert_eq!(phase, download_failed());
+        let (phase, work) = apply(phase, Event::DownloadAsked);
+        assert_eq!(
+            (&phase, work),
+            (
+                &Phase::Downloading {
+                    version: "1.2.3".into(),
+                    percent: 0
+                },
+                Some(Work::Download(()))
+            )
+        );
+        let (phase, _) = apply(phase, Event::DownloadEnded((), Ok(vec![1, 2, 3])));
+        assert_eq!(phase, downloaded());
+    }
+
+    #[test]
+    fn a_failed_install_installs_the_held_bytes_again() {
+        let (phase, work) = apply(install_failed(), Event::InstallAsked);
+        assert_eq!(work, Some(Work::Install((), vec![1, 2, 3])));
+        assert_eq!(
+            phase,
+            Phase::Installing {
+                version: "1.2.3".into()
             }
         );
     }
@@ -423,6 +528,7 @@ mod tests {
             Phase::Checking,
             available(),
             Phase::NotAvailable,
+            download_failed(),
         ] {
             let before = phase.wire();
             let (phase, work) = apply(phase, Event::InstallAsked);
@@ -433,6 +539,7 @@ mod tests {
             Phase::Checking,
             downloaded(),
             Phase::NotAvailable,
+            install_failed(),
         ] {
             let before = phase.wire();
             let (phase, work) = apply(phase, Event::DownloadAsked);
@@ -460,7 +567,7 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_check_is_told_from_a_failed_update_and_a_check_leaves_both() {
+    fn a_failed_check_is_told_from_a_failed_download_and_a_check_leaves_both() {
         let (unread, _) = apply(Phase::<()>::Checking, Event::Checked(Err("offline".into())));
         assert_eq!(
             unread.wire(),
@@ -468,14 +575,14 @@ mod tests {
                 message: "offline".into()
             }
         );
-        let downloading = Phase::<()>::Downloading {
-            version: "1.2.3".into(),
-            percent: 7,
-        };
-        let (cut, _) = apply(downloading, Event::DownloadEnded(Err("cut off".into())));
+        let (cut, _) = apply(
+            downloading(),
+            Event::DownloadEnded((), Err("cut off".into())),
+        );
         assert_eq!(
             cut.wire(),
-            UpdateState::Error {
+            UpdateState::DownloadFailed {
+                version: "1.2.3".into(),
                 message: "cut off".into()
             }
         );
@@ -491,14 +598,12 @@ mod tests {
     fn a_check_waits_for_the_one_under_way_and_for_an_update_in_hand() {
         let busy = [
             Phase::Checking,
-            Phase::Downloading {
-                version: "1.2.3".into(),
-                percent: 7,
-            },
+            downloading(),
             downloaded(),
             Phase::Installing {
                 version: "1.2.3".into(),
             },
+            install_failed(),
         ];
         for phase in busy {
             let before = phase.wire();
@@ -513,7 +618,12 @@ mod tests {
         assert_eq!(phase, available());
         let (phase, _) = apply(Phase::<()>::Idle, Event::Checked(Ok(None)));
         assert_eq!(phase, Phase::Idle);
-        let (phase, _) = apply(downloaded(), Event::DownloadEnded(Err("late".into())));
+        let (phase, _) = apply(downloaded(), Event::DownloadEnded((), Err("late".into())));
         assert_eq!(phase, downloaded());
+        let (phase, _) = apply(
+            download_failed(),
+            Event::InstallFailed((), vec![1, 2, 3], "late".into()),
+        );
+        assert_eq!(phase, download_failed());
     }
 }

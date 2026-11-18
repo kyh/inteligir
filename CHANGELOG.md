@@ -51,7 +51,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 ### Changed
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
-- **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed.
+- **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed, which tries that step again with no new check, so a download cut off while you were offline finishes from the notice once you're back.
 - **The privacy policy reads plainly, each practice stated once**: your library in your account, who runs our cloud and its model (Vercel, Supabase, Resend and Anthropic), what each device and the agent send, and how to ask for a copy, a correction or a deletion.
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since and any you made while it worked, a pin or a new name included; a note you typed in after the agent wrote it stays as you left it, text and all, and Undo says it kept changes made since.
 - **Only the agent's changes are kept for Undo**: what you, a connected assistant or an import change is not, and Undo this turn and Undo this conversation work as before.

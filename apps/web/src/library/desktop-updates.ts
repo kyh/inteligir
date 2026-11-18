@@ -14,7 +14,7 @@ const ASKS = {
   check: async (bridge: DesktopBridge) => await bridge.checkForUpdates(),
   download: async (bridge: DesktopBridge) => await bridge.downloadUpdate(),
   install: async (bridge: DesktopBridge) => await bridge.installUpdate(),
-} satisfies Record<string, (bridge: DesktopBridge) => Promise<DesktopUpdateState>>;
+} satisfies Record<string, (bridge: DesktopBridge) => Promise<DesktopUpdateState | null>>;
 
 export type UpdateMove = keyof typeof ASKS;
 
@@ -29,20 +29,15 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
       listener();
     }
   };
-  // a shell that refuses the call answers as the step that did not go through, so every screen
-  // already has its words for it
+  // An answer the bridge could not read leaves the last state, as a frame it could not read does:
+  // the page mirrors the shell, and a state the shell never held offers a step its phase refuses.
   const move = async (next: UpdateMove): Promise<void> => {
     if (bridge === null) {
       return;
     }
-    try {
-      adopt(await ASKS[next](bridge));
-    } catch (error) {
-      console.warn("[desktop] the updater did not answer", error);
-      adopt({
-        message: "The updater did not answer.",
-        status: next === "check" ? "check-failed" : "error",
-      });
+    const state = await ASKS[next](bridge);
+    if (state !== null) {
+      adopt(state);
     }
   };
   const subscribe = (listener: () => void): (() => void) => {
