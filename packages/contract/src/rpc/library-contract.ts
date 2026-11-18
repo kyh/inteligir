@@ -79,6 +79,8 @@ const count = z.number().int().nonnegative();
 
 // a write that makes an item answers with its row as it landed
 const landed = z.object({ item: liveItemRowSchema });
+// an item's row as a screen showing its body reads it, with the version its body stands at
+const openItemRow = liveItemRowSchema.extend({ bodyVersion: bodyVersionSchema });
 // a save of a url the library holds answers that item as it stands, `created` false
 const saved = z.object({ created: z.boolean(), item: liveItemRowSchema });
 
@@ -183,14 +185,14 @@ const itemsContract = {
   get: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema }))
-    .output(liveItemRowSchema.extend({ blocks: z.array(bodyBlockSchema) })),
+    .output(openItemRow.extend({ blocks: z.array(bodyBlockSchema) })),
 
-  // an item's row, its fields and card without its body: what a screen draws beside an open note,
-  // read again each time its card moves, which wakes no note
+  // an item's row without its body's blocks: what a screen draws beside an open note, read again
+  // to learn whether someone saved the body since, at no cost of its blocks
   row: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema }))
-    .output(liveItemRowSchema),
+    .output(openItemRow),
 
   // a note a device made, with its blocks
   create: signedBase
@@ -324,9 +326,9 @@ const itemsContract = {
 
   // a note's body as a person's device holds it, whole, over the version it was opened at; a save
   // made over an older one answers `stale`, and the device merges by block and saves again. An
-  // agent writes a body by passage through `edit` instead, so its turn can be undone
+  // agent writes by passage through `edit` instead, which lands on the body as it stands
   saveBody: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
+    .errors({ [BlobMissingError.code]: BlobMissingError, [NotFoundError.code]: NotFoundError })
     .input(
       z.strictObject({
         baseVersion: bodyVersionSchema,

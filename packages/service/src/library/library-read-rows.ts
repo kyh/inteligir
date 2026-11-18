@@ -11,7 +11,7 @@ import { libraryChanges } from "./library-changes";
 import { namedFiles, settleNotes } from "./library-imports";
 import { listingPage, listingScopes, listingTitles, readLibrary } from "./library-listing";
 import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
-import { readItem, readItemWhole } from "./library-rows";
+import { readItemRow, readItemWhole } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import { undoableTurns } from "./library-undo";
 
@@ -47,7 +47,7 @@ export const libraryReadRows = {
       if (whole === null) {
         throw new NotFoundError();
       }
-      return { ...itemRow(whole.item), blocks: [...whole.blocks] };
+      return { ...itemRow(whole.item), blocks: [...whole.blocks], bodyVersion: whole.bodyVersion };
     }),
     list: reading.items.list.handler(
       async ({ context, input }) =>
@@ -63,11 +63,11 @@ export const libraryReadRows = {
       return view;
     }),
     row: reading.items.row.handler(async ({ context, input }) => {
-      const held = await readItem(db, context.library.accountId, input.id);
+      const held = await readItemRow(db, context.library.accountId, input.id);
       if (held === null) {
         throw new NotFoundError();
       }
-      return itemRow(held);
+      return { ...itemRow(held.item), bodyVersion: held.bodyVersion };
     }),
   },
   listing: {

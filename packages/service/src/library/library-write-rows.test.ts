@@ -124,6 +124,7 @@ dbSuite("the library's rows that write", () => {
     await expect(tab.library.items.get({ id: made.id })).resolves.toStrictEqual({
       ...landed,
       blocks: made.blocks,
+      bodyVersion: 1,
     });
     const [row] = await db
       .select({ accountId: item.accountId })

@@ -39,7 +39,6 @@ it("names every row not routed yet", () => {
       "library.agent.setRules",
       "library.guide",
       "library.items.edit",
-      "library.items.saveBody",
       "library.items.refresh",
     ]
   `);

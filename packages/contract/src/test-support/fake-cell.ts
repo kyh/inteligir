@@ -73,12 +73,15 @@ type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ListedItem = z.infer<typeof listedItemSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
-type HeldItem = LiveRow & { readonly blocks: BodyBlock[] };
+type OpenRow = LiveRow & { readonly bodyVersion: number };
+type HeldItem = OpenRow & { readonly blocks: BodyBlock[] };
 type Changes = Awaited<ReturnType<V1Client["library"]["changes"]>>;
 
 interface CellItem {
   readonly fields: LibraryItemFields;
   readonly blocks: readonly BodyBlock[];
+  // 1 as the item is made, one more with each write of its blocks
+  readonly bodyVersion: number;
   readonly seq: number;
   readonly updatedAt: number;
 }
@@ -218,9 +221,13 @@ export const createFakeCell = (): FakeCell => {
     };
   };
 
+  // a landing that keeps the body hands its own blocks back, which leaves its version
   const land = (id: string, fields: LibraryItemFields, blocks: readonly BodyBlock[]) => {
     head += 1;
-    const item: CellItem = { blocks, fields, seq: head, updatedAt: NOW + head };
+    const prior = items.get(id);
+    const bodyVersion =
+      prior === undefined ? 1 : prior.bodyVersion + (prior.blocks === blocks ? 0 : 1);
+    const item: CellItem = { blocks, bodyVersion, fields, seq: head, updatedAt: NOW + head };
     items.set(id, item);
     return { item: liveRow(id, item) };
   };
@@ -286,10 +293,12 @@ export const createFakeCell = (): FakeCell => {
     return landFields(input.itemId, outcome.fields);
   };
 
-  const held = (id: string): HeldItem => {
+  const openRow = (id: string): OpenRow => {
     const item = holding(id);
-    return { ...liveRow(id, item), blocks: [...item.blocks] };
+    return { ...liveRow(id, item), bodyVersion: item.bodyVersion };
   };
+
+  const held = (id: string): HeldItem => ({ ...openRow(id), blocks: [...holding(id).blocks] });
 
   // an id is made once: an item holds it, or a purged one kept it
   const made = (id: string): void => {
@@ -503,7 +512,7 @@ export const createFakeCell = (): FakeCell => {
             return { addressHeld, missing, restored: changed };
           }),
         ),
-        row: os.library.items.row.handler(({ input }) => liveRow(input.id, holding(input.id))),
+        row: os.library.items.row.handler(({ input }) => openRow(input.id)),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);

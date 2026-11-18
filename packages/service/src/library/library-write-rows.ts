@@ -4,9 +4,14 @@
 // when it names one, and every refusal as the error its row declares (`./library-access`).
 
 import { noteFields } from "@repo/contract/library/item-makes";
-import { folderRowSchema, itemSummarySchema } from "@repo/contract/library/library-wire";
+import {
+  bodyWriteSchema,
+  folderRowSchema,
+  itemSummarySchema,
+} from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
+import { writeBody } from "../body/write-body";
 import { answer, writing } from "./library-access";
 import { writeFolders } from "./library-folders";
 import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
@@ -160,6 +165,21 @@ export const libraryWriteRows = {
           context.library,
           { answer: savedSchema, opId: input.opId },
           async (scope) => await saveLink(scope, input),
+        ),
+      ),
+    ),
+    // no opId: the version it was made over keys it
+    saveBody: writing.items.saveBody.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: bodyWriteSchema, opId: undefined },
+          async (scope) =>
+            await writeBody(scope, {
+              baseVersion: input.baseVersion,
+              blocks: input.blocks,
+              itemId: input.id,
+            }),
         ),
       ),
     ),

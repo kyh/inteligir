@@ -16,6 +16,7 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
+import { withArticle } from "../body/article-body";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
@@ -49,24 +50,6 @@ const noteOf = async (
   words: string | undefined,
 ): Promise<readonly BodyBlock[]> =>
   words === undefined || words.trim() === "" ? [] : await noteBlocksOf(scope, words);
-
-// A page's article in place of the one a body holds: where the old one began, or after everything
-// when it had none, the person's own blocks kept where they stand
-const withArticle = (
-  blocks: readonly BodyBlock[],
-  article: readonly LibraryBlock[],
-): BodyBlock[] => {
-  const at = blocks.findIndex(({ section }) => section === "article");
-  const kept = blocks.filter(({ section }) => section === "note");
-  const before = blocks
-    .slice(0, at === -1 ? blocks.length : at)
-    .filter(({ section }) => section === "note").length;
-  return [
-    ...kept.slice(0, before),
-    ...article.map((block): BodyBlock => ({ block, section: "article" })),
-    ...kept.slice(before),
-  ];
-};
 
 interface SavePageInput extends ReadPage {
   readonly id: string;

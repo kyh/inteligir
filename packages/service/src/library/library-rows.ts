@@ -131,23 +131,48 @@ export const readBodyFacts = async (
   return row ?? null;
 };
 
-// the item and its blocks in reading order, read in one statement so no write splits the two; null
-// for an id the account holds no item under
-export const readItemWhole = async (
+const withBody = and(eq(itemBody.accountId, item.accountId), eq(itemBody.itemId, item.id));
+
+// the item and the version its body stands at, without its blocks; null for an id the account
+// holds no item under
+export const readItemRow = async (
   db: DbExecutor,
   accountId: string,
   id: string,
-): Promise<{ readonly item: StoredItem; readonly blocks: readonly BodyBlock[] } | null> => {
+): Promise<{ readonly item: StoredItem; readonly bodyVersion: number } | null> => {
   const [row] = await db
-    .select({ ...STORED_ITEM_COLUMNS, blocks: itemBody.blocks })
+    .select({ ...STORED_ITEM_COLUMNS, bodyVersion: itemBody.version })
     .from(item)
-    .innerJoin(itemBody, and(eq(itemBody.accountId, item.accountId), eq(itemBody.itemId, item.id)))
+    .innerJoin(itemBody, withBody)
     .where(and(eq(item.accountId, accountId), eq(item.id, id)));
   if (row === undefined) {
     return null;
   }
-  const { blocks, ...stored } = row;
-  return { blocks, item: stored };
+  const { bodyVersion, ...stored } = row;
+  return { bodyVersion, item: stored };
+};
+
+// the item and its blocks in reading order at the version they stand at, read in one statement so
+// no write splits them; null for an id the account holds no item under
+export const readItemWhole = async (
+  db: DbExecutor,
+  accountId: string,
+  id: string,
+): Promise<{
+  readonly item: StoredItem;
+  readonly blocks: readonly BodyBlock[];
+  readonly bodyVersion: number;
+} | null> => {
+  const [row] = await db
+    .select({ ...STORED_ITEM_COLUMNS, blocks: itemBody.blocks, bodyVersion: itemBody.version })
+    .from(item)
+    .innerJoin(itemBody, withBody)
+    .where(and(eq(item.accountId, accountId), eq(item.id, id)));
+  if (row === undefined) {
+    return null;
+  }
+  const { blocks, bodyVersion, ...stored } = row;
+  return { blocks, bodyVersion, item: stored };
 };
 
 // each tag the items carry, their field's and their body's, each spelling once, in byte order, as
