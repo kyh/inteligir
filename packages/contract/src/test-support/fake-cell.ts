@@ -246,8 +246,12 @@ export const createFakeCell = (): FakeCell => {
     };
   };
 
-  // a landing that keeps the body hands its own blocks back, which leaves its version
+  // a landing that keeps the body hands its own blocks back, which leaves its version; fields past
+  // their caps land nowhere, as the cell checks every landing's
   const land = (id: string, fields: LibraryItemFields, blocks: readonly BodyBlock[]) => {
+    if (!libraryItemFieldsSchema.validate(fields)) {
+      throw new PayloadTooLargeError();
+    }
     head += 1;
     const prior = items.get(id);
     const bodyVersion =
@@ -311,9 +315,6 @@ export const createFakeCell = (): FakeCell => {
     const outcome = applyPropertyOps(holding(input.itemId).fields, input.ops);
     if (outcome.kind === "conflict") {
       throw new ConflictError();
-    }
-    if (!libraryItemFieldsSchema.validate(outcome.fields)) {
-      throw new PayloadTooLargeError();
     }
     return landFields(input.itemId, outcome.fields);
   };
@@ -413,6 +414,23 @@ export const createFakeCell = (): FakeCell => {
     return ids.map(
       (itemId) => landFields(itemId, organized(holding(itemId).fields, input, folderId, NOW)).item,
     );
+  };
+
+  // a sweep's organize, as the cell's own lands one: every item to its folder and pin, and its
+  // change of tags but where that would carry its fields past their caps, which answers it
+  const sweepOrganize = (ids: readonly string[], verb: Omit<OrganizeInput, "ids">): string[] => {
+    const folderId = folderIdOf(verb.folder);
+    const refused = ids.filter((itemId) => {
+      const { fields } = holding(itemId);
+      const swept = organized(fields, { ...verb, ids: [] }, folderId, NOW);
+      const fits = libraryItemFieldsSchema.validate(swept);
+      landFields(
+        itemId,
+        fits ? swept : organized(fields, { ids: [], pinned: verb.pinned }, folderId, NOW),
+      );
+      return !fits;
+    });
+    return refused.toSorted();
   };
 
   // emptying Deleted: an item there goes for good, its id kept at the one sequence the purge
@@ -671,8 +689,7 @@ export const createFakeCell = (): FakeCell => {
           const ids = sweptIds(listing(), swept);
           switch (verb.kind) {
             case "organize": {
-              organize({ ...verb, ids });
-              return { items: ids.length, refused: [] };
+              return { items: ids.length, refused: sweepOrganize(ids, verb) };
             }
             case "delete":
             case "restore": {

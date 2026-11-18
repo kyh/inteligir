@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BodyBlock } from "../library/derive-item";
+import { ITEM_FIELD_CAPS } from "../library/library-item";
 import { newIdSchema } from "../library/library-wire";
 import type { LibraryBlock } from "../library/library-nodes";
 import type { V1Client } from "../rpc/v1-contract";
@@ -34,6 +35,11 @@ const SHA = "a".repeat(64);
 const OP_ID = "0190a000-0000-7000-8000-0000000000aa";
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 const PNG = "image/png";
+// as many tags as an item's field holds, so one more is past its cap
+const TAGS_AT_CAP = Array.from(
+  { length: ITEM_FIELD_CAPS.listEntries },
+  (_, at) => `t${String(at)}`,
+);
 
 // a file's bytes, told apart by `text`
 const bytesOf = (text: string): Uint8Array<ArrayBuffer> =>
@@ -470,6 +476,32 @@ export const cellConformance = (withHost: WithHost): void => {
       });
     });
 
+    it("refuses a landing past an item's caps, by a property and by an organize, landing none of it", async () => {
+      await withLaptop(async ({ library, note }) => {
+        const id = await note(["Full."], { tags: TAGS_AT_CAP });
+        const before = await library.items.row({ id });
+
+        await expect(
+          codeOf(library.items.organize({ addTags: ["more"], ids: [id] })),
+        ).resolves.toBe("PAYLOAD_TOO_LARGE");
+        await expect(
+          codeOf(
+            library.write({
+              itemId: id,
+              ops: [
+                {
+                  key: "notes",
+                  op: "property",
+                  value: "x".repeat(ITEM_FIELD_CAPS.propertiesBytes),
+                },
+              ],
+            }),
+          ),
+        ).resolves.toBe("PAYLOAD_TOO_LARGE");
+        await expect(library.items.row({ id })).resolves.toStrictEqual(before);
+      });
+    });
+
     it("answers a resend by its op id with what the first call answered, and an id made twice without one as a conflict", async () => {
       await withLaptop(async ({ library, noteOf }) => {
         const made = noteOf(["Once."]);
@@ -482,7 +514,7 @@ export const cellConformance = (withHost: WithHost): void => {
   });
 
   describe("a sweep of a cell, read once its jobs ran", () => {
-    it("organizes every item its scope lists but those left out", async () => {
+    it("organizes every item its scope lists but those left out, leaving a change of tags past an item's cap and saying so", async () => {
       await withLaptop(async ({ library, newId, note, runDue }) => {
         const reading = newId();
         await library.folders.write({
@@ -490,6 +522,7 @@ export const cellConformance = (withHost: WithHost): void => {
         });
         const kept = await note(["Left out."], { tags: ["field"] });
         const swept = await note(["Swept."], { tags: ["field", "Spring"] });
+        const full = await note(["Full."], { tags: TAGS_AT_CAP });
 
         await expect(
           library.items.sweep({
@@ -503,11 +536,15 @@ export const cellConformance = (withHost: WithHost): void => {
               removeTags: ["FIELD"],
             },
           }),
-        ).resolves.toStrictEqual({ items: 1, refused: [] });
+        ).resolves.toStrictEqual({ items: 2, refused: [full] });
         await runDue();
 
+        const placed = { folderId: reading, pinnedAt: expect.any(Number) };
         await expect(library.items.get({ id: swept })).resolves.toMatchObject({
-          fields: { folderId: reading, pinnedAt: expect.any(Number), tags: ["Spring", "done"] },
+          fields: { ...placed, tags: ["Spring", "done"] },
+        });
+        await expect(library.items.get({ id: full })).resolves.toMatchObject({
+          fields: { ...placed, tags: TAGS_AT_CAP },
         });
         await expect(library.items.get({ id: kept })).resolves.toMatchObject({
           fields: { folderId: null, pinnedAt: null, tags: ["field"] },
