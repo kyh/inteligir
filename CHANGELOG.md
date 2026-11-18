@@ -186,6 +186,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Editing a property in Info keeps its row where it was**, a text property of several lines is edited as its lines instead of being saved back on one, and an empty List property says Empty, not Add tag.
 - **Add property closes as Info moves to another item**, so what you typed in it can't land on the wrong one, and its name stops at 1,000 characters as you type.
 - **A change that doesn't go through puts back only its own items**: a pin, move, tag, delete, property or folder change you made just after it is no longer undone with it on screen until your library is read again.
+- **A pin, move, tag or delete you make just after another stays on screen while the first one goes through**, instead of blinking off until it goes through too.
 - **inteligir.com's home page opens in a browser that can't draw 3D graphics**, without its spinning shape, where it showed an error in place of the whole page.
 - **A search hit in ⌘P fits its row**: its title and the passage under it sit inside the highlight instead of spilling into the next hit.
 - **A switch you drag across springs back when the change doesn't go through**, instead of resting on the wrong side, and the built-in agent's stays where you let it go while it switches.

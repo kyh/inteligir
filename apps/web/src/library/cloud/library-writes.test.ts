@@ -1,8 +1,8 @@
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
-import { MutationObserver } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { InfiniteQueryObserver, MutationObserver } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
 
 import { newId } from "../library/new-id";
 import { fakePageLibrary } from "../test-support/fake-page-library";
@@ -202,5 +202,65 @@ describe("a refused write", () => {
     expect(screen.folders().map((folder) => folder.name)).toStrictEqual(["Travel"]);
     screen.land();
     await landing;
+  });
+});
+
+describe("a write waiting behind another", () => {
+  it("stays laid over a watched listing while the one ahead of it lands, until it lands too", async () => {
+    const cell = createFakeCell();
+    const first = cell.seed.item({ title: "First" });
+    const second = cell.seed.item({ title: "Second" });
+    const turns = [deferred(), deferred()];
+    let asked = 0;
+    const { library } = fakePageLibrary({
+      answer: async (call) => {
+        if (call.path !== "library.items.organize") {
+          return;
+        }
+        const turn = turns[asked];
+        asked += 1;
+        await turn?.promise;
+      },
+      cell,
+    });
+    const queryClient = createPageQueryClient();
+    const listing = libraryQueries(library.wire).listing({ scope: { kind: "all" } });
+    const unwatch = new InfiniteQueryObserver(queryClient, listing).subscribe(() => {
+      // watched, so a read again fetches it
+    });
+    const pinned = () =>
+      new Set(
+        pinnedIn(
+          queryClient.getQueryData(listing.queryKey)?.pages.flatMap((page) => page.items) ?? [],
+        ),
+      );
+    await vi.waitFor(() => {
+      expect(queryClient.getQueryData(listing.queryKey)).toBeDefined();
+    });
+    const writes = libraryWrites(library);
+    const pin = async (id: string) =>
+      await new MutationObserver(queryClient, writes.organize()).mutate({
+        ids: [id],
+        pinned: true,
+      });
+
+    const landingFirst = pin(first);
+    const landingSecond = pin(second);
+    turns[0]?.resolve();
+    await landingFirst;
+    await vi.waitFor(() => {
+      expect(asked).toBe(2);
+    });
+
+    expect(queryClient.isFetching()).toBe(0);
+    expect(pinned()).toStrictEqual(new Set([first, second]));
+    turns[1]?.resolve();
+    await landingSecond;
+    await vi.waitFor(() => {
+      expect(queryClient.isFetching()).toBe(0);
+    });
+    expect(pinned()).toStrictEqual(new Set([first, second]));
+    expect(cell.item(second)?.fields.pinnedAt).not.toBeNull();
+    unwatch();
   });
 });

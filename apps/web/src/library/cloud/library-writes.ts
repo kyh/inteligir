@@ -1,9 +1,9 @@
 // The library's writes as mutation options beside its reads (`./library-queries.ts`), each mounted
 // by the screen that asks for it. A pin, a move, a tag, a title, a delete or a restore is laid over
 // every listing and item on screen at once, its items alone put back if the cell refuses it, and
-// read again once it lands; a folder's write likewise over the rail's folders. The writes share one
-// scope, so they land in the order they were asked; a save makes an item of its own and waits on
-// none of them.
+// read again once it and every write behind it settled; a folder's write likewise over the rail's
+// folders. The writes share one scope, so they land in the order they were asked; a save makes an
+// item of its own and waits on none of them.
 //
 // CLAUDE.md § A write is mutation options beside the reads, and says how it went once. A write
 // handed the sentence its refusal reads says it from its options, which run with the mutation
@@ -24,6 +24,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { mutationOptions, notifyManager } from "@tanstack/react-query";
 import type {
   InfiniteData,
+  Mutation,
   MutationFunctionContext,
   MutationOptions,
   QueryClient,
@@ -47,6 +48,9 @@ type Folder = ScopesAnswer["folders"][number];
 
 // one queue for every write to the library's items and folders
 const LIBRARY_WRITES = { id: "library" };
+
+const inLibraryQueue = (mutation: Mutation<unknown, unknown>): boolean =>
+  mutation.options.scope?.id === LIBRARY_WRITES.id;
 
 interface Overlay {
   // a listed row as the write leaves it; null when the write takes it out of every listing
@@ -315,13 +319,24 @@ export const libraryWrites = ({
   readonly cloud: FileCloud;
   readonly wire: CloudWire;
 }) => {
-  // once a write settles, landed or refused, whatever it answered
-  const readAgain: Settled = async (_data, _error, _input, _held, { client: queryClient }) => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: orpc.library.listing.key() }),
-      queryClient.invalidateQueries({ queryKey: orpc.library.items.row.key() }),
-    ]);
-  };
+  // once a write settles, landed or refused, whatever it answered, while no other write in the
+  // library's queue waits: one waiting is laid over the screen but not sent yet, so a read now would
+  // take it off until it lands, and its own read once it settles reads this one's too. A write in
+  // the queue is still waiting itself while it settles
+  const readAgainAfter =
+    (queued: boolean): Settled =>
+    async (_data, _error, _input, _held, { client: queryClient }) => {
+      if (queryClient.isMutating({ predicate: inLibraryQueue }) > (queued ? 1 : 0)) {
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.library.listing.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.library.items.row.key() }),
+      ]);
+    };
+  const readAgain = readAgainAfter(true);
+  // a save makes an item of its own, outside the queue
+  const readAgainSaved = readAgainAfter(false);
 
   // a write in the library's queue, laid over the items it names the moment it is asked, those
   // put back if the cell refuses it, saying `failed` then when no flow says how it went, and read
@@ -435,9 +450,9 @@ export const libraryWrites = ({
           });
           return item.id;
         },
-        onSettled: readAgain,
+        onSettled: readAgainSaved,
       }),
-    saveLink: () => orpc.library.items.saveLink.mutationOptions({ onSettled: readAgain }),
+    saveLink: () => orpc.library.items.saveLink.mutationOptions({ onSettled: readAgainSaved }),
     addFile: () =>
       mutationOptions({
         mutationFn: async ({ file, into }: { file: File; into: SaveInto }) => {
@@ -456,7 +471,7 @@ export const libraryWrites = ({
           });
           return item;
         },
-        onSettled: readAgain,
+        onSettled: readAgainSaved,
       }),
     // a verb over every item a scope lists, which the cell lands after it answers: what moved
     // names each lot as it lands
