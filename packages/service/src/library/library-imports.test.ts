@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { blankItemFields, importedFields } from "@repo/contract/library/item-makes";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph, pillParagraph } from "@repo/contract/test-support/library-items";
 import { db } from "@repo/db/drizzle-client";
 import { changeSet, folder, item, itemLink, job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -159,6 +159,17 @@ dbSuite("an import", () => {
         ]),
       ).resolves.toStrictEqual({ added: 1, alreadySaved: 2, unreadable: 0 });
       await expect(titles(accountId)).resolves.toStrictEqual(["Deleted", "Held"]);
+    });
+
+    it("lands a pill showing what its source gives, whatever display the batch sent", async () => {
+      const { library } = await personalLibrary();
+      const sum = pillParagraph(randomUUID(), "2+2", "5");
+      const made = { ...note("Sums"), blocks: [{ block: sum, section: "note" as const }] };
+      await land(library, [made]);
+      await expect(library.items.get({ id: made.id })).resolves.toMatchObject({
+        blocks: [{ block: pillParagraph(sum.id, "2+2", "4"), section: "note" }],
+        card: { preview: "4" },
+      });
     });
 
     it("counts an item a rule refuses as unreadable, and lands the rest", async () => {

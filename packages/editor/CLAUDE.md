@@ -70,8 +70,9 @@ arrive as `unknown` and become domain values there alone.
   create-or-reuse by title loses the blocks. `packages/editor/src/extract-note.ts`.
 - **A pill's display is derived where its source lands, and a source reads its own item's pills by
   name.** Every editor of a note settles it inside the change that touches a pill, outside undo
-  when the change is someone else's, and a whole body is settled as it is read, since a display
-  only an open editor refreshed is stale to every reader of a closed note.
+  when the change is someone else's, and a whole body is settled as it is read and as a new item
+  lands with it, since a display only an open editor refreshed is stale to every reader of a closed
+  note.
   `packages/editor/src/headless/kits/inline-constructs-base.ts`.
 - **A block overlay names its block by node id and subscribes to the document.** A path goes stale
   after an insert above, and Plate turns ids off under NODE_ENV=test, so such a suite mounts with

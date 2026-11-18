@@ -15,3 +15,10 @@ export const paragraph = (id: string, text: string): LibraryBlock => ({
   id,
   type: "p",
 });
+
+// a paragraph of one formula pill, showing `display` whatever its source gives
+export const pillParagraph = (id: string, source: string, display: string): LibraryBlock => ({
+  children: [{ children: [{ text: "" }], display, source, type: "formulaPill" }],
+  id,
+  type: "p",
+});

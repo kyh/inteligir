@@ -1,17 +1,18 @@
 // A pill's display where its source lands: in the editor that makes the change, inside that
-// change, and in an editor a body saved elsewhere is laid in only where two changes met.
+// change, in an editor a body saved elsewhere is laid in only where two changes met, and in a new
+// item's blocks as a caller sent them.
 
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { storableBlockSchema } from "@repo/contract/library/library-nodes";
+import { BLOCK_MAX_BYTES, storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { pillNode } from "@repo/editor/formulas/formula-entry";
-import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
+import { pillEntries, pillOf, settledBody } from "@repo/editor/headless/formulas/pill-nodes";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { stringProp } from "@repo/editor/headless/node-props";
 
@@ -139,5 +140,57 @@ describe("a pill's display in a body laid from elsewhere", () => {
     expect(shown(here)).toStrictEqual(["6", "3", "18"]);
     here.redo();
     expect(shown(here)).toStrictEqual(["6", "4", "24"]);
+  });
+});
+
+// each block's pills' displays, in reading order
+const displays = (body: readonly BodyBlock[] | null): string[][] | null =>
+  body?.map(({ block }) =>
+    pillEntries([block]).map(({ node }) => stringProp(node, "display") ?? ""),
+  ) ?? null;
+
+describe("a pill's display in a new item's blocks as a caller sent them", () => {
+  it("is what its source gives among the item's pills, its note's and its page's alike", () => {
+    const [price, qty, total] = ORDER;
+    if (price === undefined || qty === undefined || total === undefined) {
+      throw new Error("three blocks");
+    }
+    const wrong = line("total", { name: "total", source: "price*qty" }, "5");
+    const body: BodyBlock[] = [
+      { block: price, section: "note" },
+      { block: qty, section: "article" },
+      { block: wrong, section: "article" },
+    ];
+
+    const settled = settledBody(body);
+    expect(displays(settled)).toStrictEqual([["5"], ["3"], ["15"]]);
+    expect(settled?.[2]).toStrictEqual({ block: total, section: "article" });
+    expect(settled?.[0]).toBe(body[0]);
+    expect(settled?.[1]).toBe(body[1]);
+  });
+
+  it("leaves a body whose pills all show what their sources give as it is", () => {
+    const body = ORDER.map((block): BodyBlock => ({ block, section: "note" }));
+    expect(settledBody(body)).toBe(body);
+  });
+
+  it("is refused as no body when settling grows a block past what one holds", () => {
+    const source = "w".repeat(1024);
+    const long = line("long", { name: "long", source }, source);
+    const reader = storableBlockSchema.parse({
+      children: [
+        { text: "t".repeat(BLOCK_MAX_BYTES - 512) },
+        { ...pillNode({ source: "long" }), display: "long" },
+      ],
+      id: "reader",
+      type: "p",
+    });
+
+    expect(
+      settledBody([
+        { block: long, section: "note" },
+        { block: reader, section: "note" },
+      ]),
+    ).toBeNull();
   });
 });

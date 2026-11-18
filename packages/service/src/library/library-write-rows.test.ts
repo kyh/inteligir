@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph, pillParagraph } from "@repo/contract/test-support/library-items";
 import { db } from "@repo/db/drizzle-client";
 import {
   file,
@@ -288,6 +288,19 @@ dbSuite("the library's rows that write", () => {
       expect(blocks.map(({ block }) => block.id)).toStrictEqual(
         made.blocks.map(({ block }) => block.id),
       );
+    });
+
+    it("lands a pill showing what its source gives, whatever display the call sent", async () => {
+      const { library } = await personalLibrary();
+      const made = noteOf([]);
+      const sum = pillParagraph(`${made.id}-sum`, "2+2", "5");
+      const { item: landed } = await library.items.create({
+        ...made,
+        blocks: [{ block: sum, section: "note" }],
+      });
+      expect(landed.card.preview).toBe("4");
+      const { blocks } = await library.items.get({ id: made.id });
+      expect(blocks).toStrictEqual([{ block: pillParagraph(sum.id, "2+2", "4"), section: "note" }]);
     });
 
     it("refuses a body past what one holds as too large, landing none of it", async () => {

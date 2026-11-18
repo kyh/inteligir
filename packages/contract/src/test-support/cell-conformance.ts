@@ -2,8 +2,8 @@
 // Postgres (`packages/service/src/library/cell-conformance.test.ts`), and the fake cell a client's
 // suites drive (`./fake-cell.test.ts`). Each is written over the library's procedures as a laptop
 // calls them and nothing one host alone has, so a fake that drifts from the cell fails here, in
-// its own package. A search's ranking, a folder filed by its path, an item's markdown and a sweep's
-// landing, which is a job's, are the real cell's alone.
+// its own package. A search's ranking, a folder filed by its path, an item's markdown, a new item's
+// pills settled and a sweep's landing, which is a job's, are the real cell's alone.
 
 import { describe, expect, it } from "vitest";
 

@@ -21,6 +21,7 @@ import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
 import { item, itemBody, itemLink, itemSearch, itemTag, purgedItem } from "@repo/db/library-schema";
+import { settledBody } from "@repo/editor/headless/formulas/pill-nodes";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { itemFilesOf, missingFiles, nameItemFiles, nameNewItemFiles } from "../files/file-names";
@@ -332,7 +333,9 @@ const candidateOf = (
   if (!libraryItemFieldsSchema.validate(made.fields)) {
     return refused({ kind: "too-large" });
   }
-  const body = bodyAt(accountId, made.id, made.blocks, 1);
+  // a caller of /v1 may send any display, and no editor of the note has settled it yet
+  const blocks = settledBody(made.blocks);
+  const body = blocks === null ? null : bodyAt(accountId, made.id, blocks, 1);
   if (body === null) {
     return refused({ kind: "too-large" });
   }
@@ -443,7 +446,8 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]): Prom
 
 // Items the write makes, each landed or refused by the first rule it fails, in order: an id the
 // library made already, or an earlier one of these claims, is a conflict, and a url a live item or
-// an earlier one of these holds is held. Room is the whole batch's: past it the write is refused
+// an earlier one of these holds is held. Each body lands with its pills settled. Room is the whole
+// batch's: past it the write is refused
 export const landNewItems = async (
   scope: WriteScope,
   made: readonly NewItem[],

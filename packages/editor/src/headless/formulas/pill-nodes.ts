@@ -4,6 +4,9 @@
 import { ElementApi } from "platejs";
 import type { Descendant, Path, TElement, TNode } from "platejs";
 
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
+
 import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { displaysOf } from "@repo/editor/headless/formulas/displays";
 import type { Pill } from "@repo/editor/headless/formulas/displays";
@@ -46,20 +49,63 @@ export const unsettledPills = (
   });
 };
 
+// `node`, each pill under it that `displays` names showing the display named for it
+const withDisplays = (node: TElement, displays: ReadonlyMap<TElement, string>): TElement => {
+  const display = displays.get(node);
+  return display === undefined
+    ? {
+        ...node,
+        children: node.children.map((child) =>
+          ElementApi.isElement(child) ? withDisplays(child, displays) : child,
+        ),
+      }
+    : { ...node, display };
+};
+
+// each of `blocks` holding a pill whose display moves, by its index, with every pill showing what
+// its source gives among them alone
+const settledByIndex = (blocks: readonly TElement[]): ReadonlyMap<number, TElement> => {
+  const unsettled = unsettledPills(blocks);
+  const displays = new Map(unsettled.map(({ node, display }) => [node, display]));
+  const settled = new Map<number, TElement>();
+  for (const { at } of unsettled) {
+    const [index] = at;
+    const block = index === undefined ? undefined : blocks[index];
+    if (index !== undefined && block !== undefined && !settled.has(index)) {
+      settled.set(index, withDisplays(block, displays));
+    }
+  }
+  return settled;
+};
+
 // `blocks` with each pill showing what its source gives among them alone: a whole body read from
 // markdown, or blocks moved into a note of their own, which no editor's normalizer has seen
 export const settledAlone = (blocks: readonly TElement[]): readonly TElement[] => {
-  const displays = new Map(unsettledPills(blocks).map(({ node, display }) => [node, display]));
-  const settled = (node: TElement): TElement => {
-    const display = displays.get(node);
-    return display === undefined
-      ? {
-          ...node,
-          children: node.children.map((child) =>
-            ElementApi.isElement(child) ? settled(child) : child,
-          ),
-        }
-      : { ...node, display };
-  };
-  return displays.size === 0 ? blocks : blocks.map(settled);
+  const settled = settledByIndex(blocks);
+  return settled.size === 0 ? blocks : blocks.map((block, index) => settled.get(index) ?? block);
+};
+
+// A new item's body as a caller sent it, each pill showing what its source gives among the item's,
+// since no editor settled it and a caller's display is nobody's word. Only a block whose display
+// moved is rebuilt, so nothing else of the body changes; null when one of them grew past what a
+// block holds.
+export const settledBody = (body: readonly BodyBlock[]): readonly BodyBlock[] | null => {
+  const settled = settledByIndex(body.map(({ block }) => block));
+  if (settled.size === 0) {
+    return body;
+  }
+  const blocks: BodyBlock[] = [];
+  for (const [index, held] of body.entries()) {
+    const element = settled.get(index);
+    if (element === undefined) {
+      blocks.push(held);
+      continue;
+    }
+    const parsed = storableBlockSchema.safeParse(element);
+    if (!parsed.success) {
+      return null;
+    }
+    blocks.push({ block: parsed.data, section: held.section });
+  }
+  return blocks;
 };
