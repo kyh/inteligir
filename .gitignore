@@ -26,6 +26,8 @@ apps/web/public/licenses/
 # build output
 dist/
 .output/
+# eve's build swaps its output through a backup beside it, which lint must not read mid-swap
+*.eve-backup-*
 # eve's build and its local runs' workflow data (apps/web/agent)
 .eve/
 # wxt's generated types and tsconfig (apps/extension), written by `wxt prepare`
