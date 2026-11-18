@@ -228,6 +228,10 @@ export const waitingSaves = <P>(args: {
   };
 };
 
+// what every device says of the saves it keeps that wait to be sent, refused ones apart
+export const savesWaiting = (count: number): string =>
+  count === 1 ? "1 save waiting" : `${String(count)} saves waiting`;
+
 // One pass at a time: an ask while a pass runs asks for one more after it, so what changed
 // mid-pass is read again and no two passes send one save. The run lives as long as its host, which
 // loses nothing it needs later with it.

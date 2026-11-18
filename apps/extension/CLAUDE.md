@@ -34,9 +34,13 @@ what it may reach, and how it builds.
   here; the record, the pass and what a call's outcome does to a save are shared, since two queues
   answer one refusal two ways. `apps/extension/src/background/save-queue.ts`.
 - **A save the library refused is listed in the popup, in the library's words, to try again or let
-  go.** Only the saves of the account signed in, read with no call, since a refusal a resend meets
-  has no tab to badge and a save dropped unseen is lost.
+  go, beside a count of those that wait.** Only the saves of the account signed in, read with no
+  call, since a refusal a resend meets has no tab to badge and a save dropped unseen is lost.
   `apps/extension/src/entrypoints/popup/app.tsx`.
+- **One refused row an address: a refusal of an address the account's library already refused
+  joins that row.** The popup saves its tab each time it opens, so a row for each refused save
+  lists one page once an opening while the library stays full.
+  `apps/extension/src/background/save-queue.ts`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
   only what stops with it.** A pass and a first try under way are memory's, since a mark of either
   on disk outlives the worker that made it; `storage.local` is open to trusted contexts alone, and

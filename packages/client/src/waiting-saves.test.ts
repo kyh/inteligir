@@ -1,11 +1,11 @@
 import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { deferred } from "@repo/contract/deferred";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { z } from "zod";
 
 import { memoryKv } from "./test-support/memory-kv";
 import type { MemoryKv } from "./test-support/memory-kv";
-import { oneAtATime, waitingSaves } from "./waiting-saves";
+import { oneAtATime, savesWaiting, waitingSaves } from "./waiting-saves";
 import type { WaitingSave } from "./waiting-saves";
 
 const NOW = 1_700_000_000_000;
@@ -222,6 +222,10 @@ describe("a waiting save", () => {
     storage.failWrites(false);
     await expect(saves.list()).resolves.toStrictEqual([]);
   });
+});
+
+test("counts the saves that wait in one phrase for every device", () => {
+  expect([1, 2].map(savesWaiting)).toStrictEqual(["1 save waiting", "2 saves waiting"]);
 });
 
 describe(oneAtATime, () => {

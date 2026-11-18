@@ -7,7 +7,7 @@ import type { Outcome, OutcomeReason } from "../messages";
 import type { Saved } from "./cloud";
 import { keepConnection, readConnection } from "./connection";
 import { saveTab } from "./save-page";
-import { keepSave, queuedSaves, refusedSaves, SEND_ALARM, sendQueued } from "./save-queue";
+import { heldSaves, keepSave, queuedSaves, retrySave, SEND_ALARM, sendQueued } from "./save-queue";
 import type { QueuedSave, SendDeps } from "./save-queue";
 import type { SignIn } from "./sign-in";
 import {
@@ -36,6 +36,8 @@ const NOW = Date.UTC(2026, 10, 5, 12);
 const FIRST = "01900000-0000-7000-8000-0000000000a1";
 const SECOND = "01900000-0000-7000-8000-0000000000a2";
 const THIRD = "01900000-0000-7000-8000-0000000000a3";
+const PAGE_URL = "https://example.test/file-over-app";
+const OTHER_URL = "https://example.test/read-it-later";
 
 // a save as the queue keeps it, each op id a moment after the one before it
 const waiting = ({
@@ -43,18 +45,25 @@ const waiting = ({
   opId = FIRST,
   refused = null,
   title = "File over app",
+  url = PAGE_URL,
 }: {
   email?: string;
   opId?: string;
   refused?: string | null;
   title?: string;
+  url?: string;
 } = {}): QueuedSave => ({
   id: "01900000-0000-7000-8000-000000000001",
   opId,
-  payload: { email, title, url: "https://example.test/file-over-app" },
+  payload: { email, title, url },
   refused,
   savedAt: NOW - 1000 + [FIRST, SECOND, THIRD].indexOf(opId) * 100,
 });
+
+// a save kept as a pass that met the library's refusal leaves it, which no keep makes
+const park = async (save: QueuedSave): Promise<void> => {
+  await browser.storage.local.set({ [`save:${save.opId}`]: JSON.stringify(save) });
+};
 
 const depsWith = (
   cloud: ReturnType<typeof fakeCloud>,
@@ -203,12 +212,14 @@ describe("a save's try settles it one way, the first and every resend alike", ()
     fakeBrowser.reset();
     await keepConnection(KEPT);
     await keepSave(waiting());
-    await keepSave(waiting({ opId: SECOND }));
+    await keepSave(waiting({ opId: SECOND, url: OTHER_URL }));
     const resent = fakeCloud({ saveLink: row.answer });
     await sendQueued(depsWith(resent));
     expect(resent.links).toHaveLength(row.passGoesOn ? 2 : 1);
     await expect(queuedSaves()).resolves.toStrictEqual(
-      row.kept === null ? [] : [waiting(row.kept), waiting({ ...row.kept, opId: SECOND })],
+      row.kept === null
+        ? []
+        : [waiting(row.kept), waiting({ ...row.kept, opId: SECOND, url: OTHER_URL })],
     );
     await expect(readConnection()).resolves.toStrictEqual(row.accountKept ? KEPT : null);
     // the alarm stands for a call the cloud did not answer, never for a person a save waits on
@@ -326,9 +337,10 @@ describe("a save the library refused", () => {
       depsWith(fakeCloud({ saveLink: full }), { kind: "signed-in", session: OTHER_SESSION }),
     );
 
-    await expect(refusedSaves(SESSION.email)).resolves.toStrictEqual([
-      { message: FULL, name: "File over app", opId: FIRST },
-    ]);
+    await expect(heldSaves(SESSION.email)).resolves.toStrictEqual({
+      refused: [{ message: FULL, name: "File over app", opId: FIRST }],
+      waiting: 0,
+    });
     const later = fakeCloud({});
     await sendQueued(depsWith(later));
     expect(later.links).toStrictEqual([]);
@@ -340,9 +352,62 @@ describe("a save the library refused", () => {
     const untitled = waiting();
     await keepSave({ ...untitled, payload: { ...untitled.payload, title: "" } });
     await sendQueued(depsWith(fakeCloud({ saveLink: full })));
-    await expect(refusedSaves(SESSION.email)).resolves.toMatchObject([
-      { name: "https://example.test/file-over-app" },
+    await expect(heldSaves(SESSION.email)).resolves.toMatchObject({
+      refused: [{ name: PAGE_URL }],
+    });
+  });
+
+  it("is listed once for its address, joined by the next refusal of that address in its words, and no other account's or address's", async () => {
+    await park(waiting({ refused: FULL }));
+    await keepSave(waiting({ opId: SECOND, title: "" }));
+    await park(waiting({ email: OTHER_SESSION.email, opId: THIRD, refused: FULL }));
+    const later = "The library refused it again.";
+    await sendQueued(depsWith(fakeCloud({ saveLink: refusal("QUOTA", true, later) })));
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      waiting({ refused: later }),
+      waiting({ email: OTHER_SESSION.email, opId: THIRD, refused: FULL }),
     ]);
+    await expect(heldSaves(OTHER_SESSION.email)).resolves.toStrictEqual({
+      refused: [{ message: FULL, name: "File over app", opId: THIRD }],
+      waiting: 0,
+    });
+  });
+
+  it("is listed once however often its page is saved while the library refuses it", async () => {
+    await park(waiting({ opId: SECOND, refused: FULL, title: "Read it later", url: OTHER_URL }));
+    await park(waiting({ email: OTHER_SESSION.email, opId: THIRD, refused: FULL }));
+    const cloud = fakeCloud({ saveLink: full });
+    for (let opened = 0; opened < 3; opened += 1) {
+      await expect(saveTabAsLink(cloud)).resolves.toStrictEqual(refusedByLibrary(FULL));
+    }
+    expect(cloud.links).toHaveLength(3);
+    const { refused } = await heldSaves(SESSION.email);
+    expect(refused.map(({ name }) => name)).toStrictEqual(["Read it later", "File over app"]);
+    await expect(queuedSaves()).resolves.toMatchObject([
+      { payload: { url: OTHER_URL }, refused: FULL },
+      { payload: { email: OTHER_SESSION.email }, refused: FULL },
+      { payload: { email: SESSION.email, url: PAGE_URL }, refused: FULL },
+    ]);
+  });
+
+  it("counts as waiting once tried again where the cloud does not answer, apart from its account's other saves", async () => {
+    await park(waiting({ refused: FULL }));
+    await keepSave(waiting({ email: OTHER_SESSION.email, opId: SECOND }));
+    await retrySave(FIRST);
+    await sendQueued(
+      depsWith(
+        fakeCloud({
+          saveLink: async () => {
+            throw new TypeError("Failed to fetch");
+          },
+        }),
+      ),
+    );
+    await expect(heldSaves(SESSION.email)).resolves.toStrictEqual({ refused: [], waiting: 1 });
+    await expect(heldSaves(OTHER_SESSION.email)).resolves.toStrictEqual({
+      refused: [],
+      waiting: 1,
+    });
   });
 });
 

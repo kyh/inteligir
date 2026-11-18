@@ -17,7 +17,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
 - **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, a save made offline lands once you're back online, and one made signed out lands the moment you sign in again, in the account it was saved for.
-- **A save your library refuses stays in the extension's popup**: it is listed under "Didn't reach your library" in your library's words, with Try again and Let it go.
+- **A save your library refuses stays in the extension's popup**: it is listed once under "Didn't reach your library" in your library's words, however often you save that page, with Try again and Let it go, and the popup counts the saves still waiting to be sent ("1 save waiting").
 - **The extension says a refusal in your library's words** ("Your library is full."), the same sentence your iPhone shows, in the popup and on the toolbar button.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.

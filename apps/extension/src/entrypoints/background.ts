@@ -10,7 +10,7 @@ import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
-import type { ExtensionRequest, Outcome, RefusedSave, Status, WorkerAnswer } from "../messages";
+import type { ExtensionRequest, HeldSaves, Outcome, Status, WorkerAnswer } from "../messages";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
@@ -22,7 +22,7 @@ import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
 import {
   discardSave,
-  refusedSaves,
+  heldSaves,
   retrySave,
   SEND_ALARM,
   sendQueued,
@@ -82,11 +82,13 @@ const status = async (): Promise<Status> => {
   };
 };
 
-// the saves the library of the account signed in refused, as the browser holds that sign-in, with
-// no call: another account's wait unseen for that account
-const refused = async (): Promise<readonly RefusedSave[]> => {
+const NONE_HELD: HeldSaves = { refused: [], waiting: 0 };
+
+// the saves the account signed in keeps, as the browser holds that sign-in, with no call: another
+// account's wait unseen for that account
+const held = async (): Promise<HeldSaves> => {
   const signIn = await heldSignIn();
-  return signIn.kind === "signed-in" ? await refusedSaves(signIn.session.email) : [];
+  return signIn.kind === "signed-in" ? await heldSaves(signIn.session.email) : NONE_HELD;
 };
 
 const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
@@ -107,17 +109,17 @@ const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
     case "status": {
       return await status();
     }
-    case "refused": {
-      return await refused();
+    case "saves": {
+      return await held();
     }
     case "retry": {
       await retrySave(request.opId);
       await sendQueued(sendDeps);
-      return await refused();
+      return await held();
     }
     case "discard": {
       await discardSave(request.opId);
-      return await refused();
+      return await held();
     }
     // no default
   }

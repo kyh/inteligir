@@ -337,8 +337,9 @@ The unpacked store build, against production, with no dev build loaded.
 - **A large picture**: right-click Save on a picture over 4.5 MB, on a slow
   link with DevTools closed, lands as its item.
 - **A refused save**: one a full library refuses says so in the library's
-  words and stays in the popup under Didn't reach your library, where Try again
-  lands it once there is room and Let it go drops it.
+  words and stays in the popup under Didn't reach your library, listed once
+  however often its page is saved, where Try again lands it once there is room,
+  or offline leaves it counted as waiting, and Let it go drops it.
 
 ### The iPhone app, on the internal build
 

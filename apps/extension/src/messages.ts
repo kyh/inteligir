@@ -11,9 +11,9 @@ export const extensionRequestSchema = z.discriminatedUnion("type", [
   z.strictObject({ tabId: z.number().int(), type: z.literal("save") }),
   // whose library this browser saves to, and where it is
   z.strictObject({ type: z.literal("status") }),
-  // the saves the library of the account signed in refused
-  z.strictObject({ type: z.literal("refused") }),
-  // one of them sent again, or let go
+  // the saves the account signed in keeps: those its library refused, and how many wait
+  z.strictObject({ type: z.literal("saves") }),
+  // a refused one sent again, or let go
   z.strictObject({ opId: z.string().min(1), type: z.literal("retry") }),
   z.strictObject({ opId: z.string().min(1), type: z.literal("discard") }),
 ]);
@@ -61,11 +61,18 @@ export type Status = z.infer<typeof statusSchema>;
 // title, or its address where none was read, and the library's words
 const refusedSaveSchema = z.object({ message: z.string(), name: z.string(), opId: z.string() });
 export type RefusedSave = z.infer<typeof refusedSaveSchema>;
-const refusedSavesSchema = z.array(refusedSaveSchema);
 
-// what the worker sends a page: a save's outcome, a status, the refused saves, or, for any work
-// that failed, a refusal
-export type WorkerAnswer = Outcome | Status | readonly RefusedSave[];
+// the saves the account signed in keeps that its library has not taken: each address it refused,
+// once, and how many saves wait to be sent
+const heldSavesSchema = z.object({
+  refused: z.array(refusedSaveSchema).readonly(),
+  waiting: z.number().int().nonnegative(),
+});
+export type HeldSaves = z.infer<typeof heldSavesSchema>;
+
+// what the worker sends a page: a save's outcome, a status, the held saves, or, for any work that
+// failed, a refusal
+export type WorkerAnswer = Outcome | Status | HeldSaves;
 
 const SAVE_FAILED: Outcome = { kind: "refused", reason: "failed" };
 
@@ -89,17 +96,17 @@ export interface WorkerAsks {
   readonly save: (tabId: number) => Promise<Outcome>;
   // null for an answer that is not a status
   readonly status: () => Promise<Status | null>;
-  // the refused saves as they stand, as a pass that sent one again left them, and without the one
-  // let go; null for an answer that is not the list
-  readonly refused: () => Promise<readonly RefusedSave[] | null>;
-  readonly retry: (opId: string) => Promise<readonly RefusedSave[] | null>;
-  readonly discard: (opId: string) => Promise<readonly RefusedSave[] | null>;
+  // the held saves as they stand, as a pass that sent a refused one again left them, and without
+  // the one let go; null for an answer that is not them
+  readonly saves: () => Promise<HeldSaves | null>;
+  readonly retry: (opId: string) => Promise<HeldSaves | null>;
+  readonly discard: (opId: string) => Promise<HeldSaves | null>;
 }
 
 export const askWorker: WorkerAsks = {
-  discard: async (opId) => await answerTo({ opId, type: "discard" }, refusedSavesSchema, null),
-  refused: async () => await answerTo({ type: "refused" }, refusedSavesSchema, null),
-  retry: async (opId) => await answerTo({ opId, type: "retry" }, refusedSavesSchema, null),
+  discard: async (opId) => await answerTo({ opId, type: "discard" }, heldSavesSchema, null),
+  retry: async (opId) => await answerTo({ opId, type: "retry" }, heldSavesSchema, null),
   save: async (tabId) => await answerTo({ tabId, type: "save" }, outcomeSchema, SAVE_FAILED),
+  saves: async () => await answerTo({ type: "saves" }, heldSavesSchema, null),
   status: async () => await answerTo({ type: "status" }, statusSchema, null),
 };
