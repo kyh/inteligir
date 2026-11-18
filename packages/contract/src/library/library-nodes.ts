@@ -29,8 +29,9 @@ export const BLOCK_MAX_BYTES = 512 * 1024;
 export const BLOCK_MAX_DEPTH = 32;
 
 // how deep a list nests. A list is flat here, an item's depth one number, and the writer turns that
-// number back into nesting a recursion walks, which ran out near 450 on a cold Worker; past that an
-// export and an agent's view of the item throw, so the cap stands well inside what either holds
+// number back into nesting a recursion walks, which runs out past 600 levels on Node's default
+// stack, where a Vercel function writes an agent's view; past that an export and an agent's view of
+// the item throw, so the cap stands well inside it
 export const LIST_MAX_INDENT = 128;
 
 const mark = z.literal(true).optional();

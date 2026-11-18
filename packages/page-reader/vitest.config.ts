@@ -14,8 +14,8 @@ export default defineConfig({
       },
       {
         extends: true,
-        // a Worker isolate holds 128 MB in all: the old generation capped under it, the young one
-        // small, so the test runner's own modules leave the reading less room than a Worker would
+        // the reading's budget (src/extract-page.heap.test.ts): the old generation capped at it and
+        // the young one small, so a reading that outgrows it takes the process down
         test: {
           execArgv: ["--max-old-space-size=96", "--max-semi-space-size=8"],
           include: ["src/**/*.heap.test.ts"],
