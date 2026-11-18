@@ -16,10 +16,10 @@ type ImportPattern =
   | { readonly message: string; readonly regex: string; readonly allowTypeImports?: boolean }
   | { readonly message: string; readonly group: readonly string[] };
 
-// a client reaching the connector's decoration bundles the MCP SDK's node shims, which Metro keeps
+// a client reaching the tools' decoration bundles the MCP SDK's node shims, which Metro keeps
 const SERVER_ONLY = {
   message: "MCP and OpenAPI meta live in @repo/service alone",
-  regex: "^(?:@orpc/openapi|@modelcontextprotocol/server)(?:/|$)",
+  regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
 const SERVICE_PLATFORM = {
   message: "@repo/service runs on the server: no DOM and no React",

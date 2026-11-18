@@ -12,6 +12,7 @@ import { writeFolders } from "./library-folders";
 import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
 import {
   createFile,
+  createNote,
   landedSummaries,
   landNew,
   organizeItems,
@@ -92,6 +93,15 @@ export const libraryWriteRows = {
           context.library,
           { answer: landedSchema, opId: input.opId },
           async (scope) => ({ item: await createFile(scope, input) }),
+        ),
+      ),
+    ),
+    createNote: writing.items.createNote.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: landedSchema, opId: input.opId },
+          async (scope) => ({ item: await createNote(scope, input) }),
         ),
       ),
     ),

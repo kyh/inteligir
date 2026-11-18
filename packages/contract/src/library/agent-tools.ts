@@ -1,7 +1,7 @@
 // The library's tools by the one name each goes by: the connector lists a row under it, the
 // built-in agent calls it by it, a thread's events carry it, and each device words it. `reads`
-// says a tool only reads the library. A plain table: which row a name decorates, and how, is the
-// Worker's (packages/service/src/connector/library-tools.ts), so no client bundles MCP or OpenAPI.
+// says a tool only reads the library. A plain table: which row a name tags, and how, is the
+// service's (packages/service/src/library/library-tools.ts), so no client bundles MCP.
 
 export const LIBRARY_TOOLS = {
   create_note: { reads: false },

@@ -375,6 +375,25 @@ dbSuite("the library's rows that write", () => {
       ]);
     });
 
+    it("makes a note from markdown, filed by a path it makes and tagged, landing once under its op id", async () => {
+      const { accountId, library } = await personalLibrary();
+      const input = {
+        folder: { path: "Journal" },
+        markdown: "# Plan\n\nWater the **garden**.",
+        opId: OP_ID,
+        tags: ["home"],
+        title: "Plan",
+      };
+      const { item: made } = await library.items.createNote(input);
+      expect(made.fields).toMatchObject({ kind: "note", tags: ["home"], title: "Plan" });
+      const [journal] = await liveFolders(accountId);
+      expect(made.fields.folderId).toBe(journal?.id);
+      const { blocks } = await library.items.get({ id: made.id });
+      expect(blocks.map(({ section }) => section)).toStrictEqual(["note", "note"]);
+      await expect(library.items.createNote(input)).resolves.toStrictEqual({ item: made });
+      await expect(itemCount(accountId)).resolves.toBe(1);
+    });
+
     it("takes a path's names trimmed, and refuses one no folder can hold", async () => {
       const { accountId, library } = await personalLibrary();
       const id = await note(library, ["Short."]);

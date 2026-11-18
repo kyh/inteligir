@@ -3,8 +3,8 @@
 // item's fields as a bulk organize, Deleted and back, and Deleted emptied.
 
 import { organized } from "@repo/contract/library/cell-rules";
-import type { OrganizeInput } from "@repo/contract/library/cell-rules";
-import { fileFields } from "@repo/contract/library/item-makes";
+import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
+import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
 import type { itemSummarySchema } from "@repo/contract/library/library-wire";
 import { item, purgedItem } from "@repo/db/library-schema";
@@ -13,8 +13,10 @@ import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
+import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
+import { mintLibraryId } from "./library-ids";
 import { landNewItems } from "./library-landing";
 import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
@@ -55,6 +57,32 @@ export const createFile = async (
     blocks: [],
     fields: fileFields({ ...input, mime: held.mime }),
     id: input.id,
+  });
+};
+
+export interface CreateNoteInput {
+  readonly markdown: string;
+  readonly folder?: FolderTarget | undefined;
+  readonly tags?: readonly string[] | undefined;
+  readonly title?: string | undefined;
+}
+
+// a note written as markdown, as an agent writes one: filed by the folder's id or path, a path's
+// missing folders made, and saved now
+export const createNote = async (
+  scope: WriteScope,
+  input: CreateNoteInput,
+): Promise<LiveItemRow> => {
+  const folderId = await folderOfTarget(scope, input.folder);
+  return await landNew(scope, {
+    blocks: await noteBlocksOf(scope, input.markdown),
+    fields: noteFields({
+      folderId: folderId ?? null,
+      savedAt: scope.now,
+      tags: input.tags ?? [],
+      title: input.title ?? "",
+    }),
+    id: mintLibraryId(scope.now),
   });
 };
 

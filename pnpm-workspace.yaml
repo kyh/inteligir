@@ -5,13 +5,17 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.9.0
-  # exact: the v2 beta breaks between patches, so every oRPC package must resolve to one build
+  # exact: the v2 beta breaks between patches, and @orpc/mcp pins its siblings exactly, so every
+  # oRPC package must resolve to one build
   "@orpc/client": 2.0.0-beta.50
   "@orpc/contract": 2.0.0-beta.50
+  "@orpc/mcp": 2.0.0-beta.50
   "@orpc/server": 2.0.0-beta.50
   "@orpc/tanstack-query": 2.0.0-beta.50
   # exact: the e2e drives the connector with the client the deployed connector was tested against
   "@modelcontextprotocol/client": 2.4.0
+  # exact, as its client sibling: @orpc/mcp's peer, whose tool annotations the library's tools carry
+  "@modelcontextprotocol/server": 2.4.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
   # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
   # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's

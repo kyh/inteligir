@@ -1,10 +1,10 @@
-// The library's procedures, the account's library cell their one implementation and
-// `/v1/rpc/library` serving every one. The apps call the rows their screens need; an agent calls
-// the rows tagged as tools, a connected assistant through the connector and the built-in agent in
-// the cell, and the apps call only a few of those. A write takes an optional `opId`, which the
-// cell keeps, so a save queue resending after a lost answer lands once. Which of
-// these an agent sees as a tool, and how it is titled, is the Worker's to decorate
-// (packages/service/src/connector/library-tools.ts); nothing here names MCP or OpenAPI.
+// The library's procedures, @repo/service their one implementation and `/v1/rpc/library` serving
+// every one. The apps call the rows their screens need; an agent calls the rows tagged as tools, a
+// connected assistant through the connector and the built-in agent as the person, and the apps
+// call only a few of those. A write takes an optional `opId`, which the service keeps, so a save
+// queue resending after a lost answer lands once. Which of these an agent sees as a tool, and how
+// it is titled, is the service's to tag (packages/service/src/library/library-tools.ts); nothing
+// here names MCP or OpenAPI.
 
 import { z } from "zod";
 

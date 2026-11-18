@@ -4,7 +4,6 @@
 // and refuses a write to a grant that only reads. A refusal is thrown inside a write, caught at its
 // transaction's edge as a value (`./library-store`) and thrown again here.
 
-import { libraryContract } from "@repo/contract/rpc/library-contract";
 import {
   BlobMissingError,
   ConflictError,
@@ -20,6 +19,7 @@ import { changesLibrary, libraryActorOf } from "./library-principal";
 import type { LibraryPrincipal } from "./library-principal";
 import type { LibraryRefusal, LibraryResult } from "./library-refusal";
 import type { LibraryWriter } from "./library-store";
+import { libraryTools } from "./library-tools";
 
 // what every door hands the library: `/v1`'s session, the connector's grant, the agent's turn
 export interface LibraryContext {
@@ -106,7 +106,8 @@ const requireLibrary = (needs: "read" | "write") =>
     return await next({ context: { library } });
   });
 
-const library = implement(libraryContract).$context<LibraryContext>();
+// the tagged contract, so each routed row carries its tool for whoever lists the tools
+const library = implement(libraryTools).$context<LibraryContext>();
 
 // on the implementer, so a caller refused learns nothing of the input
 export const reading = library.use(requireLibrary("read"));
