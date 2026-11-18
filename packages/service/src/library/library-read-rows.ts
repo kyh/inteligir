@@ -6,6 +6,7 @@ import { answerCard } from "@repo/contract/library/library-index";
 import { NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 
+import { DIALECT_SPEC } from "../agent/agent-prompt";
 import { reading } from "./library-access";
 import { libraryChanges } from "./library-changes";
 import { namedFiles, settleNotes } from "./library-imports";
@@ -33,6 +34,7 @@ export const libraryReadRows = {
   changes: reading.changes.handler(
     async ({ context, input }) => await libraryChanges(db, context.library.accountId, input.after),
   ),
+  guide: reading.guide.handler(() => ({ markdown: DIALECT_SPEC })),
   imports: {
     named: reading.imports.named.handler(
       async ({ context, input }) => await namedFiles(db, context.library.accountId, input.shas),
