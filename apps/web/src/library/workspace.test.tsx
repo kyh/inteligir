@@ -166,6 +166,33 @@ describe("a card in the grid", () => {
       expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
     });
   });
+
+  it("opens its menu on the menu key with its first row lit, and on a right-click with none", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    cell.seed.item({ title: NOTE });
+    await pageAt("/library", cell);
+
+    const card = await screen.findByRole("gridcell", { name: NOTE });
+    card.focus();
+    fireEvent.keyDown(card, { key: "ContextMenu" });
+    const open = await screen.findByRole("menuitem", { name: "Open" });
+    await waitFor(() => {
+      expect(Object.hasOwn(open.dataset, "highlighted")).toBe(true);
+    });
+    expect(document.activeElement).toBe(open);
+
+    fireEvent.keyDown(open, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+    fireEvent.contextMenu(card);
+    const menu = await screen.findByRole("menu");
+    await waitFor(() => {
+      expect(menu.contains(document.activeElement)).toBe(true);
+    });
+    expect(menu.querySelector("[data-highlighted]")).toBeNull();
+  });
 });
 
 describe("Empty Deleted", () => {

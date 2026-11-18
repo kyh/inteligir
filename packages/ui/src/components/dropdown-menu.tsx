@@ -66,6 +66,8 @@ const MARKS = [HIGHLIGHTED];
 const highlightedRow = (popup: HTMLElement, last: RowBox | null): RowBox | null =>
   rowBox(popup.querySelector<HTMLElement>(`[${HIGHLIGHTED}]`), last);
 
+const ENABLED_ROW = '[role^="menuitem"]:not([data-disabled])';
+
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
 
 interface DropdownMenuContentProps {
@@ -76,6 +78,9 @@ interface DropdownMenuContentProps {
   sideOffset?: number | undefined;
   alignOffset?: number | undefined;
   anchor?: MenuPositionerProps["anchor"];
+  // a key opened the menu from an element that is not its trigger, so its first row lights as a
+  // trigger's Enter lights it: Base UI lights a row on open only for a key on its own trigger
+  openedByKey?: boolean | undefined;
 }
 
 const DropdownMenuContent = ({
@@ -86,6 +91,7 @@ const DropdownMenuContent = ({
   sideOffset = 6,
   alignOffset = 0,
   anchor,
+  openedByKey = false,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
   const [popup, setPopup] = useState<HTMLDivElement | null>(null);
@@ -132,6 +138,15 @@ const DropdownMenuContent = ({
               setRinged(false);
             }}
             onFocus={(e) => {
+              // focus arriving on the popup itself from outside it is Base UI's first, as it opens;
+              // a row focused is the row Base UI lights
+              const opening =
+                e.target === e.currentTarget &&
+                !(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget));
+              if (openedByKey && opening) {
+                e.currentTarget.querySelector<HTMLElement>(ENABLED_ROW)?.focus();
+                return;
+              }
               setRinged(e.target.matches(":focus-visible"));
             }}
             className={cn(

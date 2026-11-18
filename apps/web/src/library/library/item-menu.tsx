@@ -16,9 +16,13 @@ import { targetCount } from "./library-selection";
 import type { Target } from "./library-selection";
 import type { ListedItem } from "./listing";
 
+// what opened the menu: a right-click, or the card's menu key, which lights its first row
+export type MenuOpener = "pointer" | "key";
+
 export interface ItemMenuState {
   readonly row: ListedItem;
   readonly anchor: HTMLElement;
+  readonly openedBy: MenuOpener;
   // what the verbs act on: the row alone, or the selection it is part of. The grid selects a card
   // it opens the menu on, so the target is the selection a message to the agent carries
   readonly target: Target;
@@ -178,7 +182,12 @@ export const ItemMenu = ({
       }}
     >
       {menu === null ? null : (
-        <DropdownMenuContent anchor={menu.anchor} side="bottom" align="start">
+        <DropdownMenuContent
+          anchor={menu.anchor}
+          side="bottom"
+          align="start"
+          openedByKey={menu.openedBy === "key"}
+        >
           {menu.row.fields.deletedAt === null ? (
             <LibraryVerbs menu={menu} onQuickLook={onQuickLook} run={run} />
           ) : (

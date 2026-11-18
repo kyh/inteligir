@@ -16,7 +16,7 @@ import { useStore } from "zustand";
 import { useNow } from "../relative-time";
 import { ItemCard } from "./item-card";
 import { ItemMenu } from "./item-menu";
-import type { ItemMenuState } from "./item-menu";
+import type { ItemMenuState, MenuOpener } from "./item-menu";
 import { useLibraryCommands } from "./library-commands";
 import { shortcutFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
@@ -81,15 +81,15 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
     }
   };
 
-  const openMenu = (row: ListedItem, anchor: HTMLElement): void => {
+  const openMenu = (row: ListedItem, anchor: HTMLElement, openedBy: MenuOpener): void => {
     if (isSelected(state.selected, row.id)) {
       const target = targetOf(state.selected, listing, shown);
       if (target !== null) {
-        setMenu({ anchor, row, subjects: selectedRows(), target });
+        setMenu({ anchor, openedBy, row, subjects: selectedRows(), target });
       }
     } else {
       selection.apply({ id: row.id, kind: "click" });
-      setMenu({ anchor, row, subjects: [row], target: { ids: [row.id], kind: "ids" } });
+      setMenu({ anchor, openedBy, row, subjects: [row], target: { ids: [row.id], kind: "ids" } });
     }
   };
 
