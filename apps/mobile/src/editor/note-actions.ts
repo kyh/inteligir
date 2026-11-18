@@ -1,5 +1,6 @@
-// What the note page asks the phone, answered from the account's library: the socket's ticket; an
-// item as the cloud holds it, or as this phone last read it while there is no connection; the items
+// What the note page asks the phone, answered from the account's library: the open note read and
+// saved whole, and where it stands as the library moves; an item as the cloud holds it, or as this
+// phone last read it while there is no connection; the items
 // a link can name; a file a note names, from the cache, which fetches it the first time; a file
 // pasted into the note, sent up and kept as it went; a note the editor makes, in the open item's
 // folder; and the item a link opens, on the native stack. Every argument and answer is JSON and
@@ -7,13 +8,11 @@
 // carrying its message. Expo-free, so a node suite drives it over a fake cell.
 
 import type { QueryClient } from "@tanstack/react-query";
+import { readNote, saveNote } from "@repo/client/note-bodies";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
-import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import type { PhoneLibrary } from "../lib/compose-runtime";
 import type { LibraryActions } from "./page/library-actions";
-
-type ItemAnswer = Awaited<ReturnType<V1Client["library"]["items"]["get"]>>;
 
 export interface NoteActionsArgs {
   // the item the page shows, whose folder a note it makes lands in
@@ -34,8 +33,6 @@ const orNone = async <T>(read: Promise<T>): Promise<T | null> => {
     throw error;
   }
 };
-
-const blocksOf = (item: ItemAnswer) => item.blocks.map(({ block }) => block);
 
 export const noteActions = ({
   itemId,
@@ -79,6 +76,12 @@ export const noteActions = ({
       }
       return answer.targets.map(({ id, title }) => ({ id, title }));
     },
+    noteStanding: async (id) => {
+      const row = await orNone(client.library.items.row({ id }));
+      return row === null
+        ? null
+        : { deleted: row.fields.deletedAt !== null, version: row.bodyVersion };
+    },
     openItem,
     // drawn as the type it was kept or served as, so a recording plays as one
     readFile: async (sha) => {
@@ -86,28 +89,10 @@ export const noteActions = ({
       return file === null ? null : { base64: base64FromBytes(file.bytes), mediaType: file.mime };
     },
     readItem: async (id) => {
-      const options = queries.library.items.get.queryOptions({ input: { id } });
-      try {
-        const item = await orNone(
-          queryClient.query({
-            ...options,
-            networkMode: "offlineFirst",
-            retry: false,
-            staleTime: 0,
-          }),
-        );
-        return item === null ? null : blocksOf(item);
-      } catch (error) {
-        const held = queryClient.getQueryData(options.queryKey);
-        if (held === undefined) {
-          throw error;
-        }
-        return blocksOf(held);
-      }
+      const note = await readNote(queries, queryClient, id);
+      return note?.blocks.map(({ block }) => block) ?? null;
     },
-    socketTicket: async () => {
-      const { ticket } = await client.account.socketTicket();
-      return ticket;
-    },
+    readNote: async (id) => await readNote(queries, queryClient, id),
+    saveNote: async (save) => await saveNote(client, save),
   };
 };

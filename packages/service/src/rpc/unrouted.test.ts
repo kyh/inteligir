@@ -24,7 +24,6 @@ it("names every row not routed yet", () => {
   const routed = new Set(pathsOf(v1Router));
   expect(pathsOf(v1Contract).filter((path) => !routed.has(path))).toMatchInlineSnapshot(`
     [
-      "account.socketTicket",
       "library.agent.setEnabled",
       "library.agent.rules",
       "library.agent.setRules",

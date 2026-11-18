@@ -39,7 +39,7 @@ const commandsAt = async (
   cell = createFakeCell(),
 ) => {
   const { client } = cell.device("page");
-  const wire = { client, orpc: createTanstackQueryUtils(client) };
+  const wire = { client, orpc: createTanstackQueryUtils(client), outliving: client };
   const queryClient = createPageQueryClient();
   await queryClient.query(libraryQueries(wire).scopes());
   const goes = {

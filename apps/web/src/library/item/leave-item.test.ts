@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { leaveItem, unloadAsks } from "./leave-item";
 
-// an open note that holds every edit made here, or one that lacks an edit typed with no connection
+// an open note that holds every edit made here, or one that lacks an edit it couldn't save
 const noteThat = (holds: boolean) => ({ holds: async () => await Promise.resolve(holds) });
 
 const STAYS = vi.fn<() => Promise<boolean>>(async () => false);
@@ -20,17 +20,21 @@ describe("leaving the open item", () => {
     const note = noteThat(false);
     const ask = vi.fn<(options: ConfirmOptions) => Promise<boolean>>(async () => false);
     await expect(leaveItem(note, ask)).resolves.toBe(false);
-    expect(ask.mock.calls[0]?.[0].title).toBe("Leave without saving?");
+    expect(ask.mock.calls[0]?.[0]).toMatchObject({
+      cancelLabel: "Stay",
+      confirmLabel: "Leave anyway",
+      title: "Leave without saving?",
+    });
     ask.mockResolvedValue(true);
     await expect(leaveItem(note, ask)).resolves.toBe(true);
     await expect(leaveItem(note, STAYS)).resolves.toBe(false);
   });
 });
 
-const typing = (unsent: boolean) => ({ unsent: () => unsent });
+const typing = (loses: boolean) => ({ unloadLoses: () => loses });
 
 describe("the browser's ask as the tab closes or reloads", () => {
-  it("is made only over typing no connection carried, and never once the session ended", () => {
+  it("is made only over typing a save sent as the page goes can't carry, and never once the session ended", () => {
     expect(unloadAsks(typing(true), { kind: "live" })).toBe(true);
     expect(unloadAsks(typing(false), { kind: "live" })).toBe(false);
     expect(unloadAsks(null, { kind: "live" })).toBe(false);

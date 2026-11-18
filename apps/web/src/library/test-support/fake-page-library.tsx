@@ -116,7 +116,7 @@ export const fakePageLibrary = ({
       cloud: { fetch: unread, onSessionEnd: unread, origin: "https://library.test" },
       left: unread,
       session: { get: () => LIVE, subscribe: () => () => {} },
-      wire: { client, orpc: createTanstackQueryUtils(client) },
+      wire: { client, orpc: createTanstackQueryUtils(client), outliving: client },
       workspace: createWorkspaceStore(),
     },
   };

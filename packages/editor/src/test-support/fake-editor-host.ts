@@ -7,8 +7,11 @@ import type {
   EditorHostIo,
   ItemActions,
   LinkTarget,
-  NoteHost,
+  Reach,
 } from "@repo/editor/host-io";
+
+import { memoryNotes } from "./memory-notes";
+import type { MemoryNotes } from "./memory-notes";
 
 type HostCall =
   | { readonly action: "openItem"; readonly args: readonly [string] }
@@ -33,8 +36,8 @@ export interface FakeEditorHostOptions {
   readonly agent?: AgentRequestActions;
   // whether the host starts with no connection, which `goOffline` changes
   readonly offline?: boolean;
-  // answers a note socket's ticket in place of a fresh one, so a case can hold a dial
-  readonly socketTicket?: NoteHost["socketTicket"];
+  // the note bodies the host reads and saves, so a case can seed one and hold it to account
+  readonly notes?: MemoryNotes;
 }
 
 const ignore = (): void => {
@@ -44,43 +47,28 @@ const ignore = (): void => {
 // the library's cap, as the hosts install it
 const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
-// the cloud a note's socket dials, apart from the page's own location
-export const NOTES_ORIGIN = "https://notes.test";
-
 // where the fake draws a file it holds, under its sha
 export const FILES_ORIGIN = "https://files.test";
 
 // Installs the singleton the hooks read and hands the editor the library's titles; the io half
 // answers from the items and files it is handed, keeps a file by its real sha and then draws it
-// under `FILES_ORIGIN` (refusing one with no type, as the hosts do), dials a note at the Worker's
-// path on `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing,
-// and an open, a new note and a kept file are recorded in `calls`. `goOffline` says the connection
-// went or came back.
+// under `FILES_ORIGIN` (refusing one with no type, as the hosts do), reads and saves a note's body
+// in `notes`, the shell hears every other ask as nothing, and an open, a new note and a kept file
+// are recorded in `calls`. `goOffline` says the connection went or came back.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const files = new Map(options.files);
   const reachListeners = new Set<() => void>();
   let offline = options.offline ?? false;
   let made = 0;
-  let tickets = 0;
-
-  const notes: NoteHost = {
-    reach: {
-      get: () => !offline,
-      subscribe: (listener) => {
-        reachListeners.add(listener);
-        return () => {
-          reachListeners.delete(listener);
-        };
-      },
-    },
-    socketOrigin: NOTES_ORIGIN,
-    socketTicket: async () => {
-      tickets += 1;
-      if (options.socketTicket !== undefined) {
-        return await options.socketTicket();
-      }
-      return await Promise.resolve(`ticket-${String(tickets)}`);
+  const notes = options.notes ?? memoryNotes();
+  const reach: Reach = {
+    get: () => !offline,
+    subscribe: (listener) => {
+      reachListeners.add(listener);
+      return () => {
+        reachListeners.delete(listener);
+      };
     },
   };
 
@@ -127,7 +115,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
               ? Promise.reject(new Error(`no file ${sha}`))
               : Promise.resolve(file));
           },
-    notes,
+    notes: notes.host(reach),
     readItemBlocks: async (itemId) => await Promise.resolve(options.itemBlocks?.(itemId) ?? null),
   };
 
@@ -142,6 +130,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   return {
     calls,
     files,
+    notes,
     goOffline: (next: boolean) => {
       offline = next;
       for (const listener of reachListeners) {

@@ -41,7 +41,6 @@
     "./library/library-item": "./src/library/library-item.ts",
     "./library/library-nodes": "./src/library/library-nodes.ts",
     "./library/library-wire": "./src/library/library-wire.ts",
-    "./library/note-socket": "./src/library/note-socket.ts",
     "./library/order-key": "./src/library/order-key.ts",
     "./library/uuid-v7": "./src/library/uuid-v7.ts",
     "./needs-connection": "./src/needs-connection.ts",

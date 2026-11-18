@@ -33,13 +33,13 @@ describe("the policy of a document rendered per request", () => {
     ).toBe("frame-src http://localhost:5174/v1/blobs/");
   });
 
-  it("calls this origin, its socket, the file store's uploads and the Mac app's command channel alone", () => {
+  it("calls this origin, the file store's uploads and the Mac app's command channel alone", () => {
     expect(directiveOf(libraryPolicy(SITE, "n"), "connect-src")).toBe(
-      "connect-src 'self' wss://inteligir.com https://vercel.com/api/blob/ ipc:",
+      "connect-src 'self' https://vercel.com/api/blob/ ipc:",
     );
     expect(
       directiveOf(libraryPolicy(new URL("http://localhost:5174/library"), "n"), "connect-src"),
-    ).toBe("connect-src 'self' ws://localhost:5174 https://vercel.com/api/blob/ ipc:");
+    ).toBe("connect-src 'self' https://vercel.com/api/blob/ ipc:");
   });
 
   it("mints a fresh nonce each request", () => {

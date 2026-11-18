@@ -8,7 +8,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
-- **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent, a note's typing reaching your other devices as you make it.
+- **Your library opens in your browser** at inteligir.com/library, to read, edit, organize, search, undo and ask the agent.
 - **The Mac app opens your library from inteligir.com**: close the window and click Inteligir in the Dock to bring it back; offline, choose View › Reload once you're back.
 - **Your library, one card per item**: All items, Unsorted, a folder or a tag in the sidebar, a kind above the grid, Finder's selection, Space for a quick look, quick with tens of thousands of items.
 - **⌘A selects everything the header counts**, not only the cards scrolled into view: Move, Tag, Pin, Delete and Restore act on all of it, and ⌘-click a card leaves it out.
@@ -37,7 +37,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Bring your Raindrop bookmarks in** from a Raindrop backup's CSV file, in Settings › Import.
 - **Bring a zip of notes in**, a folder of notes or an Obsidian folder, in Settings › Import; what it can't read is counted under "couldn't be read".
 - **An import is read on your device**: keep the window open until it says what it added, and if it closes, choose the same file again and it carries on, adding nothing twice.
-- **Your library on your iPhone**: covers, kinds, search, every file, live editing, and what you last opened readable offline.
+- **Your library on your iPhone**: covers, kinds, search, every file, editing, and what you last opened readable offline.
 - **Create your account on your iPhone** with the invite code you were sent.
 - **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back.
 - **Ask the agent on your iPhone**, in the same conversations as your Mac and your browser.
@@ -82,7 +82,9 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
 - **An imported note's `site`, `author` and `published` keep up to 1,000 characters**, an alias longer than that is cut rather than leaving the note unread, an `aliases` list that mixes names with other values keeps its names, and `fetched` or `fetch-error` with no `url` stay properties.
 - **The agent draws diagrams** as Mermaid in the note.
-- **Your devices and the agent edit one note together**, live, and ⌘Z takes back only your own typing.
+- **A note saves a second after you stop typing**, and every 5 seconds through a long stretch of it; what another device saved shows when you come back to the window, or within 15 seconds.
+- **Two devices no longer type into one note at once**: typing on both in different paragraphs keeps both, and when a paragraph you changed was changed somewhere else too, the note stops taking your typing and offers Show the latest, or Save mine as a new note, which keeps what you typed as a note of its own.
+- **While the agent edits the note you have open, the note waits for it**: "The agent is editing this note" shows above it, and it takes your typing again, showing what the agent wrote, once the agent is done.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
 - **A callout written `[!note]`, or with words on its marker's line, is saved as `[!NOTE]` on a line of its own**; what it says is unchanged.
@@ -101,7 +103,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A very long page keeps its first part.**
 - **Signing in on inteligir.com takes you to your library**, or back to the page that sent you.
 - **Opening your library signed out goes straight to sign-in**, before any of it loads, and sign-in and sign-up show at once, taking you straight to your library when you're already signed in.
-- **Back and Forward ask before you lose what you typed with no connection**, as closing the item and the tab do: Stay keeps the item open, and a folder or tag you pressed in the sidebar is chosen only once you leave.
+- **Back and Forward ask before you lose what you typed that hasn't saved**, as closing the item and the tab do: Stay keeps the item open, Leave anyway lets it go, and a folder or tag you pressed in the sidebar is chosen only once you leave.
 - **Settings › Account lists every device signed in to your account**, and Sign out beside any ends it at once.
 - **A sign-in lasts 60 days from the last time you used it.**
 - **You can be signed in on up to 20 devices and browsers at once.**
@@ -123,7 +125,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
 - **What another device changed shows within 15 seconds**: a save, move, tag or delete made elsewhere appears in the window or app you have in front within 15 seconds, and at once when you come back to it or your connection returns.
 - **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
-- **A note holds about 1 MB**, where it held about 8 MB: split a longer one into several notes.
+- **A note holds about 1 MB**, where it held about 8 MB: split a longer one into several notes. A paste of more than about half that at once isn't added, and a note past its size stops saving until you shorten it.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
 - **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.
 - **A formula reads the other formulas in its note by name**: type `{{price=5}}` and `{{qty=3}}`, then `{{price*qty}}`, or name the result with `{{total=price*qty}}`; one that only names another shows what it shows, so `{{time=9am}}` repeats as `{{time}}`.

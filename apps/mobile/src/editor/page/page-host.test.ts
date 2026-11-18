@@ -1,10 +1,11 @@
 // The note page's host as the editor reaches it: the library through the actions native handed it
-// last, the note's socket at the cloud's origin, and native's props followed after every render:
+// last, the note read and saved whole among them, and native's props followed after every render:
 // whether there is a connection, which items moved, and a leave's ask, which the open note answers.
 
 import { resolveObjectURL } from "node:buffer";
 
 import { bytesFromBase64 } from "@repo/contract/bytes";
+import type { HeldNote } from "@repo/contract/library/held-note";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
@@ -16,6 +17,13 @@ import type { NoteState, PageProps, Settled } from "./page-host";
 
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
 const OTHER = "0190a000-0000-7000-8000-0000000000a2";
+
+const HELD: HeldNote = {
+  blocks: [{ block: paragraph("p1", "first"), section: "note" }],
+  deleted: false,
+  title: "Plans",
+  version: 3,
+};
 
 const pageOver = () => {
   const states: NoteState[] = [];
@@ -34,6 +42,7 @@ const pageOver = () => {
       return await Promise.resolve(targets);
     },
     moved: { ids: [], seq: 0 },
+    noteStanding: async () => await Promise.resolve({ deleted: false, version: 4 }),
     noteState: (state) => {
       states.push(state);
     },
@@ -43,11 +52,12 @@ const pageOver = () => {
     },
     readFile: async () => await Promise.resolve(null),
     readItem: async () => await Promise.resolve([paragraph("p1", "first")]),
+    readNote: async () => await Promise.resolve(HELD),
+    saveNote: async () => await Promise.resolve({ kind: "saved", version: 4 }),
     settle: 0,
     settled: (answer) => {
       answers.push(answer);
     },
-    socketTicket: async () => await Promise.resolve("a-ticket"),
   };
   const host = installPageHost(first);
   return {
@@ -69,15 +79,18 @@ const noteThat = (start: { readonly unsaved: boolean }) => {
   const holds = deferred<boolean>();
   const listeners = new Set<() => void>();
   const note: OpenNote = {
+    agentEdited: vi.fn<OpenNote["agentEdited"]>(),
+    agentEditing: vi.fn<OpenNote["agentEditing"]>(),
     holds: async () => await holds.promise,
+    itemId: NOTE,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
+    unloadLoses: () => false,
     unsaved: () => unsaved,
-    unsent: () => false,
   };
   return {
     answer: holds.resolve,
@@ -93,12 +106,22 @@ const noteThat = (start: { readonly unsaved: boolean }) => {
 };
 
 describe("the note page's host", () => {
-  it("dials the note's socket at the cloud's origin, on a ticket native fetched", async () => {
-    pageOver();
+  it("reads and saves the note whole through native, and reads where it stands as native says it moved", async () => {
+    const { first, host } = pageOver();
     const { notes } = getEditorHostIo();
+    const save = { baseVersion: 3, blocks: HELD.blocks, id: NOTE };
+    const heard = vi.fn<(standing: { version: number; deleted: boolean }) => void>();
+    const stop = notes.follow(NOTE, heard);
 
-    expect(notes.socketOrigin).toBe("https://cell.test");
-    await expect(notes.socketTicket()).resolves.toBe("a-ticket");
+    await expect(notes.read(NOTE)).resolves.toStrictEqual(HELD);
+    await expect(notes.save(save, false)).resolves.toStrictEqual({ kind: "saved", version: 4 });
+    host.follow({ ...first, moved: { ids: [OTHER], seq: 1 } });
+    await nextTask();
+    expect(heard).not.toHaveBeenCalled();
+    host.follow({ ...first, moved: { ids: [NOTE], seq: 2 } });
+    await nextTask();
+    expect(heard).toHaveBeenCalledExactlyOnceWith({ deleted: false, version: 4 });
+    stop();
   });
 
   it("reaches the library through the actions native handed it last", async () => {
@@ -109,11 +132,11 @@ describe("the note page's host", () => {
     host.follow({
       ...first,
       readItem: async () => await Promise.resolve(null),
-      socketTicket: async () => await Promise.resolve("the next ticket"),
+      readNote: async () => await Promise.resolve(null),
     });
 
     await expect(io.readItemBlocks(NOTE)).resolves.toBeNull();
-    await expect(io.notes.socketTicket()).resolves.toBe("the next ticket");
+    await expect(io.notes.read(NOTE)).resolves.toBeNull();
     await expect(
       getEditorHostActions().items.createNote({ blocks: [], title: "Moved" }),
     ).resolves.toBe(OTHER);

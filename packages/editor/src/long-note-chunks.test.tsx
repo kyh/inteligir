@@ -7,12 +7,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
+import { memoryNotes } from "./test-support/memory-notes";
 
 const paragraphs = (count: number): string =>
   `${Array.from({ length: count }, (_, index) => `Paragraph ${String(index + 1)}.`).join("\n\n")}\n`;
 
+const host = { notes: memoryNotes() };
+
 const mount = async (itemId: string, markdown: string): Promise<HTMLElement> => {
-  const { editable } = await mountNote(itemId, markdown);
+  const { editable } = await mountNote(host.notes, itemId, markdown);
   return editable;
 };
 
@@ -33,7 +36,7 @@ describe("a long item's top level", () => {
     }
     /* oxlint-enable class-methods-use-this */
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
-    installFakeEditorHost();
+    installFakeEditorHost({ notes: host.notes });
   });
 
   afterAll(() => {

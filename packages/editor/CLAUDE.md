@@ -1,13 +1,13 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it reads and writes, an item's live note, and the grammar, links and a
-file's facts it reads.
+The editor, the dialect it reads and writes, an item's note saved whole, and the grammar, links and
+a file's facts it reads.
 
 ## Shape
 
 The Plate WYSIWYG: a kit and node per dialect construct, the md-rules table over Plate's stock
-markdown, and the item editor (`packages/editor/src/item/item-editor.tsx`) bound to its note's live
-document. A host drives it through the `EditorHost` singleton (`packages/editor/src/host-io.ts`),
+markdown, and the item editor (`packages/editor/src/item/item-editor.tsx`) saving its note whole.
+A host drives it through the `EditorHost` singleton (`packages/editor/src/host-io.ts`),
 installed once per host by `installEditorHost`, so no host keeps a store of its own.
 `packages/editor/src/headless/node-props.ts` is the Slate decode boundary: a node's dialect fields
 arrive as `unknown` and become domain values there alone.
@@ -99,14 +99,22 @@ arrive as `unknown` and become domain values there alone.
   mounted.** Slate needs every node's DOM for a selection or find, so runs replace virtualization,
   and where WebKit keeps no scroll anchor the editor keeps one.
   `packages/editor/src/run-anchoring.ts`.
-- **An item is edited by its id, over its note's live document, drawn once that has synced.** No
-  device seeds a note and a socket down past 3 s turns the editor read-only, since block ops after
-  a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
-  table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
-- **A note's socket is partysocket's, gated on the host's reach and kept alive by our ping, and
-  its document syncs by y-protocols over it.** y-partyserver's provider brings a second redial
-  machine of its own, so only the server is y-partyserver's, and both ends frame with one
-  y-protocols. `packages/editor/src/item/note-socket.ts`.
+- **An item is edited by its id, read whole and saved whole a second after typing stops.** One save
+  in flight, at most 5 s after the first unsaved edit, over the version it was read at, and a stale
+  answer merges by block, since a body's version is all of a note's concurrency; a leave asks the
+  saver's `holds`, which also says what is unsaved. `packages/editor/src/item/note-save.ts`.
+- **A body saved elsewhere is laid into the open editor, not drawn anew.** Its block changes land
+  outside undo with every guard let by, so the caret, the scroll and undo stay; only a body that
+  can't be laid redraws. `packages/editor/src/headless/body/lay-body.ts`.
+- **A save small enough to outlive the page goes as a keepalive request, one at a time, its answer
+  read.** A browser holds 64 KiB for all of a page's keepalive requests, so a larger unsaved note
+  arms the browser's unload ask instead (`unloadLoses`). `packages/editor/src/item/note-save.ts`.
+- **The agent's edit holds the open note from its tool_use to its result.** What is typed saves
+  first and the note takes no edit until the call ends, a minute at most, since a hold whose stream
+  dropped must not keep a note for good. `packages/client/src/agent-note-holds.ts`.
+- **A paste of more than half of what a note holds is refused whole.** The note's next save would
+  be refused as full, taking the typing around the paste with it.
+  `packages/editor/src/item/paste-cap.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
   `readItemBlocks` and `notes` take ids, and `fileSrc` and `readFile` a sha, since paths a host
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
@@ -127,21 +135,16 @@ arrive as `unknown` and become domain values there alone.
   `readOnly` and says "Needs a connection", every writing handler `editOnly`, since the cloud is the
   truth; typing from before the drop reaches the note once it is back.
   `packages/editor/src/read-only-handlers.test.ts`.
-- **A note that takes no edit refuses one in the model.** Offline, held or refused, it drops every
-  local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
+- **A note that takes no edit refuses one in the model.** Offline, in Deleted, held for the agent
+  or in conflict, it drops every local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
   Plate's `readOnly` gates handlers and drawing, never a transform.
   `packages/editor/src/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
   `tools/e2e/src/editor.spec.ts`.
-- **An open picker is its page's, and leaves the note with its editor.** Plate's trigger names it
-  by the editor's `userId`, one per page, so every other device draws it as its trigger, and the
-  item editor takes its own out before it lets the note go, since no device can close another's.
-  `packages/editor/src/headless/combobox-input.ts`.
-- **A note's body is one live document, every editor of it bound innermost, and every kit fixes
-  its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
-  changes, since `@platejs/yjs` takes no custom provider without a type assertion.
-  `packages/editor/src/item/yjs-binding.ts`.
+- **Every editor of a note keeps its blocks' ids and fixes its nodes alike.** A save, a merge and a
+  laid body match blocks by id, and a body one kit stores opens unchanged in another.
+  `packages/editor/src/stored-kits.test.tsx`.
 - **A body saved over a newer one merges by block id, and lands nothing when a block changed on
   both sides apart.** A block one side changed takes that side's, an edit beats a drop, and the
   order is theirs unless only this side moved blocks, since a whole-body overwrite loses someone's

@@ -1,29 +1,21 @@
-// The kits a person types in, mounted as the app draws them and bound to a note's live document:
-// what each writes is what the document holds, and the note's own editor reads it alike.
+// The kits a person types in, mounted as the app draws them over a stored note: what each writes
+// is what a save stores, and the library's own editor opens that again with nothing to fix.
 
 import { fireEvent, render } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AnyPluginConfig } from "platejs";
+import { createSlateEditor } from "platejs";
 import { Plate, PlateContent, createPlateEditor } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
-import { YjsEditor } from "@slate-yjs/core";
-import * as Y from "yjs";
 
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+
+import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { pillEntries } from "@repo/editor/headless/formulas/pill-nodes";
+import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { blockOfElement } from "@repo/editor/headless/body/element-block";
-import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/item/yjs-binding";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-
-import {
-  liveEditor,
-  readBlocks,
-  relay,
-  seedDoc,
-  settle,
-  syncedCopy,
-} from "./test-support/live-notes";
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
@@ -47,39 +39,34 @@ const KITS: [string, readonly AnyPluginConfig[]][] = [
   ["touch", TOUCH_EDITOR_KIT],
 ];
 
-// the person's device, drawn with its kit, and the note's own headless editor, both synced
-const mounted = (kit: readonly AnyPluginConfig[]) => {
-  const seeded = new Y.Doc();
-  seedDoc(seeded, [
-    { block: { children: [{ text: "hello" }], id: "one", type: "p" }, section: "note" },
-    {
-      block: {
-        children: [
-          { text: "sum " },
-          { children: [{ text: "" }], display: "?", source: "1 + 2", type: "formulaPill" },
-        ],
-        id: "sum",
-        type: "p",
-      },
-      section: "note",
+const SEEDED: BodyBlock[] = [
+  { block: { children: [{ text: "hello" }], id: "one", type: "p" }, section: "note" },
+  {
+    block: {
+      children: [
+        { text: "sum " },
+        { children: [{ text: "" }], display: "?", source: "1 + 2", type: "formulaPill" },
+      ],
+      id: "sum",
+      type: "p",
     },
-  ]);
-  const deviceDoc = syncedCopy(seeded);
-  const objectDoc = syncedCopy(seeded);
-  const net = relay([deviceDoc, objectDoc]);
+    section: "note",
+  },
+];
+
+// what the library's own editor holds of `blocks` once it opens them
+const reopened = (blocks: readonly BodyBlock[]): BodyBlock[] =>
+  blocksOfValue(
+    createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: editorValueOf(blocks) }).children,
+  );
+
+// the person's device, drawn with its kit over the stored note
+const mounted = (kit: readonly AnyPluginConfig[]) => {
   const device: PlateEditor = createPlateEditor({
     nodeId: true,
-    plugins: [
-      ...kit,
-      yjsBindingPlugin({ localOrigin: Symbol("device"), root: noteRoot(deviceDoc) }),
-      YHistoryPlugin,
-    ],
+    plugins: [...kit],
+    value: editorValueOf(SEEDED),
   });
-  if (!YjsEditor.isYjsEditor(device)) {
-    throw new Error("the binding did not bind");
-  }
-  YjsEditor.connect(device);
-  const object = liveEditor(objectDoc, { history: false });
   const view = render(
     <Plate editor={device}>
       <PlateContent />
@@ -89,26 +76,22 @@ const mounted = (kit: readonly AnyPluginConfig[]) => {
   if (!(editable instanceof HTMLElement)) {
     throw new TypeError("the editor drew nothing");
   }
-  // as the library reads each: the document holds no empty text, where Slate keeps one beside an
-  // inline that ends a block
+  // as a save stores it, which opens again as it was
   const agree = (): void => {
-    settle(net, [device, object]);
-    const held = readBlocks(deviceDoc).map(({ block }) => block);
-    expect(device.children.flatMap((node) => blockOfElement(node) ?? [])).toStrictEqual(held);
-    expect(object.children.flatMap((node) => blockOfElement(node) ?? [])).toStrictEqual(held);
-    expect(readBlocks(objectDoc)).toStrictEqual(readBlocks(deviceDoc));
+    const saved = blocksOfValue(device.children);
+    expect(reopened(saved)).toStrictEqual(saved);
   };
-  return { agree, device, deviceDoc, editable, net, object, objectDoc };
+  return { agree, device, editable };
 };
 
-describe.each(KITS)("the %s kit bound to a note's live document", (_, kit) => {
-  it("connects to a seeded note without writing to it", () => {
-    const { agree, deviceDoc, net } = mounted(kit);
+describe.each(KITS)("the %s kit over a stored note", (_, kit) => {
+  it("opens a stored note holding what the library's own editor opens, with nothing to save", () => {
+    const { agree, device } = mounted(kit);
     agree();
-    expect(net.sent(deviceDoc)).toBe(0);
+    expect(blocksOfValue(device.children)).toStrictEqual(reopened(SEEDED));
   });
 
-  it("writes what a person types, pastes and undoes, a pill's display with its source", () => {
+  it("stores what a person types, pastes and undoes, a pill's display with its source", () => {
     const { agree, device, editable } = mounted(kit);
 
     device.tf.select(device.api.end([0]));

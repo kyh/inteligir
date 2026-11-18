@@ -1,14 +1,15 @@
 // The editor's host inside the phone's DOM component (note-page.tsx). The page reaches the library
 // only through the phone: every read and write is an action native answers (note-actions.ts), each
-// argument and answer JSON and bytes base64, and the one connection the page opens is the note's
-// socket, on a ticket an action fetched. Native speaks to the page only through its props, which the
-// page hands the host after every render: whether there is a connection, which items moved, and a
-// leave's ask. Expo hands the page new action functions on every native render, so the host calls
-// the ones it was handed last.
+// argument and answer JSON and bytes base64, the note read and saved whole among them. Native
+// speaks to the page only through its props, which the page hands the host after every render:
+// whether there is a connection, which items moved, and a leave's ask; a move naming the open note
+// reads where it stands. Expo hands the page new action functions on every native render, so the
+// host calls the ones it was handed last.
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
+import type { NoteStanding } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { LibraryActions } from "./library-actions";
 
@@ -37,9 +38,9 @@ export interface MovedItems {
 
 export interface PageProps extends LibraryActions, NoteReports {
   readonly itemId: string;
-  // the cloud's origin, which the note's socket dials
+  // the cloud's origin, which the page's policy names
   readonly cloudOrigin: string;
-  // no connection, or the app is behind, where iOS suspends the page's socket
+  // no connection, or the app is behind, where iOS suspends the page
   readonly offline: boolean;
   readonly moved: MovedItems;
   // a leave's ask, a count native moves; the page answers each with `settled`
@@ -99,6 +100,7 @@ export const installPageHost = (first: PageProps): PageHost => {
   let stopNote = nothingToDo;
   let reported: NoteState | null = null;
   const reachListeners = new Set<() => void>();
+  const followers = new Set<(standing: NoteStanding) => void>();
 
   // one address per file for the page's life, so blocks naming one file read its bytes once; a
   // read that failed is let go, so the next ask reads again
@@ -120,6 +122,15 @@ export const installPageHost = (first: PageProps): PageHost => {
 
   const readTargets = oneReadAtATime(async () => {
     setLibraryTitles(await props.linkTargets());
+  });
+
+  const readStanding = oneReadAtATime(async () => {
+    const standing = await props.noteStanding(props.itemId);
+    if (standing !== null) {
+      for (const follower of followers) {
+        follower(standing);
+      }
+    }
   });
 
   const report = (): void => {
@@ -153,6 +164,13 @@ export const installPageHost = (first: PageProps): PageHost => {
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
+        // the page shows one item, so every follower follows it
+        follow: (_itemId, listener) => {
+          followers.add(listener);
+          return () => {
+            followers.delete(listener);
+          };
+        },
         reach: {
           get: () => !props.offline,
           subscribe: (listener) => {
@@ -162,8 +180,9 @@ export const installPageHost = (first: PageProps): PageHost => {
             };
           },
         },
-        socketOrigin: first.cloudOrigin,
-        socketTicket: async () => await props.socketTicket(),
+        read: async (itemId) => await props.readNote(itemId),
+        // native's own request outlives the page, so every save does
+        save: async (save) => await props.saveNote(save),
       },
       openItem: (itemId) => {
         props.openItem(itemId);
@@ -194,6 +213,9 @@ export const installPageHost = (first: PageProps): PageHost => {
             : null;
         if (ids === null || [...ids].some((id) => id !== next.itemId)) {
           void readTargets();
+        }
+        if (ids === null || ids.has(next.itemId)) {
+          void readStanding();
         }
       }
       if (next.settle !== before.settle) {

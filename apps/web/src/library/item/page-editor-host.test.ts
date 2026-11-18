@@ -1,5 +1,6 @@
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
@@ -18,12 +19,21 @@ const ORIGIN = "https://library.test";
 const paragraph = { children: [{ text: "Held by the cell." }], id: "p1", type: "p" };
 
 const cell = createFakeCell();
-const { client } = cell.device("page");
-const wire = { client, orpc: createTanstackQueryUtils(client) };
+const page = cell.device("page");
+const { client } = page;
+const wire = {
+  client,
+  orpc: createTanstackQueryUtils(client),
+  outliving: cell.device("outliving").client,
+};
 
 const nothing = (): void => {
-  // the suite's socket and session have nothing to stop
+  // the suite's session has nothing to stop
 };
+
+const held = (text: string): BodyBlock[] => [
+  { block: { children: [{ text }], id: "p1", type: "p" }, section: "note" },
+];
 
 // the host over the cell alone: no layout, workspace or panel is mounted, and the tab is where
 // `openItem` says
@@ -77,7 +87,70 @@ describe("the page's editor host", () => {
     expect(cell.uploads).toStrictEqual([fileSha(bytes)]);
   });
 
-  it("dials a note on the cloud's origin with the ticket the cell mints, and is offline the moment the browser says so", async () => {
+  it("reads a note whole, and saves it over the version it read, a small save sent to outlive the page", async () => {
+    const id = cell.seed.item({ title: "Minutes" }, held("Read here."));
+    install(refused);
+    const { notes } = getEditorHostIo();
+
+    await expect(notes.read(id)).resolves.toStrictEqual({
+      blocks: held("Read here."),
+      deleted: false,
+      title: "Minutes",
+      version: 1,
+    });
+    await expect(notes.read(GONE)).resolves.toBeNull();
+    await expect(
+      notes.save({ baseVersion: 1, blocks: held("Typed here."), id }, false),
+    ).resolves.toStrictEqual({ kind: "saved", version: 2 });
+    await expect(
+      notes.save({ baseVersion: 1, blocks: held("Typed elsewhere."), id }, true),
+    ).resolves.toStrictEqual({ kind: "stale" });
+    await expect(
+      notes.save({ baseVersion: 1, blocks: held("Typed here."), id: GONE }, false),
+    ).resolves.toStrictEqual({ kind: "missing" });
+    expect(cell.calls.filter((call) => call.endsWith("library/items/saveBody"))).toStrictEqual([
+      "page library/items/saveBody",
+      "outliving library/items/saveBody",
+      "page library/items/saveBody",
+    ]);
+  });
+
+  it("reads a note as this tab last read it while the cloud can't be reached, and nothing it never read", async () => {
+    const id = cell.seed.item({ title: "Minutes" }, held("Read before."));
+    const unread = cell.seed.item({ title: "Never opened" });
+    install(refused);
+    const { notes } = getEditorHostIo();
+    await notes.read(id);
+
+    page.setOffline(true);
+    try {
+      await expect(notes.read(id)).resolves.toMatchObject({ blocks: held("Read before.") });
+      await expect(notes.read(unread)).rejects.toThrow();
+    } finally {
+      page.setOffline(false);
+    }
+  });
+
+  it("follows a note's version and Deleted by its row, as the library's changes read it again", async () => {
+    const id = cell.seed.item({ title: "Minutes" }, held("One."));
+    const { queryClient } = install(refused);
+    const { notes } = getEditorHostIo();
+    const heard = vi.fn<(standing: { version: number; deleted: boolean }) => void>();
+    const stop = notes.follow(id, heard);
+
+    await vi.waitFor(() => {
+      expect(heard).toHaveBeenLastCalledWith({ deleted: false, version: 1 });
+    });
+    await client.library.items.saveBody({ baseVersion: 1, blocks: held("Two."), id });
+    await client.library.items.delete({ ids: [id] });
+    await queryClient.invalidateQueries({ queryKey: libraryQueries(wire).item(id).queryKey });
+    await vi.waitFor(() => {
+      expect(heard).toHaveBeenLastCalledWith({ deleted: true, version: 2 });
+    });
+    stop();
+  });
+
+  it("is offline the moment the browser says so", () => {
     install(refused);
     const { notes } = getEditorHostIo();
     let heard = 0;
@@ -85,8 +158,6 @@ describe("the page's editor host", () => {
       heard += 1;
     });
 
-    expect(notes.socketOrigin).toBe(ORIGIN);
-    await expect(notes.socketTicket()).resolves.toBe("a-ticket");
     expect(notes.reach.get()).toBe(true);
     onlineManager.setOnline(false);
     expect(notes.reach.get()).toBe(false);

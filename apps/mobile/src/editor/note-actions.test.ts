@@ -4,6 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/contract/bytes";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { paragraph } from "@repo/contract/test-support/library-items";
@@ -112,6 +113,32 @@ describe("the note page's actions, as the page receives them", () => {
     await expect(actions.readItem(OTHER)).rejects.toBeInstanceOf(Error);
   });
 
+  it("reads the open note whole and saves it over the version read, a stale save refused", async () => {
+    const cell = createFakeCell();
+    await noteFiled(cell, null);
+    const { actions } = await pageOver(cell);
+    const typed: BodyBlock[] = [{ block: paragraph("p1", "typed"), section: "note" }];
+
+    await expect(overTheWire(actions.readNote(NOTE))).resolves.toStrictEqual({
+      blocks: [{ block: paragraph("p1", "first"), section: "note" }],
+      deleted: false,
+      title: "Plans",
+      version: 1,
+    });
+    await expect(
+      overTheWire(actions.saveNote({ baseVersion: 1, blocks: typed, id: NOTE })),
+    ).resolves.toStrictEqual({ kind: "saved", version: 2 });
+    await expect(
+      overTheWire(actions.saveNote({ baseVersion: 1, blocks: [], id: NOTE })),
+    ).resolves.toStrictEqual({ kind: "stale" });
+    await expect(overTheWire(actions.noteStanding(NOTE))).resolves.toStrictEqual({
+      deleted: false,
+      version: 2,
+    });
+    await expect(overTheWire(actions.noteStanding(OTHER))).resolves.toBeNull();
+    await expect(overTheWire(actions.readNote(OTHER))).resolves.toBeNull();
+  });
+
   it("names every item a link can, by its id and the title it goes by", async () => {
     const cell = createFakeCell();
     await noteFiled(cell, null);
@@ -177,10 +204,9 @@ describe("the note page's actions, as the page receives them", () => {
     expect(note?.blocks).toStrictEqual([{ block: paragraph("m1", "moved"), section: "note" }]);
   });
 
-  it("fetches the note socket's ticket, and opens a followed link's item on the stack", async () => {
+  it("opens a followed link's item on the stack", async () => {
     const { actions, opened } = await pageOver(createFakeCell());
 
-    await expect(overTheWire(actions.socketTicket())).resolves.toBe("a-ticket");
     actions.openItem(OTHER);
     expect(opened).toStrictEqual([OTHER]);
   });

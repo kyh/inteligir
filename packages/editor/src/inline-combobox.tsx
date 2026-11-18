@@ -20,13 +20,11 @@ import {
   absorbRacedComboboxText,
   cancelComboboxInput,
   commitComboboxInput,
-  ownsPicker,
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/headless/combobox-input";
 import type { ComboboxCancelCause } from "@repo/editor/headless/combobox-input";
 import { matchesHotkey } from "@repo/editor/editor-shortcuts";
-import { undoStackSizes } from "@repo/editor/item/yjs-binding";
 
 // a row a picker lists, unique in it by `value`, and what picking it writes
 export interface PickerRow {
@@ -73,7 +71,7 @@ const ITEM_BASE =
 const ITEM_INTERACTIVE =
   "cursor-pointer hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
-const OwnedCombobox = <Row extends PickerRow>({
+export const InlineCombobox = <Row extends PickerRow>({
   children,
   closeOn,
   element,
@@ -191,9 +189,9 @@ const OwnedCombobox = <Row extends PickerRow>({
       cancel("arrowRight");
       return;
     }
-    const { undos, redos } = undoStackSizes(editor);
-    const isUndo = Hotkeys.isUndo(event) && undos > 0;
-    const isRedo = Hotkeys.isRedo(event) && redos > 0;
+    const { undos, redos } = editor.history;
+    const isUndo = Hotkeys.isUndo(event) && undos.length > 0;
+    const isRedo = Hotkeys.isRedo(event) && redos.length > 0;
     if (isUndo || isRedo) {
       event.preventDefault();
       if (isUndo) {
@@ -281,16 +279,5 @@ const OwnedCombobox = <Row extends PickerRow>({
         </Autocomplete.Portal>
       </Autocomplete.Root>
     </span>
-  );
-};
-
-// Another device's open picker draws as its trigger alone: its query is that device's, and an input
-// here would take the caret into it.
-export const InlineCombobox = <Row extends PickerRow>(props: InlineComboboxProps<Row>) => {
-  const editor = useEditorRef();
-  return ownsPicker(editor, props.element) ? (
-    <OwnedCombobox {...props} />
-  ) : (
-    <span contentEditable={false}>{props.trigger}</span>
   );
 };

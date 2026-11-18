@@ -15,6 +15,9 @@ import { QueryClient } from "@tanstack/react-query";
 export interface CloudWire {
   readonly client: V1Client;
   readonly orpc: V1Queries;
+  // the same calls, each sent as a keepalive request, which the browser carries past the page's
+  // close; it holds 64 KiB for all of them at once, so only a small call goes this way
+  readonly outliving: V1Client;
 }
 
 // CLAUDE.md § A session's end is answered however the tab meets it.
@@ -23,7 +26,14 @@ export const createCloudWire = (
   onSessionEnd: (end: SessionEnd) => void,
 ): CloudWire => {
   const client = v1Client(transport, onSessionEnd);
-  return { client, orpc: createTanstackQueryUtils(client) };
+  const outliving = v1Client(
+    {
+      fetch: async (request) => await transport.fetch(new Request(request, { keepalive: true })),
+      origin: transport.origin,
+    },
+    onSessionEnd,
+  );
+  return { client, orpc: createTanstackQueryUtils(client), outliving };
 };
 
 // The defaults every query starts from. A cell call is `online`, so with no connection it pauses

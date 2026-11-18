@@ -37,8 +37,8 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
   const queryClient = useQueryClient();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
-  // iOS suspends the page behind the app, its socket with it, so the note reads as offline there
-  // and redials the moment the app is in front, ahead of any ping noticing
+  // iOS suspends the page behind the app, so the note reads as offline there and reads again the
+  // moment the app is in front
   const offline = !useReach();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
   useEffect(

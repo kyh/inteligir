@@ -1,10 +1,21 @@
+import type { ReactNode } from "react";
+
 import { cn } from "@repo/ui/lib/cn";
 
 import { editorColumnPx } from "@repo/editor/editor-chrome";
 import type { EditorProfile } from "@repo/editor/editor-profile";
 
-// why the text below takes no edit, held at the top of the scroll
-export const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
+// what the text below says of itself, held at the top of the scroll, with what the person can do
+// about it
+export const Notice = ({
+  profile,
+  text,
+  children,
+}: {
+  profile: EditorProfile;
+  text: string;
+  children?: ReactNode;
+}) => (
   <div
     className={cn(
       editorColumnPx(profile),
@@ -12,5 +23,6 @@ export const Notice = ({ profile, text }: { profile: EditorProfile; text: string
     )}
   >
     <p className="text-muted-foreground">{text}</p>
+    {children}
   </div>
 );

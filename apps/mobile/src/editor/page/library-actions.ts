@@ -2,8 +2,9 @@
 // apart from the page's host, so native code and the e2e's native end read the wire without the
 // editor's graph.
 
+import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { LinkTarget } from "@repo/editor/host-io";
+import type { LinkTarget, NoteStanding } from "@repo/editor/host-io";
 
 interface FileBytes {
   readonly base64: string;
@@ -11,7 +12,13 @@ interface FileBytes {
 }
 
 export interface LibraryActions {
-  readonly socketTicket: () => Promise<string>;
+  // the open note whole as the cloud holds it, or as the phone last read it while there is no
+  // connection, and saved whole over the version it was read at; null for an item the library
+  // holds none of
+  readonly readNote: (itemId: string) => Promise<HeldNote | null>;
+  readonly saveNote: (save: NoteSave) => Promise<NoteSaved>;
+  // the note's version and Deleted as the cloud holds them now, read as the library says it moved
+  readonly noteStanding: (itemId: string) => Promise<NoteStanding | null>;
   // an item's blocks as the cloud holds them, or as the phone last read them while there is no
   // connection; null for an item the library holds none of
   readonly readItem: (itemId: string) => Promise<LibraryBlock[] | null>;

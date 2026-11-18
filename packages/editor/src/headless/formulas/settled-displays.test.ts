@@ -1,11 +1,11 @@
 // A pill's display where its source lands: in the editor that makes the change, inside that
-// change, and in every other editor of the note only where two changes met.
+// change, and in an editor a body saved elsewhere is laid in only where two changes met.
 
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
-import * as Y from "yjs";
 
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
@@ -13,10 +13,10 @@ import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { pillNode } from "@repo/editor/formulas/formula-entry";
 import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
-import { undoStackSizes } from "@repo/editor/item/yjs-binding";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-import { liveEditor, relay, seedDoc, settle, syncedCopy } from "../../test-support/live-notes";
+import { layBody } from "@repo/editor/headless/body/lay-body";
+import { blocksOfValue } from "@repo/editor/headless/body/note-blocks";
 
 // a paragraph holding one pill, showing `display`
 const line = (id: string, pill: Pill, display: string): LibraryBlock =>
@@ -48,8 +48,9 @@ const setSource = (editor: SlateEditor, name: string, source: string): void => {
   editor.tf.setNodes({ source }, { at: named(editor, name).at });
 };
 
+// ids on as the app runs them, since a body is laid by block id
 const editorOver = (blocks: readonly TElement[]): SlateEditor =>
-  createSlateEditor({ plugins: BASE_KIT, value: [...blocks] });
+  createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: [...blocks] });
 
 describe("a pill's display in the editor that changes one", () => {
   it("is settled as the pill is inserted, and leaves with it in one undo", () => {
@@ -103,49 +104,40 @@ describe("a pill's display in the editor that changes one", () => {
   });
 });
 
-const twoDevices = (blocks: readonly LibraryBlock[]) => {
-  const note = new Y.Doc();
-  seedDoc(
-    note,
-    blocks.map((block) => ({ block, section: "note" })),
-  );
-  const docA = syncedCopy(note);
-  const docB = syncedCopy(note);
-  const net = relay([docA, docB]);
-  return { a: liveEditor(docA), b: liveEditor(docB), docA, docB, net };
-};
+// the editor's blocks as the library stores them, each in the person's section
+const stored = (editor: SlateEditor): BodyBlock[] => blocksOfValue(editor.children);
 
-describe("a pill's display in a note two devices hold", () => {
-  it("reaches the other device with its source, which then has none to write", () => {
-    const { a, b, docA, docB, net } = twoDevices(ORDER);
-    setSource(a, "price", "6");
-    settle(net, [a, b]);
+describe("a pill's display in a body laid from elsewhere", () => {
+  it("lands as the body that was saved, with nothing left to settle and nothing in the undo", () => {
+    const here = editorOver(ORDER);
+    const elsewhere = editorOver(ORDER);
+    setSource(elsewhere, "price", "6");
 
-    expect(shown(b)).toStrictEqual(["6", "3", "18"]);
-    expect(net.sent(docA)).toBe(1);
-    expect(net.sent(docB)).toBe(0);
+    expect(layBody(here, stored(elsewhere))).toBe(true);
+    expect(shown(here)).toStrictEqual(["6", "3", "18"]);
+    expect(here.history.undos).toHaveLength(0);
   });
 
-  it("settles on what both sources give when two people change them at once, outside either's undo", () => {
-    const { a, b, net } = twoDevices(ORDER);
-    setSource(a, "price", "6");
-    setSource(b, "qty", "4");
-    settle(net, [a, b]);
+  it("is derived again where a source changed elsewhere meets one changed here, outside the undo", () => {
+    const here = editorOver(ORDER);
+    const elsewhere = editorOver(ORDER);
+    setSource(here, "qty", "4");
+    setSource(elsewhere, "price", "6");
+    // a merge takes each block from the side that changed it: the price from elsewhere, the rest
+    // as typed here, the total showing what this editor last settled
+    const [price] = stored(elsewhere);
+    const [, qty, total] = stored(here);
+    if (price === undefined || qty === undefined || total === undefined) {
+      throw new Error("three blocks");
+    }
 
-    expect(shown(a)).toStrictEqual(["6", "4", "24"]);
-    expect(shown(b)).toStrictEqual(shown(a));
-    expect(undoStackSizes(a)).toStrictEqual({ redos: 0, undos: 1 });
-
-    // the other's display has replaced the one this undo would put back, so it is derived again
-    a.undo();
-    settle(net, [a, b]);
-    expect(shown(a)).toStrictEqual(["5", "4", "20"]);
-    expect(shown(b)).toStrictEqual(shown(a));
-    expect(undoStackSizes(a)).toStrictEqual({ redos: 1, undos: 0 });
-
-    a.redo();
-    settle(net, [a, b]);
-    expect(shown(b)).toStrictEqual(["6", "4", "24"]);
-    expect(undoStackSizes(a)).toStrictEqual({ redos: 0, undos: 1 });
+    expect(layBody(here, [price, qty, total])).toBe(true);
+    expect(shown(here)).toStrictEqual(["6", "4", "24"]);
+    expect(here.history.undos).toHaveLength(1);
+    // the price laid in has replaced the one this undo would read, so the total is derived again
+    here.undo();
+    expect(shown(here)).toStrictEqual(["6", "3", "18"]);
+    here.redo();
+    expect(shown(here)).toStrictEqual(["6", "4", "24"]);
   });
 });

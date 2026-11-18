@@ -51,9 +51,10 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   `apps/web/src/library/library-tab.ts`.
 - **The tab asks before it loses the open item's edit.** Every move off the item asks the leave
   gate before it pushes, Back or Forward puts the item's entry back until the person answers, and
-  the tab's close asks the browser's own prompt, since the item rides the URL; only typing no
-  connection carried (`OpenNote.unsent`) asks, and a leave waits for the note to say it stored
-  every edit. `apps/web/src/library/item/leave-item.ts`.
+  the tab's close asks the browser's own prompt, since the item rides the URL; a leave waits for
+  the note to say it stored every edit, and only typing it couldn't save asks, and on a close only
+  typing no save sent as the page goes carries (`OpenNote.unloadLoses`).
+  `apps/web/src/library/item/leave-item.ts`.
 - **A session's end is answered however the tab meets it.** A call's refusal, an upload's, which
   is the same error, and a keeper reading the session on a timer end it one way, to the site's
   sign-in, since an idle tab makes no call. `apps/web/src/library/cloud/v1.ts`.
@@ -110,7 +111,7 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.
 - **The library is home, and an item is shown by its kind.** With nothing open the tab is the grid
   of the rail's scope; an item opens full size in its place, a file in its viewer and a note in the
-  editor over its live document, since a list beside an open item reads saved pages as text files.
+  editor over its saved body, since a list beside an open item reads saved pages as text files.
   `apps/web/src/library/item/item-view.tsx`.
 - **The grid's selection is a store, of ids or of its scope less those left out.** Finder's
   grammar, a click selecting and a double-click opening, and ⌘A names the scope, read or not, since

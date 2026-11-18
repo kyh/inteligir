@@ -4,8 +4,6 @@ import { createPlateEditor } from "platejs/react";
 import { KEYS } from "platejs";
 import type { TElement, Value } from "platejs";
 
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import {
   extractBlocksToNote,
@@ -16,10 +14,6 @@ import type { ItemActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { YjsEditor } from "@slate-yjs/core";
-import * as Y from "yjs";
-
-import { liveEditor, seedDoc } from "./test-support/live-notes";
 
 type NewNote = Parameters<ItemActions["createNote"]>[0];
 
@@ -158,32 +152,16 @@ describe("the extract", () => {
     expect(texts(editor)).toStrictEqual(["Plan", "one", "two"]);
   });
 
-  it("takes back the removal and the link of a live note in one undo, and leaves the typing before it", async () => {
+  it("takes back the removal and the link in one undo, and leaves the typing just before it", async () => {
     installFakeEditorHost();
-    const doc = new Y.Doc();
-    const blocks: LibraryBlock[] = [
-      { children: [{ text: "Plan" }], id: "b1", type: "h2" },
-      { children: [{ text: "one" }], id: "b2", type: "p" },
-      { children: [{ text: "two" }], id: "b3", type: "p" },
-    ];
-    seedDoc(
-      doc,
-      blocks.map((block) => ({ block, section: "note" })),
-    );
-    const editor = liveEditor(doc, { kit: showing("item-1") });
-    registerLiveEditor("item-1", editor);
+    const editor = editorOver([h2("b1", "Plan"), p("b2", "one"), p("b3", "two")]);
     editor.tf.insertText("!", { at: editor.api.end([0]) });
 
     await extractBlocksToNote(editor, [[1], [2]]);
-    YjsEditor.flushLocalChanges(editor);
     expect(editor.children).toHaveLength(2);
 
     editor.undo();
-    expect(editor.children.map((block) => editor.api.string(block))).toStrictEqual([
-      "Plan!",
-      "one",
-      "two",
-    ]);
+    expect(texts(editor)).toStrictEqual(["Plan!", "one", "two"]);
   });
 
   it("refuses a block no item can store yet", async () => {

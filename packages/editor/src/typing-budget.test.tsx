@@ -16,6 +16,7 @@ import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { blockId } from "@repo/editor/headless/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
+import { memoryNotes } from "./test-support/memory-notes";
 
 import { generateLongNote } from "./test-support/markdown-doc-generator";
 
@@ -29,6 +30,7 @@ const SEED = 704;
 const LONG_LINES = 10_000;
 const SHORT_LINES = LONG_LINES / 8;
 const KEYSTROKES = 6;
+const notes = memoryNotes();
 // past any pause a pass could wait out after typing
 const SETTLE_MS = 1000;
 
@@ -40,15 +42,14 @@ const WATCHED_BLOCK =
 const CLOSING_BLOCK = "The end.";
 
 // Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded,
-// with the editor bound to the note's live document: a keystroke costs 12ms in the long note
-// against 5ms in the short one, 2.5x for eight times the lines, and 0.016 of a 740ms parse of the
-// note. A pass quadratic in the note is 64x. A store
-// atom every block holds is recomputed on every change: Plate's toggle hider or its navigation
-// flash alone put a keystroke at 6-7x and 0.06 of the parse. A memory-starved CI runner's garbage
-// collection pushes a ratio up by about half, so the ceilings leave that room over the recorded
-// costs, and sit well under those atoms' cost; the two atoms read no block's content, so this
-// suite's watched block never names them, and per-block-subscriptions.test.tsx holds them off by
-// name.
+// with the editor saving the note whole: a keystroke costs 9ms in the long note against 5ms in the
+// short one, 1.9x for eight times the lines, and 0.013 of a 660ms parse of the note. A pass
+// quadratic in the note is 64x. A store atom every block holds is recomputed on every change:
+// Plate's toggle hider or its navigation flash alone put a keystroke at 6-7x and 0.06 of the
+// parse. A memory-starved CI runner's garbage collection pushes a ratio up by about half, so the
+// ceilings leave that room over the recorded costs, and sit well under those atoms' cost; the two
+// atoms read no block's content, so this suite's watched block never names them, and
+// per-block-subscriptions.test.tsx holds them off by name.
 const KEYSTROKE_GROWTH_CEILING = 5;
 const KEYSTROKE_TO_PARSE_CEILING = 0.035;
 // a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
@@ -93,8 +94,13 @@ const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   SELECTOR_SUBSCRIPTIONS,
 ];
 const CARET_BUDGET: readonly BudgetRow[] = [SORTABLE_IDS, FOLD_REACH, SELECTOR_SUBSCRIPTIONS];
-// no pass waits for a pause: what a change derives, a pill's display among it, lands inside it
-const SETTLE_BUDGET: readonly BudgetRow[] = [];
+const WHOLE_SAVE: BudgetRow = {
+  module: "headless/body/note-blocks.ts",
+  name: "blocksOfValue",
+  why: "a save carries the note whole (item/note-save.ts), so the one a pause sends reads every block once; what a change derives, a pill's display among it, lands inside the change",
+};
+
+const SETTLE_BUDGET: readonly BudgetRow[] = [WHOLE_SAVE];
 
 const passLabel = ({ name, module }: Pass): string => `${name} (${module})`;
 
@@ -260,7 +266,7 @@ const moveCaret = async (editor: SlateEditor, to: Point): Promise<void> => {
 };
 
 const openNote = async (itemId: string, lines: number): Promise<OpenNote> => {
-  const { editor, unmount } = await mountNote(itemId, noteOf(lines));
+  const { editor, unmount } = await mountNote(notes, itemId, noteOf(lines));
   await settle();
   const watched = editor.children.at(-2);
   const closing = editor.children.at(-1);
@@ -365,7 +371,7 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     /* oxlint-enable class-methods-use-this */
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
-    installFakeEditorHost();
+    installFakeEditorHost({ notes });
     const small = await openNote("short", SHORT_LINES);
     shortMs = await keystrokeMsIn(small);
     small.unmount();
@@ -393,7 +399,7 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     }
   });
 
-  it("walks the note through no pass once typing settles", () => {
+  it("walks the note once typing settles only to save it whole", () => {
     expectBudget("the settle after typing", SETTLE_BUDGET, observed.settle);
   });
 

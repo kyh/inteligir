@@ -2,9 +2,7 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { seedDoc } from "@repo/editor/test-support/live-notes";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { onlineManager } from "@tanstack/react-query";
@@ -52,23 +50,33 @@ const pageOverANote = async (): Promise<void> => {
   await pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
 };
 
-// the whole page with a note open over its live document, once the note's line has drawn
-const pageOverALiveNote = async (alsoInAddress = "") => {
-  const server = noteServer();
+// the whole page with a note open over its saved body, once the note's line has drawn
+const pageOverASavedNote = async (
+  alsoInAddress = "",
+  answer?: (call: CellCall) => object | undefined,
+) => {
   const cell = createFakeCell();
-  const id = cell.seed.item({ title: NOTE });
-  seedDoc(server.note(id).doc, [
+  const id = cell.seed.item({ title: NOTE }, [
     {
       block: { children: [{ text: "Typed on the Mac." }], id: "p1", type: "p" },
       section: "note",
     },
   ]);
-  await pageAt(`/library?item=${id}${alsoInAddress}`, cell);
+  await pageAt(`/library?item=${id}${alsoInAddress}`, cell, answer);
   // read whole, since a find in the address marks its words in the commit that draws them
   await waitFor(() => {
     expect(document.querySelector("[data-slate-editor]")?.textContent).toBe("Typed on the Mac.");
   });
-  return { id, server };
+  return { cell, id };
+};
+
+// what is typed at the end of the open note's first block
+const typeInto = async (id: string, text: string): Promise<void> => {
+  await act(async () => {
+    const editor = getLiveEditor(id);
+    editor?.tf.insertText(text, { at: editor.api.end([0]) });
+    await Promise.resolve();
+  });
 };
 
 // the whole page at the library, with Save a link's dialog open
@@ -253,10 +261,18 @@ describe("an open link nobody named", () => {
 });
 
 describe("an open item's body", () => {
-  it("is its note's live document, dialled on the ticket the cell mints, read-only offline", async () => {
-    const { server } = await pageOverALiveNote();
+  it("is its note's saved body, saved a moment after typing stops, and read-only offline", async () => {
+    const { cell, id } = await pageOverASavedNote();
 
-    expect(server.sockets.map((socket) => socket.ticket)).toStrictEqual(["a-ticket"]);
+    await typeInto(id, " And here.");
+    await waitFor(
+      () => {
+        expect(cell.held(id).blocks.map(({ block }) => block.children)).toStrictEqual([
+          [{ text: "Typed on the Mac. And here." }],
+        ]);
+      },
+      { timeout: 4000 },
+    );
     expect(document.querySelector('[contenteditable="true"]')).not.toBeNull();
     act(() => {
       onlineManager.setOnline(false);
@@ -267,7 +283,7 @@ describe("an open item's body", () => {
   });
 
   it("opens with the find bar on the words its address carries, and the address drops them", async () => {
-    const { id } = await pageOverALiveNote("&find=Mac");
+    const { id } = await pageOverASavedNote("&find=Mac");
 
     const find = await screen.findByRole("textbox", { name: "Find" });
 
@@ -278,7 +294,14 @@ describe("an open item's body", () => {
   });
 });
 
-describe("an open item holding typing no connection carried", () => {
+// every save of a note dropped on its way, the cell answering every other call
+const dropsSaves = (call: CellCall): undefined => {
+  if (call.path === "library.items.saveBody") {
+    throw new Error("the network dropped the save");
+  }
+};
+
+describe("an open item holding typing it couldn't save", () => {
   const LEAVE = { name: "Leave without saving?" };
 
   const answer = async (label: string): Promise<void> => {
@@ -289,25 +312,16 @@ describe("an open item holding typing no connection carried", () => {
     });
   };
 
-  it("asks before a leave: Stay keeps the item and the grid's scope, Discard edits goes", async () => {
-    const { id, server } = await pageOverALiveNote();
-    server.answer = "hang";
-    await act(async () => {
-      server.drop();
-      const editor = getLiveEditor(id);
-      editor?.tf.insertText(" And here.", { at: editor.api.end([0]) });
-      await Promise.resolve();
-    });
-    act(() => {
-      onlineManager.setOnline(false);
-    });
+  it("asks before a leave: Stay keeps the item and the grid's scope, Leave anyway goes", async () => {
+    const { id } = await pageOverASavedNote("", dropsSaves);
+    await typeInto(id, " And here.");
 
     fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
     await answer("Stay");
     expect(window.location.search).toBe(`?item=${id}`);
 
     fireEvent.click(screen.getByRole("button", { name: "Back to the library" }));
-    await answer("Discard edits");
+    await answer("Leave anyway");
     await waitFor(() => {
       expect(addressed("item")).toBeNull();
     });

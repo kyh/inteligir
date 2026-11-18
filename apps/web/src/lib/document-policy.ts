@@ -28,10 +28,6 @@ const THEME_SCRIPT_HASH = `'sha256-${createHash("sha256").update(noFlashThemeScr
 // has the scheme
 const IPC = "ipc:";
 
-// the socket's origin: CSP3 says 'self' covers it, which not every browser the page meets reads so
-const socketOrigin = (url: URL): string =>
-  `${url.protocol === "https:" ? "wss:" : "ws:"}//${url.host}`;
-
 // where a file's bytes go when the store is Vercel Blob: a URL presigned for one upload
 // (packages/service/src/files/blob-file-store.ts)
 const BLOB_UPLOADS = "https://vercel.com/api/blob/";
@@ -42,7 +38,7 @@ export const libraryPolicy = (url: URL, nonce: string): string =>
   [
     ...DRAWING_DIRECTIVES,
     ["script-src 'self'", `'nonce-${nonce}'`, THEME_SCRIPT_HASH, ...DEV_EVAL].join(" "),
-    `connect-src 'self' ${socketOrigin(url)} ${BLOB_UPLOADS} ${IPC}`,
+    `connect-src 'self' ${BLOB_UPLOADS} ${IPC}`,
     // a PDF item's viewer is the browser's, over the library's own bytes
     "object-src 'self'",
     ...FIXED_TAIL,

@@ -167,9 +167,6 @@ catalogs:
     '@rolldown/plugin-babel':
       specifier: ^0.2.4
       version: 0.2.4
-    '@slate-yjs/core':
-      specifier: 1.0.2
-      version: 1.0.2
     '@tailwindcss/postcss':
       specifier: ^4.3.3
       version: 4.3.3
@@ -296,9 +293,6 @@ catalogs:
     jsdom:
       specifier: ^30.1.3
       version: 30.1.3
-    lib0:
-      specifier: 0.2.119
-      version: 0.2.119
     lucide-react:
       specifier: ^1.61.0
       version: 1.62.0
@@ -317,9 +311,6 @@ catalogs:
     oxlint-tsgolint:
       specifier: ^7.0.2005
       version: 7.0.2005
-    partysocket:
-      specifier: 1.3.0
-      version: 1.3.0
     platejs:
       specifier: ^53.5.2
       version: 53.5.2
@@ -398,15 +389,9 @@ catalogs:
     vitest:
       specifier: ^4.1.12
       version: 4.1.12
-    y-protocols:
-      specifier: 1.0.7
-      version: 1.0.7
     yaml:
       specifier: ^2.9.1
       version: 2.9.1
-    yjs:
-      specifier: 13.6.33
-      version: 13.6.33
     zod:
       specifier: ^4.6.7
       version: 4.6.7
@@ -1046,18 +1031,12 @@ importers:
       '@repo/ui':
         specifier: workspace:*
         version: link:../ui
-      '@slate-yjs/core':
-        specifier: 'catalog:'
-        version: 1.0.2(slate@0.146.0)(yjs@13.6.33)
       diff:
         specifier: ^9.0.0
         version: 9.0.0
       katex:
         specifier: ^0.19.1
         version: 0.19.1
-      lib0:
-        specifier: 'catalog:'
-        version: 0.2.119
       lowlight:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1076,9 +1055,6 @@ importers:
       mdast-util-to-markdown:
         specifier: 'catalog:'
         version: 2.2.0
-      partysocket:
-        specifier: 'catalog:'
-        version: 1.3.0(react@19.2.8)
       pele:
         specifier: ^1.5.2
         version: 1.5.2
@@ -1118,15 +1094,9 @@ importers:
       unist-util-visit:
         specifier: ^5.1.0
         version: 5.1.0
-      y-protocols:
-        specifier: 'catalog:'
-        version: 1.0.7(yjs@13.6.33)
       yaml:
         specifier: 'catalog:'
         version: 2.9.1
-      yjs:
-        specifier: 'catalog:'
-        version: 13.6.33
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4927,12 +4897,6 @@ packages:
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
 
-  '@slate-yjs/core@1.0.2':
-    resolution: {integrity: sha512-X0hLFJbQu9c1ItWBaNuEn0pqcXYK76KCp8C4Gvy/VaTQVMo1VgAb2WiiJ0Je/AyuIYEPPSTNVOcyrGHwgA7e6Q==}
-    peerDependencies:
-      slate: '>=0.70.0'
-      yjs: ^13.5.29
-
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
@@ -7330,9 +7294,6 @@ packages:
       vue:
         optional: true
 
-  event-target-polyfill@0.0.4:
-    resolution: {integrity: sha512-Gs6RLjzlLRdT8X9ZipJdIZI/Y6/HhRLyq9RdDlCsnpxr/+Nn6bU2EFGuC94GjxqhM+Nmij2Vcq98yoHrU8uNFQ==}
-
   event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
     engines: {node: '>=6'}
@@ -8280,9 +8241,6 @@ packages:
     resolution: {integrity: sha512-6B3tLtFqtQS4ekarvLVMZ+X+VlvQekbe4taUkf/rhVO3d/h0M2rfARm/pXLcPEsjjMsFgrFgSrhQIxcSVrBz8w==}
     engines: {node: '>=18'}
 
-  isomorphic.js@0.2.5:
-    resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
-
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
 
@@ -8501,11 +8459,6 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
-
-  lib0@0.2.119:
-    resolution: {integrity: sha512-vh+TiejVy8Xm+hCdnRfn9BthGNvNUZdEXltNjVZL3TzRIKP3s1lnQh8pWd/Q0wCgY0FPAGVVjFF4ZiHUV3LFgA==}
-    engines: {node: '>=16'}
-    hasBin: true
 
   libsql@0.5.29:
     resolution: {integrity: sha512-8lMP8iMgiBzzoNbAPQ59qdVcj6UaE/Vnm+fiwX4doX4Narook0a4GPKWBEv+CR8a1OwbfkgL18uBfBjWdF0Fzg==}
@@ -9705,14 +9658,6 @@ packages:
   parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
-
-  partysocket@1.3.0:
-    resolution: {integrity: sha512-1zToNyolZFK/7nuAw/K2bZrNzFqaZyRoCEkS+9vG6WSC5ikrN6qWRe96q6ImU51uptz2r+dAwSkwhJVdQi4LiA==}
-    peerDependencies:
-      react: '>=17'
-    peerDependenciesMeta:
-      react:
-        optional: true
 
   password-prompt@1.1.3:
     resolution: {integrity: sha512-HkrjG2aJlvF0t2BMH0e2LB/EHf3Lcq3fNMzy4GYHcQblAvOl+QQji1Lx7WRBMqpVK8p+KR7bCg7oqAMXtdgqyw==}
@@ -11508,12 +11453,6 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
-  y-protocols@1.0.7:
-    resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
-    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
-    peerDependencies:
-      yjs: ^13.0.0
-
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -11545,10 +11484,6 @@ packages:
   yargs@17.7.3:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
-
-  yjs@13.6.33:
-    resolution: {integrity: sha512-q/UYvr1gOk4XII+Cu1CW2dINjYqJJFifTzogEaIARznrvX7uOlHsdTEXcnOBMuIsrCGEEKdNxi74kyMLZlKVfw==}
-    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
   yn@3.1.1:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
@@ -16274,12 +16209,6 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
-  '@slate-yjs/core@1.0.2(slate@0.146.0)(yjs@13.6.33)':
-    dependencies:
-      slate: 0.146.0
-      y-protocols: 1.0.7(yjs@13.6.33)
-      yjs: 13.6.33
-
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
@@ -19024,8 +18953,6 @@ snapshots:
       react: 19.2.8
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
-  event-target-polyfill@0.0.4: {}
-
   event-target-shim@5.0.1: {}
 
   events-universal@1.0.1:
@@ -20395,8 +20322,6 @@ snapshots:
 
   isexe@3.1.5: {}
 
-  isomorphic.js@0.2.5: {}
-
   jackspeak@3.4.3:
     dependencies:
       '@isaacs/cliui': 8.0.2
@@ -20637,10 +20562,6 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
     optional: true
-
-  lib0@0.2.119:
-    dependencies:
-      isomorphic.js: 0.2.5
 
   libsql@0.5.29:
     dependencies:
@@ -22910,12 +22831,6 @@ snapshots:
 
   parseurl@1.3.3: {}
 
-  partysocket@1.3.0(react@19.2.8):
-    dependencies:
-      event-target-polyfill: 0.0.4
-    optionalDependencies:
-      react: 19.2.8
-
   password-prompt@1.1.3:
     dependencies:
       ansi-escapes: 4.3.2
@@ -25107,11 +25022,6 @@ snapshots:
 
   xmlchars@2.2.0: {}
 
-  y-protocols@1.0.7(yjs@13.6.33):
-    dependencies:
-      lib0: 0.2.119
-      yjs: 13.6.33
-
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
@@ -25135,10 +25045,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-
-  yjs@13.6.33:
-    dependencies:
-      lib0: 0.2.119
 
   yn@3.1.1: {}
 

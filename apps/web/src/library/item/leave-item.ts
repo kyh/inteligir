@@ -1,8 +1,8 @@
 // CLAUDE.md § The tab asks before it loses the open item's edit. The open item rides the URL, so
 // every way off it is guarded: a move the tab makes and Back or Forward through the address's
 // history (`library-history.ts`), and the tab's close or reload through the browser's own ask. The
-// open note is asked whether it stored every edit made here, and an edit typed while no connection
-// could carry it is given up only on the person's word.
+// open note is asked whether it stored every edit made here, and one it couldn't save is given up
+// only on the person's word.
 
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -23,19 +23,21 @@ export const leaveItem = async (
     return true;
   }
   return await ask({
-    body: "Some of what you typed here hasn't reached your library, since there's no connection. Leave now and it's lost.",
+    body: "Some of what you typed hasn't saved yet. Leave now and it's lost.",
     cancelLabel: "Stay",
-    confirmLabel: "Discard edits",
+    confirmLabel: "Leave anyway",
     destructive: true,
     title: "Leave without saving?",
   });
 };
 
 // whether the browser asks as the tab closes or reloads, where no dialog of the page's can: only
-// over typing no connection carried, and never once the session ended, which leaves nothing the
-// tab could still send
-export const unloadAsks = (note: Pick<OpenNote, "unsent"> | null, session: TabSession): boolean =>
-  session.kind === "live" && note !== null && note.unsent();
+// over typing no save sent as the page goes would carry, and never once the session ended, which
+// leaves nothing the tab could still send
+export const unloadAsks = (
+  note: Pick<OpenNote, "unloadLoses"> | null,
+  session: TabSession,
+): boolean => session.kind === "live" && note !== null && note.unloadLoses();
 
 // guards the open note for as long as the workspace is mounted; every question is asked as a leave
 // happens, so it reads the note the ref holds then

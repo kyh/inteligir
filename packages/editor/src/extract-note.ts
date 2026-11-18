@@ -15,7 +15,6 @@ import { toast } from "@repo/ui/components/sonner";
 import { settledAlone } from "@repo/editor/headless/formulas/pill-nodes";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { blockOfElement } from "@repo/editor/headless/body/element-block";
-import { ownUndoStep } from "@repo/editor/item/yjs-binding";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 
@@ -119,7 +118,7 @@ export const extractBlocksToNote = async (
     );
     return null;
   }
-  ownUndoStep(editor, () => {
+  editor.tf.withNewBatch(() => {
     editor.tf.withoutNormalizing(() => {
       for (const path of current.toReversed()) {
         editor.tf.removeNodes({ at: path });

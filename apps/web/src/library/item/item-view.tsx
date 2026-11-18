@@ -1,8 +1,8 @@
 // CLAUDE.md § The library is home, and an item is shown by its kind. An item opens full size in the
 // grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
-// editor (`@repo/editor/item/item-editor`) over its note's live document, which every device and
-// the agent edit at once. The header reads the item's row, read again as its card moves. Escape
-// outside the editor goes back to the library.
+// editor (`@repo/editor/item/item-editor`), saved whole a moment after each edit and held while the
+// agent edits them. The header reads the item's row, read again as its card moves. Escape outside
+// the editor goes back to the library.
 
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { OpenNote } from "@repo/editor/item/item-editor";
@@ -23,6 +23,7 @@ import { libraryGoes, useLibraryAddress } from "../library-history";
 import { shortcutFor } from "../shortcuts";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
+import { useAgentHolds } from "./use-agent-holds";
 
 export interface ItemViewProps {
   readonly itemId: string;
@@ -89,6 +90,8 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const item = useQuery(useLibraryQueries().item(itemId));
   const modifier = platformShortcutModifier();
   const { find } = useLibraryAddress();
+  const [note, setNote] = useState<OpenNote | null>(null);
+  useAgentHolds(note);
 
   // the find bar lands on a search's words once the item's editor answers, and the address then
   // drops them
@@ -154,7 +157,13 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
             <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
           </>
         )}
-        <ItemEditor itemId={itemId} onNote={onNote} />
+        <ItemEditor
+          itemId={itemId}
+          onNote={(opened) => {
+            setNote(opened);
+            onNote(opened);
+          }}
+        />
       </EditorScroller>
     </div>
   );

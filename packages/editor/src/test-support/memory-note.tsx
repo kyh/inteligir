@@ -1,8 +1,8 @@
-// A note's object in memory, open in the item editor as a host mounts it: the item read in from
-// markdown seeds the object's document, and the surface dials it over the fake socket, syncs and
-// binds, so the suites that measure the surface (its runs of blocks, its per-block store work,
-// what typing costs) run the binding and the connection the app runs. The suite installs the
-// editor host first.
+// A note the library holds in memory, open in the item editor as a host mounts it: the item read in
+// from markdown is seeded as its stored body, and the surface reads it and draws, so the suites
+// that measure the surface (its runs of blocks, its per-block store work, what typing costs) run
+// the read and the saves the app runs. The suite installs the editor host first and hands its
+// notes over.
 
 import { act, render } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
@@ -10,28 +10,25 @@ import { vi } from "vitest";
 
 import { importItem } from "../headless/codec/item-markdown";
 import { ItemEditor } from "../item/item-editor";
-import { seedDoc } from "./live-notes";
 import { getLiveEditor } from "../live-editor";
 import { pretendLibrary } from "./codec-ports";
-import { noteServer } from "./note-server";
-import type { NoteServer } from "./note-server";
+import type { MemoryNotes } from "./memory-notes";
 
-// how many turns of the microtask queue a note's dial and sync get before the mount gives up
+// how many turns of the microtask queue a note's read gets before the mount gives up
 const OPEN_TURNS = 100;
 
-// a dial waits out its backoff on a timer, even a zero one, which a suite on fake timers runs here
 const nextTurn = async (): Promise<void> => {
   await (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(0) : Promise.resolve());
 };
 
-// seeds the note's object with the item `markdown` reads in as
-const seedNote = (server: NoteServer, itemId: string, markdown: string): void => {
+// seeds the note with the item `markdown` reads in as
+const seedNote = (notes: MemoryNotes, itemId: string, markdown: string): void => {
   const read = importItem({ name: "Item", text: markdown }, pretendLibrary().importPorts());
   if (!read.ok) {
     throw new Error("the item reads in");
   }
-  seedDoc(
-    server.note(itemId).doc,
+  notes.seed(
+    itemId,
     read.item.blocks.map(({ block, section }) => ({ block, section })),
   );
 };
@@ -39,20 +36,22 @@ const seedNote = (server: NoteServer, itemId: string, markdown: string): void =>
 export interface MountedNote {
   readonly editor: SlateEditor;
   readonly editable: HTMLElement;
-  readonly server: NoteServer;
   readonly unmount: () => void;
 }
 
-// the note `markdown` reads in as, open in the item editor once its document has synced
-export const mountNote = async (itemId: string, markdown: string): Promise<MountedNote> => {
-  const server = noteServer();
-  seedNote(server, itemId, markdown);
+// the note `markdown` reads in as, open in the item editor once it is read
+export const mountNote = async (
+  notes: MemoryNotes,
+  itemId: string,
+  markdown: string,
+): Promise<MountedNote> => {
+  seedNote(notes, itemId, markdown);
   const view = render(<ItemEditor itemId={itemId} onNote={() => {}} />);
   for (let turn = 0; turn < OPEN_TURNS; turn += 1) {
     const editable = view.container.querySelector<HTMLElement>('[contenteditable="true"]');
     const editor = getLiveEditor(itemId);
     if (editable !== null && editor !== null) {
-      return { editable, editor, server, unmount: view.unmount };
+      return { editable, editor, unmount: view.unmount };
     }
     await act(async () => {
       await nextTurn();

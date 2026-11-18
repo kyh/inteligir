@@ -9,6 +9,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
+import { memoryNotes } from "./test-support/memory-notes";
+
+const notes = memoryNotes();
 
 describe("the per-block store work a keystroke would pay", () => {
   beforeAll(() => {
@@ -20,7 +23,7 @@ describe("the per-block store work a keystroke would pay", () => {
     }
     /* oxlint-enable class-methods-use-this */
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
-    installFakeEditorHost();
+    installFakeEditorHost({ notes });
   });
 
   afterAll(() => {
@@ -28,7 +31,7 @@ describe("the per-block store work a keystroke would pay", () => {
   });
 
   it("is off in the editor the app mounts: no navigation flash, no flat-model toggle hider", async () => {
-    const { editor } = await mountNote("note", "# Note\n\nBody.\n");
+    const { editor } = await mountNote(notes, "note", "# Note\n\nBody.\n");
     // a plugin switched off is never registered
     expect(Object.keys(editor.plugins)).not.toContain(NavigationFeedbackPlugin.key);
     expect(Object.keys(createPlateEditor().plugins)).toContain(NavigationFeedbackPlugin.key);

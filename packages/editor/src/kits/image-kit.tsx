@@ -18,7 +18,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { editsReachNote } from "@repo/editor/item/yjs-binding";
+import { editsLand } from "@repo/editor/edit-guard";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 
@@ -80,7 +80,7 @@ const placeFiles = async (
         continue;
       }
       const kept = await keepOne(io, file);
-      if (kept === null || !editsReachNote(editor)) {
+      if (kept === null || !editsLand(editor)) {
         toast.error(fileNotKept(file.name));
         continue;
       }

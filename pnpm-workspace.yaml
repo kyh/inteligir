@@ -35,9 +35,6 @@ catalog:
   "@noble/hashes": ^2.4.0
   # exact, the playwright-core apps/web pins, so the two share one Chromium build
   "@playwright/test": 1.63.0
-  # exact: binds the editor to a note's live document; unreleased since 2023, so its bugs are ours,
-  # and it moves with yjs only once the binding suites pass on the pair
-  "@slate-yjs/core": 1.0.2
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
   "@tailwindcss/postcss": ^4.3.3
@@ -106,16 +103,10 @@ catalog:
   # entry reads twenty formats, and `sniffMedia` alone says what a file is
   image-size: ^2.1.0
   jsdom: ^30.1.3
-  # a note's sync frames are read and written with yjs's own coder at both ends; one copy, the one
-  # yjs resolves
-  lib0: 0.2.119
   lucide-react: ^1.61.0
   mdast-util-to-markdown: ^2.2.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
-  # exact: a note's socket redials on it (`packages/editor/src/item/live-socket.ts`), so the tab and
-  # the phone share one copy
-  partysocket: 1.3.0
   next: ^16.4.6
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
@@ -169,13 +160,7 @@ catalog:
   unified: ^11.0.5
   vite: ^8.3.5
   vitest: ^4.1.12
-  # exact: a note's sync frames are this protocol at both ends
-  y-protocols: 1.0.7
   yaml: ^2.9.1
-  # exact, on 13, and one copy: a note's live document, its stored state and its turn log are this
-  # encoding on every device and in its object, a second copy breaks yjs's own constructor checks,
-  # and @slate-yjs/core 1.0.2 binds against 13's types; 14 is a beta it predates
-  yjs: 13.6.33
   zod: ^4.6.7
   zustand: ^5.0.16
 

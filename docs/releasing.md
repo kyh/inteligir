@@ -333,6 +333,10 @@ The unpacked store build, against production, with no dev build loaded.
   once, a reconnect after a lock or airplane mode, Back and the edge swipe
   leaving a note not typed in at once, and Leave without saving with unsent
   typing.
+- **A save as the app goes behind**: on a physical iPhone, iOS 26, on cellular
+  or with Network Link Conditioner on 3G, type into a 1 MiB note and switch apps
+  within 1 s, 20 times; 18 or more saves must land, or take the fallback in
+  issue 1041.
 - **An offline launch**: items read-only, Needs a connection, and "1 save
   waiting", which lands once back online.
 - **Shares** from Safari, YouTube, Mail, X and Notes (text, Japanese, a bit.ly
@@ -395,13 +399,17 @@ The unpacked store build, against production, with no dev build loaded.
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
-- **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
-  prompt with unsent typing on Back and on closing the tab, Settings opened,
+- **Safari, Chrome and Firefox**: a note saving a second after typing stops, the
+  offline notice, the leave prompt over typing that couldn't save on Back and on
+  closing the tab, Settings opened,
   closed, and opened again by Back over a grid still where it was, popups
   fading, the highlight gliding from row to row in the rail and in a menu, ⌘P,
   VoiceOver, a Docs or Word list paste, Info's Add property picking a date and
   refusing an empty number, a dark window's note printing light, and a tab left
   open keeping its sign-in.
+- **A save as the window goes**: on an unlocked Mac, type into a note, then
+  switch apps, minimize the window, and close it, in Chrome, Safari and the Mac
+  app, and check that each save lands.
 - **A sweep against the cloud's database**: ⌘A then Delete over a scope of a
   few thousand items empties the grid within seconds while another tab still
   reads, and ⌘A then Tag over more than 1,000 tags them all within a minute.

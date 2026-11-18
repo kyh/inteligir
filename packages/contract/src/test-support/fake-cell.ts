@@ -20,8 +20,9 @@ import { implement, withEventMeta } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
 import type { AgentEvent } from "../library/agent-events";
-import type { folderOpSchema, listedItemSchema } from "../library/library-wire";
+import type { bodyWriteSchema, folderOpSchema, listedItemSchema } from "../library/library-wire";
 import {
+  BODY_MAX_BYTES,
   folderRowSchema,
   itemSummarySchema,
   liveItemRowSchema,
@@ -40,7 +41,7 @@ import {
 } from "../rpc/v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { canonicalJson } from "../library/canonical-json";
+import { canonicalJson, utf8ByteLength } from "../library/canonical-json";
 import { folderOpLanding, folderOpRefusal, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
@@ -48,7 +49,7 @@ import { takesRead, withPage, withReading } from "../library/item-reading";
 import type { ReadPage } from "../library/item-reading";
 import type { PropertyOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
-import { deriveBody, deriveItem } from "../library/derive-item";
+import { deriveBody, deriveItem, sameBody } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import {
@@ -84,6 +85,7 @@ type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 type OpenRow = LiveRow & { readonly bodyVersion: number };
 type HeldItem = OpenRow & { readonly blocks: BodyBlock[] };
 type Changes = Awaited<ReturnType<V1Client["library"]["changes"]>>;
+type BodyWrite = z.infer<typeof bodyWriteSchema>;
 
 interface CellItem {
   readonly fields: LibraryItemFields;
@@ -109,8 +111,8 @@ export interface FakeCell {
   readonly device: (name: string) => FakeDevice;
   // rows put in place without a call, each landing as a write lands, under a fresh id
   readonly seed: {
-    // a note filed nowhere, unless `fields` says otherwise
-    readonly item: (fields?: Partial<LibraryItemFields>) => string;
+    // a note filed nowhere, unless `fields` says otherwise, holding `blocks`
+    readonly item: (fields?: Partial<LibraryItemFields>, blocks?: readonly BodyBlock[]) => string;
     // a folder at the top, after the live ones there
     readonly folder: (name: string) => string;
   };
@@ -315,6 +317,30 @@ export const createFakeCell = (): FakeCell => {
     return landFields(input.itemId, outcome.fields);
   };
 
+  // a note's body whole over the version its device read it at, answered as the cell's own
+  // `writeBody` answers it: a save sent again, its first answer lost, finds its blocks there
+  const saveBody = (input: {
+    readonly id: string;
+    readonly baseVersion: number;
+    readonly blocks: readonly BodyBlock[];
+  }): BodyWrite => {
+    const item = holding(input.id);
+    if (item.fields.deletedAt !== null) {
+      return { kind: "deleted" };
+    }
+    if (utf8ByteLength(JSON.stringify(input.blocks)) > BODY_MAX_BYTES) {
+      return { kind: "full", maxBytes: BODY_MAX_BYTES };
+    }
+    if (item.bodyVersion !== input.baseVersion) {
+      return sameBody(item.blocks, input.blocks)
+        ? { kind: "saved", seq: item.seq, version: item.bodyVersion }
+        : { kind: "stale", version: item.bodyVersion };
+    }
+    needsBlobs(shasIn(JSON.stringify(input.blocks)));
+    land(input.id, item.fields, input.blocks);
+    return { kind: "saved", seq: head, version: input.baseVersion + 1 };
+  };
+
   const openRow = (id: string): OpenRow => {
     const item = holding(id);
     return { ...liveRow(id, item), bodyVersion: item.bodyVersion };
@@ -474,12 +500,6 @@ export const createFakeCell = (): FakeCell => {
   const os = implement(v1Contract);
 
   const router = {
-    account: {
-      socketTicket: os.account.socketTicket.handler(() => ({
-        expiresAt: NOW + 60_000,
-        ticket: "a-ticket",
-      })),
-    },
     library: {
       agent: {
         events: os.library.agent.events.handler(async function* events({
@@ -590,6 +610,7 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
         row: os.library.items.row.handler(({ input }) => openRow(input.id)),
+        saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
@@ -767,9 +788,9 @@ export const createFakeCell = (): FakeCell => {
         folderWrite([{ id, name, op: "create", parentId: null, sort: ordBetween(last, null) }]);
         return id;
       },
-      item: (fields = {}) => {
+      item: (fields = {}, blocks = []) => {
         const id = mintId();
-        land(id, { ...blankItemFields(NOW), ...fields }, []);
+        land(id, { ...blankItemFields(NOW), ...fields }, blocks);
         return id;
       },
     },

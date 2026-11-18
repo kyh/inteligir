@@ -1,4 +1,5 @@
 import { titleKey } from "@repo/contract/library/derive-item";
+import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
@@ -88,16 +89,23 @@ export interface Reach {
   readonly subscribe: (listener: () => void) => () => void;
 }
 
-// How a note's live document is reached (`item/note-connection.ts`): its socket dials the cloud's
-// origin, on a ticket the host asks the cloud for.
+// what the library says of an open note as it learns of a change: its body's version, and Deleted
+export interface NoteStanding {
+  readonly version: number;
+  readonly deleted: boolean;
+}
+
+// How an open note is read and saved whole (`item/note-save.ts`).
 export interface NoteHost {
-  // the cloud's origin (`https://…`), named by the host, since a page loaded from a file or a dev
-  // server has a location of its own
-  readonly socketOrigin: string;
-  // asked again on every dial, so a ticket that ran out is never sent twice
-  readonly socketTicket: () => Promise<string>;
-  // the host's own word on whether it reaches the cloud, which turns an open note read-only at
-  // once, ahead of any socket noticing
+  // the note as the library holds it, or as the device last read it while it reaches no cloud;
+  // null for an item that is gone; rejects when neither answers
+  readonly read: (itemId: string) => Promise<HeldNote | null>;
+  // `outlives`: the save is small enough to be sent so it lands though the page goes away; rejects
+  // when the network failed it, which is tried again
+  readonly save: (save: NoteSave, outlives: boolean) => Promise<NoteSaved>;
+  // tells `listener` each time the library learns the note moved, until the stop it answers
+  readonly follow: (itemId: string, listener: (standing: NoteStanding) => void) => () => void;
+  // the host's own word on whether it reaches the cloud, which turns an open note read-only at once
   readonly reach: Reach;
 }
 
