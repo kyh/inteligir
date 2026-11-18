@@ -1,11 +1,12 @@
 // The tab's one import, a value moved by `importAfter` alone: idle, reading the file, landing its
 // items, or ended done, stopped or failed. A run reads on a thread of its own (`./import-worker`),
 // which Stop and every end close; it lives as long as the tab, so Settings can close and open again
-// on it, and closing the tab ends it.
+// on it, and closing the tab ends it, which the browser asks about first while it runs.
 
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
+import type { TabSession, TabSessionStore } from "../cloud/library-context";
 import { importNewsSchema } from "./import-news";
 import type { ImportAsk, ImportCounts, ImportNews, ImportSource } from "./import-news";
 
@@ -181,3 +182,23 @@ export const useImportRun = (): ImportRun =>
 
 export const startImport = tabImport.start;
 export const stopImport = tabImport.stop;
+
+// whether the browser asks as the tab closes or reloads: only while a run reads or lands, which the
+// close ends, and never once the session ended, whose way to the sign-in a prompt would hold up
+export const importUnloadAsks = (run: ImportRun, session: TabSession): boolean =>
+  session.kind === "live" && isRunning(run);
+
+// the browser's ask, for as long as the library is open rather than Settings, which a run outlives
+export const useImportUnloadAsk = (session: TabSessionStore): void => {
+  useEffect(() => {
+    const asksOnUnload = (event: BeforeUnloadEvent): void => {
+      if (importUnloadAsks(tabImport.get(), session.get())) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", asksOnUnload);
+    return () => {
+      window.removeEventListener("beforeunload", asksOnUnload);
+    };
+  }, [session]);
+};

@@ -1,9 +1,10 @@
 // The library's page, above the workspace and Settings alike, so Settings and back keeps one theme,
 // one toaster, one confirm host, one host of a command's asks, one notice of writes waiting for a
-// connection and one of the Mac app's update (CLAUDE.md § Window-level hosts mount in the library's
-// layout), over the QueryClient and the library the tab opened once (`library-tab.ts`). Settings
-// draws in a full-window layer over a workspace it leaves mounted and inert (CLAUDE.md § Where the
-// tab is rides the URL, and Settings covers a workspace that stays mounted).
+// connection, one of the Mac app's update and the browser's ask as the tab closes on an import
+// (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and the
+// library the tab opened once (`library-tab.ts`). Settings draws in a full-window layer over a
+// workspace it leaves mounted and inert (CLAUDE.md § Where the tab is rides the URL, and Settings
+// covers a workspace that stays mounted).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
@@ -18,6 +19,7 @@ import { PageLibraryProvider, useLibraryQueries } from "./cloud/library-context"
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
 import { DesktopUpdateBanner } from "./desktop-update-banner";
+import { useImportUnloadAsk } from "./import/import-run";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { AskDialogHost } from "./library/ask-dialog-host";
 import { LibraryCommandsProvider } from "./library/library-commands";
@@ -69,6 +71,7 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
       workspace,
     });
   });
+  useImportUnloadAsk(library.session);
   const standing = useSyncExternalStore(library.session.subscribe, library.session.get);
   if (standing.kind === "ended" && standing.why === "outdated") {
     return TOO_OLD;

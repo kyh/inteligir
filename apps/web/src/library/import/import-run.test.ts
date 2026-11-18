@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ImportAsk, ImportNews } from "./import-news";
-import { createImportStore, IMPORT_BROKE, importAfter } from "./import-run";
-import type { ImportThread, ThreadEars } from "./import-run";
+import { createImportStore, IMPORT_BROKE, importAfter, importUnloadAsks } from "./import-run";
+import type { ImportRun, ImportThread, ThreadEars } from "./import-run";
 
 const NONE = { added: 0, alreadySaved: 0, unreadable: 0 };
 const ASK: ImportAsk = { file: new Blob(["url\n"]), source: "raindrop" };
@@ -91,5 +91,29 @@ describe(createImportStore, () => {
     thread.tell({ end: "signed-out", kind: "session-ended" });
     expect(ends).toStrictEqual(["signed-out"]);
     expect(store.get()).toStrictEqual({ kind: "reading", source: "raindrop" });
+  });
+});
+
+describe(importUnloadAsks, () => {
+  const runs: readonly ImportRun[] = [
+    { kind: "idle" },
+    { kind: "reading", source: "markdown" },
+    { counts: NONE, kind: "landing", source: "markdown", total: 3 },
+    { counts: NONE, kind: "done" },
+    { counts: NONE, kind: "stopped" },
+    { counts: NONE, kind: "failed", message: IMPORT_BROKE },
+  ];
+
+  it("asks as the tab closes only while the run reads or lands", () => {
+    expect(
+      runs.filter((run) => importUnloadAsks(run, { kind: "live" })).map((run) => run.kind),
+    ).toStrictEqual(["reading", "landing"]);
+  });
+
+  it("never asks once the session ended, on its way to the sign-in", () => {
+    for (const run of runs) {
+      expect(importUnloadAsks(run, { kind: "ended", why: "signed-out" })).toBe(false);
+      expect(importUnloadAsks(run, { kind: "left" })).toBe(false);
+    }
   });
 });
