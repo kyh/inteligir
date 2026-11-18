@@ -75,8 +75,8 @@ the steps and does none of them.
 
 `pnpm dev:web` is `next dev` on 5174 over that database: the site, the account
 pages, the library tab, `/api/auth/*`, `/api/sign-up`, `/v1/rpc`, the connector
-at `/connector` and `/api/health`. The built-in agent is not served on Next
-yet. `pnpm build` then
+at `/connector`, `/api/health`, and the built-in agent under `/eve/v1`, for
+which `next dev` starts eve's own server. `pnpm build` then
 `pnpm --filter @repo/web start` serves the production build on the same port.
 
 `pnpm smoke` (`scripts/smoke.ts`) checks a running app as a deployment must
@@ -213,9 +213,10 @@ workspace's `generate` first, which `turbo run` does.
 End-to-end: `pnpm e2e` is Playwright Test over apps/web's build and the
 extension's dev build, which turbo builds first (`tools/e2e/turbo.json`). Its
 globalSetup pushes the schema once into a template database on the server
-`POSTGRES_URL` names; each Playwright worker runs one `next start` over its own
-clone, on a fixed set of variables and nothing of `.env`, and each test signs up
-an account by invite (`tools/e2e/src/fixtures.ts`). It is deliberately outside
+`POSTGRES_URL` names; each Playwright worker runs one `next start` and the agent
+eve built beside it (`apps/web/.output`) over its own clone, on a fixed set of
+variables and nothing of `.env`, the app reaching that agent at `EVE_BASE_URL`,
+and each test signs up an account by invite (`tools/e2e/src/fixtures.ts`). It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
 runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
 retries are 0, since a flaky flow is a bug.

@@ -64,7 +64,7 @@ packages/page-reader   * a saved page read into an item, over linkedom on every 
 packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads; a waiting save, the extension's too
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * the fitness test over the repo's product words
-tools/e2e                the Playwright flows `pnpm e2e` runs, one next start per worker on its own database
+tools/e2e                the Playwright flows `pnpm e2e` runs, one next start and its agent per worker on its own database
 ```
 
 `*` marks a `CLAUDE.md` holding the workspace's decisions. There is no local

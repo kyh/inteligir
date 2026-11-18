@@ -84,6 +84,11 @@ const envSchema = z
     // a live reset link to the server's log, which production's must never hold
     EMAIL_MODE: optionalText.pipe(z.enum(["resend", "log", "off"]).optional()),
 
+    // off Vercel, an eve server the app reaches its agent at directly, never taken on Vercel: unset,
+    // the app's own `/eve/v1` serves it (`withEve`'s rewrite), whose one port `next build` fixes, so
+    // the e2e names each worker's agent here
+    EVE_BASE_URL: origin,
+
     // off Vercel with no Blob key, the folder files are kept in, from the server's working folder
     FILE_STORE_DIR: optionalText.transform((dir) => dir ?? ".data/files"),
 

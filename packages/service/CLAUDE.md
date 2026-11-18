@@ -98,6 +98,10 @@ decisions port with its code from the tag `cloudflare-last`.
 - **An assistant's metadata document is fetched through `PAGE_FETCH_RELAY_URL`
   when it is set off Vercel.** cimd's transport refuses every host a test can
   serve. `packages/service/src/auth/oauth.ts`.
+- **The app reaches its agent at `EVE_BASE_URL` when it is set off Vercel, and
+  through its own `/eve/v1` otherwise.** `next build` writes the agent's one
+  port into the rewrite, so parallel e2e workers on one build each name their
+  own. `packages/service/src/agent/platform.ts`.
 
 ## The wire
 

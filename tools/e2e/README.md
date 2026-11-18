@@ -18,9 +18,12 @@ run's globalSetup, pushes the schema once into a template database
 `e2e_<run>` on that server, and drops it and every clone when the run ends.
 
 `src/fixtures.ts` gives each Playwright worker one `next start` on a free port
-over its own clone, `e2e_<run>_<worker>`, started on a fixed set of variables
-and nothing of the root `.env`, its output in
-`test-results/next-start-<worker>.log`; and each test:
+and the built-in agent eve built beside it on another, over its own clone,
+`e2e_<run>_<worker>`, started on a fixed set of variables and nothing of the
+root `.env`, their output in `test-results/next-start-<worker>.log` and
+`test-results/agent-<worker>.log`; the agent answers from eve's mock model,
+by the directives `packages/service/src/agent/mock-directives.ts` reads. Each
+test:
 
 - `cloud`: the origin, `mint()` for an invite, and `build`, the floor the app
   starts with, which every client here names.

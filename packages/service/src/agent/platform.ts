@@ -1,7 +1,7 @@
 // The only module that calls eve: no client shape reaches a row, and the suites swap in
 // `../test-support/fake-agent-platform`. The agent is a service of its own beside the app
-// (apps/web/agent, served under /eve/v1), so every call is HTTP, signed with a token minted for that
-// call alone (`./eve-token`).
+// (apps/web/agent, served under the app's /eve/v1, or off Vercel at `EVE_BASE_URL`), so every call
+// is HTTP, signed with a token minted for that call alone (`./eve-token`).
 
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { Client, ClientError, SessionNotActiveError } from "eve/client";
@@ -9,6 +9,7 @@ import type { ReconnectOptions, SessionStreamEvent } from "eve/client";
 import { z } from "zod";
 
 import { APP_URL } from "../app-url";
+import { env } from "../env";
 import type { EveTokenSubject } from "./eve-token";
 import { eveOperationId, mintEveToken } from "./eve-token";
 
@@ -134,10 +135,13 @@ const bypassHeaders = (): Record<string, string> => {
   return secret === undefined ? {} : { "x-vercel-protection-bypass": secret };
 };
 
+const agentBaseUrl = (): string =>
+  env.EVE_BASE_URL !== undefined && process.env.VERCEL !== "1" ? env.EVE_BASE_URL : APP_URL;
+
 const clientFor = (caller: AgentCaller, eveSessionId: string | null): Client =>
   new Client({
     auth: { bearer: async () => await mintEveToken({ ...caller, eveSessionId }) },
-    baseUrl: APP_URL,
+    baseUrl: agentBaseUrl(),
     headers: bypassHeaders(),
   });
 

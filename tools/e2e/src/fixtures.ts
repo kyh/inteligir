@@ -1,7 +1,7 @@
-// One app per Playwright worker: `next start` on apps/web's build, over a database of its own cloned
-// from the run's template (databases.ts), and every page it fetches answered from a test's
-// `web.pages` or failing it (page-relay.ts). One account per test, signed in on the test's context
-// and reachable through `/v1`.
+// One app per Playwright worker: `next start` on apps/web's build and the agent eve built beside it,
+// over a database of their own cloned from the run's template (databases.ts), and every page they
+// fetch answered from a test's `web.pages` or failing it (page-relay.ts). One account per test,
+// signed in on the test's context and reachable through `/v1`.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -34,6 +34,8 @@ import type { PageRelay, Web } from "./page-relay";
 
 const WEB = path.resolve(import.meta.dirname, "../../../apps/web");
 const NEXT_BIN = path.join(WEB, "node_modules/next/dist/bin/next");
+// the agent's server, which `eve build` writes inside `pnpm build`
+const AGENT_SERVER = path.join(WEB, ".output/server/index.mjs");
 const BOOT_BUDGET_MS = 60_000;
 const PASSWORD = "e2e-password-1234";
 // the system networking stack's user agent, which the account's devices list names an iPhone by
@@ -95,46 +97,47 @@ const freePort = async (): Promise<number> => {
   return port;
 };
 
-const answersHealthy = async (origin: string): Promise<boolean> => {
+const answersHealthy = async (url: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${origin}/api/health`);
+    const response = await fetch(url);
     return response.ok;
   } catch {
     return false;
   }
 };
 
-// `next start` on the build `pnpm build` left in apps/web/.next, on `env` alone, so nothing of the
-// root .env reaches it; ready once its health check answers, which waits on its database. Its
-// output goes to `log`. Answers how to stop it.
-const startApp = async (
-  origin: string,
+// a server of the build's, run by node from apps/web on `env` alone, so nothing of the root .env
+// reaches it; ready once `ready` answers, which waits on its database. Its output goes to `log`.
+// Answers how to stop it.
+const serve = async (
+  args: readonly string[],
+  ready: string,
   env: NodeJS.ProcessEnv,
   log: string,
 ): Promise<() => Promise<void>> => {
   const output = await open(log, "w");
-  const app = spawn(process.execPath, [NEXT_BIN, "start", "--port", new URL(origin).port], {
+  const server = spawn(process.execPath, args, {
     cwd: WEB,
     env,
     stdio: ["ignore", output.fd, output.fd],
   });
-  const exited = once(app, "exit");
+  const exited = once(server, "exit");
   const stop = async () => {
-    if (app.exitCode === null && app.signalCode === null) {
-      app.kill();
+    if (server.exitCode === null && server.signalCode === null) {
+      server.kill();
       await exited;
     }
     await output.close();
   };
   const deadline = Date.now() + BOOT_BUDGET_MS;
-  while (app.exitCode === null && Date.now() < deadline) {
-    if (await answersHealthy(origin)) {
+  while (server.exitCode === null && Date.now() < deadline) {
+    if (await answersHealthy(ready)) {
       return stop;
     }
     await sleep(250);
   }
   await stop();
-  throw new Error(`next start never answered ${origin}/api/health; its output is in ${log}`);
+  throw new Error(`${ready} never answered; the server's output is in ${log}`);
 };
 
 const buildHeaders = (cloud: Cloud): Record<string, string> => {
@@ -194,45 +197,68 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         const database = await workerDatabase(workerIndex);
         // a loopback name, as the extension's dev build names its cloud
         const origin = `http://localhost:${String(await freePort())}`;
+        const agentOrigin = `http://127.0.0.1:${String(await freePort())}`;
         await mkdir(project.outputDir, { recursive: true });
-        const stop = await startApp(
-          origin,
+        const outputOf = (name: string) =>
+          path.join(project.outputDir, `${name}-${String(workerIndex)}`);
+        const env: NodeJS.ProcessEnv = {
+          AGENT_MOCK_MODEL: "true",
+          APP_URL: origin,
+          BETTER_AUTH_SECRET: "e2e-better-auth-secret-000000000000",
+          EMAIL_MODE: "log",
+          // the worker's own folder of files, which its uploads go to on the app's own origin
+          FILE_STORE_DIR: outputOf("files"),
+          HOME: process.env.HOME,
+          MIN_CLIENT_BUILD: build,
+          NEXT_TELEMETRY_DISABLED: "1",
+          PAGE_FETCH_RELAY_URL: relay.url,
+          PATH: process.env.PATH,
+          POSTGRES_URL: database,
+          RATE_LIMIT_DISABLED: "true",
+        };
+        const { hostname, port } = new URL(agentOrigin);
+        const stopAgent = await serve(
+          [AGENT_SERVER],
+          `${agentOrigin}/eve/v1/health`,
           {
-            AGENT_MOCK_MODEL: "true",
-            APP_URL: origin,
-            BETTER_AUTH_SECRET: "e2e-better-auth-secret-000000000000",
-            EMAIL_MODE: "log",
-            // An origin of its own starts no agent beside the app: `next build` writes the agent's
-            // one port into its rewrite, which workers on one build can't each listen on. The
-            // agent's flows wait in PENDING until each worker runs an agent of its own.
-            EVE_NEXT_PRODUCTION_ORIGIN: "http://127.0.0.1:4274",
-            // the worker's own folder of files, which its uploads go to on the app's own origin
-            FILE_STORE_DIR: path.join(project.outputDir, `files-${String(workerIndex)}`),
-            HOME: process.env.HOME,
-            MIN_CLIENT_BUILD: build,
-            NEXT_TELEMETRY_DISABLED: "1",
-            PAGE_FETCH_RELAY_URL: relay.url,
-            PATH: process.env.PATH,
-            POSTGRES_URL: database,
-            RATE_LIMIT_DISABLED: "true",
+            ...env,
+            HOST: hostname,
+            NITRO_HOST: hostname,
+            NITRO_PORT: port,
+            PORT: port,
+            // its runs' own store, where workers' agents beside it keep theirs
+            WORKFLOW_LOCAL_DATA_DIR: outputOf("agent-runs"),
           },
-          path.join(project.outputDir, `next-start-${String(workerIndex)}.log`),
+          `${outputOf("agent")}.log`,
         );
-        const sql = postgres(database, { max: 1 });
-        await use({
-          build,
-          mint: async () => {
-            const code = `E2E-${crypto.randomUUID()}`;
-            await sql`insert into invite_code ${sql({ code })}`;
-            return code;
-          },
-          origin,
-          pageHost: relay.pageHost,
-          sql,
-          strays: relay.strays,
-        });
-        await sql.end();
-        await stop();
+        // The worker's own agent, which the app calls at its origin: `next build` writes one port
+        // into the app's /eve/v1 rewrite, which workers on one build can't each listen on, and an
+        // agent's origin of its own stops `next start` starting one there.
+        try {
+          const stopApp = await serve(
+            [NEXT_BIN, "start", "--port", new URL(origin).port],
+            `${origin}/api/health`,
+            { ...env, EVE_BASE_URL: agentOrigin, EVE_NEXT_PRODUCTION_ORIGIN: agentOrigin },
+            `${outputOf("next-start")}.log`,
+          );
+          const sql = postgres(database, { max: 1 });
+          await use({
+            build,
+            mint: async () => {
+              const code = `E2E-${crypto.randomUUID()}`;
+              await sql`insert into invite_code ${sql({ code })}`;
+              return code;
+            },
+            origin,
+            pageHost: relay.pageHost,
+            sql,
+            strays: relay.strays,
+          });
+          await sql.end();
+          await stopApp();
+        } finally {
+          await stopAgent();
+        }
       } finally {
         await relay.close();
       }
