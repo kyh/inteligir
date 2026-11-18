@@ -35,6 +35,7 @@ const ALL_TOOLS = [
   ...READ_TOOLS,
   "create_note",
   "delete_items",
+  "edit_item",
   "organize_items",
   "save_link",
 ].toSorted();
@@ -202,6 +203,7 @@ test("an assistant finds the sign-in from the connector, registers, is allowed o
   account,
   cloud,
   context,
+  library,
   page,
 }) => {
   const connector = new URL(CONNECTOR_PATH, cloud.origin);
@@ -248,6 +250,13 @@ test("an assistant finds the sign-in from the connector, registers, is allowed o
   const { item } = z.object({ item: z.object({ id: z.string() }) }).parse(created);
   expect(await call(claude.client, "search_library", { query: "quick fox" })).toMatchObject({
     hits: [{ id: item.id }],
+  });
+  await call(claude.client, "edit_item", {
+    edits: [{ newText: "It jumped over the dog.", oldText: "It jumped." }],
+    id: item.id,
+  });
+  await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+    view: { markdown: "The quick brown fox.\n\nIt jumped over the dog.\n" },
   });
 
   // an assistant named by its metadata document, which the person lets read alone
