@@ -70,6 +70,7 @@
     "babel-plugin-react-compiler": "catalog:",
     "dotenv-cli": "catalog:",
     "jsdom": "catalog:",
+    "msw": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

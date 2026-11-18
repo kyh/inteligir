@@ -74,6 +74,7 @@
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@orpc/server": "catalog:",
+    "msw": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
