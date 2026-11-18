@@ -118,3 +118,33 @@ index 0ca2a97aabf52eea34f249e775a49b913fb8a81b..b23380f6cc7cecfb080254916aecc2a2
      if ("selectionStart" in root)
        var JSCompiler_temp = {
          start: root.selectionStart,
+diff --git a/dist/esm/server/send-response.js b/dist/esm/server/send-response.js
+index 080d60cb20a57b7e81411c12ed16e41e1fdbf621..3c83c46c146e97d8df6ee948e9efc2404a7b073c 100644
+--- a/dist/esm/server/send-response.js
++++ b/dist/esm/server/send-response.js
+@@ -42,7 +42,9 @@ const FORBIDDEN_HEADERS = [
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            // A HEAD answer sends no body, so none was decoded under it: its content-length is the
++            // one the route gave, the length a GET would send.
++            if (FORBIDDEN_HEADERS.includes(name) && !(name === 'content-length' && req.method === 'HEAD')) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.
+diff --git a/dist/server/send-response.js b/dist/server/send-response.js
+index 6232e7a729e33f6550e83f8ff7ffe0581c891683..9d93fe848c28e574fc6ef7da423510381e22c467 100644
+--- a/dist/server/send-response.js
++++ b/dist/server/send-response.js
+@@ -46,7 +46,9 @@ async function sendResponse(req, res, response, waitUntil) {
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            // A HEAD answer sends no body, so none was decoded under it: its content-length is the
++            // one the route gave, the length a GET would send.
++            if (FORBIDDEN_HEADERS.includes(name) && !(name === 'content-length' && req.method === 'HEAD')) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.

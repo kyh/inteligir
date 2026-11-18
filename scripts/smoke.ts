@@ -202,7 +202,8 @@ const expectBytes = async (response: Response, expected: Uint8Array, what: strin
 };
 
 /** A file's bytes up through `door` as every app sends them, by reserve, a PUT to the store reserve
- * names, and settle, then read back whole and by two ranges, as a media loader reads one. */
+ * names, and settle, then its length asked by HEAD, and read back whole and by two ranges, as a
+ * media loader reads one. */
 const fileRoundTrip = async (door: HeaderMap) => {
   const signed = { ...BUILD, ...door };
   const transport: V1Transport = {
@@ -223,6 +224,14 @@ const fileRoundTrip = async (door: HeaderMap) => {
     await request(`${V1_BLOBS_PATH}/${sha}`, {
       headers: range === null ? signed : { ...signed, range },
     });
+  const head = await request(`${V1_BLOBS_PATH}/${sha}`, { headers: signed, method: "HEAD" });
+  await expectStatus(head, 200, "the file's HEAD");
+  const length = head.headers.get("content-length");
+  if (length !== String(SMOKE_FILE_BYTES)) {
+    fail(
+      `the file's HEAD answered content-length ${length ?? "none"}, not ${String(SMOKE_FILE_BYTES)}`,
+    );
+  }
   const whole = await readAt(null);
   await expectStatus(whole, 200, "the whole file");
   await expectBytes(whole, bytes, "the whole file");

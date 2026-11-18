@@ -236,7 +236,9 @@ patchedDependencies:
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
   # the react-dom patch's change, in the react-dom Next bundles into every page it serves, which the
-  # npm package's patch never reaches
+  # npm package's patch never reaches; and a HEAD answer keeps the content-length its route gives,
+  # which Next drops from every route's answer lest a body fetch decoded break its framing, though a
+  # HEAD sends none, so `/v1/blobs/<sha>` tells its length; that hunk dropped once a release does
   next@16.4.6: patches/next@16.4.6.patch
   # a pooled client on a lost or closed socket: postgres.js writes a query to the missing socket and
   # waits forever, sends a transaction's late COMMIT down a connection already serving another
