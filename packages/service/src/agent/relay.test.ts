@@ -1,6 +1,9 @@
 // A thread followed through the relay over the fake platform: what it kept, then what happens live,
-// the reply's draft before its message, a turn's end once its settle is kept, and a reconnect by the last id read that resumes with
-// nothing missed or repeated, wherever the stream was cut.
+// the reply's draft before its message, a turn's end once its settle is kept, however late, and a
+// reconnect by the last id read that resumes with nothing missed or repeated, wherever the stream
+// was cut.
+
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { dbSuite } from "@repo/db/test-database";
 import { beforeEach, expect, it } from "vitest";
@@ -91,6 +94,77 @@ dbSuite("a thread followed as it happens", () => {
     const { threads } = await library.agent.list({});
     expect(threads).toMatchObject([{ id: threadId, status: "idle" }]);
     await platform.turnsSettled();
+  });
+
+  it("holds a live turn's end its settle is kept late, nothing after it first, then streams every event once", async () => {
+    const { accountId } = await personalLibrary();
+    const release = platform.holdHooks("turn.settled");
+    const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
+    await platform.turnsSettled();
+
+    let sofar: readonly Streamed[] = [];
+    const reading = follow(accountId, threadId, (read) => {
+      sofar = read;
+      return endsTurn(2)(read);
+    });
+    await sendToAgent(runtime, accountId, { text: "Again", threadId });
+    await platform.turnsSettled();
+    // far past the relay's quick asks, as a settle hook eve retries for a while
+    await sleep(1500);
+    expect(shownOf(sofar).map(({ type }) => type)).toStrictEqual(["user.message", "agent.message"]);
+
+    await release();
+    const read = await reading;
+    const whole = await follow(accountId, threadId, caughtUp);
+    expect(idsOf(read)).toStrictEqual(idsOf(whole));
+    expect(new Set(idsOf(read)).size).toBe(idsOf(read).length);
+    expect(shownOf(read).map(({ type }) => type)).toStrictEqual([
+      "user.message",
+      "agent.message",
+      "turn.ended",
+      "user.message",
+      "agent.message",
+      "turn.ended",
+    ]);
+  });
+
+  it("holds a live turn's end whose turn is kept after it, and streams every event once", async () => {
+    const { accountId } = await personalLibrary();
+    const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
+    await platform.turnsSettled();
+
+    let sofar: readonly Streamed[] = [];
+    const reading = follow(accountId, threadId, (read) => {
+      sofar = read;
+      return endsTurn(2)(read);
+    });
+    const releaseStart = platform.holdHooks("turn.started");
+    const releaseSettle = platform.holdHooks("turn.settled");
+    await sendToAgent(runtime, accountId, { text: "Again", threadId });
+    await platform.turnsSettled();
+    await sleep(500);
+    expect(shownOf(sofar).map(({ type }) => type)).toStrictEqual([
+      "user.message",
+      "agent.message",
+      "turn.ended",
+      "user.message",
+      "agent.message",
+    ]);
+
+    await releaseStart();
+    await releaseSettle();
+    const read = await reading;
+    const whole = await follow(accountId, threadId, caughtUp);
+    expect(idsOf(read)).toStrictEqual(idsOf(whole));
+    expect(new Set(idsOf(read)).size).toBe(idsOf(read).length);
+    expect(shownOf(read).map(({ type }) => type)).toStrictEqual([
+      "user.message",
+      "agent.message",
+      "turn.ended",
+      "user.message",
+      "agent.message",
+      "turn.ended",
+    ]);
   });
 
   it("resumes after the last id read, mid-history and mid-turn, with nothing missed or repeated", async () => {

@@ -33,7 +33,7 @@ say one thing of one library.
   conversation. `packages/client/src/agent-send.ts`.
 - **A conversation is read once, in order, and each call has one state; a turn is under way from
   a message until a turn ends.** `conversationOf` is every device's one way in, and reads Stop off
-  the events, since a message sent mid-turn joins the turn and the thread list lags the stream.
+  the events, since a message sent mid-turn joins the turn and the thread list follows a beat behind.
   `packages/client/src/thread-entries.ts`.
 - **A thread's events are one query that follows its stream from after the last one held.** A
   stream the cloud cut or a device left picks up by `lastEventId`, so nothing reads a whole

@@ -12,7 +12,7 @@ import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema"
 import { db } from "@repo/db/drizzle-client";
 import { changeSet } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 
 import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
@@ -328,7 +328,7 @@ dbSuite("the built-in agent's conversations", () => {
     expect(platform.session(platform.sessionFor(threadId, 1) ?? "").ended).toBe(true);
   });
 
-  it("settles by the agent's cron a turn stranded open, idling its thread and sealing its set", async () => {
+  it("settles by the agent's cron a turn stranded open, idling its thread, sealing its set and keeping its end once", async () => {
     const { accountId, library } = await personalLibrary();
     const { threadId } = await sendToAgent(runtime, accountId, { text: CREATE_NOTE });
     await platform.turnsSettled();
@@ -340,7 +340,11 @@ dbSuite("the built-in agent's conversations", () => {
       .where(turn);
     await db.update(agentThread).set({ status: "running" }).where(eq(agentThread.id, threadId));
     await db.update(changeSet).set({ sealedAt: null }).where(eq(changeSet.threadId, threadId));
+    await db
+      .delete(agentThreadEvent)
+      .where(and(eq(agentThreadEvent.threadId, threadId), eq(agentThreadEvent.type, "turn.ended")));
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+    const { head } = await library.changes({});
 
     const { turns } = await runAgentCron(runtime);
     expect(turns.settled).toBeGreaterThanOrEqual(1);
@@ -350,6 +354,66 @@ dbSuite("the built-in agent's conversations", () => {
     const { threads } = await library.agent.list({});
     expect(threads).toMatchObject([{ id: threadId, status: "idle" }]);
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+    await expect(library.changes({ after: head })).resolves.toMatchObject({
+      moved: { threads: [threadId] },
+    });
+    const ended = { reason: "failed", turn: 1, type: "turn.ended" };
+    const kept = await keptOf(library, threadId);
+    expect(kept.at(-1)?.event).toStrictEqual(ended);
+
+    await platform.replayHooks(platform.sessionFor(threadId, 1) ?? "");
+    const again = await keptOf(library, threadId);
+    expect(again.filter(({ type }) => type === "turn.ended")).toMatchObject([{ event: ended }]);
+  });
+
+  it("tries a deleted thread whose session can't be ended after those not tried since, so it never starves them", async () => {
+    // each its own account, since a day allows an account two turns
+    const retiredThread = async (text: string) => {
+      const { accountId } = await personalLibrary();
+      const { threadId } = await sendToAgent(runtime, accountId, { text });
+      await platform.turnsSettled();
+      await deleteAgentThread(null, accountId, threadId);
+      return threadId;
+    };
+    const stuck = new Set<string>();
+    const stuckThreads: string[] = [];
+    for (const text of ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"]) {
+      const threadId = await retiredThread(text);
+      stuck.add(platform.sessionFor(threadId, 1) ?? "");
+      stuckThreads.push(threadId);
+    }
+    const failing: AgentRuntime = {
+      ...runtime,
+      platform: {
+        ...platform,
+        end: async (caller, sessionId) => {
+          if (stuck.has(sessionId)) {
+            throw new Error("eve is away");
+          }
+          return await platform.end(caller, sessionId);
+        },
+      },
+    };
+    const allTried = async (): Promise<boolean> => {
+      const rows = await db
+        .select({ triedAt: agentThread.purgeTriedAt })
+        .from(agentThread)
+        .where(inArray(agentThread.id, stuckThreads));
+      return rows.every(({ triedAt }) => triedAt !== null);
+    };
+    while (!(await allTried())) {
+      await runAgentCron(failing);
+    }
+
+    const later: string[] = [];
+    for (const text of ["Nine", "Ten", "Eleven"]) {
+      later.push(await retiredThread(text));
+    }
+    const second = await runAgentCron(failing);
+    expect(second.threads).toMatchObject({ purged: later.length });
+    for (const threadId of later) {
+      await expect(rowCounts(threadId)).resolves.toMatchObject({ threads: 0 });
+    }
   });
 
   it("answers that the agent can't be reached while the deployment reaches no model", async () => {

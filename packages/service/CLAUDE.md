@@ -374,6 +374,15 @@ DOM (`oxlint.config.ts`).
   by `lastEventId` misses and repeats nothing whichever side holds it; a draft
   is never kept, so it shows only from where its stream picked up.
   `packages/service/src/agent/relay.ts`.
+- **A live turn's end streams as its record hook kept it, and waits for that
+  however long it takes.** Streaming past it would move a device's cursor past
+  an end it kept later, which no reconnect then reads.
+  `packages/service/src/agent/relay.ts`.
+- **A thread's move a device lists takes the library's next sequence, on the
+  account's row and first in its transaction.** `library.changes` then names
+  it as it names an item, so another device's list follows within a beat, and
+  the row is locked in the order every write locks it.
+  `packages/service/src/agent/agent-threads.ts`.
 - **The stream has its own route, cut at 280 s inside its 300 s
   `maxDuration`.** A cut reads as a dropped connection, so the device
   reconnects where it left off; every other call keeps `/v1/rpc`'s default
@@ -395,15 +404,18 @@ DOM (`oxlint.config.ts`).
 - **A send's op id answers its resend from `op_answer`, before the limits.**
   A resend after the day ran out would otherwise refuse a message eve already
   took. `packages/service/src/agent/agent-sessions.ts`.
-- **The agent's cron settles a turn open an hour as failed and seals every set
-  whose turn no longer runs.** A settle eve recorded but couldn't deliver, or a
-  landing after one, leaves a set Undo and the prune never reach.
+- **The agent's cron settles a turn open an hour as failed, keeping its end past
+  what the thread kept of its session, and seals every set whose turn no longer
+  runs; whichever settle reaches a turn first keeps its end.** A settle eve
+  recorded but couldn't deliver, or a landing after one, leaves a turn every
+  device shows running and a set Undo and the prune never reach.
   `packages/service/src/agent/eve-agent.ts`.
 - **A deleted thread is a tombstone at once, purged after the response, and
-  by the agent's cron every 15 minutes where that failed.** Ending its eve
-  session can fail, and a row gone first would leave the session running for
-  nobody; the channel refuses the session's every route but stop once its
-  thread is deleted. `packages/service/src/agent/agent-sessions.ts`.
+  by the agent's cron every 15 minutes where that failed, those it never tried
+  first.** Ending its eve session can fail, and a row gone first would leave
+  the session running for nobody; the channel refuses the session's every
+  route but stop once its thread is deleted, and a few that keep failing must
+  not starve the rest. `packages/service/src/agent/agent-sessions.ts`.
 - **A cron route answers only Vercel Cron's bearer, and none with no
   `CRON_SECRET`.** Its address is public. `packages/service/src/cron.ts`.
 

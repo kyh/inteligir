@@ -9,15 +9,16 @@ import type { AgentEvent } from "@repo/contract/library/agent-events";
 import type { WebToolName } from "@repo/contract/library/agent-tools";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
-import type { DbExecutor } from "@repo/db/drizzle-client";
+import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
 import { changeSet } from "@repo/db/library-schema";
-import { and, eq, isNull, lt, notExists } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, notExists } from "drizzle-orm";
 import { activeTurn, call, runs } from "eve/events";
 import type { AnyColumn } from "drizzle-orm";
 import type { Fact, Progress, SessionView, TurnSettled } from "eve/events";
 import type { ToolModelOutput } from "eve/tools";
 
 import { sealTurnSet } from "../library/library-change-sets";
+import { takeLibraryHead } from "../library/library-store";
 import type { TurnStop, UsageAt } from "./agent-limits";
 import { AGENT_TURN_STEPS, bookTurn, chargeSpend } from "./agent-limits";
 import { agentEnabled, filingRulesFor } from "./agent-preference";
@@ -25,7 +26,7 @@ import { costMicroUsdOf, WEB_SEARCH_MICRO_USD } from "./agent-model";
 import type { AgentCallOutcome, AgentTool } from "./agent-tools";
 import { AGENT_TOOLS, callAgentTool } from "./agent-tools";
 import type { TurnAt } from "./agent-threads";
-import { keepTurn, stampTurnStop, threadOf, turnIs, turnOf } from "./agent-threads";
+import { keepTurn, moveThread, stampTurnStop, threadOf, turnIs, turnOf } from "./agent-threads";
 import { eveCallerOf } from "./eve-admission";
 import { shownEvent, turnEndedEvent, turnOutcomeOf } from "./thread-events";
 
@@ -103,14 +104,14 @@ const keepEvent = async (executor: DbExecutor, at: EventAt, event: AgentEvent, n
 const startTurn = async (at: TurnAt, now: number): Promise<void> => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
+    await moveThread(tx, accountId, threadId, { status: "running", updatedAt: now });
     await keepTurn(tx, at, now);
-    await tx
-      .update(agentThread)
-      .set({ status: "running", updatedAt: now })
-      .where(and(eq(agentThread.accountId, accountId), eq(agentThread.id, threadId)));
   });
 };
 
+// The turn ended in its thread by whichever settle reaches it first, its own or the cron's
+// (`settleStrandedTurns`): a settle that finds it settled keeps nothing, so a thread shows a turn's
+// end once
 const settleTurn = async (
   at: TurnAt,
   position: RecordedFact["position"],
@@ -119,14 +120,19 @@ const settleTurn = async (
 ): Promise<void> => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
+    await moveThread(tx, accountId, threadId, { status: "idle", updatedAt: now });
     const turn = await turnOf(tx, at);
     if (turn === null) {
       return;
     }
-    await tx
+    const [settledNow] = await tx
       .update(agentTurn)
       .set({ outcome: turnOutcomeOf(settled, turn), settledAt: now })
-      .where(and(turnIs(at), isNull(agentTurn.settledAt)));
+      .where(and(turnIs(at), isNull(agentTurn.settledAt)))
+      .returning({ number: agentTurn.number });
+    if (settledNow === undefined) {
+      return;
+    }
     await sealTurnSet(tx, accountId, { threadId, turn: turn.number }, now);
     await keepEvent(
       tx,
@@ -134,10 +140,6 @@ const settleTurn = async (
       turnEndedEvent(settled, turn),
       now,
     );
-    await tx
-      .update(agentThread)
-      .set({ status: "idle", updatedAt: now })
-      .where(and(eq(agentThread.accountId, accountId), eq(agentThread.id, threadId)));
   });
 };
 
@@ -193,40 +195,121 @@ const openTurnOf = (accountId: AnyColumn, threadId: AnyColumn, number?: AnyColum
       ),
     );
 
-// The agent's cron's backstop for a settle eve recorded but couldn't deliver: a turn stranded open
-// settles failed and a thread running no turn goes idle. Every set whose turn no longer runs is
-// sealed, as is one a landing made after its turn settled or whose conversation went, which Undo
-// and the prune would otherwise never reach
-export const settleStrandedTurns = async (
-  now: number,
-): Promise<{ readonly settled: number; readonly sealed: number }> =>
+// the most turns, and threads, one cron run settles: stranding is rare, and the next run takes more
+const STRANDED_BATCH = 100;
+
+// where the cron keeps the end of a turn it settled, which eve recorded nowhere: past everything
+// the thread kept of that session
+const pastKept = async (
+  tx: Tx,
+  at: TurnAt,
+): Promise<{ readonly line: number; readonly index: number }> => {
+  const [last] = await tx
+    .select({ index: agentThreadEvent.index, line: agentThreadEvent.line })
+    .from(agentThreadEvent)
+    .where(
+      and(
+        eq(agentThreadEvent.accountId, at.accountId),
+        eq(agentThreadEvent.threadId, at.threadId),
+        eq(agentThreadEvent.eveSessionNumber, at.eveSessionNumber),
+      ),
+    )
+    .orderBy(desc(agentThreadEvent.line), desc(agentThreadEvent.index))
+    .limit(1);
+  return last === undefined ? { index: 0, line: 0 } : { index: last.index + 1, line: last.line };
+};
+
+// a turn stranded open settled failed and its end kept, unless its own settle came meanwhile; the
+// sweep after seals its set
+const settleStranded = async (at: TurnAt, now: number): Promise<boolean> =>
   await db.transaction(async (tx) => {
-    const settled = await tx
+    const { accountId, threadId } = at;
+    await moveThread(tx, accountId, threadId, { status: "idle", updatedAt: now });
+    const [settled] = await tx
       .update(agentTurn)
       .set({ outcome: "failed", settledAt: now })
-      .where(and(isNull(agentTurn.settledAt), lt(agentTurn.startedAt, now - TURN_STRANDED_MS)))
+      .where(and(turnIs(at), isNull(agentTurn.settledAt)))
       .returning({ number: agentTurn.number });
+    if (settled === undefined) {
+      return false;
+    }
+    const ended: AgentEvent = { reason: "failed", turn: settled.number, type: "turn.ended" };
+    await keepEvent(
+      tx,
+      { accountId, eveSessionNumber: at.eveSessionNumber, threadId, ...(await pastKept(tx, at)) },
+      ended,
+      now,
+    );
+    return true;
+  });
+
+// a thread still marked running whose turns all settled, idled
+const idleUnheld = async (accountId: string, threadId: string, now: number): Promise<void> => {
+  await db.transaction(async (tx) => {
+    const seq = await takeLibraryHead(tx, accountId);
     await tx
       .update(agentThread)
-      .set({ status: "idle", updatedAt: now })
+      .set({ seq, status: "idle", updatedAt: now })
       .where(
         and(
+          eq(agentThread.accountId, accountId),
+          eq(agentThread.id, threadId),
           eq(agentThread.status, "running"),
           notExists(openTurnOf(agentThread.accountId, agentThread.id)),
         ),
       );
-    const sealed = await tx
-      .update(changeSet)
-      .set({ sealedAt: now })
-      .where(
-        and(
-          isNull(changeSet.sealedAt),
-          notExists(openTurnOf(changeSet.accountId, changeSet.threadId, changeSet.turn)),
-        ),
-      )
-      .returning({ id: changeSet.id });
-    return { sealed: sealed.length, settled: settled.length };
   });
+};
+
+// The agent's cron's backstop for a settle eve recorded but couldn't deliver: a turn stranded open
+// settles failed, its end kept in its thread, and a thread running no turn goes idle. Every set
+// whose turn no longer runs is sealed, as is one a landing made after its turn settled or whose
+// conversation went, which Undo and the prune would otherwise never reach
+export const settleStrandedTurns = async (
+  now: number,
+): Promise<{ readonly settled: number; readonly idled: number; readonly sealed: number }> => {
+  const stranded = await db
+    .select({
+      accountId: agentTurn.accountId,
+      eveSessionNumber: agentTurn.eveSessionNumber,
+      eveTurnId: agentTurn.eveTurnId,
+      threadId: agentTurn.threadId,
+    })
+    .from(agentTurn)
+    .where(and(isNull(agentTurn.settledAt), lt(agentTurn.startedAt, now - TURN_STRANDED_MS)))
+    .limit(STRANDED_BATCH);
+  let settled = 0;
+  for (const at of stranded) {
+    if (await settleStranded(at, now)) {
+      settled += 1;
+    }
+  }
+  const unheld = await db
+    .select({ accountId: agentThread.accountId, id: agentThread.id })
+    .from(agentThread)
+    .where(
+      and(
+        eq(agentThread.status, "running"),
+        isNull(agentThread.deletedAt),
+        notExists(openTurnOf(agentThread.accountId, agentThread.id)),
+      ),
+    )
+    .limit(STRANDED_BATCH);
+  for (const { accountId, id } of unheld) {
+    await idleUnheld(accountId, id, now);
+  }
+  const sealed = await db
+    .update(changeSet)
+    .set({ sealedAt: now })
+    .where(
+      and(
+        isNull(changeSet.sealedAt),
+        notExists(openTurnOf(changeSet.accountId, changeSet.threadId, changeSet.turn)),
+      ),
+    )
+    .returning({ id: changeSet.id });
+  return { idled: unheld.length, sealed: sealed.length, settled };
+};
 
 interface LimitedFact {
   readonly auth: EveAuth;

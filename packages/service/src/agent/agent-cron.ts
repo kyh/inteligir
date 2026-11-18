@@ -11,7 +11,7 @@ import type { AgentRuntime } from "./runtime";
 import { deploymentAgentRuntime } from "./runtime";
 
 export const runAgentCron = async (runtime: AgentRuntime | null, now = Date.now()) => ({
-  threads: await purgeRetiredThreads(runtime),
+  threads: await purgeRetiredThreads(runtime, now),
   turns: await settleStrandedTurns(now),
   usage: { trimmed: await trimUsage(now) },
 });

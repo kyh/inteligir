@@ -88,28 +88,32 @@ const raised = (cause: unknown, code: string): boolean => {
 // (`../files/file-landing`): a lock held across a network call stalls every write of the account.
 // An account deleted, its row with it, is refused `gone`, whether it went before the write or
 // while the write waited on its lock
+const lockLibraryRow = async (tx: Tx, accountId: string): Promise<void> => {
+  await tx.execute(sql`select set_config('lock_timeout', ${LOCK_TIMEOUT}, true)`);
+  try {
+    await tx.insert(libraryState).values({ accountId }).onConflictDoNothing();
+  } catch (error) {
+    if (raised(error, FOREIGN_KEY_VIOLATION)) {
+      refuse({ kind: "gone" });
+    }
+    throw error;
+  }
+  const [held] = await tx
+    .select({ accountId: libraryState.accountId })
+    .from(libraryState)
+    .where(eq(libraryState.accountId, accountId))
+    .for("update");
+  if (held === undefined) {
+    refuse({ kind: "gone" });
+  }
+};
+
 export const withAccountLock = async <T>(
   accountId: string,
   work: (tx: Tx) => Promise<T>,
 ): Promise<T> =>
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('lock_timeout', ${LOCK_TIMEOUT}, true)`);
-    try {
-      await tx.insert(libraryState).values({ accountId }).onConflictDoNothing();
-    } catch (error) {
-      if (raised(error, FOREIGN_KEY_VIOLATION)) {
-        refuse({ kind: "gone" });
-      }
-      throw error;
-    }
-    const [held] = await tx
-      .select({ accountId: libraryState.accountId })
-      .from(libraryState)
-      .where(eq(libraryState.accountId, accountId))
-      .for("update");
-    if (held === undefined) {
-      refuse({ kind: "gone" });
-    }
+    await lockLibraryRow(tx, accountId);
     return await work(tx);
   });
 
@@ -125,6 +129,15 @@ const takeHead = async (tx: Tx, accountId: string): Promise<number> => {
     throw new Error("the account's library row is gone under its own lock");
   }
   return row.head;
+};
+
+// The library's next sequence for a move of the account's that is no write of the library, a
+// thread's (`../agent/agent-threads`): taken on the account's row as a write takes it, so asked
+// first in its transaction, as a write locks that row before anything else, and held until the
+// transaction ends
+export const takeLibraryHead = async (tx: Tx, accountId: string): Promise<number> => {
+  await lockLibraryRow(tx, accountId);
+  return await takeHead(tx, accountId);
 };
 
 // the sequence number a write took and the change set it joined, each null until it took one, and

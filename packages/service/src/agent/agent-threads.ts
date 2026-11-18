@@ -1,14 +1,17 @@
 // A thread's rows: the conversation and the eve session it runs on, its turns and the events its
 // record hook keeps (`./eve-agent`), read and written as one account's. A deleted thread is read by
-// nothing here but its retirement (`./agent-sessions`).
+// nothing here but its retirement (`./agent-sessions`). A move a device lists, a thread made, run,
+// idled or deleted, takes the library's next sequence, so another device's ask of what moved names
+// the thread (`../library/library-changes`).
 
 import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
-import type { DbExecutor } from "@repo/db/drizzle-client";
+import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
 import { and, asc, desc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { takeLibraryHead } from "../library/library-store";
 import type { TurnStop } from "./agent-limits";
 import type { ThreadPosition } from "./thread-events";
 import { cursorOf } from "./thread-events";
@@ -37,19 +40,42 @@ export const openThread = async (
   accountId: string,
   thread: { readonly id: string; readonly title: string; readonly now: number },
 ): Promise<ThreadRow | null> => {
-  await db
-    .insert(agentThread)
-    .values({
-      accountId,
-      createdAt: thread.now,
-      eveSessionNumber: 1,
-      id: thread.id,
-      status: "idle",
-      title: thread.title,
-      updatedAt: thread.now,
-    })
-    .onConflictDoNothing();
+  await db.transaction(async (tx) => {
+    const seq = await takeLibraryHead(tx, accountId);
+    await tx
+      .insert(agentThread)
+      .values({
+        accountId,
+        createdAt: thread.now,
+        eveSessionNumber: 1,
+        id: thread.id,
+        seq,
+        status: "idle",
+        title: thread.title,
+        updatedAt: thread.now,
+      })
+      .onConflictDoNothing();
+  });
   return await threadOf(accountId, thread.id);
+};
+
+type ThreadMove = Partial<Pick<ThreadRow, "deletedAt" | "status" | "updatedAt">>;
+
+// a live thread moved as a device lists it, stamped with the library's next sequence; asked first
+// in its transaction, which then holds the library's row. Null once the thread was deleted
+export const moveThread = async (
+  tx: Tx,
+  accountId: string,
+  threadId: string,
+  move: ThreadMove,
+): Promise<ThreadRow | null> => {
+  const seq = await takeLibraryHead(tx, accountId);
+  const [moved] = await tx
+    .update(agentThread)
+    .set({ ...move, seq })
+    .where(liveThreadIs(accountId, threadId))
+    .returning();
+  return moved ?? null;
 };
 
 // the eve session the thread runs on from now, by its number; null once the thread was deleted
@@ -76,23 +102,32 @@ export const retireThread = async (
   accountId: string,
   threadId: string,
   now: number,
-): Promise<ThreadRow | null> => {
-  const [retired] = await db
-    .update(agentThread)
-    .set({ deletedAt: now })
-    .where(liveThreadIs(accountId, threadId))
-    .returning();
-  return retired ?? null;
-};
+): Promise<ThreadRow | null> =>
+  await db.transaction(async (tx) => await moveThread(tx, accountId, threadId, { deletedAt: now }));
 
-// the deleted threads whose eve session is still to end, the longest deleted first
+// The deleted threads whose eve session is still to end: those never tried first, the longest
+// deleted first, then those tried longest ago, so a few that keep failing never starve the rest
 export const retiredThreads = async (limit: number): Promise<ThreadRow[]> =>
   await db
     .select()
     .from(agentThread)
     .where(isNotNull(agentThread.deletedAt))
-    .orderBy(asc(agentThread.deletedAt))
+    .orderBy(sql`${agentThread.purgeTriedAt} asc nulls first`, asc(agentThread.deletedAt))
     .limit(limit);
+
+// a deleted thread whose eve session couldn't be ended now, tried again after the rest
+export const purgeTried = async (row: ThreadRow, now: number): Promise<void> => {
+  await db
+    .update(agentThread)
+    .set({ purgeTriedAt: now })
+    .where(
+      and(
+        eq(agentThread.accountId, row.accountId),
+        eq(agentThread.id, row.id),
+        isNotNull(agentThread.deletedAt),
+      ),
+    );
+};
 
 // a deleted thread gone, its events and its turns with it
 export const purgeThreadRow = async (row: ThreadRow): Promise<void> => {
@@ -226,6 +261,41 @@ export interface KeptEvent {
   readonly row: ThreadEventRow;
 }
 
+const keptOf = (row: typeof agentThreadEvent.$inferSelect): KeptEvent => {
+  const position = { index: row.index, line: row.line, session: row.eveSessionNumber };
+  return {
+    position,
+    row: {
+      at: row.at,
+      event: storedEvent.parse(row.event),
+      eventId: cursorOf(position),
+      threadId: row.threadId,
+      type: row.type,
+    },
+  };
+};
+
+// the event the thread kept at `position`, or null for none
+export const keptEventAt = async (
+  accountId: string,
+  threadId: string,
+  { index, line, session }: ThreadPosition,
+): Promise<ThreadEventRow | null> => {
+  const [row] = await db
+    .select()
+    .from(agentThreadEvent)
+    .where(
+      and(
+        eq(agentThreadEvent.accountId, accountId),
+        eq(agentThreadEvent.threadId, threadId),
+        eq(agentThreadEvent.eveSessionNumber, session),
+        eq(agentThreadEvent.line, line),
+        eq(agentThreadEvent.index, index),
+      ),
+    );
+  return row === undefined ? null : keptOf(row).row;
+};
+
 // a page of the thread's kept events after `after`, in the order eve recorded them
 export const threadHistory = async (
   accountId: string,
@@ -251,17 +321,5 @@ export const threadHistory = async (
       asc(agentThreadEvent.index),
     )
     .limit(page.limit);
-  return rows.map((row) => {
-    const position = { index: row.index, line: row.line, session: row.eveSessionNumber };
-    return {
-      position,
-      row: {
-        at: row.at,
-        event: storedEvent.parse(row.event),
-        eventId: cursorOf(position),
-        threadId: row.threadId,
-        type: row.type,
-      },
-    };
-  });
+  return rows.map(keptOf);
 };

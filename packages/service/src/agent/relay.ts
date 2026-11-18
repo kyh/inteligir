@@ -4,7 +4,6 @@
 // never kept, only from where its stream picks up. Its route cuts the stream before its
 // `maxDuration`, and the device reconnects where it left off.
 
-import type { AgentEvent } from "@repo/contract/library/agent-events";
 import { NotFoundError } from "@repo/contract/rpc/v1-errors";
 import type { threadStreamEventSchema } from "@repo/contract/library/library-wire";
 import { db } from "@repo/db/drizzle-client";
@@ -12,20 +11,13 @@ import { withEventMeta } from "@orpc/server";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { z } from "zod";
 
-import type { KeptTurn, ThreadEventRow, ThreadRow, TurnAt } from "./agent-threads";
-import { threadHistory, threadOf, turnOf } from "./agent-threads";
+import type { ThreadEventRow, ThreadRow, TurnAt } from "./agent-threads";
+import { keptEventAt, threadHistory, threadOf, turnOf } from "./agent-threads";
 import type { AgentPlatform, AgentStreamEvent } from "./platform";
 import { isSessionEnded } from "./platform";
 import type { AgentRuntime } from "./runtime";
 import type { ThreadPosition } from "./thread-events";
-import {
-  comparePositions,
-  cursorOf,
-  draftReader,
-  parseCursor,
-  shownEvent,
-  turnEndedEvent,
-} from "./thread-events";
+import { comparePositions, cursorOf, draftReader, parseCursor, shownEvent } from "./thread-events";
 
 type ThreadStreamEvent = z.infer<typeof threadStreamEventSchema>;
 
@@ -38,9 +30,10 @@ const RECONNECT_MS = 1000;
 // the kept events read at once while catching up
 const HISTORY_PAGE = 500;
 
-// how often a live turn's end asks whether its settle is kept yet, and for how long at most
+// how often a live turn's end asks whether its settle is kept yet: this often at first, then at the
+// beat a thread with no session to follow is read at
 const SETTLE_POLL_MS = 100;
-const SETTLE_WAIT_MS = 10_000;
+const SETTLE_QUICK_MS = 10_000;
 
 interface FollowedSession {
   readonly accountId: string;
@@ -50,51 +43,53 @@ interface FollowedSession {
 }
 
 // eve streams a turn's settle as its record hook keeps it, which seals what Undo takes back and
-// idles the thread at once, so its end waits for that: a device that asks again as it lands reads
-// both. Past the wait it shows as its row stands, the cron's to settle
-const keptSettle = async (at: TurnAt, stop: AbortSignal): Promise<KeptTurn | null> => {
-  const deadline = Date.now() + SETTLE_WAIT_MS;
-  let turn = await turnOf(db, at);
-  while ((turn === null || turn.settledAt === null) && Date.now() < deadline && !stop.aborted) {
+// idles the thread at once, so its end waits for that however long it takes, nothing after it
+// streaming first, and shows as the hook kept it: a device that asks again as it lands reads both.
+// A turn the cron settled first has its end kept where the cron put it, which shows on the next
+// read of what the thread kept; null for that, and once `stop` aborts
+const keptEnd = async (
+  at: TurnAt,
+  position: ThreadPosition,
+  { pollMs, stop }: { readonly pollMs: number; readonly stop: AbortSignal },
+): Promise<ThreadEventRow | null> => {
+  const quickUntil = Date.now() + SETTLE_QUICK_MS;
+  while (!stop.aborted) {
+    const turn = await turnOf(db, at);
+    if (turn !== null && turn.settledAt !== null) {
+      return await keptEventAt(at.accountId, at.threadId, position);
+    }
     // an abort ends the wait early with an AbortError: the loop then stops
-    await sleep(SETTLE_POLL_MS, undefined, { signal: stop }).catch(() => null);
-    turn = await turnOf(db, at);
+    await sleep(Date.now() < quickUntil ? SETTLE_POLL_MS : pollMs, undefined, {
+      signal: stop,
+    }).catch(() => null);
   }
-  return turn;
+  return null;
 };
 
-// what the thread shows of a fact as it happens: the record hook's event, a turn's end numbered
-// and named from its row once its settle is kept
-const relayedEvent = async (
-  session: FollowedSession,
-  recorded: AgentStreamEvent,
-  stop: AbortSignal,
-): Promise<AgentEvent | null> => {
-  const { accountId, eveSessionNumber, threadId } = session;
-  if (recorded.type !== "turn.settled") {
-    return shownEvent(recorded, eveSessionNumber);
-  }
-  const turn = await keptSettle(
-    { accountId, eveSessionNumber, eveTurnId: recorded.data.turnId, threadId },
-    stop,
-  );
-  return turn === null ? null : turnEndedEvent(recorded, turn);
-};
-
+// what the thread shows of a fact as it happens: the record hook's event, a turn's end as it was
+// kept
 const relayedRow = async (
   session: FollowedSession,
   recorded: AgentStreamEvent,
   at: ThreadPosition,
-  stop: AbortSignal,
+  wait: { readonly pollMs: number; readonly stop: AbortSignal },
 ): Promise<ThreadEventRow | null> => {
-  const event = await relayedEvent(session, recorded, stop);
+  const { accountId, eveSessionNumber, threadId } = session;
+  if (recorded.type === "turn.settled") {
+    return await keptEnd(
+      { accountId, eveSessionNumber, eveTurnId: recorded.data.turnId, threadId },
+      at,
+      wait,
+    );
+  }
+  const event = shownEvent(recorded, eveSessionNumber);
   return event === null
     ? null
     : {
         at: Date.parse(recorded.meta.at),
         event,
         eventId: cursorOf(at),
-        threadId: session.threadId,
+        threadId,
         type: event.type,
       };
 };
@@ -110,7 +105,7 @@ interface SessionEvent {
 const sessionEvents = async function* sessionEvents(
   platform: AgentPlatform,
   session: FollowedSession,
-  startIndex: number,
+  from: { readonly startIndex: number; readonly pollMs: number },
   stop: AbortSignal,
 ): AsyncGenerator<SessionEvent> {
   const draftOf = draftReader();
@@ -122,10 +117,10 @@ const sessionEvents = async function* sessionEvents(
   try {
     for await (const recorded of platform.stream(caller, session.eveSessionId, {
       signal: stop,
-      startIndex,
+      startIndex: from.startIndex,
     })) {
       const at = { ...recorded.meta.position, session: session.eveSessionNumber };
-      const row = await relayedRow(session, recorded, at, stop);
+      const row = await relayedRow(session, recorded, at, { pollMs: from.pollMs, stop });
       const draft = row === null ? draftOf(recorded) : null;
       if (row !== null) {
         yield { at, event: { kind: "event", row } };
@@ -191,7 +186,12 @@ const relayThread = async function* relayThread(
     } else {
       followed = session.eveSessionId;
       const startIndex = sent?.session === session.eveSessionNumber ? sent.line : 0;
-      for await (const { at, event } of sessionEvents(platform, session, startIndex, stop)) {
+      for await (const { at, event } of sessionEvents(
+        platform,
+        session,
+        { pollMs, startIndex },
+        stop,
+      )) {
         if (at === null) {
           yield event;
         } else if (unsent(at)) {

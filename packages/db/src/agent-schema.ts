@@ -61,7 +61,9 @@ const accountId = () =>
 // The thread and the eve session it runs on now, by its number: a thread starts its next session
 // once the one it ran ended or aged, so the number counts up while the session's id is unset until
 // eve answers its create. A deleted thread keeps its row, `deleted_at` set and read by nothing, only
-// until its eve session is ended
+// until its eve session is ended, `purge_tried_at` set each time that can't be done. Each move a
+// device lists, its status, order or deletion, stamps `seq` with the library's next sequence, as an
+// item's write does
 export const agentThread = pgTable.withRLS(
   "agent_thread",
   {
@@ -72,6 +74,8 @@ export const agentThread = pgTable.withRLS(
     eveSessionNumber: integer("eve_session_number").notNull(),
     eveSessionStartedAt: ms("eve_session_started_at"),
     id: text("id").notNull(),
+    purgeTriedAt: ms("purge_tried_at"),
+    seq: ms("seq").notNull(),
     status: agentThreadStatus("status").notNull(),
     title: text("title").notNull(),
     updatedAt: ms("updated_at").notNull(),
@@ -80,6 +84,7 @@ export const agentThread = pgTable.withRLS(
     primaryKey({ columns: [table.accountId, table.id] }),
     uniqueIndex("agent_thread_eve_session").on(table.eveSessionId),
     index("agent_thread_listed").on(table.accountId, table.updatedAt.desc().nullsFirst()),
+    index("agent_thread_seq").on(table.accountId, table.seq),
     index("agent_thread_deleted")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),

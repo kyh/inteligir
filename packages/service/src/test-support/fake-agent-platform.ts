@@ -79,6 +79,10 @@ interface SessionState {
 export interface FakeAgentPlatform extends AgentPlatform {
   // delivers every recorded fact to the hook again, as eve may after an interruption
   readonly replayHooks: (sessionId: string) => Promise<void>;
+  // holds back the hooks of the next line recorded with a fact of `type` until the release it
+  // answers, as a hook eve delivers late; the session runs on meanwhile, and holds of other types
+  // stand beside it
+  readonly holdHooks: (type: Fact["type"]) => () => Promise<void>;
   // ends the session as its idle timeout or an eve upgrade would
   readonly expire: (sessionId: string) => Promise<void>;
   readonly session: (sessionId: string) => {
@@ -174,6 +178,13 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
     }
   };
 
+  // the holds `holdHooks` set, each with the line it took once one was recorded
+  interface HookHold {
+    readonly type: Fact["type"];
+    line: { readonly state: SessionState; readonly line: number } | null;
+  }
+  const holds = new Set<HookHold>();
+
   const record = async (sessionId: string, facts: readonly Fact[]): Promise<void> => {
     const state = stateOf(sessionId);
     state.lines.push({ at: Date.now(), facts, kind: "facts" });
@@ -185,7 +196,15 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
       }
     }
     state.added.dispatchEvent(new Event("line"));
-    await deliverHooks(state, state.lines.length - 1);
+    const line = state.lines.length - 1;
+    const hold = [...holds].find(
+      (open) => open.line === null && facts.some(({ type }) => type === open.type),
+    );
+    if (hold !== undefined) {
+      hold.line = { line, state };
+      return;
+    }
+    await deliverHooks(state, line);
   };
 
   // a fact the turn records, after whose hooks a stop ends the turn where it is
@@ -421,6 +440,17 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
     },
 
     expire: end,
+
+    holdHooks: (type) => {
+      const hold: HookHold = { line: null, type };
+      holds.add(hold);
+      return async () => {
+        holds.delete(hold);
+        if (hold.line !== null) {
+          await deliverHooks(hold.line.state, hold.line.line);
+        }
+      };
+    },
 
     replayHooks: async (sessionId) => {
       const state = sessions.get(sessionId);

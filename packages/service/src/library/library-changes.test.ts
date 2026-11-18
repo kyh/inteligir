@@ -1,12 +1,14 @@
 // What moved after a head, over Postgres and through the contract as a device asks it: the first
-// ask learns the head alone, each later one names the items and folders stamped past the head it
-// sends, a purged item among them, and a library emptied under a device names everything.
+// ask learns the head alone, each later one names the items, folders and threads stamped past the
+// head it sends, a purged item among them, and a library emptied under a device names everything.
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
+import { deleteAgentThread, sendToAgent } from "../agent/agent-sessions";
+import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
 import { personalLibrary, seedItem } from "../test-support/library-fixture";
 import { mintLibraryId } from "./library-ids";
 
@@ -76,6 +78,31 @@ dbSuite("what moved in the library after a head", () => {
     });
     const folders = await library.changes({ after: after.head });
     expect(folders.moved).toStrictEqual({ folders: true, items: [], threads: [] });
+  });
+
+  it("names a thread as it starts running, idles and is deleted, each by the next ask, as its list shows it", async () => {
+    const platform = createFakeAgentPlatform();
+    const { runtime } = fakeAgentRuntime(platform);
+    const { accountId, library } = await personalLibrary();
+    const movedSince = async (after: number) => {
+      const { head, moved } = await library.changes({ after });
+      const { threads } = await library.agent.list({});
+      return { head, listed: threads.map(({ status }) => status), threads: moved?.threads };
+    };
+    const { head } = await library.changes({});
+
+    const release = platform.holdHooks("turn.settled");
+    const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
+    await platform.turnsSettled();
+    const running = await movedSince(head);
+    expect(running).toMatchObject({ listed: ["running"], threads: [threadId] });
+
+    await release();
+    const idle = await movedSince(running.head);
+    expect(idle).toMatchObject({ listed: ["idle"], threads: [threadId] });
+
+    await deleteAgentThread(null, accountId, threadId);
+    await expect(movedSince(idle.head)).resolves.toMatchObject({ listed: [], threads: [threadId] });
   });
 
   it("names nothing another account wrote", async () => {

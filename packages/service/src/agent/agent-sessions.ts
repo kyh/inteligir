@@ -22,6 +22,7 @@ import type { ThreadRow } from "./agent-threads";
 import {
   openThread,
   purgeThreadRow,
+  purgeTried,
   retiredThreads,
   retireThread,
   startedSession,
@@ -330,19 +331,24 @@ export const deleteAgentThread = async (
 const PURGE_BATCH = 10;
 
 // the deleted threads whose purge after their response failed, each alone: one that fails again is
-// logged and tried by the next run
+// logged and tried by a later run, after those not tried since
 export const purgeRetiredThreads = async (
   runtime: AgentRuntime | null,
+  now = Date.now(),
 ): Promise<Record<PurgeOutcome, number>> => {
   const rows = await retiredThreads(PURGE_BATCH);
   const outcomes = await Promise.all(
     rows.map(async (row): Promise<PurgeOutcome> => {
+      let outcome: PurgeOutcome = "failed";
       try {
-        return await purgeRetired(runtime?.platform ?? null, row);
+        outcome = await purgeRetired(runtime?.platform ?? null, row);
       } catch (error) {
         console.error({ event: "agent-purge-failed", threadId: row.id, ...errorFields(error) });
-        return "failed";
       }
+      if (outcome !== "purged") {
+        await purgeTried(row, now);
+      }
+      return outcome;
     }),
   );
   const tally = { failed: 0, kept: 0, purged: 0 };
