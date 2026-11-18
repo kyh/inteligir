@@ -231,6 +231,11 @@ DOM (`oxlint.config.ts`).
   item whole or not at all.** A body written since keeps the item, named,
   rather than a merge of two writers' blocks, and turns undone together chain
   by those versions. `packages/service/src/library/revert-change.ts`.
+- **An undo lands at most a bulk change's entries a write: a conversation a lot
+  a call, cut at a turn's edge, and one turn of more a window a write in item
+  order, within its call.** A lot holds the account's lock about as long as a
+  bulk change does, and a turn of the agent's twenty steps can name thousands
+  of items. `packages/service/src/library/library-undo.ts`.
 - **Housekeeping prunes change sets and op answers inside its own
   transaction, skipping an account a write holds.** It locks each account's
   row as a write does, so a prune never races an Undo, and a busy account

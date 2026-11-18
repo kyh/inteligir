@@ -130,6 +130,39 @@ dbSuite("Undo of the built-in agent's turns", () => {
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
   });
 
+  it("takes back a turn of more changes than a lot holds a write at a time, in one call", async () => {
+    const { accountId, library } = await personalLibrary();
+    const ids: string[] = [];
+    for (let at = 0; at < 2 * BULK_ITEMS_MAX + 1; at += 1) {
+      const seeded = await seedItem(accountId, {
+        fields: noteFixture({ title: `Note ${String(at)}` }),
+      });
+      ids.push(seeded.id);
+    }
+    const threadId = randomUUID();
+    const turn = turnOf(accountId, threadId, 1);
+    for (let at = 0; at < ids.length; at += BULK_ITEMS_MAX) {
+      await turn.library.items.delete({ ids: ids.slice(at, at + BULK_ITEMS_MAX) });
+    }
+    await turn.end();
+
+    const sorted = ids.toSorted();
+    await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual({
+      ...NOTHING_LEFT,
+      reverted: sorted,
+    });
+    // a write takes one sequence, so each window of the set, in item order, landed in its own
+    const seqs = await Promise.all(
+      [0, BULK_ITEMS_MAX - 1, BULK_ITEMS_MAX, 2 * BULK_ITEMS_MAX].map(async (at) => {
+        const { seq } = await library.items.row({ id: sorted[at] ?? "" });
+        return seq;
+      }),
+    );
+    expect(new Set(seqs).size).toBe(3);
+    expect(seqs).toStrictEqual(seqs.toSorted((a, b) => a - b));
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+  });
+
   it("answers an undo another item's link holds back in words that say so", async () => {
     const { accountId, library } = await personalLibrary();
     const url = "https://pages.example/held";

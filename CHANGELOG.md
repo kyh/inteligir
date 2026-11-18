@@ -187,6 +187,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Add property closes as Info moves to another item**, so what you typed in it can't land on the wrong one, and its name stops at 1,000 characters as you type.
 - **A change that doesn't go through puts back only its own items**: a pin, move, tag, delete, property or folder change you made just after it is no longer undone with it on screen until your library is read again.
 - **A pin, move, tag or delete you make just after another stays on screen while the first one goes through**, instead of blinking off until it goes through too.
+- **Undo this turn takes back a turn that changed more than 100 items in steps**, so a note you save or an item you move meanwhile goes through instead of waiting on it or failing as busy.
 - **A pin, move, tag or delete stays on screen while it goes through when another device's change arrives meanwhile**, which then shows once yours has gone through, instead of blinking yours off.
 - **inteligir.com's home page opens in a browser that can't draw 3D graphics**, without its spinning shape, where it showed an error in place of the whole page.
 - **A search hit in ⌘P fits its row**: its title and the passage under it sit inside the highlight instead of spilling into the next hit.
