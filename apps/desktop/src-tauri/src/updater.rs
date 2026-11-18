@@ -43,6 +43,14 @@ pub enum UpdateState {
     },
 }
 
+/// How far a download is: asked and waiting for its first bytes, with the failure it retries when it
+/// is a retry, then the share of them received.
+#[derive(Debug, PartialEq)]
+enum Received {
+    Nothing { retrying: Option<String> },
+    Percent(u8),
+}
+
 /// Where the session stands, the release it found and its verified bytes held inside the phase
 /// that has them, so no phase names an update it does not hold. `U` is the plugin's `Update` in
 /// the shell and `()` in the tests.
@@ -57,7 +65,7 @@ enum Phase<U> {
     },
     Downloading {
         version: String,
-        percent: u8,
+        received: Received,
     },
     Downloaded {
         version: String,
@@ -93,6 +101,7 @@ enum Event<U> {
     /// The feed's answer: a newer release by its version, none, or why it could not be read.
     Checked(Result<Option<(String, U)>, String>),
     DownloadAsked,
+    /// Bytes arrived, this share of them all; 0 where the feed names no size.
     Progress(u8),
     /// The release comes back with the bytes or why they did not arrive.
     DownloadEnded(U, Result<Vec<u8>, String>),
@@ -128,22 +137,36 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
         }
         (Phase::Checking, Event::Checked(Ok(None))) => (Phase::NotAvailable, None),
         (Phase::Checking, Event::Checked(Err(message))) => (Phase::CheckFailed { message }, None),
+        (Phase::Available { version, update }, Event::DownloadAsked) => (
+            Phase::Downloading {
+                version,
+                received: Received::Nothing { retrying: None },
+            },
+            Some(Work::Download(update)),
+        ),
         (
-            Phase::Available { version, update }
-            | Phase::DownloadFailed {
-                version, update, ..
+            Phase::DownloadFailed {
+                version,
+                update,
+                message,
             },
             Event::DownloadAsked,
         ) => (
             Phase::Downloading {
                 version,
-                percent: 0,
+                received: Received::Nothing {
+                    retrying: Some(message),
+                },
             },
             Some(Work::Download(update)),
         ),
-        (Phase::Downloading { version, .. }, Event::Progress(percent)) => {
-            (Phase::Downloading { version, percent }, None)
-        }
+        (Phase::Downloading { version, .. }, Event::Progress(percent)) => (
+            Phase::Downloading {
+                version,
+                received: Received::Percent(percent),
+            },
+            None,
+        ),
         (Phase::Downloading { version, .. }, Event::DownloadEnded(update, Ok(bytes))) => (
             Phase::Downloaded {
                 version,
@@ -192,7 +215,8 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
 
 impl<U> Phase<U> {
     /// The page's view: installing reads as downloaded until the app restarts, since the page
-    /// draws no state of its own for it.
+    /// draws no state of its own for it, and a download reads as the step it was asked from until
+    /// its first bytes arrive, so a retry that fails at once, offline, shows no progress between.
     fn wire(&self) -> UpdateState {
         match self {
             Self::Idle => UpdateState::Idle,
@@ -201,8 +225,19 @@ impl<U> Phase<U> {
             Self::Available { version, .. } => UpdateState::Available {
                 version: version.clone(),
             },
-            Self::Downloading { percent, .. } => UpdateState::Downloading {
-                download_percent: *percent,
+            Self::Downloading { version, received } => match received {
+                Received::Nothing { retrying: None } => UpdateState::Available {
+                    version: version.clone(),
+                },
+                Received::Nothing {
+                    retrying: Some(message),
+                } => UpdateState::DownloadFailed {
+                    version: version.clone(),
+                    message: message.clone(),
+                },
+                Received::Percent(percent) => UpdateState::Downloading {
+                    download_percent: *percent,
+                },
             },
             Self::Downloaded { version, .. } | Self::Installing { version } => {
                 UpdateState::Downloaded {
@@ -303,9 +338,8 @@ pub async fn download_update(app: AppHandle) -> UpdateState {
         .download(
             |chunk, total| {
                 received = received.saturating_add(u64::try_from(chunk).unwrap_or(u64::MAX));
-                if let Some(total) = total {
-                    step(&app, Event::Progress(percent(received, total)));
-                }
+                let share = total.map_or(0, |total| percent(received, total));
+                step(&app, Event::Progress(share));
             },
             || {},
         )
@@ -349,7 +383,7 @@ mod tests {
     fn downloading() -> Phase<()> {
         Phase::Downloading {
             version: "1.2.3".into(),
-            percent: 7,
+            received: Received::Percent(7),
         }
     }
 
@@ -442,6 +476,13 @@ mod tests {
         assert_eq!(phase, available());
         let (phase, work) = apply(phase, Event::DownloadAsked);
         assert_eq!(work, Some(Work::Download(())));
+        // the page reads the release found until the first bytes arrive
+        assert_eq!(
+            phase.wire(),
+            UpdateState::Available {
+                version: "1.2.3".into()
+            }
+        );
         let (phase, _) = apply(phase, Event::Progress(42));
         assert_eq!(
             phase.wire(),
@@ -500,13 +541,40 @@ mod tests {
             (
                 &Phase::Downloading {
                     version: "1.2.3".into(),
-                    percent: 0
+                    received: Received::Nothing {
+                        retrying: Some("offline".into())
+                    }
                 },
                 Some(Work::Download(()))
             )
         );
         let (phase, _) = apply(phase, Event::DownloadEnded((), Ok(vec![1, 2, 3])));
         assert_eq!(phase, downloaded());
+    }
+
+    #[test]
+    fn a_retry_reads_as_its_failure_until_bytes_arrive_so_one_failing_at_once_shows_no_progress() {
+        let (retrying, _) = apply(download_failed(), Event::DownloadAsked);
+        assert_eq!(retrying.wire(), download_failed().wire());
+        let (failed, _) = apply(
+            retrying,
+            Event::DownloadEnded((), Err("still offline".into())),
+        );
+        assert_eq!(
+            failed.wire(),
+            UpdateState::DownloadFailed {
+                version: "1.2.3".into(),
+                message: "still offline".into()
+            }
+        );
+        let (retrying, _) = apply(failed, Event::DownloadAsked);
+        let (receiving, _) = apply(retrying, Event::Progress(0));
+        assert_eq!(
+            receiving.wire(),
+            UpdateState::Downloading {
+                download_percent: 0
+            }
+        );
     }
 
     #[test]

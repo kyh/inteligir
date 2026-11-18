@@ -586,7 +586,8 @@ Only once every check in § 5 has passed, and the three close together.
   build, choose Download and turn Wi-Fi off before the bar fills. Passing: the toast says the
   download didn't go through, with the reason, and Settings › About says
   `Inteligir <version> didn't download.`; Try again while still offline keeps the toast up with
-  its reason, and Try again once Wi-Fi is back fills the bar with no new check.
+  its reason and never shows the bar, and Try again once Wi-Fi is back fills the bar with no new
+  check.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
   build loaded. Passing: the install prompt names inteligir.com as the one
