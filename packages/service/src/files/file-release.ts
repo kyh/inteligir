@@ -20,14 +20,27 @@ const UNNAMED_HOLD_MS = 24 * 60 * 60_000;
 
 const releaseSchema = z.object({ pathname: z.string() });
 
-// the store's removal, again until it goes through, each failure logged by the drain
+// about a day of the drain's backoff, past any outage of the store: a removal refused longer is
+// the object's own, which no later try gets past
+const RELEASE_TRIES = 30;
+
+// the store's removal, again until it goes through or its tries run out, each failure logged by
+// the drain; an object still there past them is logged once, for its removal by hand
 export const RELEASE_RUN: JobRun<z.output<typeof releaseSchema>> = {
   payload: releaseSchema,
   run: async ({ pathname }) => {
     await FILE_STORE.remove(pathname);
     return "done";
   },
-  tries: { kind: "until-done" },
+  tries: {
+    exhausted: async ({ pathname }) => {
+      console.error({ event: "file-release-exhausted", pathname, tries: RELEASE_TRIES });
+      // the hook's type is async, and nothing here waits
+      await Promise.resolve();
+    },
+    kind: "at-most",
+    max: RELEASE_TRIES,
+  },
 };
 
 const namedBy = (tx: Tx, names: typeof itemFile | typeof changeSetFile) =>

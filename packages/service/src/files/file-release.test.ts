@@ -1,6 +1,6 @@
 // What housekeeping lets go of the files over Postgres and the folder store: a file nothing has named
-// for a day, its row at once and its object by its job; never one an item or a change set names,
-// one touched within the day, or one of an account a write holds.
+// for a day, its row at once and its object by its job, which stops after its tries; never one an
+// item or a change set names, one touched within the day, or one of an account a write holds.
 
 import { randomUUID } from "node:crypto";
 
@@ -18,13 +18,13 @@ import {
 } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { and, asc, eq } from "drizzle-orm";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 import { drainJobs } from "../jobs/drain-jobs";
 import { withAccountLock } from "../library/library-store";
 import { fileOf } from "../test-support/file-uploads";
 import { makeAccount, seedFile, seedItem } from "../test-support/library-fixture";
-import { releaseUnnamedFiles } from "./file-release";
+import { RELEASE_RUN, releaseUnnamedFiles } from "./file-release";
 import { FILE_STORE } from "./file-store-of";
 import { keepFile } from "./keep-file";
 
@@ -37,6 +37,14 @@ const libraryOf = async (): Promise<string> => {
   const accountId = await makeAccount();
   await db.insert(libraryState).values({ accountId });
   return accountId;
+};
+
+const releaseTries = (): number => {
+  const { tries } = RELEASE_RUN;
+  if (tries.kind !== "at-most") {
+    throw new Error("a release is tried until it is done");
+  }
+  return tries.max;
 };
 
 const release = async (now = NOW): Promise<number> =>
@@ -151,5 +159,36 @@ dbSuite("housekeeping's file release", () => {
     await expect(db.select().from(job).where(eq(job.accountId, accountId))).resolves.toStrictEqual(
       [],
     );
+  });
+
+  it("stops asking a removal the store keeps refusing after its tries, logged once", async () => {
+    const accountId = await makeAccount();
+    const { bytes, sha } = fileOf("a cover the store won't let go");
+    await keepFile({ accountId, actor: { kind: "fill" } }, bytes, "image/png");
+    const pathname = await pathnameOf(accountId, sha);
+    await db.update(file).set({ touchedAt: OLD }).where(eq(file.accountId, accountId));
+    await release(Date.now());
+
+    const tries = releaseTries();
+    const remove = vi.spyOn(FILE_STORE, "remove").mockRejectedValue(new Error("the store is down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (let drain = 0; drain <= tries; drain += 1) {
+        await drainJobs({ accountId, budgetMs: 10_000 });
+        await db.update(job).set({ runAt: Date.now() }).where(eq(job.accountId, accountId));
+      }
+      expect(remove).toHaveBeenCalledTimes(tries);
+      expect(logged.mock.calls).toStrictEqual([
+        ...Array.from({ length: tries }, () => [expect.objectContaining({ event: "job-failed" })]),
+        [{ event: "file-release-exhausted", pathname, tries }],
+      ]);
+    } finally {
+      remove.mockRestore();
+      logged.mockRestore();
+    }
+    await expect(db.select().from(job).where(eq(job.accountId, accountId))).resolves.toStrictEqual(
+      [],
+    );
+    await expect(FILE_STORE.head(pathname)).resolves.not.toBeNull();
   });
 });
