@@ -80,6 +80,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **`[[Title]]` in an imported note or an assistant's writing links the one item showing that title**, a link you haven't named by its address and an untitled note by its first words, as the assistant reads them, and stays text when none or several have it.
 - **Some formatting doesn't survive markdown**: what the agent reads, the blocks its edit touches and an imported note keep only what markdown can say.
 - **The agent and connected assistants leave a saved page's article as it was read**: ask for the change in the item's note.
+- **The agent and connected assistants read a long item in fuller pages**: each page holds as much as one read carries, where it was cut in half until it fit, so a long item takes fewer reads.
 - **A note the agent or a connected assistant creates takes its title and tags only from what you ask for**: a `---` block at the top of its text stays in the note as a code block, as one at the top of a note saved with a link does.
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
 - **An imported note's `site`, `author` and `published` keep up to 1,000 characters**, an alias longer than that is cut rather than leaving the note unread, an `aliases` list that mixes names with other values keeps its names, and `fetched` or `fetch-error` with no `url` stay properties.

@@ -1,20 +1,21 @@
 // An agent's edit to an item, made on its view (`item-view.ts`) and landed as changes to its live
 // body by block id (`../body/body-change`), each naming the block as the view read it. An edit
-// writes in the note alone: the article is the page as it was read, which no edit changes. Each
-// `old_text` must stand exactly once in the note as the edits before it left it, and an empty one
-// adds its new text after the note; the groups the edited text touches are read again from the new
-// text and no others, so every other block keeps its id and its place. The blocks read again keep
-// the ids of the old ones they line up with (unchanged ones change nothing), and a link the agent
-// kept or wrote by title still names its item. Text that nests deeper than the editor reads, or
-// that no block can store, refuses the edit, so no block it spans is lost.
+// writes in the note alone: the article is the page as it was read, which no edit changes, so only
+// the note is written to match in, and the article only to tell an `old_text` in it from one
+// nowhere. Each `old_text` must stand exactly once in the note as the edits before it left it, and
+// an empty one adds its new text after the note; the groups the edited text touches are read again
+// from the new text and no others, so every other block keeps its id and its place. The blocks
+// read again keep the ids of the old ones they line up with (unchanged ones change nothing), and a
+// link the agent kept or wrote by title still names its item. Text that nests deeper than the
+// editor reads, or that no block can store, refuses the edit, so no block it spans is lost.
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 import { diffLines } from "@repo/editor/headless/text/line-diff";
 
-import { itemView } from "./item-view";
-import type { ItemView } from "./item-view";
+import { articleView, noteView } from "./item-view";
+import type { NoteView } from "./item-view";
 import { libraryLinks } from "./library-links";
 import type { LibraryLinks, LibraryLookup } from "./library-links";
 import { readBodyPart } from "./read-body";
@@ -62,18 +63,18 @@ type Piece =
 
 const gap = (text: string): Piece[] => (text === "" ? [] : [{ kind: "gap", text }]);
 
-const piecesOf = (view: ItemView): Piece[] => {
+const piecesOf = (note: NoteView): Piece[] => {
   const pieces: Piece[] = [];
   let cursor = 0;
-  for (const group of view.groups.filter((one) => one.section === "note")) {
-    pieces.push(...gap(view.markdown.slice(cursor, group.start)), {
+  for (const group of note.groups) {
+    pieces.push(...gap(note.text.slice(cursor, group.start)), {
       blocks: group.blocks,
       kind: "group",
       text: group.text,
     });
     cursor = group.start + group.text.length;
   }
-  return [...pieces, ...gap(view.markdown.slice(cursor, view.noteEnd))];
+  return [...pieces, ...gap(note.text.slice(cursor))];
 };
 
 const textOf = (pieces: readonly Piece[]): string => pieces.map((piece) => piece.text).join("");
@@ -283,9 +284,7 @@ export const editItemView = (
   edits: readonly ViewEdit[],
   ports: EditPorts,
 ): EditOutcome => {
-  const view = itemView(blocks, ports);
-  const article = view.markdown.slice(view.noteEnd);
-  let pieces = piecesOf(view);
+  let pieces = piecesOf(noteView(blocks, ports));
   for (const [index, edit] of edits.entries()) {
     if (edit.oldText === "") {
       pieces = appended(pieces, edit.newText, index);
@@ -295,7 +294,9 @@ export const editItemView = (
     const found = occurrences(text, edit.oldText);
     const [start] = found;
     if (start === undefined) {
-      const kind = `${text}${article}`.includes(edit.oldText) ? "section" : "missing";
+      const kind = `${text}${articleView(blocks, ports)}`.includes(edit.oldText)
+        ? "section"
+        : "missing";
       return { kind: "refused", refusal: { edit: index, kind } };
     }
     if (found.length > 1) {

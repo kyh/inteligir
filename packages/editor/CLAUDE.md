@@ -179,11 +179,13 @@ arrive as `unknown` and become domain values there alone.
   as `[[todo.txt]]`. `packages/editor/src/headless/knowledge/link-resolve.test.ts`.
 - **An agent's view is written a group at a time: a list with what nests under it, any other
   block alone.** A group's place in the text is where it was written and a page writes only its own
-  groups, since finding a block's place after one write of the whole means replaying how the writer
-  nests and joins. `packages/editor/src/headless/codec/item-view.ts`.
+  groups, each once, ending before the one that would pass its budget, since finding a block's
+  place after one write of the whole means replaying how the writer nests and joins.
+  `packages/editor/src/headless/codec/item-view.ts`.
 - **An agent's edit writes in the note alone, matches once there, and reads again only the groups
   it touches.** An empty old text adds after the note and one that reaches the article is refused,
-  since a refresh replaces the article; the blocks read again keep their ids by content.
+  since a refresh replaces the article; only the note is written to match in, and the article only
+  to tell an old text in it from one nowhere; the blocks read again keep their ids by content.
   `packages/editor/src/headless/codec/item-edit.ts`.
 - **Markdown written into a body is read by `readBody` at every door, and an edit's new text as
   part of one.** A new note, a save's note, an imported bookmark's note and an edit's text read the

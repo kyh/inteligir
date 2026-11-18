@@ -4,7 +4,6 @@
 // an agent reads are ISO 8601. An id the account holds no item under reads as none, which its row
 // answers as NOT_FOUND.
 
-import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { itemSummary } from "@repo/contract/library/library-index";
 import type { ItemListing } from "@repo/contract/library/library-index";
 import type {
@@ -21,7 +20,6 @@ import type {
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { item, itemLink } from "@repo/db/library-schema";
 import { viewPage } from "@repo/editor/headless/codec/item-view";
-import type { ViewPage, ViewPorts } from "@repo/editor/headless/codec/item-view";
 import { and, eq, exists, isNull, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 
@@ -41,21 +39,6 @@ const isoOf = (ms: number): string => new Date(ms).toISOString();
 const READ_PAGE_MAX_CHARS = 16_000;
 // the items a read names as linking in or out, the first by title
 const READ_LINKS_MAX = 50;
-
-// the page the read asks for, halved until it fits; one block alone is its own page however long
-const pageWithin = (
-  blocks: readonly BodyBlock[],
-  ports: ViewPorts,
-  from: number,
-  count: number,
-): ViewPage => {
-  let page = viewPage(blocks, ports, from, count);
-  for (let asked = count; page.markdown.length > READ_PAGE_MAX_CHARS && asked > 1;) {
-    asked = Math.max(1, Math.floor(asked / 2));
-    page = viewPage(blocks, ports, from, asked);
-  }
-  return page;
-};
 
 interface Linked {
   readonly id: string;
@@ -170,11 +153,10 @@ export const readItemView = async (
   const { blocks, item: stored } = whole;
   const out = await linkedFrom(db, accountId, input.id);
   const titles = new Map(out.map(({ id, title }) => [id, title]));
-  const page = pageWithin(
+  const page = viewPage(
     blocks,
     { title: (id) => titles.get(id) ?? null },
-    input.from,
-    input.count,
+    { count: input.count, from: input.from, maxChars: READ_PAGE_MAX_CHARS },
   );
   const into = await linkingTo(db, accountId, stored);
   const { fields } = stored;

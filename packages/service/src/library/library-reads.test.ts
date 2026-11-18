@@ -76,15 +76,27 @@ dbSuite("what the library answers a read of one item", () => {
     await expect(codeOf(stranger.items.read({ id }))).resolves.toBe("NOT_FOUND");
   });
 
-  it("halves a page past what one read carries, one block alone its own page", async () => {
+  it("ends a page before the block that would carry it past what one read carries, one block alone its own page", async () => {
     const { accountId, library } = await personalLibrary();
-    const long = "word ".repeat(1999).trim();
+    const long = "word ".repeat(1200).trim();
     const { id } = await seedItem(accountId, {
       blocks: lines(long, long, long, long),
       fields: noteFixture({ title: "Long" }),
     });
-    const page = await library.items.read({ id });
-    expect(page.view).toMatchObject({ from: 0, to: 1, total: 4 });
+    const first = await library.items.read({ id });
+    expect(first.view).toMatchObject({ from: 0, to: 2, total: 4 });
+    expect(first.view.markdown).toBe(`${long}\n\n${long}\n`);
+    await expect(library.items.read({ from: 2, id })).resolves.toMatchObject({
+      view: { from: 2, to: 4 },
+    });
+    const longest = "word ".repeat(4000).trim();
+    const alone = await seedItem(accountId, {
+      blocks: lines(longest, "After it."),
+      fields: noteFixture({ title: "Longest" }),
+    });
+    await expect(library.items.read({ id: alone.id })).resolves.toMatchObject({
+      view: { from: 0, markdown: `${longest}\n`, to: 1, total: 2 },
+    });
   });
 
   it("reads an item in Deleted with when it went there", async () => {

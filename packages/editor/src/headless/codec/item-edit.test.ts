@@ -31,6 +31,19 @@ const portsWith = (): EditPorts => {
   };
 };
 
+// ports naming every item whose title the view asked for
+const askingPorts = () => {
+  const asked: string[] = [];
+  const ports: EditPorts = {
+    ...portsWith(),
+    title: (itemId) => {
+      asked.push(itemId);
+      return titles.get(itemId) ?? null;
+    },
+  };
+  return { asked, ports };
+};
+
 // an import whose links reach the items `titles` holds, by title, and nothing else
 const storedOf = (text: string): BodyBlock[] => {
   const read = importItem(
@@ -87,6 +100,13 @@ const landed = (blocks: readonly BodyBlock[], changes: readonly BodyChange[]): B
 };
 
 const textOf = (blocks: readonly BodyBlock[]): string => itemView(blocks, portsWith()).markdown;
+
+// a page of `count` blocks from `from`, however long it runs
+const unbounded = (from: number, count: number) => ({
+  count,
+  from,
+  maxChars: Number.POSITIVE_INFINITY,
+});
 
 // each block's text, in reading order
 const textBlocks = (blocks: readonly BodyBlock[]): string[] =>
@@ -197,13 +217,13 @@ describe("the agent's view of an item", () => {
 
   it("pages by block range, a list kept whole", () => {
     const blocks = storedOf(NOTE);
-    const page = viewPage(blocks, portsWith(), 0, 2);
+    const page = viewPage(blocks, portsWith(), unbounded(0, 2));
     expect(page).toMatchObject({ from: 0, to: 2, total: 7 });
     expect(page.markdown).toBe(
       `# Plan\n\nFirst paragraph links [Other note](mention:${OTHER_ID}) and stays.\n`,
     );
     // starting inside the list takes the whole of it
-    expect(viewPage(blocks, portsWith(), 4, 1)).toMatchObject({
+    expect(viewPage(blocks, portsWith(), unbounded(4, 1))).toMatchObject({
       from: 3,
       markdown: "- one\n- two\n- three\n",
       to: 6,
@@ -226,7 +246,9 @@ describe("the agent's view of an item", () => {
     ].join("\n");
     const blocks = storedOf(text);
     expect(textOf(blocks)).toBe("My note.\n\n:::article\n\nThe page.\n\n:::\n");
-    expect(viewPage(blocks, portsWith(), 1, 1).markdown).toBe(":::article\n\nThe page.\n\n:::\n");
+    expect(viewPage(blocks, portsWith(), unbounded(1, 1)).markdown).toBe(
+      ":::article\n\nThe page.\n\n:::\n",
+    );
   });
 });
 
@@ -603,5 +625,46 @@ describe("a link or an equation in a table cell", () => {
     expect(withoutIds(cellsOf(editedTo(blocks, "word", "changed")))).toBe(
       withoutIds(before).replace("word", "changed"),
     );
+  });
+});
+
+describe("what an edit writes", () => {
+  const LINKED_ID = "0195f3a0-5c1e-7000-8000-0000000000a1";
+
+  // a note, and a page whose one paragraph links an item, so writing the page asks its title
+  const NOTE_AND_PAGE: BodyBlock[] = [
+    { block: { children: [{ text: "Note." }], id: "n1", type: "p" }, section: "note" },
+    {
+      block: {
+        children: [
+          { text: "Page " },
+          { children: [{ text: "" }], key: LINKED_ID, type: "mention", value: "Linked" },
+          { text: " passage." },
+        ],
+        id: "a1",
+        type: "p",
+      },
+      section: "article",
+    },
+  ];
+
+  it("writes no group of the article for an edit it places in the note", () => {
+    const { asked, ports } = askingPorts();
+    expect(
+      editItemView(NOTE_AND_PAGE, [{ newText: "Note, edited.", oldText: "Note." }], ports),
+    ).toMatchObject({ kind: "changed" });
+    expect(asked).not.toContain(LINKED_ID);
+  });
+
+  it("writes the article only to answer an old text it holds as `section`", () => {
+    const { asked, ports } = askingPorts();
+    expect(
+      editItemView(
+        NOTE_AND_PAGE,
+        [{ newText: "x", oldText: `[Linked](mention:${LINKED_ID}) passage.` }],
+        ports,
+      ),
+    ).toStrictEqual({ kind: "refused", refusal: { edit: 0, kind: "section" } });
+    expect(asked).toContain(LINKED_ID);
   });
 });

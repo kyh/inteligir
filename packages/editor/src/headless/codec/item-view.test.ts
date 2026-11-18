@@ -49,6 +49,13 @@ const stored = (block: LibraryBlock, section: LibrarySection): BodyBlock => ({ b
 
 const VIEW_PORTS = { title: () => null };
 
+// a page of `count` blocks from `from`, however long it runs
+const unbounded = (from: number, count: number) => ({
+  count,
+  from,
+  maxChars: Number.POSITIVE_INFINITY,
+});
+
 const editPorts = (): EditPorts => {
   let minted = 0;
   return {
@@ -109,7 +116,7 @@ describe("the article's fence", () => {
   });
 
   it("opens and closes a page of the article's blocks, so it reads as the page it is", () => {
-    const page = viewPage(withPage(toggle("a1")), VIEW_PORTS, 1, 1);
+    const page = viewPage(withPage(toggle("a1")), VIEW_PORTS, unbounded(1, 1));
     expect(page).toMatchObject({ from: 1, to: 2, total: 3 });
     expect(sectionsOf(page.markdown)).toStrictEqual({
       article: ["toggle:Summaryhidden"],
@@ -166,12 +173,71 @@ describe("a list run", () => {
   });
 
   it("pages a paragraph beside one on its own", () => {
-    expect(viewPage(nested(1), VIEW_PORTS, 4, 1)).toStrictEqual({
+    expect(viewPage(nested(1), VIEW_PORTS, unbounded(4, 1))).toStrictEqual({
       from: 4,
       markdown: "after\n",
       to: 5,
       total: 5,
     });
-    expect(viewPage(nested(1), VIEW_PORTS, 2, 1)).toMatchObject({ from: 1, to: 4 });
+    expect(viewPage(nested(1), VIEW_PORTS, unbounded(2, 1))).toMatchObject({ from: 1, to: 4 });
+  });
+});
+
+// a paragraph linking an item, whose title the view asks for as it writes the paragraph
+const linking = (id: string): BodyBlock =>
+  stored(
+    {
+      children: [
+        { text: "See " },
+        { children: [{ text: "" }], key: id, type: "mention", value: id },
+        { text: "." },
+      ],
+      id: `p-${id}`,
+      type: "p",
+    },
+    "note",
+  );
+
+// ports naming every item whose title the view asked for, in the order it asked
+const askingPorts = () => {
+  const asked: string[] = [];
+  const title = (id: string): string => {
+    asked.push(id);
+    return `Item ${id}`;
+  };
+  return { asked, ports: { title } };
+};
+
+describe("a page under a budget", () => {
+  it("ends before the group that would pass it, writing each group once", () => {
+    const blocks = ["a", "b", "c", "d", "e"].map(linking);
+    const two = viewPage(blocks, askingPorts().ports, unbounded(0, 2));
+    const { asked, ports } = askingPorts();
+    expect(
+      viewPage(blocks, ports, { count: 5, from: 0, maxChars: two.markdown.length }),
+    ).toStrictEqual(two);
+    expect(asked).toStrictEqual(["a", "b", "c"]);
+  });
+
+  it.each([
+    ["a note", nested(1)],
+    ["a note and a page", withPage(toggle("a1"))],
+  ])("measures a page of %s as it writes it, every line and fence", (_name, blocks) => {
+    const ends = itemView(blocks, VIEW_PORTS).groups.map(
+      (group) => blocks.findIndex(({ block }) => block === group.blocks.at(-1)) + 1,
+    );
+    for (const [held, to] of ends.entries()) {
+      const page = viewPage(blocks, VIEW_PORTS, unbounded(0, to));
+      const budget = { count: blocks.length, from: 0, maxChars: page.markdown.length };
+      expect(viewPage(blocks, VIEW_PORTS, budget)).toStrictEqual(page);
+      const under = viewPage(blocks, VIEW_PORTS, { ...budget, maxChars: budget.maxChars - 1 });
+      expect(under.to).toBe(held === 0 ? to : ends[held - 1]);
+    }
+  });
+
+  it("holds one group alone past it, a list whole with what nests under it", () => {
+    const page = viewPage(nested(1), VIEW_PORTS, { count: 5, from: 2, maxChars: 1 });
+    expect(page).toMatchObject({ from: 1, to: 4 });
+    expect(sectionsOf(page.markdown).note).toStrictEqual(["p:one", "code_block:x", "p:two"]);
   });
 });
