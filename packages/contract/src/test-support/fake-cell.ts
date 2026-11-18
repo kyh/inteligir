@@ -1,6 +1,7 @@
 // An account's library cell as a client's suites need it, in memory: `/v1/rpc` served by oRPC's
 // own handler over the rows a client writes through and the reads its screens make (an item whole,
-// a listing's pages, the rail's counts and every title), and `/v1/blobs/<sha>`, each device
+// a listing's pages, the rail's counts and every title), a store on its own origin that a file's
+// upload is sent to, and `/v1/blobs/<sha>`, each device
 // reaching it through a transport of its own whose network a suite can take down or whose next
 // answers it can lose after the cell acted. It keeps the rules a client leans on: a property op
 // lands only on the base it names (`@repo/contract/library/field-ops`) and answers CONFLICT where
@@ -43,7 +44,6 @@ import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
-import { refusalResponse } from "./refusal-response";
 import {
   blankItemFields,
   fileFields,
@@ -111,7 +111,7 @@ export interface FakeCell {
   readonly held: (id: string) => HeldItem;
   readonly item: (id: string) => CellItem | null;
   readonly items: () => ReadonlyMap<string, CellItem>;
-  // each call, as `<device> <procedure>` (`library/write`), and each upload by sha
+  // each call, as `<device> <procedure>` (`library/write`), and each upload settled, by sha
   readonly calls: string[];
   readonly uploads: string[];
   // every call is refused as a revoked sign-in
@@ -120,6 +120,8 @@ export interface FakeCell {
 
 const NOW = 1_700_000_100_000;
 const ORIGIN = "https://cell.test";
+// where the cell's store takes an upload's bytes, on its own origin, as development's does
+const STORE_PATH = "/store";
 const ID_SEED = 0x5e_ed;
 
 // a save's words as the one paragraph the real cell's codec would read them into; blank words are
@@ -151,6 +153,11 @@ export const createFakeCell = (): FakeCell => {
   const folders = new Map<string, FolderRow>();
   // each file's bytes, and its type as its upload named it
   const blobs = new Map<
+    string,
+    { readonly bytes: Uint8Array<ArrayBuffer>; readonly mime: string }
+  >();
+  // what each upload the store took was sent, by the sha its reserve named, until it settles
+  const sent = new Map<
     string,
     { readonly bytes: Uint8Array<ArrayBuffer>; readonly mime: string }
   >();
@@ -460,6 +467,34 @@ export const createFakeCell = (): FakeCell => {
     },
     library: {
       changes: os.library.changes.handler(({ input }) => changes(input.after)),
+      files: {
+        reserve: os.library.files.reserve.handler(({ input }) =>
+          blobs.has(input.sha)
+            ? { kind: "held" as const }
+            : {
+                headers: { "content-type": input.mime },
+                kind: "upload" as const,
+                uploadId: input.sha,
+                url: `${STORE_PATH}/${input.sha}`,
+              },
+        ),
+        settle: os.library.files.settle.handler(({ input }) => {
+          if (blobs.has(input.sha)) {
+            return { kind: "held" as const };
+          }
+          const upload = sent.get(input.uploadId);
+          if (upload === undefined) {
+            throw new NotFoundError();
+          }
+          sent.delete(input.uploadId);
+          if (fileSha(upload.bytes) !== input.sha) {
+            throw new BlobMismatchError();
+          }
+          uploads.push(input.sha);
+          blobs.set(input.sha, upload);
+          return { kind: "kept" as const };
+        }),
+      },
       folders: {
         write: os.library.folders.write.handler(({ input }) =>
           once(input.opId, foldersWrittenSchema, () => folderWrite(input.ops)),
@@ -610,14 +645,10 @@ export const createFakeCell = (): FakeCell => {
     errorStatusMap: V1_ERROR_STATUS_MAP,
   });
 
-  const upload = async (request: Request, sha: string): Promise<Response> => {
+  const store = async (request: Request, uploadId: string): Promise<Response> => {
     const bytes = new Uint8Array(await request.arrayBuffer());
-    if (fileSha(bytes) !== sha) {
-      return refusalResponse(new BlobMismatchError());
-    }
-    uploads.push(sha);
-    blobs.set(sha, { bytes, mime: request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE });
-    return new Response(null, { status: 201 });
+    sent.set(uploadId, { bytes, mime: request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE });
+    return new Response(null, { status: 200 });
   };
 
   const download = (sha: string): Response => {
@@ -627,11 +658,14 @@ export const createFakeCell = (): FakeCell => {
       : new Response(file.bytes, { headers: { "content-type": file.mime } });
   };
 
+  // by path alone, whatever origin a host's transport names
   const serve = async (name: string, request: Request): Promise<Response> => {
-    const path = request.url.slice(ORIGIN.length);
+    const path = new URL(request.url).pathname;
     if (path.startsWith(`${V1_BLOBS_PATH}/`)) {
-      const sha = path.slice(V1_BLOBS_PATH.length + 1);
-      return request.method === "PUT" ? await upload(request, sha) : download(sha);
+      return download(path.slice(V1_BLOBS_PATH.length + 1));
+    }
+    if (path.startsWith(`${STORE_PATH}/`) && request.method === "PUT") {
+      return await store(request, path.slice(STORE_PATH.length + 1));
     }
     calls.push(`${name} ${path.slice(V1_RPC_PATH.length + 1)}`);
     const { matched, response } = await handler.handle(request, { prefix: V1_RPC_PATH });

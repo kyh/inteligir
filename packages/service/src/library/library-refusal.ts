@@ -17,6 +17,12 @@ export type LibraryRefusal =
   | { readonly kind: "quota"; readonly bytesUsed: number; readonly bytesCap: number }
   // files the write names that were never uploaded
   | { readonly kind: "blob-missing"; readonly shas: readonly string[] }
+  // a file's bytes that do not hash to the sha it was sent under, or fall short of its size
+  | { readonly kind: "blob-mismatch" }
+  // a file past BLOB_MAX_BYTES, or more bytes than its upload named
+  | { readonly kind: "blob-too-large" }
+  // the account was deleted, which takes its library's row along
+  | { readonly kind: "gone" }
   // the write would give a second live item a url another one holds
   | { readonly kind: "url-held" }
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request

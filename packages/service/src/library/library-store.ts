@@ -15,7 +15,7 @@ import type { z } from "zod";
 
 import { joinTurnSet } from "./library-change-sets";
 import type { LibraryActor } from "./library-principal";
-import { RefusedWriteError } from "./library-refusal";
+import { RefusedWriteError, refuse } from "./library-refusal";
 import type { LibraryResult } from "./library-refusal";
 
 // How long a write waits for the account's lock. Waiters hold pooled connections, so without a
@@ -23,6 +23,7 @@ import type { LibraryResult } from "./library-refusal";
 // transaction, since Supabase's pooler drops a connection's startup parameters
 const LOCK_TIMEOUT = "5s";
 const LOCK_NOT_AVAILABLE = "55P03";
+const FOREIGN_KEY_VIOLATION = "23503";
 
 // who a write is by: the account whose library it locks, and the actor its landings are by
 export interface LibraryWriter {
@@ -60,32 +61,47 @@ export interface WriteScope {
   readonly attempt: <T>(part: (scope: WriteScope) => Promise<T>) => Promise<LibraryResult<T>>;
 }
 
+// whether Postgres raised `code` anywhere down the error's causes, which drizzle wraps
+const raised = (cause: unknown, code: string): boolean => {
+  for (let at = cause; at instanceof Error; at = at.cause) {
+    if ("code" in at && at.code === code) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // Runs `work` in one transaction holding the account's library row, made by the first write of
-// the account. Nothing inside awaits anything but `tx`: a lock held across a network call stalls
-// every write of the account
+// the account. Nothing inside awaits anything but `tx`, a file's keep aside
+// (`../files/file-landing`): a lock held across a network call stalls every write of the account.
+// An account deleted, its row with it, is refused `gone`, whether it went before the write or
+// while the write waited on its lock
 export const withAccountLock = async <T>(
   accountId: string,
   work: (tx: Tx) => Promise<T>,
 ): Promise<T> =>
   await db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('lock_timeout', ${LOCK_TIMEOUT}, true)`);
-    await tx.insert(libraryState).values({ accountId }).onConflictDoNothing();
-    await tx
+    try {
+      await tx.insert(libraryState).values({ accountId }).onConflictDoNothing();
+    } catch (error) {
+      if (raised(error, FOREIGN_KEY_VIOLATION)) {
+        refuse({ kind: "gone" });
+      }
+      throw error;
+    }
+    const [held] = await tx
       .select({ accountId: libraryState.accountId })
       .from(libraryState)
       .where(eq(libraryState.accountId, accountId))
       .for("update");
+    if (held === undefined) {
+      refuse({ kind: "gone" });
+    }
     return await work(tx);
   });
 
-const isLockTimeout = (cause: unknown): boolean => {
-  for (let at = cause; at instanceof Error; at = at.cause) {
-    if ("code" in at && at.code === LOCK_NOT_AVAILABLE) {
-      return true;
-    }
-  }
-  return false;
-};
+const isLockTimeout = (cause: unknown): boolean => raised(cause, LOCK_NOT_AVAILABLE);
 
 const takeHead = async (tx: Tx, accountId: string): Promise<number> => {
   const [row] = await tx

@@ -5,6 +5,8 @@
 // transaction's edge as a value (`./library-store`) and thrown again here.
 
 import {
+  AccountGoneError,
+  BlobMismatchError,
   BlobMissingError,
   ConflictError,
   EditRefusedError,
@@ -62,6 +64,15 @@ const refusalError = (refusal: LibraryRefusal): Error => {
     }
     case "blob-missing": {
       return new BlobMissingError({ data: { shas: [...refusal.shas] } });
+    }
+    case "blob-mismatch": {
+      return new BlobMismatchError();
+    }
+    case "blob-too-large": {
+      return new PayloadTooLargeError({ message: "This file is larger than your library keeps." });
+    }
+    case "gone": {
+      return new AccountGoneError();
     }
     case "edit-refused": {
       return new EditRefusedError({

@@ -15,6 +15,7 @@ import { storableBlockSchema } from "../library/library-nodes";
 import {
   AgentBudgetError,
   AgentUnavailableError,
+  BlobMismatchError,
   BlobMissingError,
   ConflictError,
   EditRefusedError,
@@ -487,6 +488,54 @@ const importsContract = {
     .output(z.object({ added: count, alreadySaved: count, unreadable: count })),
 };
 
+// what `reserve` hands a device for the bytes it then sends to the store and names to `settle`
+const uploadIdSchema = z.string().min(1).max(1000);
+
+// A file's bytes go to the store outside `/v1`, between two calls: `reserve` asks where, and
+// `settle` keeps what arrived once its bytes hash to its sha. A file the library holds already is
+// `held`, and nothing is sent
+const filesContract = {
+  // where to send a file of `bytes` as `mime`: a PUT to `url`, which names the store and may be a
+  // path on the cloud's own origin, with `headers`; past BLOB_MAX_BYTES or the library's room it is
+  // refused before anything is sent
+  reserve: signedBase
+    .errors({
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
+    })
+    .input(
+      z.strictObject({
+        bytes: z.number().int().nonnegative(),
+        mime: z.string().max(255),
+        sha: shaSchema,
+      }),
+    )
+    .output(
+      z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("held") }),
+        z.object({
+          headers: z.record(z.string(), z.string()),
+          kind: z.literal("upload"),
+          uploadId: uploadIdSchema,
+          url: z.string().min(1),
+        }),
+      ]),
+    ),
+
+  // the upload `reserve` named, kept once its bytes are the size it named and hash to `sha`; one
+  // that does not is refused and let go, and a sha the library came to hold meanwhile is `held`.
+  // Sent again it finds the file kept, so it takes no opId
+  settle: signedBase
+    .errors({
+      [BlobMismatchError.code]: BlobMismatchError,
+      [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
+    })
+    .input(z.strictObject({ sha: shaSchema, uploadId: uploadIdSchema }))
+    .output(z.object({ kind: z.enum(["held", "kept"]) })),
+};
+
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });
 // a turn by its number in its thread, as its `turn.ended` event names it
 const turnNumber = z.number().int().positive();
@@ -628,6 +677,8 @@ export const libraryContract = {
   changes: signedBase
     .input(z.strictObject({ after: seqSchema.optional() }))
     .output(z.object({ head: seqSchema, moved: libraryMovedSchema.nullable() })),
+
+  files: filesContract,
 
   folders: foldersContract,
 

@@ -53,6 +53,8 @@ const LIBRARY_READS = new Set([
   "agent.status",
   "agent.undoable",
   "changes",
+  // where a file's bytes go: what lands is `files.settle`'s
+  "files.reserve",
   "guide",
   "imports.named",
   "imports.settle",
@@ -68,8 +70,9 @@ const LIBRARY_READS = new Set([
 ]);
 
 // the writes that take none: an undo names turns, and a turn already taken back has nothing left;
-// a body's save names the version it was made over, which a save landed before has moved
-const RESENT_UNKEYED = new Set(["agent.undo", "items.saveBody"]);
+// a body's save names the version it was made over, which a save landed before has moved; a
+// file's settle names its upload, which a settle landed before kept
+const RESENT_UNKEYED = new Set(["agent.undo", "files.settle", "items.saveBody"]);
 
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";

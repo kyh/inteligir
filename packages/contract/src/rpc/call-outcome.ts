@@ -1,23 +1,16 @@
 // `/v1` as every client calls it, and what a call that did not land met, in a client's terms: a
 // refusal of the sign-in itself (the credential, the account, this build), a budget to wait out, or
-// no answer at all, beside each procedure's own refusals, which its caller reads. A file's upload
-// goes outside the link and is refused in the same errors. What a call made of the save it carried
-// is one reading for every host that keeps a save (`CallOutcome`).
+// no answer at all, beside each procedure's own refusals, which its caller reads. A file's bytes
+// go to the store between two calls, and a store that refused them reads as no answer. What a call
+// made of the save it carried is one reading for every host that keeps a save (`CallOutcome`).
 
-import {
-  createORPCClient,
-  createORPCErrorFromJson,
-  isORPCErrorJson,
-  onError,
-  RPCSerializer,
-} from "@orpc/client";
+import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
 import { refusalText } from "./refusal-text";
 import { V1_RPC_PATH } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
 import { isOrpcError } from "./v1-errors";
-import { V1_BLOBS_PATH } from "../library/library-blobs";
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the session through the
 // host's door and its build, or in the browser nothing past the session's own cookie
@@ -90,48 +83,48 @@ export const v1Client = (
     }),
   );
 
-const serializer = new RPCSerializer();
+// where `library.files.reserve` sends a file's bytes
+interface UploadTarget {
+  readonly url: string;
+  readonly headers: Readonly<Record<string, string>>;
+}
 
-// what an answer outside the link refused with, read as the link reads one: the error the wire
-// declares, or for any other answer (a fault, a proxy's page) an error that names no refusal
-const refusalIn = async (response: Response): Promise<Error> => {
-  try {
-    const body: unknown = await response.json();
-    const refusal = serializer.deserialize(body);
-    if (isORPCErrorJson(refusal)) {
-      return createORPCErrorFromJson(refusal);
-    }
-  } catch {
-    // no body the protocol wrote
-  }
-  return new Error(`the cloud answered ${String(response.status)}`);
+// A store on the cloud's own origin is reached as `/v1` is; any other is sent nothing of the
+// host's session, which is the cloud's alone
+const putBytes = async (
+  transport: V1Transport,
+  target: UploadTarget,
+  bytes: Uint8Array<ArrayBuffer>,
+): Promise<Response> => {
+  const url = new URL(target.url, transport.origin);
+  const init = { body: bytes, headers: { ...target.headers }, method: "PUT" };
+  return url.origin === new URL(transport.origin).origin
+    ? await transport.fetch(new Request(url, init))
+    : await fetch(url, { ...init, credentials: "omit" });
 };
 
-// a file's bytes to `/v1/blobs/<sha>`, which keeps nothing that hashes otherwise. It lands or
+// A file's bytes, kept in the library under the sha they hash to: reserved, sent to the store the
+// cloud names and settled, or not sent at all when the library holds them already. It lands or
 // throws as a call does, so `sharedFailure` and `refusalText` read its failure, and the hook hears
-// a sign-in it ended as the link's does
+// a sign-in it ended. A store that refused the bytes (an address past its time, a size or a type
+// it was not told) reads as no answer, since the next try reserves afresh
 export const uploadBlob = async (
   transport: V1Transport,
   file: { readonly sha: string; readonly mime: string; readonly bytes: Uint8Array<ArrayBuffer> },
   onSessionEnd?: (end: SessionEnd) => void,
 ): Promise<void> => {
-  const response = await transport.fetch(
-    new Request(`${transport.origin}${V1_BLOBS_PATH}/${file.sha}`, {
-      body: file.bytes,
-      headers: { "content-type": file.mime },
-      method: "PUT",
-    }),
-  );
-  if (response.ok) {
-    await response.arrayBuffer();
+  const { files } = v1Client(transport, onSessionEnd).library;
+  const { bytes, mime, sha } = file;
+  const reserved = await files.reserve({ bytes: bytes.byteLength, mime, sha });
+  if (reserved.kind === "held") {
     return;
   }
-  const refusal = await refusalIn(response);
-  const end = sessionEndOf(refusal);
-  if (end !== null) {
-    onSessionEnd?.(end);
+  const stored = await putBytes(transport, reserved, bytes);
+  await stored.arrayBuffer();
+  if (!stored.ok) {
+    throw new Error(`the store answered ${String(stored.status)}`);
   }
-  throw refusal;
+  await files.settle({ sha, uploadId: reserved.uploadId });
 };
 
 // what brings a later try of the same call through: the cloud's answer, the host's next sign-in,

@@ -1,49 +1,145 @@
 import { createORPCErrorFromJson } from "@orpc/client";
-import { describe, expect, it } from "vitest";
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { refusalResponse } from "../test-support/refusal-response";
+import { V1_RPC_PATH, v1Contract } from "./v1-contract";
+import type { V1Client } from "./v1-contract";
 import {
-  AccountGoneError,
   BlobMismatchError,
   ClientOutdatedError,
-  PayloadTooLargeError,
   QuotaError,
-  TooManyRequestsError,
+  V1_ERROR_STATUS_MAP,
 } from "./v1-errors";
 import { outcomeOf, sessionEndOf, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallOutcome, SessionEnd, V1Transport } from "./call-outcome";
 
 const CHANGE_REFUSED = "Your library couldn't take this change.";
+const ORIGIN = "http://localhost:5174";
 
 const FILE = { bytes: new Uint8Array([1, 2, 3]), mime: "image/png", sha: "a".repeat(64) };
 
-// a cloud that answers every upload one way, or throws as a fetch with no connection does
-const answering = (answer: (() => Response) | null): V1Transport => ({
-  fetch: async () => {
-    if (answer === null) {
-      throw new TypeError("Failed to fetch");
-    }
-    return await Promise.resolve(answer());
-  },
-  origin: "http://localhost:5174",
+type Files = V1Client["library"]["files"];
+type Reserved = Awaited<ReturnType<Files["reserve"]>>;
+type Settled = Awaited<ReturnType<Files["settle"]>>;
+
+const TO_THE_STORE: Reserved = {
+  headers: { "content-type": FILE.mime },
+  kind: "upload",
+  uploadId: "upload-1",
+  url: "/store/upload-1",
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
+interface Script {
+  readonly reserve?: () => Reserved;
+  readonly store?: () => Response;
+  readonly settle?: () => Settled;
+}
+
+// A cloud whose two file calls answer as a case scripts them, through oRPC's own handler, beside a
+// store on its own origin that answers a PUT as the case says; each request is recorded as
+// `<method> <path>`, and what the store was sent with the type it was sent as
+const cloudOf = (script: Script) => {
+  const asked: string[] = [];
+  const stored: { readonly bytes: Uint8Array; readonly type: string | null }[] = [];
+  const os = implement(v1Contract);
+  const handler = new RPCHandler(
+    {
+      library: {
+        files: {
+          reserve: os.library.files.reserve.handler(() =>
+            (script.reserve ?? (() => TO_THE_STORE))(),
+          ),
+          settle: os.library.files.settle.handler(({ input }) => {
+            expect(input).toStrictEqual({ sha: FILE.sha, uploadId: "upload-1" });
+            return (script.settle ?? ((): Settled => ({ kind: "kept" })))();
+          }),
+        },
+      },
+    },
+    { errorStatusMap: V1_ERROR_STATUS_MAP },
+  );
+  const transport: V1Transport = {
+    fetch: async (request) => {
+      const { pathname } = new URL(request.url);
+      asked.push(`${request.method} ${pathname}`);
+      if (pathname.startsWith(V1_RPC_PATH)) {
+        const { response } = await handler.handle(request, { prefix: V1_RPC_PATH });
+        return response ?? new Response(null, { status: 404 });
+      }
+      stored.push({
+        bytes: new Uint8Array(await request.arrayBuffer()),
+        type: request.headers.get("content-type"),
+      });
+      return (script.store ?? (() => new Response(null, { status: 200 })))();
+    },
+    origin: ORIGIN,
+  };
+  return { asked, stored, transport };
+};
+
+const RESERVE = `POST ${V1_RPC_PATH}/library/files/reserve`;
+const SETTLE = `POST ${V1_RPC_PATH}/library/files/settle`;
+
 describe(uploadBlob, () => {
-  it("lands on any answer that kept the file", async () => {
-    for (const status of [201, 204]) {
-      const kept = answering(() => new Response(null, { status }));
-      await expect(uploadBlob(kept, FILE)).resolves.toBeUndefined();
-    }
+  it("sends nothing of a file the library holds", async () => {
+    const cloud = cloudOf({ reserve: () => ({ kind: "held" }) });
+    await expect(uploadBlob(cloud.transport, FILE)).resolves.toBeUndefined();
+    expect(cloud.asked).toStrictEqual([RESERVE]);
   });
 
-  it("throws the refusal the cloud declared, as a call's link does", async () => {
+  it("puts the bytes where the reserve named, as the type it named, then settles them", async () => {
+    const cloud = cloudOf({});
+    await expect(uploadBlob(cloud.transport, FILE)).resolves.toBeUndefined();
+    expect(cloud.asked).toStrictEqual([RESERVE, "PUT /store/upload-1", SETTLE]);
+    expect(cloud.stored).toStrictEqual([{ bytes: FILE.bytes, type: FILE.mime }]);
+  });
+
+  it("sends a store elsewhere the bytes with none of the session's credentials", async () => {
+    const cloud = cloudOf({
+      reserve: () => ({ ...TO_THE_STORE, url: "https://store.example/put?signature=s" }),
+    });
+    const sent: Request[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input, init) => {
+        sent.push(new Request(input, init));
+        return await Promise.resolve(new Response(null, { status: 200 }));
+      }),
+    );
+    const signed: V1Transport = {
+      fetch: async (request) => {
+        const headers = new Headers(request.headers);
+        headers.set("authorization", "Bearer session");
+        return await cloud.transport.fetch(new Request(request, { headers }));
+      },
+      origin: ORIGIN,
+    };
+    await expect(uploadBlob(signed, FILE)).resolves.toBeUndefined();
+    expect(cloud.asked).toStrictEqual([RESERVE, SETTLE]);
+    const [put] = sent;
+    expect(put?.url).toBe("https://store.example/put?signature=s");
+    expect(put?.method).toBe("PUT");
+    expect(put?.credentials).toBe("omit");
+    expect(put?.headers.get("authorization")).toBeNull();
+    expect(put?.headers.get("content-type")).toBe(FILE.mime);
+  });
+
+  it("throws the refusal a settle declared, as a call's link does", async () => {
     for (const refusal of [
       new BlobMismatchError(),
-      new PayloadTooLargeError({ message: "This file is larger than your library keeps." }),
       new QuotaError({ data: { bytesCap: 10, bytesUsed: 10 } }),
     ]) {
-      const refused = answering(() => refusalResponse(refusal));
-      await expect(uploadBlob(refused, FILE), refusal.code).rejects.toMatchObject({
+      const cloud = cloudOf({
+        settle: () => {
+          throw refusal;
+        },
+      });
+      await expect(uploadBlob(cloud.transport, FILE), refusal.code).rejects.toMatchObject({
         code: refusal.code,
         data: refusal.data,
         defined: true,
@@ -52,24 +148,35 @@ describe(uploadBlob, () => {
     }
   });
 
-  it("tells the hook a sign-in it ended, and reads a fault or no answer as no refusal", async () => {
+  it("reads a store that refused the bytes, or no answer, as no refusal, and settles nothing", async () => {
+    for (const store of [
+      () => new Response("expired", { status: 403 }),
+      () => new Response(null, { status: 400 }),
+      () => {
+        throw new TypeError("Failed to fetch");
+      },
+    ]) {
+      const cloud = cloudOf({ store });
+      await expect(uploadBlob(cloud.transport, FILE)).rejects.toSatisfy(
+        (thrown: Error) => sharedFailure(thrown)?.kind === "unreachable",
+      );
+      expect(cloud.asked).not.toContain(SETTLE);
+    }
+  });
+
+  it("tells the hook a sign-in it ended", async () => {
     const ended: SessionEnd[] = [];
-    const outdated = answering(() => refusalResponse(new ClientOutdatedError()));
+    const cloud = cloudOf({
+      reserve: () => {
+        throw new ClientOutdatedError();
+      },
+    });
     await expect(
-      uploadBlob(outdated, FILE, (end) => {
+      uploadBlob(cloud.transport, FILE, (end) => {
         ended.push(end);
       }),
     ).rejects.toMatchObject({ code: "CLIENT_OUTDATED", defined: true });
     expect(ended).toStrictEqual(["outdated"]);
-    for (const answer of [
-      () => new Response("Send the file again.", { status: 503 }),
-      () => Response.json(null, { status: 500 }),
-      null,
-    ]) {
-      await expect(uploadBlob(answering(answer), FILE)).rejects.toSatisfy(
-        (thrown: Error) => sharedFailure(thrown)?.kind === "unreachable",
-      );
-    }
   });
 });
 
@@ -135,24 +242,25 @@ describe(outcomeOf, () => {
   });
 
   it("reads a file's upload as any call, the sha its answer", async () => {
-    const sent = async (answer: (() => Response) | null) =>
+    const sent = async (script: Script) =>
       await outcomeOf(async () => {
-        await uploadBlob(answering(answer), FILE);
+        await uploadBlob(cloudOf(script).transport, FILE);
         return FILE.sha;
       });
-    await expect(sent(() => new Response(null, { status: 201 }))).resolves.toStrictEqual({
-      answer: FILE.sha,
-      kind: "landed",
-    });
+    await expect(sent({})).resolves.toStrictEqual({ answer: FILE.sha, kind: "landed" });
     await expect(
-      sent(() => refusalResponse(new QuotaError({ data: { bytesCap: 10, bytesUsed: 10 } }))),
-    ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused", message: "Your library is full." });
-    await expect(sent(() => refusalResponse(new AccountGoneError()))).resolves.toStrictEqual({
-      kind: "gone",
+      sent({
+        settle: () => {
+          throw new BlobMismatchError();
+        },
+      }),
+    ).resolves.toStrictEqual({
+      code: "BAD_REQUEST",
+      kind: "refused",
+      message: "This file changed on this device before it was sent.",
     });
-    await expect(sent(() => refusalResponse(new TooManyRequestsError()))).resolves.toStrictEqual(
+    await expect(sent({ store: () => new Response(null, { status: 403 }) })).resolves.toStrictEqual(
       WAITS_FOR_CONNECTION,
     );
-    await expect(sent(null)).resolves.toStrictEqual(WAITS_FOR_CONNECTION);
   });
 });

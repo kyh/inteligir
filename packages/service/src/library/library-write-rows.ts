@@ -9,10 +9,13 @@ import {
   folderRowSchema,
   itemSummarySchema,
 } from "@repo/contract/library/library-wire";
+import { TooManyRequestsError } from "@repo/contract/rpc/v1-errors";
 import { z } from "zod";
 
 import { editBody } from "../body/edit-body";
 import { writeBody } from "../body/write-body";
+import { reserveFile, settleFile } from "../files/file-landing";
+import { spendHolderBudget } from "../rate-limit";
 import { answer, writing } from "./library-access";
 import { writeFolders } from "./library-folders";
 import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
@@ -49,6 +52,19 @@ export const libraryWriteRows = {
           async (scope) => await undoTurns(scope, input),
         ),
       ),
+    ),
+  },
+  // a file's two calls: neither lands an item, and a reserve only reads, but each spends the
+  // library's room and a request of its store, which a grant that only reads may not
+  files: {
+    reserve: writing.files.reserve.handler(async ({ context, input }) => {
+      if (!(await spendHolderBudget("fileReserve", context.library.accountId))) {
+        throw new TooManyRequestsError();
+      }
+      return answer(await reserveFile(context.library, input));
+    }),
+    settle: writing.files.settle.handler(async ({ context, input }) =>
+      answer(await settleFile(context.library, input)),
     ),
   },
   folders: {
