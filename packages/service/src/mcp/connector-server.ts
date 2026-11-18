@@ -1,12 +1,14 @@
 // `/connector`: the library's tools served to a connected assistant over Streamable HTTP, stateless.
 // A request whose Origin is not this site's is refused first, since a browser page could otherwise
-// spend a person's token (the transport's spec asks for the check). Then the bearer is read again
-// as its grant stands now, the grant's budget spent, and a fresh server built for the request,
-// listing the library's tools the grant reaches (`../library/library-tools`), each call oRPC's own
-// through the row as the assistant; a tool the grant does not reach is no tool to it. 2026-07-28
-// requests go through the SDK's `createMcpHandler`, 2025-era ones a stateless transport of ours,
-// since the entry's fallback answers with event streams. No session and no stream from the server: GET and DELETE are 405, and a JSON-RPC batch,
-// which no revision after 2025-03-26 sends, is refused, so one request is one call of the budget.
+// spend a person's token (the transport's spec asks for the check). Then the token is read again
+// as its grant stands now, a DPoP-bound one with its proof, the grant's budget spent, and a fresh
+// server built for the request, listing the library's tools the grant reaches
+// (`../library/library-tools`), each call oRPC's own through the row as the assistant; a tool the
+// grant does not reach is no tool to it. 2026-07-28 requests go through the SDK's
+// `createMcpHandler`, 2025-era ones a stateless transport of ours, since the entry's fallback
+// answers with event streams. No session and no stream from the server: GET and DELETE are 405, and
+// a JSON-RPC batch, which no revision after 2025-03-26 sends, is refused, so one request is one call
+// of the budget.
 
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { z } from "zod";
@@ -24,10 +26,20 @@ import {
 import { getMcpToolMeta, McpRegistrar } from "@orpc/mcp";
 import type { McpToolMeta } from "@orpc/mcp";
 import { onError } from "@orpc/server";
+import type { AccessTokenAuthorization } from "better-auth/oauth2";
+import {
+  createDpopReplayStore,
+  DPOP_SIGNING_ALGORITHMS,
+  enforceDpopBinding,
+  isDpopBindingError,
+  parseAccessTokenAuthorization,
+} from "better-auth/oauth2";
 
 import { APP_URL } from "../app-url";
+import { getAuth } from "../auth/auth";
 import {
   authenticateConnectorToken,
+  CONNECTOR_RESOURCE,
   CONNECTOR_RESOURCE_METADATA_URL,
   CONNECTOR_SCOPES,
 } from "../auth/oauth-auth";
@@ -145,20 +157,80 @@ const jsonRpcError = (
 // an auth-param value as RFC 6750 quotes it: printable ASCII without quotes or backslashes
 const quotable = (text: string): string => text.replaceAll(/[^\u0020-\u007E]|["\\]/gu, "");
 
-// every scope there is: the consent page narrows it to what the person allows
-const unauthorized = (message: string, invalidToken: boolean): Response => {
-  const challenge = [
-    `realm="${REALM}"`,
-    `resource_metadata="${CONNECTOR_RESOURCE_METADATA_URL}"`,
-    `scope="${CONNECTOR_SCOPES.join(" ")}"`,
-    ...(invalidToken ? ['error="invalid_token"', `error_description="${quotable(message)}"`] : []),
-  ];
-  return jsonRpcError(401, message, {
-    headers: { "www-authenticate": `Bearer ${challenge.join(", ")}` },
-  });
+interface Refusal {
+  readonly error: "invalid_dpop_proof" | "invalid_token";
+  readonly message: string;
+  readonly scheme: "Bearer" | "DPoP";
+}
+
+// Bearer's challenge names every scope there is, which the consent page narrows to what the person
+// allows; DPoP's names the proof algorithms it takes
+const unauthorized = (message: string, refusal: Refusal | null): Response => {
+  const error =
+    refusal === null
+      ? []
+      : [`error="${refusal.error}"`, `error_description="${quotable(refusal.message)}"`];
+  const challenge =
+    refusal?.scheme === "DPoP"
+      ? `DPoP ${[`algs="${DPOP_SIGNING_ALGORITHMS.join(" ")}"`, ...error].join(", ")}`
+      : `Bearer ${[
+          `realm="${REALM}"`,
+          `resource_metadata="${CONNECTOR_RESOURCE_METADATA_URL}"`,
+          `scope="${CONNECTOR_SCOPES.join(" ")}"`,
+          ...error,
+        ].join(", ")}`;
+  return jsonRpcError(401, message, { headers: { "www-authenticate": challenge } });
 };
 
-const BEARER = /^Bearer +(?<token>\S+)$/iu;
+type Authenticated =
+  | { readonly ok: true; readonly principal: ConnectorPrincipal }
+  | ({ readonly ok: false } & Refusal);
+
+// RFC 9449: a token the provider bound to a key takes the DPoP scheme and a fresh, single-use proof
+// of that key for this method, URL and token (Better Auth keeps each proof's id until it expires);
+// any other, Bearer
+const dpopRefusal = async (
+  request: Request,
+  authorization: AccessTokenAuthorization,
+  dpopKey: string | null,
+): Promise<Refusal | null> => {
+  const { internalAdapter } = await getAuth().$context;
+  try {
+    await enforceDpopBinding({
+      authorization,
+      method: request.method,
+      payload: dpopKey === null ? {} : { cnf: { jkt: dpopKey } },
+      proofJwt: request.headers.get("dpop"),
+      replayStore: createDpopReplayStore(internalAdapter),
+      url: CONNECTOR_RESOURCE,
+    });
+    return null;
+  } catch (error) {
+    if (!isDpopBindingError(error)) {
+      throw error;
+    }
+    return { error: error.code, message: error.message, scheme: "DPoP" };
+  }
+};
+
+const authenticate = async (
+  request: Request,
+  authorization: AccessTokenAuthorization,
+): Promise<Authenticated> => {
+  const authenticated = await authenticateConnectorToken(authorization.token);
+  if (!authenticated.ok) {
+    return {
+      error: "invalid_token",
+      message: authenticated.message,
+      ok: false,
+      scheme: authorization.scheme === "DPoP" ? "DPoP" : "Bearer",
+    };
+  }
+  const refusal = await dpopRefusal(request, authorization, authenticated.dpopKey);
+  return refusal === null
+    ? { ok: true, principal: authenticated.principal }
+    : { ok: false, ...refusal };
+};
 
 // any JSON: the handler reads it as JSON-RPC
 const jsonBodySchema = z.json();
@@ -190,13 +262,13 @@ export const handleConnectorRequest = async (request: Request): Promise<Response
   if (foreign !== undefined) {
     return foreign;
   }
-  const token = BEARER.exec(request.headers.get("authorization") ?? "")?.groups?.token;
-  if (token === undefined) {
-    return unauthorized(NO_CREDENTIAL, false);
+  const authorization = parseAccessTokenAuthorization(request.headers.get("authorization"));
+  if (authorization === undefined || authorization.scheme === "Unknown") {
+    return unauthorized(NO_CREDENTIAL, null);
   }
-  const authenticated = await authenticateConnectorToken(token);
+  const authenticated = await authenticate(request, authorization);
   if (!authenticated.ok) {
-    return unauthorized(authenticated.message, true);
+    return unauthorized(authenticated.message, authenticated);
   }
   // after the token: an assistant finds its sign-in from the challenge, whatever it probes with
   if (request.method !== "POST") {

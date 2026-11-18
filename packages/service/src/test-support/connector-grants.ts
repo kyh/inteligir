@@ -2,13 +2,13 @@
 // registers itself, sends the person to authorize with PKCE, the person answers on the consent page
 // (its form's POST), and it trades the code for tokens; then it calls `/connector`.
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 
 import { CONNECTOR_CONSENT_PATH } from "@repo/contract/connector";
 import { expect } from "vitest";
 import { z } from "zod";
 
-import { CONNECTOR_RESOURCE } from "../auth/oauth-auth";
+import { CONNECTOR_RESOURCE, OAUTH_ISSUER } from "../auth/oauth-auth";
 import { handleConnectorRequest } from "../mcp/connector-server";
 import { authFetch, ORIGIN } from "./auth-requests";
 
@@ -19,6 +19,7 @@ const tokensSchema = z.object({
   expires_in: z.number(),
   refresh_token: z.string(),
   scope: z.string(),
+  token_type: z.string(),
 });
 
 export type Tokens = z.infer<typeof tokensSchema>;
@@ -28,6 +29,57 @@ const form = (fields: Record<string, string>) => ({
   headers: { "content-type": "application/x-www-form-urlencoded" },
   method: "POST" as const,
 });
+
+const TOKEN_URL = `${OAUTH_ISSUER}/oauth2/token`;
+
+const ecPublicJwkSchema = z.object({
+  crv: z.string(),
+  kty: z.string(),
+  x: z.string(),
+  y: z.string(),
+});
+
+const base64url = (text: string): string => Buffer.from(text).toString("base64url");
+
+interface ProofClaims {
+  // JSON leaves it out when no token is presented
+  readonly ath: string | undefined;
+  readonly htm: string;
+  readonly htu: string;
+  readonly iat: number;
+  readonly jti: string;
+}
+
+export interface DpopKey {
+  // a DPoP proof (RFC 9449) of this key for a request, presenting `accessToken` when given
+  readonly proof: (method: string, url: string, accessToken?: string) => string;
+}
+
+export const dpopKey = (): DpopKey => {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const jwk = ecPublicJwkSchema.parse(publicKey.export({ format: "jwk" }));
+  return {
+    proof: (method, url, accessToken) => {
+      const claims: ProofClaims = {
+        ath:
+          accessToken === undefined
+            ? undefined
+            : createHash("sha256").update(accessToken).digest("base64url"),
+        htm: method,
+        htu: url,
+        iat: Math.floor(Date.now() / 1000),
+        jti: randomUUID(),
+      };
+      const header = JSON.stringify({ alg: "ES256", jwk, typ: "dpop+jwt" });
+      const input = `${base64url(header)}.${base64url(JSON.stringify(claims))}`;
+      const signature = sign("sha256", Buffer.from(input), {
+        dsaEncoding: "ieee-p1363",
+        key: privateKey,
+      });
+      return `${input}.${signature.toString("base64url")}`;
+    },
+  };
+};
 
 export const registerAssistant = async (name: string, redirectUri: string): Promise<string> => {
   const response = await authFetch("/oauth2/register", {
@@ -51,12 +103,14 @@ interface Connecting {
   readonly scope: string;
   // what the person allows, as the consent page sends it
   readonly allowed: string;
+  // the key an assistant binds its tokens to, if it holds one
+  readonly dpop?: DpopKey;
 }
 
 // the person's session authorizes, answers the consent page, and the code is traded
 export const connectAssistant = async (
   name: string,
-  { allowed, cookie, scope }: Connecting,
+  { allowed, cookie, dpop, scope }: Connecting,
 ): Promise<{ readonly clientId: string; readonly tokens: Tokens }> => {
   const redirectUri = `https://${name.toLowerCase()}.example/callback`;
   const clientId = await registerAssistant(name, redirectUri);
@@ -91,16 +145,19 @@ export const connectAssistant = async (
   const back = new URL(answeredSchema.parse(await answered.json()).url);
   expect(back.searchParams.get("state")).toBe(state);
 
+  const exchange = form({
+    client_id: clientId,
+    code: back.searchParams.get("code") ?? "",
+    code_verifier: verifier,
+    grant_type: "authorization_code",
+    redirect_uri: redirectUri,
+    resource: CONNECTOR_RESOURCE,
+  });
   const traded = await authFetch(
     "/oauth2/token",
-    form({
-      client_id: clientId,
-      code: back.searchParams.get("code") ?? "",
-      code_verifier: verifier,
-      grant_type: "authorization_code",
-      redirect_uri: redirectUri,
-      resource: CONNECTOR_RESOURCE,
-    }),
+    dpop === undefined
+      ? exchange
+      : { ...exchange, headers: { ...exchange.headers, dpop: dpop.proof("POST", TOKEN_URL) } },
   );
   expect(traded.status).toBe(200);
   return { clientId, tokens: tokensSchema.parse(await traded.json()) };
@@ -125,6 +182,8 @@ interface ConnectorInit {
   readonly body?: JsonRpcBody;
   readonly headers?: Readonly<Record<string, string>>;
   readonly method?: "DELETE" | "GET" | "POST";
+  // a DPoP proof, sent as its header
+  readonly proof?: string;
 }
 
 type JsonRpcBody = z.infer<ReturnType<typeof z.json>>;
@@ -135,6 +194,7 @@ export const connectorFetch = async ({
   body,
   headers = {},
   method = "POST",
+  proof,
 }: ConnectorInit): Promise<Response> => {
   const sent = new Headers({
     accept: "application/json, text/event-stream",
@@ -143,6 +203,9 @@ export const connectorFetch = async ({
   });
   if (bearer !== undefined) {
     sent.set("authorization", `Bearer ${bearer}`);
+  }
+  if (proof !== undefined) {
+    sent.set("dpop", proof);
   }
   for (const [name, value] of Object.entries(headers)) {
     sent.set(name, value);

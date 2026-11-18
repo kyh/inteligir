@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { oauthAccessToken, oauthClient, oauthConsent } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
+import { getConfirmationJkt } from "better-auth/oauth2";
 import { and, eq } from "drizzle-orm";
 
 import { APP_URL } from "../app-url";
@@ -62,7 +63,12 @@ export const assistantIdentity = (client: {
 };
 
 type ConnectorAuth =
-  | { readonly ok: true; readonly principal: ConnectorPrincipal }
+  | {
+      readonly ok: true;
+      readonly principal: ConnectorPrincipal;
+      // the thumbprint of the key a DPoP-bound token is bound to, null for a bearer token
+      readonly dpopKey: string | null;
+    }
   | { readonly ok: false; readonly message: string };
 
 const refuse = (message: string): ConnectorAuth => ({ message, ok: false });
@@ -82,6 +88,7 @@ export const authenticateConnectorToken = async (token: string): Promise<Connect
       },
       consent: { id: oauthConsent.id, scopes: oauthConsent.scopes },
       token: {
+        confirmation: oauthAccessToken.confirmation,
         expiresAt: oauthAccessToken.expiresAt,
         resources: oauthAccessToken.resources,
         revoked: oauthAccessToken.revoked,
@@ -126,6 +133,7 @@ export const authenticateConnectorToken = async (token: string): Promise<Connect
     return refuse("This assistant's connection reaches nothing in the library. Connect it again.");
   }
   return {
+    dpopKey: getConfirmationJkt(presented.confirmation) ?? null,
     ok: true,
     principal: {
       accountId: presented.userId,

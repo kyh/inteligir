@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { listAssistants, revokeAssistant } from "../auth/connected-assistants";
 import {
+  CONNECTOR_RESOURCE,
   CONNECTOR_RESOURCE_METADATA_URL,
   hashOAuthToken,
   OAUTH_TOKEN_PREFIX,
@@ -21,6 +22,7 @@ import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-req
 import {
   connectAssistant,
   connectorFetch,
+  dpopKey,
   refreshTokens,
   rpc,
   tokensOf,
@@ -192,6 +194,61 @@ dbSuite("the connector", () => {
       headers: { "content-type": "text/plain" },
     });
     expect(text.status).toBe(415);
+  });
+
+  it("takes a token bound to a key only with a fresh proof of that key, and a bearer token only as one", async () => {
+    const { cookie } = await signedUp("connector-dpop@example.com");
+    const key = dpopKey();
+    const { tokens } = await connectAssistant("Claude", {
+      allowed: FULL,
+      cookie,
+      dpop: key,
+      scope: FULL,
+    });
+    expect(tokens.token_type).toBe("DPoP");
+    const token = tokens.access_token;
+    const sent = async (scheme: "Bearer" | "DPoP", proof?: string) => {
+      const headers = { authorization: `${scheme} ${token}` };
+      return await connectorFetch({ body: rpc("tools/list"), headers, proof });
+    };
+    const proof = key.proof("POST", CONNECTOR_RESOURCE, token);
+    const served = await sent("DPoP", proof);
+    expect(served.status).toBe(200);
+    const refusals: [string, "Bearer" | "DPoP", string | undefined, string][] = [
+      ["a replayed proof", "DPoP", proof, "invalid_dpop_proof"],
+      [
+        "another key",
+        "DPoP",
+        dpopKey().proof("POST", CONNECTOR_RESOURCE, token),
+        "invalid_dpop_proof",
+      ],
+      [
+        "another URL",
+        "DPoP",
+        key.proof("POST", `${CONNECTOR_RESOURCE}/x`, token),
+        "invalid_dpop_proof",
+      ],
+      ["another method", "DPoP", key.proof("GET", CONNECTOR_RESOURCE, token), "invalid_dpop_proof"],
+      ["no token presented", "DPoP", key.proof("POST", CONNECTOR_RESOURCE), "invalid_dpop_proof"],
+      ["no proof", "DPoP", undefined, "invalid_dpop_proof"],
+      ["as a bearer token", "Bearer", undefined, "invalid_token"],
+    ];
+    for (const [why, scheme, proofJwt, error] of refusals) {
+      const response = await sent(scheme, proofJwt);
+      expect(response.status, why).toBe(401);
+      expect(response.headers.get("www-authenticate"), why).toMatch(
+        new RegExp(`^DPoP algs="[^"]*ES256[^"]*", error="${error}"`, "u"),
+      );
+    }
+
+    const plain = await connectAssistant("Cursor", { allowed: FULL, cookie, scope: FULL });
+    expect(plain.tokens.token_type).toBe("Bearer");
+    const asDpop = await connectorFetch({
+      body: rpc("tools/list"),
+      headers: { authorization: `DPoP ${plain.tokens.access_token}` },
+      proof: key.proof("POST", CONNECTOR_RESOURCE, plain.tokens.access_token),
+    });
+    expect(asDpop.status).toBe(401);
   });
 
   it("refreshes past an access token's expiry, and a disconnect ends both tokens at once", async () => {
