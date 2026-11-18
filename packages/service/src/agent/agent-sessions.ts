@@ -3,15 +3,18 @@
 // message alone.
 
 import { AgentUnavailableError, NotFoundError } from "@repo/contract/rpc/v1-errors";
-import type { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
+import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
+import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { agentPreference } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
+import { opAnswer } from "@repo/db/library-schema";
 import { eq, sql } from "drizzle-orm";
-import type { z } from "zod";
+import { z } from "zod";
 
 import { mintLibraryId } from "../library/library-ids";
+import { priorAnswer } from "../library/library-store";
 import { errorFields } from "../log";
-import { nextDayAt, turnsLeftToday } from "./agent-limits";
+import { nextDayAt, refuseSendPastLimits, turnsLeftToday } from "./agent-limits";
 import type { ThreadRow } from "./agent-threads";
 import {
   openThread,
@@ -32,12 +35,9 @@ const TITLE_MAX_CHARS = 80;
 // week's age plus eve's week of idle (apps/web/agent/agent.ts) keeps every session well inside
 const EVE_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-type ThreadStatus = (typeof THREAD_STATUSES)[number];
+const threadAnswerSchema = z.object({ status: z.enum(THREAD_STATUSES), threadId: z.string() });
 
-interface ThreadAnswer {
-  readonly status: ThreadStatus;
-  readonly threadId: string;
-}
+type ThreadAnswer = z.infer<typeof threadAnswerSchema>;
 
 const callerOf = (row: ThreadRow, eveSessionNumber = row.eveSessionNumber): AgentCaller => ({
   accountId: row.accountId,
@@ -148,24 +148,38 @@ interface SendInput {
   readonly viewContext?: z.infer<typeof agentViewContextSchema> | undefined;
 }
 
-// A message to the thread it names, or the first of a new one. A new thread takes the message's
-// op id as its own, so a first message sent again finds the thread it opened and eve the session
-// that thread created; a later one is delivered once under its op id
+// A message to the thread it names, or the first of a new one. One that would start a turn is
+// refused while the day's limits are spent; one sent to a running turn joins it, booking nothing.
+// A delivered message's op id answers a resend as it answered, whatever the limits say since; a new
+// thread takes the op id as its own, so a first message sent again finds the thread it opened and
+// eve the session that thread created, and eve delivers a later one once under it
 export const sendToAgent = async (
   runtime: AgentRuntime | null,
   accountId: string,
   input: SendInput,
 ): Promise<ThreadAnswer> => {
   const live = requireRuntime(runtime);
+  const { opId } = input;
+  const prior =
+    opId === undefined ? null : await priorAnswer(db, accountId, opId, threadAnswerSchema);
+  if (prior !== null) {
+    return prior.value;
+  }
   const now = Date.now();
+  const named = input.threadId === undefined ? null : await threadOf(accountId, input.threadId);
+  if (input.threadId !== undefined && named === null) {
+    throw new NotFoundError();
+  }
+  if (named?.status !== "running") {
+    await refuseSendPastLimits(accountId, now);
+  }
   const row =
-    input.threadId === undefined
-      ? await openThread(accountId, {
-          id: input.opId ?? mintLibraryId(now),
-          now,
-          title: titleOf(input.text),
-        })
-      : await threadOf(accountId, input.threadId);
+    named ??
+    (await openThread(accountId, {
+      id: opId ?? mintLibraryId(now),
+      now,
+      title: titleOf(input.text),
+    }));
   if (row === null) {
     throw new NotFoundError();
   }
@@ -174,11 +188,15 @@ export const sendToAgent = async (
       await deliver(
         live,
         row,
-        { clientContext: input.viewContext, idempotencyKey: input.opId, text: input.text },
+        { clientContext: input.viewContext, idempotencyKey: opId, text: input.text },
         now,
       ),
   );
-  return { status: "running", threadId: delivered.id };
+  const answer: ThreadAnswer = { status: "running", threadId: delivered.id };
+  if (opId !== undefined) {
+    await db.insert(opAnswer).values({ accountId, answer, at: now, opId }).onConflictDoNothing();
+  }
+  return answer;
 };
 
 // stops the thread's running turn; an ended session has none to stop

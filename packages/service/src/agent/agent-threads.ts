@@ -6,9 +6,10 @@ import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/libra
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor } from "@repo/db/drizzle-client";
-import { and, asc, desc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import type { TurnStop } from "./agent-limits";
 import type { ThreadPosition } from "./thread-events";
 import { cursorOf } from "./thread-events";
 
@@ -151,13 +152,50 @@ export const turnIs = (at: TurnAt) =>
     eq(agentTurn.eveTurnId, at.eveTurnId),
   );
 
-// the turn's number in its thread, or null for a turn whose start was never kept
-export const turnNumberOf = async (executor: DbExecutor, at: TurnAt): Promise<number | null> => {
+// the turn as eve starts it, numbered next in its thread; kept again, it stays as it was
+export const keepTurn = async (executor: DbExecutor, at: TurnAt, now: number): Promise<void> => {
+  await executor
+    .insert(agentTurn)
+    .values({
+      ...at,
+      number: sql`(select coalesce(max(${agentTurn.number}), 0) + 1 from ${agentTurn} where ${agentTurn.accountId} = ${at.accountId} and ${agentTurn.threadId} = ${at.threadId})`,
+      startedAt: now,
+    })
+    .onConflictDoNothing({
+      target: [
+        agentTurn.accountId,
+        agentTurn.threadId,
+        agentTurn.eveSessionNumber,
+        agentTurn.eveTurnId,
+      ],
+    });
+};
+
+export interface KeptTurn {
+  readonly number: number;
+  readonly stopReason: TurnStop | null;
+}
+
+// the turn's number in its thread and the limit that stopped it, or null for a turn whose start
+// was never kept
+export const turnOf = async (executor: DbExecutor, at: TurnAt): Promise<KeptTurn | null> => {
   const [row] = await executor
-    .select({ number: agentTurn.number })
+    .select({ number: agentTurn.number, stopReason: agentTurn.stopReason })
     .from(agentTurn)
     .where(turnIs(at));
-  return row?.number ?? null;
+  return row ?? null;
+};
+
+// the limit that stops the turn, stamped before its cancel: the first stays
+export const stampTurnStop = async (
+  executor: DbExecutor,
+  at: TurnAt,
+  stop: TurnStop,
+): Promise<void> => {
+  await executor
+    .update(agentTurn)
+    .set({ stopReason: stop })
+    .where(and(turnIs(at), isNull(agentTurn.stopReason)));
 };
 
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;

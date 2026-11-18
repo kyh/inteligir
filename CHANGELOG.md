@@ -25,7 +25,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An item opens full size**: a file in its viewer, a saved page as its article under Open original, and what you type into a saved page stays your note when it's read again.
 - **Info** shows what an item is and where it came from, and moves, tags and pins one or many.
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.
-- **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again, New conversation leaves a conversation for the list, and a day allows a couple of answers.
+- **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again, New conversation leaves a conversation for the list, and a day allows a couple of answers, each of up to 20 steps, which deleting a conversation doesn't give back.
 - **The agent searches the web and reads public pages** when what you ask reaches past your library.
 - **The agent's reply appears as it is written, and a message you send while it works joins what it is doing**, so you can steer it mid-answer; Stop ends the answer where it is.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.

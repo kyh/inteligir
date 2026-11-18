@@ -1,11 +1,13 @@
 // The built-in agent's conversations over the fake platform, which plays the mock model's script and
 // runs its calls as eve runs the agent's tools: what a send makes in the library, what the record
-// hook keeps of it, how a stop and a message sent mid-turn land, how a thread moves across its eve
-// sessions, and how a deleted one goes.
+// hook keeps of it, how a stop and a message sent mid-turn land, how Undo takes its turns back, how
+// a thread moves across its eve sessions, how a deleted one goes, and what the agent's cron settles
+// that a hook never did.
 
 import { randomUUID } from "node:crypto";
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
+import { paragraph } from "@repo/contract/test-support/library-items";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import { changeSet } from "@repo/db/library-schema";
@@ -18,20 +20,31 @@ import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
 import { personalLibrary } from "../test-support/library-fixture";
 import { caughtUp, readStream, rowsOf } from "../test-support/thread-reads";
 import { runAgentCron } from "./agent-cron";
+import { mintLibraryId } from "../library/library-ids";
 import { cancelAgentTurn, deleteAgentThread, sendToAgent } from "./agent-sessions";
-import { recordEveFact } from "./eve-agent";
 import type { AgentRuntime } from "./runtime";
 
 const CREATE_NOTE = 'call create_note {"markdown":"Water the **garden**.","title":"Garden"}';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+const deleting = (id: string) => `call delete_items {"ids":["${id}"]}`;
+
+const noteOf = (title: string) => ({
+  blocks: [{ block: paragraph(randomUUID(), title), section: "note" as const }],
+  folderId: null,
+  id: mintLibraryId(Date.now()),
+  savedAt: Date.now(),
+  tags: [],
+  title,
+});
+
 let platform: FakeAgentPlatform;
 let runtime: AgentRuntime;
 let settled: () => Promise<void>;
 
 beforeEach(() => {
-  platform = createFakeAgentPlatform(recordEveFact);
+  platform = createFakeAgentPlatform();
   ({ runtime, settled } = fakeAgentRuntime(platform));
 });
 
@@ -178,6 +191,32 @@ dbSuite("the built-in agent's conversations", () => {
     expect(events.at(-1)?.event).toMatchObject({ reason: "done", turn: 1 });
   });
 
+  it("brings back by Undo this turn and Undo this conversation the items its turns deleted", async () => {
+    const { accountId, library } = await personalLibrary();
+    const first = noteOf("First");
+    const second = noteOf("Second");
+    await library.items.create(first);
+    await library.items.create(second);
+    const { threadId } = await sendToAgent(runtime, accountId, { text: deleting(first.id) });
+    await platform.turnsSettled();
+    await sendToAgent(runtime, accountId, { text: deleting(second.id), threadId });
+    await platform.turnsSettled();
+    await expect(library.items.list({})).resolves.toMatchObject({ items: [] });
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1, 2] });
+
+    await expect(library.agent.undo({ threadId, turn: 2 })).resolves.toMatchObject({
+      reverted: [second.id],
+    });
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+    await expect(library.agent.undo({ threadId })).resolves.toMatchObject({
+      next: null,
+      reverted: [first.id],
+    });
+    const { items } = await library.items.list({});
+    expect(items.map(({ id }) => id).toSorted()).toStrictEqual([first.id, second.id].toSorted());
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+  });
+
   it("starts the thread's next eve session once its session ended, numbering on", async () => {
     const { accountId, library } = await personalLibrary();
     const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
@@ -271,6 +310,30 @@ dbSuite("the built-in agent's conversations", () => {
     expect(threads.purged).toBeGreaterThanOrEqual(1);
     await expect(rowCounts(threadId)).resolves.toStrictEqual({ events: 0, threads: 0, turns: 0 });
     expect(platform.session(platform.sessionFor(threadId, 1) ?? "").ended).toBe(true);
+  });
+
+  it("settles by the agent's cron a turn stranded open, idling its thread and sealing its set", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { threadId } = await sendToAgent(runtime, accountId, { text: CREATE_NOTE });
+    await platform.turnsSettled();
+    const strandedAt = Date.now() - 2 * 60 * 60 * 1000;
+    const turn = and(eq(agentTurn.threadId, threadId), eq(agentTurn.number, 1));
+    await db
+      .update(agentTurn)
+      .set({ outcome: null, settledAt: null, startedAt: strandedAt })
+      .where(turn);
+    await db.update(agentThread).set({ status: "running" }).where(eq(agentThread.id, threadId));
+    await db.update(changeSet).set({ sealedAt: null }).where(eq(changeSet.threadId, threadId));
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+
+    const { turns } = await runAgentCron(runtime);
+    expect(turns.settled).toBeGreaterThanOrEqual(1);
+    expect(turns.sealed).toBeGreaterThanOrEqual(1);
+    const [failed] = await db.select().from(agentTurn).where(turn);
+    expect(failed).toMatchObject({ outcome: "failed" });
+    const { threads } = await library.agent.list({});
+    expect(threads).toMatchObject([{ id: threadId, status: "idle" }]);
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
   });
 
   it("answers that the agent can't be reached while the deployment reaches no model", async () => {

@@ -1,22 +1,30 @@
 // What the eve agent (apps/web/agent) asks of the app, keyed by its session's caller as the channel
-// admitted it (`./eve-admission`): its library tools, run as the turn, and what its record hook
-// keeps of each fact. A turn's row is written as eve starts it, before its first model call, so
-// every tool call of the turn finds its number, which its change set is keyed by; its settle seals
-// that set and ends the turn in the thread.
+// admitted it (`./eve-admission`): its library tools, run as the turn, what its record hook keeps
+// of each fact and what its limits hook books and charges. A turn's row is written as eve starts
+// it, before its first model call, so every tool call of the turn finds its number, which its change
+// set is keyed by; its settle seals that set and ends the turn in the thread, and the agent's cron
+// settles one whose settle never came.
 
 import type { AgentEvent } from "@repo/contract/library/agent-events";
+import type { WebToolName } from "@repo/contract/library/agent-tools";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor } from "@repo/db/drizzle-client";
-import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Fact, Progress, TurnSettled } from "eve/events";
+import { changeSet } from "@repo/db/library-schema";
+import { and, eq, isNull, lt, notExists } from "drizzle-orm";
+import { activeTurn, call, runs } from "eve/events";
+import type { AnyColumn } from "drizzle-orm";
+import type { Fact, Progress, SessionView, TurnSettled } from "eve/events";
 import type { ToolModelOutput } from "eve/tools";
 
 import { sealTurnSet } from "../library/library-change-sets";
+import type { TurnStop, UsageAt } from "./agent-limits";
+import { AGENT_TURN_STEPS, bookTurn, chargeSpend } from "./agent-limits";
+import { costMicroUsdOf, WEB_SEARCH_MICRO_USD } from "./agent-model";
 import type { AgentCallOutcome, AgentTool } from "./agent-tools";
 import { AGENT_TOOLS, callAgentTool } from "./agent-tools";
 import type { TurnAt } from "./agent-threads";
-import { threadOf, turnIs, turnNumberOf } from "./agent-threads";
+import { keepTurn, stampTurnStop, threadOf, turnIs, turnOf } from "./agent-threads";
 import { eveCallerOf } from "./eve-admission";
 import { shownEvent, turnEndedEvent, turnOutcomeOf } from "./thread-events";
 
@@ -35,21 +43,24 @@ interface ToolCall {
 }
 
 // read afresh at every call, so a deleted thread's turn changes nothing more
-export const runAgentTool = async (call: ToolCall, tool: AgentTool): Promise<AgentCallOutcome> => {
-  const { accountId, eveSessionNumber, threadId } = eveCallerOf(call.auth);
-  const turn = await turnNumberOf(db, {
+export const runAgentTool = async (
+  toolCall: ToolCall,
+  tool: AgentTool,
+): Promise<AgentCallOutcome> => {
+  const { accountId, eveSessionNumber, threadId } = eveCallerOf(toolCall.auth);
+  const turn = await turnOf(db, {
     accountId,
     eveSessionNumber,
-    eveTurnId: call.turnId,
+    eveTurnId: toolCall.turnId,
     threadId,
   });
   if (turn === null || (await threadOf(accountId, threadId)) === null) {
     return { kind: "failed", text: "This conversation was deleted." };
   }
   return await callAgentTool(
-    { principal: { accountId, actor: { kind: "agent", threadId, turn } } },
+    { principal: { accountId, actor: { kind: "agent", threadId, turn: turn.number } } },
     tool,
-    { callId: call.callId, eveSessionId: call.eveSessionId, input: call.input },
+    { callId: toolCall.callId, eveSessionId: toolCall.eveSessionId, input: toolCall.input },
   );
 };
 
@@ -85,21 +96,7 @@ const keepEvent = async (executor: DbExecutor, at: EventAt, event: AgentEvent, n
 const startTurn = async (at: TurnAt, now: number): Promise<void> => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
-    await tx
-      .insert(agentTurn)
-      .values({
-        ...at,
-        number: sql`(select coalesce(max(${agentTurn.number}), 0) + 1 from ${agentTurn} where ${agentTurn.accountId} = ${accountId} and ${agentTurn.threadId} = ${threadId})`,
-        startedAt: now,
-      })
-      .onConflictDoNothing({
-        target: [
-          agentTurn.accountId,
-          agentTurn.threadId,
-          agentTurn.eveSessionNumber,
-          agentTurn.eveTurnId,
-        ],
-      });
+    await keepTurn(tx, at, now);
     await tx
       .update(agentThread)
       .set({ status: "running", updatedAt: now })
@@ -115,15 +112,15 @@ const settleTurn = async (
 ): Promise<void> => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
-    const turn = await turnNumberOf(tx, at);
+    const turn = await turnOf(tx, at);
     if (turn === null) {
       return;
     }
     await tx
       .update(agentTurn)
-      .set({ outcome: turnOutcomeOf(settled), settledAt: now })
+      .set({ outcome: turnOutcomeOf(settled, turn), settledAt: now })
       .where(and(turnIs(at), isNull(agentTurn.settledAt)));
-    await sealTurnSet(tx, accountId, { threadId, turn }, now);
+    await sealTurnSet(tx, accountId, { threadId, turn: turn.number }, now);
     await keepEvent(
       tx,
       { accountId, eveSessionNumber: at.eveSessionNumber, threadId, ...position },
@@ -168,6 +165,134 @@ export const recordEveFact = async ({
       if (shown !== null) {
         await keepEvent(db, { accountId, eveSessionNumber, threadId, ...position }, shown, now);
       }
+    }
+  }
+};
+
+// a turn runs at most 20 model calls and their tools: one still open this long lost its settle
+const TURN_STRANDED_MS = 60 * 60 * 1000;
+
+// a thread's open turn, or the one numbered `number` while it is open
+const openTurnOf = (accountId: AnyColumn, threadId: AnyColumn, number?: AnyColumn) =>
+  db
+    .select({ number: agentTurn.number })
+    .from(agentTurn)
+    .where(
+      and(
+        eq(agentTurn.accountId, accountId),
+        eq(agentTurn.threadId, threadId),
+        number === undefined ? undefined : eq(agentTurn.number, number),
+        isNull(agentTurn.settledAt),
+      ),
+    );
+
+// The agent's cron's backstop for a settle eve recorded but couldn't deliver: a turn stranded open
+// settles failed and a thread running no turn goes idle. Every set whose turn no longer runs is
+// sealed, as is one a landing made after its turn settled or whose conversation went, which Undo
+// and the prune would otherwise never reach
+export const settleStrandedTurns = async (
+  now: number,
+): Promise<{ readonly settled: number; readonly sealed: number }> =>
+  await db.transaction(async (tx) => {
+    const settled = await tx
+      .update(agentTurn)
+      .set({ outcome: "failed", settledAt: now })
+      .where(and(isNull(agentTurn.settledAt), lt(agentTurn.startedAt, now - TURN_STRANDED_MS)))
+      .returning({ number: agentTurn.number });
+    await tx
+      .update(agentThread)
+      .set({ status: "idle", updatedAt: now })
+      .where(
+        and(
+          eq(agentThread.status, "running"),
+          notExists(openTurnOf(agentThread.accountId, agentThread.id)),
+        ),
+      );
+    const sealed = await tx
+      .update(changeSet)
+      .set({ sealedAt: now })
+      .where(
+        and(
+          isNull(changeSet.sealedAt),
+          notExists(openTurnOf(changeSet.accountId, changeSet.threadId, changeSet.turn)),
+        ),
+      )
+      .returning({ id: changeSet.id });
+    return { sealed: sealed.length, settled: settled.length };
+  });
+
+interface LimitedFact {
+  readonly auth: EveAuth;
+  readonly event: Fact;
+  readonly position: { readonly line: number; readonly index: number };
+  readonly at: number;
+  // the session as eve folded it with the fact: `ctx.view`
+  readonly view: SessionView;
+}
+
+// the turn stopped by `stop`, stamped first, since eve settles a hook's cancel with no cause
+const stopping = async (at: TurnAt | null, stop: TurnStop | null): Promise<boolean> => {
+  if (stop === null) {
+    return false;
+  }
+  if (at !== null) {
+    await stampTurnStop(db, at, stop);
+  }
+  return true;
+};
+
+// What a turn may still spend, as eve records each fact that spends it: a turn booked as it
+// starts, each model call counted as the turn asks for it, its tokens and each web search charged
+// as eve records them. True when a limit stops the turn, which the hook then cancels; a cancel from
+// `turn.started` or `model.requested` lands before that model call
+export const limitEveFact = async ({
+  at: now,
+  auth,
+  event,
+  position,
+  view,
+}: LimitedFact): Promise<boolean> => {
+  const { accountId, eveSessionNumber, threadId } = eveCallerOf(auth);
+  const spentAt: UsageAt = { accountId, eveSessionNumber, threadId, ...position };
+  const turnAt = (eveTurnId: string | undefined): TurnAt | null =>
+    eveTurnId === undefined ? null : { accountId, eveSessionNumber, eveTurnId, threadId };
+  switch (event.type) {
+    case "turn.started": {
+      const at = { accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId };
+      return await db.transaction(async (tx) => {
+        await keepTurn(tx, at, now);
+        const stop = await bookTurn(tx, spentAt, now);
+        if (stop !== null) {
+          await stampTurnStop(tx, at, stop);
+        }
+        return stop !== null;
+      });
+    }
+    case "model.requested": {
+      const { owner } = event.data;
+      if (!("turnId" in owner) || runs(view, { turnId: owner.turnId }).length <= AGENT_TURN_STEPS) {
+        return false;
+      }
+      return await stopping(turnAt(owner.turnId), "steps");
+    }
+    case "usage.recorded": {
+      if (event.data.kind !== "model") {
+        return false;
+      }
+      const costMicroUsd = costMicroUsdOf(event.data.usage);
+      const stop = await chargeSpend(spentAt, { costMicroUsd, kind: "model" }, now);
+      return await stopping(turnAt(activeTurn(view)?.turnId), stop);
+    }
+    case "call.settled": {
+      if (call(view, event.data.callId)?.name !== ("web_search" satisfies WebToolName)) {
+        return false;
+      }
+      const costMicroUsd = WEB_SEARCH_MICRO_USD;
+      const stop = await chargeSpend(spentAt, { costMicroUsd, kind: "search" }, now);
+      return await stopping(turnAt(activeTurn(view)?.turnId), stop);
+    }
+    default: {
+      return false;
     }
   }
 };

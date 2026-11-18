@@ -9,6 +9,8 @@ import type { agentTurn } from "@repo/db/agent-schema";
 import type { CallSettled, Fact, JsonValue, Progress, TurnSettled } from "eve/events";
 import { z } from "zod";
 
+import type { KeptTurn } from "./agent-threads";
+
 // where eve recorded a fact: the thread's session by its number, the line, the index in that line
 export interface ThreadPosition {
   readonly session: number;
@@ -138,14 +140,15 @@ export const shownEvent = (fact: Fact | Progress, session: number): AgentEvent |
   }
 };
 
-// how a turn eve settled ended, as its row and its thread keep it
-export const turnOutcomeOf = ({ data }: TurnSettled): TurnOutcome => {
+// how a turn eve settled ended, as its row and its thread keep it: one cancelled by a limit, by
+// the limit its row was stamped with
+export const turnOutcomeOf = ({ data }: TurnSettled, turn: KeptTurn): TurnOutcome => {
   switch (data.outcome) {
     case "completed": {
       return "done";
     }
     case "cancelled": {
-      return "cancelled";
+      return turn.stopReason ?? "cancelled";
     }
     case "failed": {
       return "failed";
@@ -155,9 +158,9 @@ export const turnOutcomeOf = ({ data }: TurnSettled): TurnOutcome => {
 };
 
 // the thread's event for a turn eve settled, its number the thread's
-export const turnEndedEvent = (settled: TurnSettled, turn: number): AgentEvent => ({
-  reason: turnOutcomeOf(settled),
-  turn,
+export const turnEndedEvent = (settled: TurnSettled, turn: KeptTurn): AgentEvent => ({
+  reason: turnOutcomeOf(settled, turn),
+  turn: turn.number,
   type: "turn.ended",
 });
 

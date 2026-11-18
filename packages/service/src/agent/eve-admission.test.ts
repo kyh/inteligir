@@ -7,12 +7,11 @@ import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-
 import { personalLibrary } from "../test-support/library-fixture";
 import { deleteAgentThread, sendToAgent } from "./agent-sessions";
 import { admitEveRequest, eveCallerOf } from "./eve-admission";
-import { recordEveFact } from "./eve-agent";
 import { eveOperationId, mintEveToken } from "./eve-token";
 
 const threadOfOwn = async () => {
   const { accountId } = await personalLibrary();
-  const platform = createFakeAgentPlatform(recordEveFact);
+  const platform = createFakeAgentPlatform();
   const { runtime, settled } = fakeAgentRuntime(platform);
   const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
   await platform.turnsSettled();

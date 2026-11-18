@@ -1,3 +1,4 @@
+import { AGENT_MODEL_ID } from "@repo/service/agent/agent-model";
 import { agentMockModelOn } from "@repo/service/agent/availability";
 import { defineAgent, defineDynamic } from "eve";
 
@@ -20,7 +21,7 @@ export default defineAgent({
       return { model: mockAgentModel, modelContextWindowTokens: MOCK_CONTEXT_WINDOW_TOKENS };
     }
     return {
-      model: "anthropic/claude-sonnet-5.5",
+      model: AGENT_MODEL_ID,
       modelOptions: { providerOptions: { gateway: { caching: "auto", only: ["anthropic"] } } },
       reasoning: "medium",
     };

@@ -1,9 +1,10 @@
 // The built-in agent's conversations: each a thread of ours over one eve session at a time, the
-// events its record hook keeps of what eve did, its turns and the account's preferences. eve keeps
-// its own stream on Vercel Workflow; these rows are what a device reads and what a turn's change set
-// is keyed by. A thread's account cascades from Better Auth's `user`, and every other row hangs off
-// its thread by a composite foreign key, so deleting a user or a thread takes the rest. Times are
-// unix milliseconds and ids text, as the library spells them.
+// events its record hook keeps of what eve did, its turns, what it spent and the account's
+// preferences. eve keeps its own stream on Vercel Workflow; these rows are what a device reads, what
+// a turn's change set is keyed by and what the day's limits count. A thread's account cascades from
+// Better Auth's `user`, and every other row of a thread hangs off it by a composite foreign key, so
+// deleting a user or a thread takes the rest; what the agent spent hangs off the account alone.
+// Times are unix milliseconds and ids text, as the library spells them.
 
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
@@ -39,8 +40,16 @@ const TURN_OUTCOMES = [
   "unavailable",
 ] as const;
 
+// which limit stopped a turn: the day's turns, the day's dollars, or the turn's steps
+const TURN_STOPS = ["allowance", "budget", "steps"] as const;
+
+// what the agent spent: a turn booked as it started, a model call's tokens, a web search
+const USAGE_KINDS = ["turn", "model", "search"] as const;
+
 export const agentThreadStatus = pgEnum("agent_thread_status", THREAD_STATUSES);
 export const agentTurnOutcome = pgEnum("agent_turn_outcome", TURN_OUTCOMES);
+export const agentTurnStop = pgEnum("agent_turn_stop", TURN_STOPS);
+export const agentUsageKind = pgEnum("agent_usage_kind", USAGE_KINDS);
 
 const ms = (name: string) => bigint(name, { mode: "number" });
 
@@ -109,9 +118,10 @@ export const agentThreadEvent = pgTable.withRLS(
   ],
 );
 
-// A turn by its number in its thread, which its change set is keyed by: the record hook writes it
-// as eve starts the turn, before its first model call, so every tool call finds it. eve numbers a
-// turn within its session alone
+// A turn by its number in its thread, which its change set is keyed by: the hooks write it as eve
+// starts the turn, before its first model call, so every tool call finds it. eve numbers a turn
+// within its session alone. A limit that stops it stamps `stop_reason` before it cancels, since eve
+// settles a hook's cancel with no cause
 export const agentTurn = pgTable.withRLS(
   "agent_turn",
   {
@@ -122,6 +132,7 @@ export const agentTurn = pgTable.withRLS(
     outcome: agentTurnOutcome("outcome"),
     settledAt: ms("settled_at"),
     startedAt: ms("started_at").notNull(),
+    stopReason: agentTurnStop("stop_reason"),
     threadId: text("thread_id").notNull(),
   },
   (table) => [
@@ -135,6 +146,31 @@ export const agentTurn = pgTable.withRLS(
     ),
     index("agent_turn_started").on(table.accountId, table.startedAt),
     check("agent_turn_settled", sql`(${table.settledAt} is null) = (${table.outcome} is null)`),
+  ],
+);
+
+// What the agent spent, the account's ledger for the day's limits: each spend kept where eve
+// recorded it, so a hook delivered twice books or charges once, priced in millionths of a dollar.
+// It hangs off the account alone, so deleting a conversation gives back none of the day's turns or
+// dollars, and goes after a month
+export const agentUsage = pgTable.withRLS(
+  "agent_usage",
+  {
+    accountId: accountId(),
+    at: ms("at").notNull(),
+    costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull(),
+    eveSessionNumber: integer("eve_session_number").notNull(),
+    index: integer("index").notNull(),
+    kind: agentUsageKind("kind").notNull(),
+    line: integer("line").notNull(),
+    threadId: text("thread_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.threadId, table.eveSessionNumber, table.line, table.index],
+    }),
+    index("agent_usage_account_at").on(table.accountId, table.at),
+    index("agent_usage_at").on(table.at),
   ],
 );
 

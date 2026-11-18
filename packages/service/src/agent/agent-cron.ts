@@ -1,14 +1,19 @@
 // The agent's housekeeping, every 15 minutes by Vercel Cron (apps/web/vercel.json): what a response
-// left unfinished, each item tried alone so one failure waits for the next run.
+// or a hook left unfinished, each deleted thread tried alone so one failure waits for the next run,
+// and the ledger past its month.
 
 import { serveCron } from "../cron";
 import { env } from "../env";
+import { trimUsage } from "./agent-limits";
 import { purgeRetiredThreads } from "./agent-sessions";
+import { settleStrandedTurns } from "./eve-agent";
 import type { AgentRuntime } from "./runtime";
 import { deploymentAgentRuntime } from "./runtime";
 
-export const runAgentCron = async (runtime: AgentRuntime | null) => ({
+export const runAgentCron = async (runtime: AgentRuntime | null, now = Date.now()) => ({
   threads: await purgeRetiredThreads(runtime),
+  turns: await settleStrandedTurns(now),
+  usage: { trimmed: await trimUsage(now) },
 });
 
 export const serveAgentCron = async (request: Request): Promise<Response> =>

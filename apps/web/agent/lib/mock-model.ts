@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { mockStep } from "@repo/service/agent/mock-directives";
+import { mockStep, mockUsageOf } from "@repo/service/agent/mock-directives";
 import { mockModel } from "eve/evals";
 import type { MockModelRequest, MockModelResponse } from "eve/evals";
 
@@ -11,12 +11,14 @@ const stepOf = ({ messages }: MockModelRequest): number => {
 };
 
 const reply = async (request: MockModelRequest): Promise<MockModelResponse> => {
-  const next = mockStep(request.lastUserMessage ?? "", stepOf(request));
+  const message = request.lastUserMessage ?? "";
+  const next = mockStep(message, stepOf(request));
+  const usage = mockUsageOf(message);
   if (next.kind === "call") {
-    return { toolCalls: [{ input: next.input, name: next.tool }] };
+    return { toolCalls: [{ input: next.input, name: next.tool }], usage };
   }
   await sleep(next.afterMs);
-  return { text: next.text };
+  return { text: next.text, usage };
 };
 
 // eve's mock model, playing the script @repo/service/agent/mock-directives reads

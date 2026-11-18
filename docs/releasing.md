@@ -425,8 +425,10 @@ turns a UTC day (`AGENT_DAY_TURNS` in `packages/service/src/agent/agent-limits.t
   stream, the conversation follows the reply to its end and the reply does not
   blink as it lands, one change set, Undo keeps a note you typed in since, the allowance
   counts, and cache reads show.
-- **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
-  spent per-account limit ends it as the day's allowance.
+- **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and
+  an account's 50 cents or every account's $5 a day, priced from the tokens in
+  `agent_usage`, ends it `budget`; the day's spend there matches the Anthropic
+  console's within a call.
 - **Real-model behaviour**: a declined turn finishes on the fallback; a search
   cites its pages and a page read answers from it; Tidy my library follows the
   rules; the agent writes the dialect.

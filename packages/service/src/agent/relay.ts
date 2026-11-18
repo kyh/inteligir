@@ -13,7 +13,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { z } from "zod";
 
 import type { ThreadEventRow, ThreadRow } from "./agent-threads";
-import { threadHistory, threadOf, turnNumberOf } from "./agent-threads";
+import { threadHistory, threadOf, turnOf } from "./agent-threads";
 import type { AgentPlatform, AgentStreamEvent } from "./platform";
 import { isSessionEnded } from "./platform";
 import type { AgentRuntime } from "./runtime";
@@ -46,7 +46,7 @@ interface FollowedSession {
 }
 
 // what the thread shows of a fact as it happens: the record hook's event, a turn's end numbered
-// from its row
+// and named from its row
 const relayedEvent = async (
   session: FollowedSession,
   recorded: AgentStreamEvent,
@@ -55,7 +55,7 @@ const relayedEvent = async (
   if (recorded.type !== "turn.settled") {
     return shownEvent(recorded, eveSessionNumber);
   }
-  const turn = await turnNumberOf(db, {
+  const turn = await turnOf(db, {
     accountId,
     eveSessionNumber,
     eveTurnId: recorded.data.turnId,

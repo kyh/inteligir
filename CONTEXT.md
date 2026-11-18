@@ -159,12 +159,20 @@ Agent tab and switches it in Settings › Account
 allowance" is its `AGENT_BUDGET` refusal. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
-Claude ends it or the person stops it, a row of `agent_turn` numbered in its
-**thread**, which the record hook writes as eve starts it. Its **answer** is
-what the person reads of it: the reply, its progress notes and its calls, under
-which "Undo this turn" reverts its one **change set**. A message sent while its
-thread's turn runs joins that turn (`packages/service/src/agent/eve-agent.ts`).
-Not a connected assistant's call, which is no turn.
+Claude ends it, the person stops it or a limit does, a row of `agent_turn`
+numbered in its **thread**, which the hooks write as eve starts it. Its
+**answer** is what the person reads of it: the reply, its progress notes and its
+calls, under which "Undo this turn" reverts its one **change set**. A message
+sent while its thread's turn runs joins that turn
+(`packages/service/src/agent/eve-agent.ts`). Not a connected assistant's call,
+which is no turn.
+
+**allowance** — what the **built-in agent** may spend for an account in a UTC
+day, two **turns** and 50 cents of model calls, beside every account's $5
+together and a turn's 20 model calls, counted from the account's ledger,
+`agent_usage`, which deleting a **thread** leaves as it is
+(`packages/service/src/agent/agent-limits.ts`). A turn past it ends `allowance`,
+`budget` or `steps`.
 
 **thread** — a conversation with the **built-in agent**, the account's, so
 every device shows it: a row of `agent_thread` over one eve session at a time,

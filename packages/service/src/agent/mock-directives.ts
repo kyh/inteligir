@@ -2,6 +2,7 @@
 // fake platform with it: one directive per line of the person's latest message.
 //   call <tool> <json object>   one step that calls that tool with that input
 //   long <chars>                a reply of that much text, after that many milliseconds
+//   tokens <count>              each model call reports that many output tokens, and none without
 // A step is a tool result since that message; with no step left, the reply names what it called,
 // and a message with no directive is said back.
 
@@ -9,6 +10,7 @@ import { z } from "zod";
 
 const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
+const TOKENS = /^tokens\s+(?<count>[1-9]\d{0,8})$/u;
 
 const callInputSchema = z.record(z.string(), z.json());
 type CallInput = z.infer<typeof callInputSchema>;
@@ -30,9 +32,19 @@ const callOf = (line: string): { tool: string; input: CallInput } | null => {
   }
 };
 
+const linesOf = (message: string): string[] => message.split(/\r?\n/u).map((line) => line.trim());
+
+// what each model call reports it spent, which the day's dollars price
+export const mockUsageOf = (message: string) => {
+  const count = linesOf(message)
+    .map((line) => TOKENS.exec(line)?.groups?.count)
+    .find((value) => value !== undefined);
+  return { inputTokens: 0, outputTokens: count === undefined ? 0 : Number(count) };
+};
+
 // what the mock does at `step`, the tool results it read since the message
 export const mockStep = (message: string, step: number): MockStep => {
-  const lines = message.split(/\r?\n/u).map((line) => line.trim());
+  const lines = linesOf(message);
   const calls = lines.flatMap((line) => callOf(line) ?? []);
   const next = calls[step];
   if (next !== undefined) {

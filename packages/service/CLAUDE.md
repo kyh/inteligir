@@ -315,6 +315,24 @@ decisions port with its code from the tag `cloudflare-last`.
 - **A message sent mid-turn joins it, and Stop is eve's cancel.** eve steers a
   running turn by its own caller, so a turn holds every message sent while it
   ran and ends `cancelled` when stopped. `packages/service/src/agent/agent-sessions.ts`.
+- **The day's limits are counted from the account's ledger, `agent_usage`,
+  each spend keyed where eve recorded it: a turn booked, a model call's tokens
+  priced at Sonnet 5.5's rates, a web search at a cent.** The gateway runs
+  Anthropic on the team's own key, so eve reports no cost, and a ledger off the
+  thread gives nothing back when a conversation is deleted.
+  `packages/service/src/agent/agent-limits.ts`.
+- **A limit stops a turn by stamping `agent_turn.stop_reason`, then eve's
+  cancel; a turn is booked under the account's lock as it starts, and a send
+  that would start one is refused first.** eve settles a hook's cancel with no
+  cause, and two turns starting at once must not both take the day's last.
+  `packages/service/src/agent/eve-agent.ts`.
+- **A send's op id answers its resend from `op_answer`, before the limits.**
+  A resend after the day ran out would otherwise refuse a message eve already
+  took. `packages/service/src/agent/agent-sessions.ts`.
+- **The agent's cron settles a turn open an hour as failed and seals every set
+  whose turn no longer runs.** A settle eve recorded but couldn't deliver, or a
+  landing after one, leaves a set Undo and the prune never reach.
+  `packages/service/src/agent/eve-agent.ts`.
 - **A deleted thread is a tombstone at once, purged after the response, and
   by the agent's cron every 15 minutes where that failed.** Ending its eve
   session can fail, and a row gone first would leave the session running for

@@ -3,24 +3,26 @@
 // answers the same session and delivery; a recorded line never moves; a send answers once its
 // message is taken, and its turn runs on; a message to a running turn joins it, stopping a reply
 // not yet written and read at the next step otherwise; a stop ends the turn where it is; an ended
-// session takes nothing more. Each fact
-// goes to the hook as eve's `*` hook gets it, after its line is saved, and the turn waits for it;
-// a text delta is a line of its own, which no hook gets. A turn plays the mock model's script
-// (`../agent/mock-directives`) as the mock model does (apps/web/agent/lib/mock-model.ts), running
-// each call as eve runs the agent's tool, its reply written after its wait, streamed in pieces
-// before it completes.
+// session takes nothing more. Each fact goes to the app's hooks as eve delivers them, after its
+// line is saved, with the session folded through that line, and the turn waits for them: the
+// limits hook's (apps/web/agent/hooks/limits.ts) first, whose cancel stops the turn before its
+// next step, then the record hook's `*`; a text delta is a line of its own, which no hook gets. A
+// turn plays the mock model's script (`../agent/mock-directives`) as the mock model does
+// (apps/web/agent/lib/mock-model.ts), each step a model call that runs the calls it asks for as
+// eve runs the agent's tools and then reports its usage, its reply written after its wait,
+// streamed in pieces before it completes.
 
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import type { Fact, Progress } from "eve/events";
+import { emptySessionView, foldEvents } from "eve/events";
+import type { Fact, Progress, SessionView } from "eve/events";
 
-import { mockStep } from "../agent/mock-directives";
+import { mockStep, mockUsageOf } from "../agent/mock-directives";
 import type { MockStep } from "../agent/mock-directives";
-import type { EvePrincipal } from "../agent/eve-admission";
 import { principalOf } from "../agent/eve-admission";
-import { agentTools, runAgentTool } from "../agent/eve-agent";
+import { agentTools, limitEveFact, recordEveFact, runAgentTool } from "../agent/eve-agent";
 import { eveOperationId } from "../agent/eve-token";
 import type {
   AgentCaller,
@@ -32,14 +34,13 @@ import type {
 import { AgentPlatformError } from "../agent/platform";
 import type { AgentRuntime } from "../agent/runtime";
 
-interface FakeHookCall {
-  readonly at: number;
-  readonly auth: EvePrincipal;
-  readonly event: Fact;
-  readonly position: { readonly line: number; readonly index: number };
-}
-
-type FakeHook = (call: FakeHookCall) => Promise<void>;
+// the facts the limits hook takes, by the keys it handles
+const LIMITED = new Set<Fact["type"]>([
+  "call.settled",
+  "model.requested",
+  "turn.started",
+  "usage.recorded",
+]);
 
 // a reply streams in pieces this long, the first naming its part text
 const DELTA_CHARS = 100;
@@ -105,7 +106,22 @@ const streamed = (line: RecordedLine, number: number): AgentStreamEvent[] => {
     : [{ ...line.progress, meta: { at, position: { index: 0, line: number } } }];
 };
 
-export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
+// a model call settled as eve records it, after the calls it asked for ran, its usage beside it
+// with the tokens the script says
+const modelSettledOf = (runId: string, turnId: string, message: string): Fact[] => [
+  { data: { outcome: "completed", runId }, scope: { turnId }, type: "model.settled" },
+  {
+    data: {
+      kind: "model",
+      owner: { runId },
+      usage: { cacheReadTokens: 0, cacheWriteTokens: 0, ...mockUsageOf(message) },
+    },
+    scope: { turnId },
+    type: "usage.recorded",
+  },
+];
+
+export const createFakeAgentPlatform = (): FakeAgentPlatform => {
   const sessions = new Map<string, SessionState>();
   const byOperation = new Map<string, AgentSessionCreated>();
   // a turn's line is in before its hook is done, so a turn is done once its run is
@@ -126,18 +142,25 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
     return state;
   };
 
+  const viewThrough = (state: SessionState, line: number): SessionView =>
+    foldEvents(
+      emptySessionView(),
+      state.lines.slice(0, line + 1).flatMap((each, number) => streamed(each, number)),
+    );
+
   const deliverHooks = async (state: SessionState, line: number): Promise<void> => {
     const recorded = state.lines[line];
     if (recorded?.kind !== "facts") {
       return;
     }
+    const view = viewThrough(state, line);
+    const auth = principalOf({ ...state.caller, eveSessionId: null });
     for (const [index, event] of recorded.facts.entries()) {
-      await hook({
-        at: recorded.at,
-        auth: principalOf({ ...state.caller, eveSessionId: null }),
-        event,
-        position: { index, line },
-      });
+      const delivered = { at: recorded.at, auth, event, position: { index, line } };
+      if (LIMITED.has(event.type) && (await limitEveFact({ ...delivered, view }))) {
+        state.turn?.stop.abort();
+      }
+      await recordEveFact(delivered);
     }
   };
 
@@ -153,6 +176,29 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
     }
     state.added.dispatchEvent(new Event("line"));
     await deliverHooks(state, state.lines.length - 1);
+  };
+
+  // a fact the turn records, after whose hooks a stop ends the turn where it is
+  const recordInTurn = async (
+    sessionId: string,
+    turn: RunningTurn,
+    facts: readonly Fact[],
+  ): Promise<void> => {
+    await record(sessionId, facts);
+    turn.stop.signal.throwIfAborted();
+  };
+
+  // a model call the turn asks for, as eve records it before calling the model
+  const requestModel = async (sessionId: string, turn: RunningTurn): Promise<string> => {
+    const runId = nextId("run");
+    await recordInTurn(sessionId, turn, [
+      {
+        data: { owner: { turnId: turn.id }, runId },
+        scope: { turnId: turn.id },
+        type: "model.requested",
+      },
+    ]);
+    return runId;
   };
 
   const recordProgress = (sessionId: string, progress: Progress): void => {
@@ -184,7 +230,7 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
         type: "content.delta",
       });
     }
-    await record(sessionId, [
+    await recordInTurn(sessionId, turn, [
       {
         data: { kind: "text", partId, phase: "reply", value: text },
         scope: { turnId: turn.id },
@@ -201,7 +247,7 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
     const auth = principalOf({ ...stateOf(sessionId).caller, eveSessionId: sessionId });
     const callId = nextId("call");
     const turnId = turn.id;
-    await record(sessionId, [
+    await recordInTurn(sessionId, turn, [
       {
         data: { callId, capability: { kind: "tool", name }, input, owner: { turnId } },
         scope: { turnId },
@@ -213,7 +259,7 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
       tool === undefined
         ? { kind: "failed", text: `There is no tool named ${name}.` }
         : await runAgentTool({ auth, callId, eveSessionId: sessionId, input, turnId }, tool);
-    await record(sessionId, [
+    await recordInTurn(sessionId, turn, [
       { data: { callId, outcome: "completed", output }, scope: { turnId }, type: "call.settled" },
     ]);
   };
@@ -221,6 +267,7 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
   // the mock model's turn: a step per call, then its reply, each step reading the latest message
   // that joined since the last
   const play = async (sessionId: string, turn: RunningTurn, message: string): Promise<void> => {
+    turn.stop.signal.throwIfAborted();
     let latest = message;
     let step = 0;
     for (;;) {
@@ -230,18 +277,20 @@ export const createFakeAgentPlatform = (hook: FakeHook): FakeAgentPlatform => {
         step = 0;
         turn.steering = new AbortController();
       }
+      const runId = await requestModel(sessionId, turn);
       const next = mockStep(latest, step);
       if (next.kind === "call") {
         await call(sessionId, turn, next);
         step += 1;
       } else {
         await reply(sessionId, turn, next);
-        if (turn.steered.length === 0) {
-          await record(sessionId, [
-            { data: { outcome: "completed", turnId: turn.id }, type: "turn.settled" },
-          ]);
-          return;
-        }
+      }
+      await recordInTurn(sessionId, turn, modelSettledOf(runId, turn.id, latest));
+      if (next.kind === "reply" && turn.steered.length === 0) {
+        await record(sessionId, [
+          { data: { outcome: "completed", turnId: turn.id }, type: "turn.settled" },
+        ]);
+        return;
       }
     }
   };

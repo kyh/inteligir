@@ -11,7 +11,6 @@ import { personalLibrary } from "../test-support/library-fixture";
 import type { Streamed } from "../test-support/thread-reads";
 import { caughtUp, readStream, rowsOf, shownOf } from "../test-support/thread-reads";
 import { deleteAgentThread, sendToAgent } from "./agent-sessions";
-import { recordEveFact } from "./eve-agent";
 import { followThread } from "./relay";
 import type { AgentRuntime } from "./runtime";
 
@@ -22,7 +21,7 @@ let runtime: AgentRuntime;
 let settled: () => Promise<void>;
 
 beforeEach(() => {
-  platform = createFakeAgentPlatform(recordEveFact);
+  platform = createFakeAgentPlatform();
   ({ runtime, settled } = fakeAgentRuntime(platform));
 });
 
