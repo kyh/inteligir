@@ -34,7 +34,13 @@ import type { Session } from "../background/sign-in";
 // src/entrypoints/welcome, which WXT writes at this path
 const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
 
-const cloudFor = (session: Session) => cloudOf(session, browser.runtime.getManifest().version);
+// the cheapest extension API, which resets the worker's idle timer while a file uploads
+const keepAwake = (): void => {
+  void browser.runtime.getPlatformInfo();
+};
+
+const cloudFor = (session: Session) =>
+  cloudOf(session, browser.runtime.getManifest().version, keepAwake);
 
 const saveDeps: SaveDeps = {
   capture: captureTab,

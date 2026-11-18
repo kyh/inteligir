@@ -1,6 +1,6 @@
 // The two policies a document carries. Both draw only this origin's files and bytes the page holds,
-// so a saved page cannot beacon on open; call this origin and the Mac app's command channel alone;
-// and are framed by nobody. The library and the account pages render per request, so proxy.ts
+// so a saved page cannot beacon on open; call this origin, the file store's uploads and the Mac
+// app's command channel alone; and are framed by nobody. The library and the account pages render per request, so proxy.ts
 // hands each a nonce and nothing else inline runs. A marketing page is prerendered, and a page
 // built once cannot carry a per-request nonce, so its inline scripts run.
 
@@ -32,13 +32,17 @@ const IPC = "ipc:";
 const socketOrigin = (url: URL): string =>
   `${url.protocol === "https:" ? "wss:" : "ws:"}//${url.host}`;
 
+// where a file's bytes go when the store is Vercel Blob: a URL presigned for one upload
+// (packages/service/src/files/blob-file-store.ts)
+const BLOB_UPLOADS = "https://vercel.com/api/blob/";
+
 const FIXED_TAIL = ["base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"];
 
 export const libraryPolicy = (url: URL, nonce: string): string =>
   [
     ...DRAWING_DIRECTIVES,
     ["script-src 'self'", `'nonce-${nonce}'`, THEME_SCRIPT_HASH, ...DEV_EVAL].join(" "),
-    `connect-src 'self' ${socketOrigin(url)} ${IPC}`,
+    `connect-src 'self' ${socketOrigin(url)} ${BLOB_UPLOADS} ${IPC}`,
     // a PDF item's viewer is the browser's, over the library's own bytes
     "object-src 'self'",
     ...FIXED_TAIL,
@@ -52,7 +56,8 @@ export const libraryPolicy = (url: URL, nonce: string): string =>
 export const SITE_POLICY = [
   ...DRAWING_DIRECTIVES,
   ["script-src 'self' 'unsafe-inline'", ...DEV_EVAL].join(" "),
-  `connect-src 'self' ${IPC}`,
+  // a worker the site serves takes this policy, the import's among them, which uploads files
+  `connect-src 'self' ${BLOB_UPLOADS} ${IPC}`,
   "object-src 'none'",
   ...FIXED_TAIL,
   "frame-src 'self'",

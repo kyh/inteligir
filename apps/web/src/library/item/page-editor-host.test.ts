@@ -69,16 +69,12 @@ describe("the page's editor host", () => {
 
   it("keeps a pasted file by sending it up first, and answers the sha it went under", async () => {
     const bytes = new Uint8Array([1, 2, 3]);
-    const sent: string[] = [];
-    install(async (request) => {
-      sent.push(`${request.method} ${request.url}`);
-      return await Promise.resolve(new Response(null, { status: 201 }));
-    });
+    install(cell.device("paste").transport.fetch);
 
     await expect(getEditorHostIo().keepFile(bytes, "image/png")).resolves.toStrictEqual({
       sha: fileSha(bytes),
     });
-    expect(sent).toStrictEqual([`PUT ${ORIGIN}/v1/blobs/${fileSha(bytes)}`]);
+    expect(cell.uploads).toStrictEqual([fileSha(bytes)]);
   });
 
   it("dials a note on the cloud's origin with the ticket the cell mints, and is offline the moment the browser says so", async () => {

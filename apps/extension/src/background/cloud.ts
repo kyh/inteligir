@@ -2,7 +2,8 @@
 // and a file's bytes by their sha, each with the browser's session cookie as its bearer
 // (./sign-in) and this build in a header, so the floor holds the extension as it holds every
 // client. Every call has a deadline under the 30 s a service worker waits on a fetch, so a cloud
-// that never answers leaves a save queued rather than a popup waiting.
+// that never answers leaves a save queued rather than a popup waiting. A file's bytes go to the
+// store the cloud names, outside that deadline, for as long as the link takes.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
@@ -24,18 +25,23 @@ export interface Saved {
   readonly item: { readonly card: { readonly title: string } };
 }
 
-// what a save asks of the cloud: the library's two saves and a file's create, and `/v1` for the
-// bytes
+// what a save asks of the cloud: the library's two saves and a file's create, `/v1` for the
+// bytes, and what keeps the worker awake while they go
 export interface Cloud {
   readonly save: (input: PageSave) => Promise<Saved>;
   readonly saveLink: (input: LinkSave) => Promise<Saved>;
   readonly createFile: (input: FileCreate) => Promise<Pick<Saved, "item">>;
   readonly transport: V1Transport;
+  readonly keepAwake: () => void;
 }
 
 export const CALL_DEADLINE_MS = 25_000;
 
-export const cloudOf = (session: Session, version: string): Cloud => {
+// A fetch does not reset a service worker's idle timer, so a worker idle 30 s is stopped with an
+// upload in flight unless it calls an extension API; DevTools attached hides this (sp-presigned-put)
+const KEEP_AWAKE_MS = 5000;
+
+export const cloudOf = (session: Session, version: string, keepAwake: () => void): Cloud => {
   const headers = {
     ...clientBuildHeaders({ platform: "extension", version }),
     authorization: `Bearer ${session.bearer}`,
@@ -55,6 +61,7 @@ export const cloudOf = (session: Session, version: string): Cloud => {
   const { items } = v1Client(transport).library;
   return {
     createFile: async (input) => await items.createFile(input),
+    keepAwake,
     save: async (input) => await items.save(input),
     saveLink: async (input) => await items.saveLink(input),
     transport,
@@ -68,8 +75,13 @@ export const sendFile = async (
   mime: string,
 ): Promise<CallOutcome<string>> => {
   const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-  return await outcomeOf(async () => {
-    await uploadBlob(cloud.transport, { bytes, mime, sha });
-    return sha;
-  });
+  const awake = setInterval(cloud.keepAwake, KEEP_AWAKE_MS);
+  try {
+    return await outcomeOf(async () => {
+      await uploadBlob(cloud.transport, { bytes, mime, sha });
+      return sha;
+    });
+  } finally {
+    clearInterval(awake);
+  }
 };

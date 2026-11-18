@@ -1,3 +1,4 @@
+import { sharedFailure } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { refusalResponse } from "@repo/contract/test-support/refusal-response";
 import {
@@ -50,7 +51,9 @@ describe("a file sent up from the page", () => {
       message: "Your library is full.",
     });
     const down = answering(() => new Response(null, { status: 503 }));
-    await expect(upload(down.cloud)).rejects.toThrow("the cloud answered 503");
+    await expect(upload(down.cloud)).rejects.toSatisfy(
+      (thrown: Error) => sharedFailure(thrown)?.kind === "unreachable",
+    );
     expect([...full.ended, ...down.ended]).toStrictEqual([]);
   });
 });
