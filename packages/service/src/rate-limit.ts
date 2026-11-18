@@ -28,12 +28,13 @@ const CALLER_RATE_KEY_PREFIXES = {
 const HOLDER_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
   connectorCall: "connector-call:",
+  fileRead: "file-read:",
   fileReserve: "file-reserve:",
   rpcCall: "rpc-call:",
 } as const;
 
 type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
-type HolderRateFamily = keyof typeof HOLDER_RATE_KEY_PREFIXES;
+export type HolderRateFamily = keyof typeof HOLDER_RATE_KEY_PREFIXES;
 
 export const RATE_WINDOWS = {
   // a password check behind a session, so a stolen one guesses here rather than at the sign-in's
@@ -41,6 +42,9 @@ export const RATE_WINDOWS = {
   accountDelete: { max: 5, windowMs: 60_000 },
   // each call a connected assistant makes, keyed on its grant: a turn makes a few dozen
   connectorCall: { max: 300, windowMs: 60_000 },
+  // each read of a file, keyed on the session: a video seeking reads a range at a time, and a grid
+  // of pictures one each, so it sits past what `/v1` calls take
+  fileRead: { max: 3000, windowMs: 60_000 },
   // each upload a library reserves, keyed on the account: a folder dropped at once reserves a file
   // each, and each reserve costs a request of the store's
   fileReserve: { max: 3000, windowMs: 60_000 },

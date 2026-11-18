@@ -36,7 +36,7 @@ export const handleV1Rpc = async (request: Request): Promise<Response> => {
   // Next's own answer to a throw is no answer the client's link reads, so a fault is answered in
   // the wire's protocol and logged with its request
   try {
-    const admission = await admit(request);
+    const admission = await admit(request, "rpcCall");
     if (admission.kind === "refused") {
       return rpcRefusal(admission.refusal);
     }

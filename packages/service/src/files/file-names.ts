@@ -52,14 +52,27 @@ export const missingFiles = async (
   return unique.filter((sha) => !known.has(sha)).toSorted();
 };
 
+export interface HeldFile {
+  readonly bytes: number;
+  readonly createdAt: number;
+  readonly mime: string;
+  // where the store keeps its bytes
+  readonly pathname: string;
+}
+
 // a file the library holds, by its sha; null for one it does not
 export const fileOf = async (
   tx: DbExecutor,
   accountId: string,
   sha: string,
-): Promise<{ readonly bytes: number; readonly mime: string } | null> => {
+): Promise<HeldFile | null> => {
   const [row] = await tx
-    .select({ bytes: file.bytes, mime: file.mime })
+    .select({
+      bytes: file.bytes,
+      createdAt: file.createdAt,
+      mime: file.mime,
+      pathname: file.pathname,
+    })
     .from(file)
     .where(and(eq(file.accountId, accountId), eq(file.sha256, sha)));
   return row ?? null;

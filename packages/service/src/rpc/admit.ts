@@ -1,5 +1,6 @@
 // Who may call `/v1`, said once for the wire and a file's bytes alike: the build floor, the door the
-// request came through, the session that door reads and the session's minute, in that order. Each
+// request came through, the session that door reads and the session's minute, in that order; a
+// call and a file's read each spend a minute of their own. Each
 // door is a mark no other page can forge (https://orpc.dev/docs/integrations/better-auth):
 //
 // - a bearer is the browser extension's, the browser's own session cookie read from its jar. The
@@ -24,9 +25,10 @@ import {
 import { readSession } from "../auth/auth";
 import { env } from "../env";
 import { spendHolderBudget } from "../rate-limit";
+import type { HolderRateFamily } from "../rate-limit";
 import type { RpcRefusal } from "./rpc-refusal";
 
-type SessionDoor = "page" | "phone" | "extension";
+export type SessionDoor = "page" | "phone" | "extension";
 
 // one of Better Auth's sessions, whichever device signed it in
 export interface AppPrincipal {
@@ -59,7 +61,10 @@ const isBelowFloor = (headers: Headers): boolean => {
   return build === null || !meetsBuildFloor(build, env.MIN_CLIENT_BUILD);
 };
 
-export const admit = async (request: Request): Promise<Admission> => {
+export const admit = async (
+  request: Request,
+  budget: Extract<HolderRateFamily, "rpcCall" | "fileRead">,
+): Promise<Admission> => {
   const { headers } = request;
   const door = doorOf(headers);
   // a page this deployment served ships in it, so it is never below the floor
@@ -71,7 +76,7 @@ export const admit = async (request: Request): Promise<Admission> => {
     return { kind: "refused", refusal: new UnauthorizedError() };
   }
   const sessionId = signedIn.session.id;
-  if (!(await spendHolderBudget("rpcCall", sessionId))) {
+  if (!(await spendHolderBudget(budget, sessionId))) {
     return { kind: "refused", refusal: new TooManyRequestsError() };
   }
   return {
