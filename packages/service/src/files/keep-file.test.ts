@@ -13,7 +13,7 @@ import { FILE_STORE } from "./file-store-of";
 import { keepFile } from "./keep-file";
 
 dbSuite(keepFile, () => {
-  it("keeps the bytes for good under their sha, once", async () => {
+  it("keeps the bytes for good under their sha, once, and holds them a day each time it answers them", async () => {
     const accountId = await makeAccount();
     const writer = { accountId, actor: { kind: "fill" as const } };
     const { bytes, sha } = fileOf("a page's cover");
@@ -26,13 +26,15 @@ dbSuite(keepFile, () => {
     const [row] = rows;
     await expect(FILE_STORE.head(row?.pathname ?? "")).resolves.toMatchObject({ expiresAt: null });
 
+    await db.update(file).set({ touchedAt: 1 }).where(eq(file.accountId, accountId));
+    const before = Date.now();
     await expect(keepFile(writer, bytes, "image/webp")).resolves.toStrictEqual({
       ok: true,
       value: sha,
     });
-    await expect(
-      db.select().from(file).where(eq(file.accountId, accountId)),
-    ).resolves.toStrictEqual(rows);
+    const again = await db.select().from(file).where(eq(file.accountId, accountId));
+    expect(again).toStrictEqual(rows.map((kept) => ({ ...kept, touchedAt: expect.any(Number) })));
+    expect(again[0]?.touchedAt).toBeGreaterThanOrEqual(before);
   });
 
   it("refuses bytes past the library's room, and lets them go", async () => {

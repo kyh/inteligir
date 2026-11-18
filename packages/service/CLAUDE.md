@@ -296,6 +296,10 @@ DOM (`oxlint.config.ts`).
   under the lock.** Kept after the commit, a failed keep leaves a row naming
   bytes the store then lets expire; a keep is one call on the object's metadata.
   `packages/service/src/files/file-landing.ts`.
+- **Every `held` answer touches its file's row, as a name does, and one that
+  finds the row gone goes on as for a file never held.** Housekeeping lets go a
+  file unnamed for a day, and the write a held answer lets a device send would
+  otherwise find it gone. `packages/service/src/files/file-names.ts`.
 - **A write for an account whose user row is gone is refused `GONE` by the
   lock.** A settle arriving after a delete would otherwise make a library for
   nobody. `packages/service/src/library/library-store.ts`.

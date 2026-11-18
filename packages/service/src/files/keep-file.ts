@@ -10,7 +10,7 @@ import { db } from "@repo/db/drizzle-client";
 import type { LibraryResult } from "../library/library-refusal";
 import type { LibraryWriter } from "../library/library-store";
 import { accountFilesPrefix, landKeptFile, mediaTypeOf } from "./file-landing";
-import { fileOf } from "./file-names";
+import { touchFile } from "./file-names";
 import { FILE_STORE } from "./file-store-of";
 
 // the sha the bytes are kept under, whether this kept them or the library held them already
@@ -23,7 +23,7 @@ export const keepFile = async (
     return { ok: false, refusal: { kind: "blob-too-large" } };
   }
   const sha = createHash("sha256").update(bytes).digest("hex");
-  if ((await fileOf(db, writer.accountId, sha)) !== null) {
+  if ((await touchFile(db, writer.accountId, sha, Date.now())) !== null) {
     return { ok: true, value: sha };
   }
   const pathname = `${accountFilesPrefix(writer.accountId)}${sha}/${randomUUID()}`;

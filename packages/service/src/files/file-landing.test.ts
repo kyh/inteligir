@@ -1,20 +1,23 @@
 // A file's two calls, `library.files.reserve` and `settle`, around the PUT between them: a sha the
-// library holds is never sent twice, bytes that are not the file's are refused and let go, and
-// what lands is kept for good in the write that names its row.
+// library holds is never sent twice and waits a day for the write naming it, bytes that are not
+// the file's are refused and let go, and what lands is kept for good in the write that names its
+// row.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
-import { file } from "@repo/db/library-schema";
+import { file, libraryState } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "../env";
+import { mintLibraryId } from "../library/library-ids";
 import { buildHeaders, phoneHeaders, v1Link } from "../test-support/v1-link";
 import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests";
 import { fileOf, putTo, sendFile } from "../test-support/file-uploads";
 import { personalLibrary, seedFile } from "../test-support/library-fixture";
+import { releaseUnnamedFiles } from "./file-release";
 import { FILE_STORE } from "./file-store-of";
 
 const TEN = "0123456789";
@@ -34,6 +37,12 @@ const reserved = async (library: Library, sha: string, mime = "image/png") => {
 const rowOf = async (accountId: string, sha: string) => {
   const [row] = await db.select().from(file).where(eq(file.accountId, accountId));
   return row?.sha256 === sha ? row : null;
+};
+
+// housekeeping's hourly release, over an account a first write made a library of
+const housekeep = async (accountId: string): Promise<void> => {
+  await db.insert(libraryState).values({ accountId }).onConflictDoNothing();
+  await db.transaction(async (tx) => await releaseUnnamedFiles(tx, Date.now()));
 };
 
 const signedIn = async (email: string) => {
@@ -200,6 +209,56 @@ dbSuite("settle", () => {
       message: "This account was deleted.",
     });
     await expect(FILE_STORE.head(upload.pathname)).resolves.toBeNull();
+  });
+});
+
+dbSuite("a held answer", () => {
+  it("holds the file a day for the write naming it, past housekeeping's next release", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { sha } = fileOf(TEN);
+    await seedFile(accountId, sha, { touchedAt: 1 });
+    await expect(
+      library.files.reserve({ bytes: 10, mime: "image/png", sha }),
+    ).resolves.toStrictEqual({ kind: "held" });
+    await housekeep(accountId);
+    const savedAt = Date.now();
+    await expect(
+      library.items.createFile({
+        folderId: null,
+        id: mintLibraryId(savedAt),
+        name: "photo.png",
+        savedAt,
+        sha,
+        tags: [],
+      }),
+    ).resolves.toMatchObject({ item: { fields: { originalSha: sha } } });
+  });
+
+  it("holds the file a settle of a copy answers held for", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { bytes, sha } = fileOf(TEN);
+    const first = await reserved(library, sha);
+    const second = await reserved(library, sha);
+    await putTo(first.url, bytes, "image/png");
+    await putTo(second.url, bytes, "image/png");
+    await library.files.settle({ sha, uploadId: first.uploadId });
+    await db.update(file).set({ touchedAt: 1 }).where(eq(file.accountId, accountId));
+    await expect(library.files.settle({ sha, uploadId: second.uploadId })).resolves.toStrictEqual({
+      kind: "held",
+    });
+    await housekeep(accountId);
+    await expect(rowOf(accountId, sha)).resolves.toMatchObject({ pathname: first.pathname });
+  });
+
+  it("is an upload again once housekeeping let the file go", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { sha } = fileOf(TEN);
+    await seedFile(accountId, sha, { touchedAt: 1 });
+    await housekeep(accountId);
+    await expect(rowOf(accountId, sha)).resolves.toBeNull();
+    await expect(
+      library.files.reserve({ bytes: 10, mime: "image/png", sha }),
+    ).resolves.toMatchObject({ kind: "upload" });
   });
 });
 

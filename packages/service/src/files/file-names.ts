@@ -60,21 +60,40 @@ export interface HeldFile {
   readonly pathname: string;
 }
 
+const HELD_FILE = {
+  bytes: file.bytes,
+  createdAt: file.createdAt,
+  mime: file.mime,
+  pathname: file.pathname,
+};
+
+const fileIs = (accountId: string, sha: string) =>
+  and(eq(file.accountId, accountId), eq(file.sha256, sha));
+
 // a file the library holds, by its sha; null for one it does not
 export const fileOf = async (
   tx: DbExecutor,
   accountId: string,
   sha: string,
 ): Promise<HeldFile | null> => {
+  const [row] = await tx.select(HELD_FILE).from(file).where(fileIs(accountId, sha));
+  return row ?? null;
+};
+
+// A file the library holds, touched as a name is: answered held, it waits a day for the write the
+// answer lets name it, which housekeeping's release could otherwise beat. Null for one the library
+// does not hold, a release that took the row first included
+export const touchFile = async (
+  tx: DbExecutor,
+  accountId: string,
+  sha: string,
+  now: number,
+): Promise<HeldFile | null> => {
   const [row] = await tx
-    .select({
-      bytes: file.bytes,
-      createdAt: file.createdAt,
-      mime: file.mime,
-      pathname: file.pathname,
-    })
-    .from(file)
-    .where(and(eq(file.accountId, accountId), eq(file.sha256, sha)));
+    .update(file)
+    .set({ touchedAt: now })
+    .where(fileIs(accountId, sha))
+    .returning(HELD_FILE);
   return row ?? null;
 };
 

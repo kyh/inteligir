@@ -16,7 +16,7 @@ import { holdRoomFor, roomRefusalFor } from "../library/library-quota";
 import type { LibraryResult } from "../library/library-refusal";
 import { writeLibrary } from "../library/library-store";
 import type { LibraryWriter } from "../library/library-store";
-import { fileOf } from "./file-names";
+import { touchFile } from "./file-names";
 import { FILE_STORE } from "./file-store-of";
 import type { UploadTicket } from "./file-store";
 import { openUpload, sealUpload } from "./upload-seal";
@@ -55,7 +55,7 @@ export const reserveFile = async (
   if (bytes > BLOB_MAX_BYTES) {
     return { ok: false, refusal: { kind: "blob-too-large" } };
   }
-  if ((await fileOf(db, accountId, sha)) !== null) {
+  if ((await touchFile(db, accountId, sha, Date.now())) !== null) {
     return { ok: true, value: { kind: "held" } };
   }
   const full = await roomRefusalFor(db, accountId, bytes);
@@ -101,7 +101,7 @@ export const landKeptFile = async (
     writer,
     { answer: settledSchema, opId: undefined },
     async (scope): Promise<Settled> => {
-      const held = await fileOf(scope.tx, scope.accountId, sha);
+      const held = await touchFile(scope.tx, scope.accountId, sha, scope.now);
       if (held !== null) {
         return { kind: held.pathname === pathname ? "kept" : "held" };
       }
@@ -145,7 +145,7 @@ export const settleFile = async (
     return { ok: false, refusal: { kind: "not-found" } };
   }
   const pathname = filePathname(writer.accountId, sha, seal.nonce);
-  const held = await fileOf(db, writer.accountId, sha);
+  const held = await touchFile(db, writer.accountId, sha, Date.now());
   if (held !== null) {
     if (held.pathname !== pathname) {
       await FILE_STORE.remove(pathname);
