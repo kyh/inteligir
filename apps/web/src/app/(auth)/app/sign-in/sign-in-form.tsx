@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { z } from "zod";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -16,16 +17,21 @@ import { authClient, authErrorMessage } from "#lib/auth-client";
 import { authPageHref, signedInLanding } from "#lib/next-path";
 import { siteConfig } from "#lib/site-config";
 
+// a sign-in that continues an assistant's authorization, which Better Auth's client follows itself
+const handedOffSchema = z.object({ redirect: z.literal(true), url: z.string() });
+
 export const SignInForm = ({ next }: { next: string | undefined }) => {
   const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
-    const { error: failure } = await authClient.signIn.email({
+    const { data, error: failure } = await authClient.signIn.email({
       email: fieldValue(form, "email"),
       password: fieldValue(form, "password"),
     });
     if (failure !== null) {
       return authErrorMessage(failure);
     }
-    leaveForm(signedInLanding(next));
+    if (!handedOffSchema.safeParse(data).success) {
+      leaveForm(signedInLanding(next));
+    }
     return null;
   });
 

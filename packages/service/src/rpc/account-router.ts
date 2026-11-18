@@ -1,14 +1,28 @@
-// The account's rows: its devices, each one of its sessions, and its deletion with the password
-// asked again. Their cores are `../auth/session-devices` and `../auth/delete-account`; signing in
-// and out is Better Auth's own.
+// The account's rows: its devices, each one of its sessions, the assistants it connected, and its
+// deletion with the password asked again. Their cores are `../auth/session-devices`,
+// `../auth/connected-assistants` and `../auth/delete-account`; signing in and out is Better Auth's
+// own.
 
 import { getAuth } from "../auth/auth";
+import { listAssistants, revokeAssistant } from "../auth/connected-assistants";
 import { deleteAccountUnderSession } from "../auth/delete-account";
 import { listSessionDevices, revokeSessionDevice } from "../auth/session-devices";
 import { spendHolderBudget } from "../rate-limit";
 import { os } from "./orpc";
 
 export const accountRouter = {
+  assistants: {
+    list: os.account.assistants.list.handler(async ({ context }) => ({
+      assistants: await listAssistants(context.principal.accountId),
+    })),
+    // the grant by that id, among the account's own alone
+    revoke: os.account.assistants.revoke.handler(async ({ context, errors, input }) => {
+      if (!(await revokeAssistant(context.principal.accountId, input.grantId))) {
+        throw errors.NOT_FOUND();
+      }
+      return { revoked: true as const };
+    }),
+  },
   delete: os.account.delete.handler(async ({ context, errors, input }) => {
     if (!(await spendHolderBudget("accountDelete", context.principal.actor.sessionId))) {
       throw errors.TOO_MANY_REQUESTS();

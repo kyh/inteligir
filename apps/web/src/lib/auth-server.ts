@@ -7,7 +7,7 @@ import { signedInLanding } from "#lib/next-path";
 
 // A server render's session, read once per request. It lives here, not in @repo/service, since it
 // reads next/headers; a render sets no cookie, so the read never slides the session (`readSession`).
-const getSession = cache(async () => await readSession(await headers()));
+export const getSession = cache(async () => await readSession(await headers()));
 
 // A read that failed is logged and reads as signed out: all a skip does with a session is skip a
 // form, so a fault draws the form.

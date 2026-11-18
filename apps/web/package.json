@@ -22,6 +22,7 @@
     "with-env": "dotenv -e ../../.env.local -e ../../.env --"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@repo/client": "workspace:*",

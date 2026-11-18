@@ -16,8 +16,8 @@ const SITE_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
 ];
 
-// The library's address carries an open item, and an account page's a reset token, so no other site
-// sees either; the site links both, and neither is a search result.
+// The library's address carries an open item, an account page's a reset token and the consent page's
+// an assistant's signed request, so no other site sees any; none is a search result.
 const PRIVATE_DOCUMENT_HEADERS = [
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Robots-Tag", value: "noindex, nofollow" },
@@ -43,6 +43,7 @@ const config: NextConfig = {
       { headers: SITE_HEADERS, source: "/((?!v1/blobs/).*)" },
       { headers: PRIVATE_DOCUMENT_HEADERS, source: `${LIBRARY_PAGE_PATH}/:path*` },
       { headers: PRIVATE_DOCUMENT_HEADERS, source: "/app/:path*" },
+      { headers: PRIVATE_DOCUMENT_HEADERS, source: "/connect/:path*" },
     ]),
   partialPrefetching: true,
   reactCompiler: true,

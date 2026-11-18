@@ -1,7 +1,10 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { createAuthClient } from "better-auth/client";
 
-// no baseURL: the one app serves its pages and /api/auth/*, so the relative default is right on every host
-export const authClient = createAuthClient();
+// No baseURL: the one app serves its pages and /api/auth/*, so the relative default is right on every
+// host. The provider's plugin sends the signed request an assistant's sign-in or consent page was
+// opened with, so the answer continues that authorization.
+export const authClient = createAuthClient({ plugins: [oauthProviderClient()] });
 
 export const AUTH_FALLBACK_ERROR = "Something went wrong — try again.";
 

@@ -2,6 +2,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { CONNECTOR_CONSENT_PATH } from "@repo/contract/connector";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 import { prefersMarkdown } from "#lib/content-negotiation";
@@ -18,6 +19,7 @@ const NONCE_DOCUMENTS: ReadonlySet<string> = new Set([
   "/app/sign-up",
   "/app/forgot-password",
   "/app/reset-password",
+  CONNECTOR_CONSENT_PATH,
 ]);
 
 const SIGNED_IN_ONLY = (pathname: string): boolean =>
@@ -77,6 +79,7 @@ export const config = {
     "/app/sign-up",
     "/app/forgot-password",
     "/app/reset-password",
+    "/connect/authorize",
     {
       has: [{ key: "accept", type: "header", value: ".*[Mm][Aa][Rr][Kk][Dd][Oo][Ww][Nn].*" }],
       source:

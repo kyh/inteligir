@@ -3,3 +3,6 @@
 // consent page. The address is the protected resource every token the connector accepts is minted
 // for (RFC 8707), so it never moves.
 export const CONNECTOR_PATH = "/connector";
+
+// the page that asks the person, signed in, what an assistant may do with their library
+export const CONNECTOR_CONSENT_PATH = "/connect/authorize";

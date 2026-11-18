@@ -99,7 +99,8 @@ export const useAuthSubmit = (submit: AuthSubmit) => {
   };
   const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void settle(new FormData(event.currentTarget));
+    // with the button pressed, as the browser's own submit sends it
+    void settle(new FormData(event.currentTarget, event.nativeEvent.submitter));
   };
 
   return { ...submitView(state), onSubmit, ready: hydrated };

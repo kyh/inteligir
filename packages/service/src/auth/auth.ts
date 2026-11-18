@@ -16,7 +16,9 @@ import { env } from "../env";
 import { purgeFiles } from "../files/purge-files";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
 import { CLIENT_IP } from "./client-ip";
+import { revokeAllAssistants } from "./connected-assistants";
 import { forgetInviteRedeemer } from "./invite-codes";
+import { oauthPlugins } from "./oauth";
 import { sendResetEmail } from "./reset-email";
 import { EMAIL_MODE, emailModeWarning } from "./send-email";
 import { capSessions } from "./session-devices";
@@ -65,7 +67,10 @@ const createAuth = (disableSignUp: boolean) =>
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       minPasswordLength: PASSWORD_MIN_LENGTH,
       // a reset, most often for a password that got out, signs every device out, the phone and the
-      // extension's browser included
+      // extension's browser included, and disconnects every assistant
+      onPasswordReset: async ({ user }) => {
+        await revokeAllAssistants(user.id);
+      },
       revokeSessionsOnPasswordReset: true,
       // the forgot-password page names /app/reset-password, with any way back the person came with,
       // so the mailed link's GET leg lands on that page
@@ -93,6 +98,7 @@ const createAuth = (disableSignUp: boolean) =>
       // the phone's sign-in names its app scheme in `expo-origin`, which a native request sends in
       // place of the `Origin` a browser would
       expo(),
+      ...oauthPlugins(),
     ],
     // Counters in Postgres: in memory they would be per instance, so the limit would multiply across
     // instances and reset on every deploy.

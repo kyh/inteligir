@@ -60,8 +60,10 @@ catalog:
   "@vercel/blob": 2.9.0
   # exact, and the same as the @better-auth/core override: they are released in lockstep, and a
   # pair one patch apart resolves a second core
+  "@better-auth/cimd": 1.7.25
   "@better-auth/drizzle-adapter": 1.7.25
   "@better-auth/expo": 1.7.25
+  "@better-auth/oauth-provider": 1.7.25
   better-auth: 1.7.25
   cn: ^0.4.0
   # exact: 0.x output moves between patches; the fill corpus pins it

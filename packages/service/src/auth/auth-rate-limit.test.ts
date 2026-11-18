@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AUTH_RATE_WINDOW_SECONDS, callerRateKey, RATE_WINDOWS } from "../rate-limit";
 import { authFetch, authPost, CALLER_IP_HEADER, ORIGIN } from "../test-support/auth-requests";
 import { clientIpOptions } from "./client-ip";
+import { OAUTH_REGISTER_WINDOW_SECONDS } from "./oauth";
 
 // past the ceiling of any window the auth routes set
 const ATTEMPT_CAP = 20;
@@ -55,7 +56,8 @@ dbSuite("Better Auth's limiter", () => {
   });
 
   it("prunes the app's lapsed rows beside its own when one of its windows rolls over", async () => {
-    const lapsed = Date.now() - 2 * AUTH_RATE_WINDOW_SECONDS * 1000;
+    // past the longest window Better Auth keeps a row for, the connector's registration hour
+    const lapsed = Date.now() - 2 * OAUTH_REGISTER_WINDOW_SECONDS * 1000;
     const appKey = callerRateKey(
       "inviteSignUp",
       new Request(ORIGIN, { headers: { [CALLER_IP_HEADER]: "203.0.113.30" } }),

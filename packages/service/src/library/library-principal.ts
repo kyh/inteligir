@@ -19,9 +19,9 @@ export type LibraryActor =
   | { readonly kind: "person" | "assistant" | "import" | "fill" };
 
 // `library` reads and changes the library, and `library:read` reads it alone
-type LibraryScope = "library" | "library:read";
+export type LibraryScope = "library" | "library:read";
 
-interface ConnectorPrincipal {
+export interface ConnectorPrincipal {
   readonly accountId: string;
   readonly actor: {
     readonly kind: "assistant";

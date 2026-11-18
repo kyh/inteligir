@@ -83,6 +83,10 @@ const envSchema = z
 
     MIN_CLIENT_BUILD: buildFloor("0.7.0"),
 
+    // the e2e's stand-in for the web, never taken on Vercel: an assistant's metadata document is
+    // asked of it as `GET <relay>?url=<the address>`
+    PAGE_FETCH_RELAY_URL: optionalText.pipe(z.url({ protocol: /^https?$/u }).optional()),
+
     // `@repo/db` reads it raw as well, since it opens its client on import
     POSTGRES_URL: postgresUrl,
 
