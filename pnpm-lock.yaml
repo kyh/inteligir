@@ -221,6 +221,9 @@ catalogs:
     cn:
       specifier: ^0.4.0
       version: 0.4.0
+    core-js:
+      specifier: ^3.51.0
+      version: 3.51.0
     defuddle:
       specifier: 0.19.5
       version: 0.19.5
@@ -603,6 +606,9 @@ importers:
       better-auth:
         specifier: 'catalog:'
         version: 1.7.25(b834dcd971fdc33d63b229e3d5470624)
+      core-js:
+        specifier: 'catalog:'
+        version: 3.51.0
       expo:
         specifier: 'catalog:'
         version: 57.0.27(ab4c8c0cd9d0ad8e23f03847858b9427)
@@ -6443,6 +6449,9 @@ packages:
   core-js-compat@3.50.0:
     resolution: {integrity: sha512-XGpFGbMLHwSt74YLTKho7Ib242qi6O8MSX+sRokV4oz7iKXvQWGYZthjIhjRGMxjzVkAubBO512dKGYcefmX3Q==}
     engines: {node: '>=6.4.0'}
+
+  core-js@3.51.0:
+    resolution: {integrity: sha512-7bDKx/5jm5MxzsXxc93g6Z2+4ZsuT/MddrfRmTDJNAkWsYWHU8EVNEsBiIEWnMAMCHMmRfUEjkuo3jeNBOIHRw==}
 
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
@@ -18245,6 +18254,8 @@ snapshots:
   core-js-compat@3.50.0:
     dependencies:
       browserslist: 4.29.3
+
+  core-js@3.51.0: {}
 
   create-require@1.1.1: {}
 

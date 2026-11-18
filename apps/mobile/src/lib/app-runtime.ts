@@ -4,6 +4,9 @@
 // library-hooks.ts, over TanStack Query, whose online state is the network's and whose focus is
 // the app's, which is what moved asks by.
 
+// Hermes has no Array.prototype.toSorted, which the shared packages sort with (the lint refuses
+// `sort`), and a phone that cannot sort its waiting saves never opens its library
+import "core-js/actual/array/to-sorted";
 import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/client";

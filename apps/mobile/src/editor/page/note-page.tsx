@@ -4,6 +4,7 @@
 // its own, Expo's DOM component. Its props are the whole wire (page-host.ts); outside this folder
 // the phone draws natively.
 
+import "./zod-jitless";
 import "./note-page.css";
 
 import type { DOMProps } from "expo/dom";

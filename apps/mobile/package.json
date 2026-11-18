@@ -24,6 +24,7 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
     "better-auth": "catalog:",
+    "core-js": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",

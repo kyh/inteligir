@@ -20,7 +20,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   runs. `apps/mobile/src/editor/web-view-policy.ts`.
 - **A production editor inserts its content policy before it draws, and opens no connection.**
   Expo's door into the page carries no nonce, so only the editor's own script may run, and the
-  library is reached only through native's actions. `apps/mobile/src/editor/page/page-policy.ts`.
+  library is reached only through native's actions. zod runs jitless, set by the page's first
+  import, since it decides to compile a parser with `Function` as each schema is built, and a
+  compiled parser throws under the policy on every save. `apps/mobile/src/editor/page/page-policy.ts`.
 - **The phone saves a note whole as every device does, through native's `readNote` and `saveNote`,
   and reads what it last held with no connection.** It turns read-only only when the network goes,
   never as the app goes behind, since React Native hears the app leave about a quarter second
@@ -96,6 +98,10 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 
 ## Shipping
 
+- **What the shared packages call that Hermes lacks is core-js's, imported once in the runtime.**
+  Hermes has no `Array.prototype.toSorted`, the lint refuses `sort`, and a phone that cannot sort
+  its waiting saves never opens its library; `pnpm e2e:mobile` is what finds the next one.
+  `apps/mobile/src/lib/app-runtime.ts`.
 - **The phone ships through EAS to TestFlight, and an unset cloud URL is the production origin on
   both clients.** iPhone only (owner decision), credentials and build numbers EAS's, and
   `PRODUCTION_CLOUD_ORIGIN` the one fallback, since per-profile env respells the origin.

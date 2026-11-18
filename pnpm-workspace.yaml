@@ -65,6 +65,8 @@ catalog:
   "@better-auth/oauth-provider": 1.7.25
   better-auth: 1.7.25
   cn: ^0.4.0
+  # what the shared packages call that the phone's Hermes lacks (Array.prototype.toSorted)
+  core-js: ^3.51.0
   # exact: 0.x output moves between patches; the fill corpus pins it
   defuddle: 0.19.5
   dotenv-cli: ^11.1.0
@@ -199,6 +201,8 @@ blockExoticSubdeps: true
 
 allowBuilds:
   "@tailwindcss/oxide": true
+  # a postinstall that only prints a funding notice
+  core-js: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
   esbuild: true
