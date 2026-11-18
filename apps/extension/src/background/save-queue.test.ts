@@ -318,6 +318,26 @@ describe("a save that waits", () => {
     await expect(alarmStands()).resolves.toBe(false);
   });
 
+  it("waits once for its page however often the page is saved offline, and is sent once", async () => {
+    const offline = fakeCloud({
+      saveLink: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    for (let opened = 0; opened < 3; opened += 1) {
+      await expect(saveTabAsLink(offline)).resolves.toStrictEqual(waitingFor("connection"));
+    }
+    await keepSave(waiting({ opId: THIRD, title: "Read it later", url: OTHER_URL }));
+    await keepSave(waiting({ email: OTHER_SESSION.email, opId: SECOND }));
+    await expect(heldSaves(SESSION.email)).resolves.toStrictEqual({ refused: [], waiting: 2 });
+    const cloud = fakeCloud({});
+    await sendQueued(depsWith(cloud));
+    expect(cloud.links.map(({ url }) => url).toSorted()).toStrictEqual([PAGE_URL, OTHER_URL]);
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      waiting({ email: OTHER_SESSION.email, opId: SECOND }),
+    ]);
+  });
+
   it("is kept in `storage.local` under one key, as the text the queue reads", async () => {
     await keepSave(waiting());
     const stored = await browser.storage.local.get(`save:${FIRST}`);
@@ -488,7 +508,7 @@ describe("the queue's passes", () => {
   ] as const)(
     "never bring back a save its account's deletion let go while its first try ran, a try %s",
     async (_met, answer, outcome) => {
-      await keepSave(waiting());
+      await keepSave(waiting({ url: OTHER_URL }));
       const held = deferred();
       const firstTry = fakeCloud({
         saveLink: async () => {

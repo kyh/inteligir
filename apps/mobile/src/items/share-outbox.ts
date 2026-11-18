@@ -32,8 +32,13 @@ export interface ShareOutbox {
   readonly clear: () => Promise<void>;
 }
 
+// a link shared twice with the same words lands as one item, its title the latest; text with no
+// link is a note each time it is shared
+const sameShare = (a: ShareSave, b: ShareSave): boolean =>
+  a.kind === "link" && b.kind === "link" && a.url === b.url && a.note === b.note;
+
 const sharesIn = (storage: KvStorage) =>
-  waitingSaves({ payload: shareSaveSchema, prefix: "share:", storage });
+  waitingSaves({ payload: shareSaveSchema, prefix: "share:", sameSave: sameShare, storage });
 
 export const clearStoredShares = async (storage: KvStorage): Promise<void> => {
   await sharesIn(storage).clear();

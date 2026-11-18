@@ -37,9 +37,9 @@ what it may reach, and how it builds.
   go, beside a count of those that wait.** Only the saves of the account signed in, read with no
   call, since a refusal a resend meets has no tab to badge and a save dropped unseen is lost.
   `apps/extension/src/entrypoints/popup/app.tsx`.
-- **One refused row an address: a refusal of an address the account's library already refused
-  joins that row.** The popup saves its tab each time it opens, so a row for each refused save
-  lists one page once an opening while the library stays full.
+- **One save an address for each account, waiting or refused: the queue keeps saves of one page as
+  one.** The popup saves its tab each time it opens, so a save for each opening counts one page
+  once an opening offline and lists it once an opening while the library stays full.
   `apps/extension/src/background/save-queue.ts`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
   only what stops with it.** A pass and a first try under way are memory's, since a mark of either

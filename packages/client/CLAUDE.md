@@ -21,6 +21,11 @@ say one thing of one library.
   one way.** One record shape and one pass for the phone's shares and the extension's saves, and
   one the library refuses is parked with its words, since a queue per host lets one drop what
   another parks. `packages/client/src/waiting-saves.ts`.
+- **Two saves that land as one item are kept as one: a save kept while one the same waits takes
+  its place, and a refusal of one the same as a parked one joins that row.** The host says which
+  are the same (one page for one account, one link with the same words), so a page saved three
+  times offline waits and is counted once, and is listed once while the library refuses it.
+  `packages/client/src/waiting-saves.ts`.
 - **The queue reads its store at every step and changes it one step at a time.** Nothing rests on
   memory a stopped host loses, and a try's answer never brings back a save let go while its call
   was on its way, since a read and a write a clear can land between is a save that returns.

@@ -49,7 +49,13 @@ const storage: KvStorage = {
   },
 };
 
-const saves = waitingSaves({ payload: keptSchema, prefix: "save:", storage });
+// a page saved twice for one account lands as one item, its title the latest
+const saves = waitingSaves({
+  payload: keptSchema,
+  prefix: "save:",
+  sameSave: (a, b) => a.email === b.email && a.url === b.url,
+  storage,
+});
 
 // every save kept, oldest first, the refused among them
 export const queuedSaves = saves.list;
@@ -83,37 +89,11 @@ export const linkOf = (save: QueuedSave): LinkSave => {
 const trying = new Set<string>();
 let unanswered = 0;
 
-// The popup saves its tab each time it opens, so a refusal of an address the account's library
-// already refused a save of joins that row, in the newest words. The row held stays, since a popup
-// open over it names its op id, and the save just refused goes before its try settles, which then
-// finds nothing to park; rows two tries at once both parked join it too.
-const joinRefused = async (save: QueuedSave, outcome: CallOutcome<unknown>): Promise<void> => {
-  const { email, url } = save.payload;
-  const all = await saves.list();
-  const [held, ...also] = all.filter(
-    (kept) =>
-      kept.refused !== null &&
-      kept.opId !== save.opId &&
-      kept.payload.email === email &&
-      kept.payload.url === url,
-  );
-  if (held === undefined) {
-    return;
-  }
-  for (const joined of [save, ...also]) {
-    await saves.discard(joined.opId);
-  }
-  await saves.settle(held.opId, outcome);
-};
-
 // what a try's outcome means past the save that made it, whichever try met it: a deleted account
-// takes everything kept for it, a refusal joins its address's row, and a call the cloud left
-// unanswered is counted for the alarm
+// takes everything kept for it, and a call the cloud left unanswered is counted for the alarm
 const met = async <T>(save: QueuedSave, outcome: CallOutcome<T>): Promise<CallOutcome<T>> => {
   if (outcome.kind === "gone") {
     await accountGone(save.payload.email);
-  } else if (outcome.kind === "refused") {
-    await joinRefused(save, outcome);
   } else if (outcome.kind === "wait" && outcome.for === "connection") {
     unanswered += 1;
   }

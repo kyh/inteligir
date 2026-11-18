@@ -4,8 +4,11 @@
 // every step, so nothing rests on what a stopped worker or a closed app held in memory. A pass
 // sends the oldest first: one that lands goes, one the cloud cannot answer yet stops the pass for
 // the next, one no resend can land is parked with the library's words until the person sends it
-// again or lets it go, and one whose account is deleted goes. Every change is one step at a time,
-// so a try's answer never brings back a save let go while its call was on its way.
+// again or lets it go, and one whose account is deleted goes. Two saves the host calls the same,
+// which land as one item, are kept as one: a save kept while one the same waits takes its place,
+// and a refusal of one while one the same is parked joins that row in the newest words, so one
+// page waits once and is listed once. Every change is one step at a time, so a try's answer never
+// brings back a save let go while its call was on its way.
 
 import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
 import { z } from "zod";
@@ -40,7 +43,7 @@ type Sent = CallOutcome<unknown> | { readonly kind: "skipped" };
 interface WaitingSaves<P> {
   // every save kept, oldest first, the parked among them
   readonly list: () => Promise<readonly WaitingSave<P>[]>;
-  // kept before its first call goes
+  // kept before its first call goes, in the place of one the same that waits
   readonly keep: (stamp: SaveStamp, payload: P) => Promise<WaitingSave<P>>;
   // what a try's outcome makes of its save, for a try the host made outside a pass
   readonly settle: (opId: string, outcome: CallOutcome<unknown>) => Promise<void>;
@@ -81,8 +84,10 @@ export const waitingSaves = <P>(args: {
   // what every save's key starts with, its op id after it
   readonly prefix: string;
   readonly payload: z.ZodType<P>;
+  // whether two saves land as one item, so the queue keeps one of them
+  readonly sameSave: (a: P, b: P) => boolean;
 }): WaitingSaves<P> => {
-  const { prefix, storage } = args;
+  const { prefix, sameSave, storage } = args;
   const schema = z.object({
     id: z.uuidv7(),
     opId: z.uuidv7(),
@@ -151,7 +156,9 @@ export const waitingSaves = <P>(args: {
     });
   };
 
-  // a save let go while its call was on its way stays gone, and one that waits stays as kept
+  // a save let go while its call was on its way stays gone, and one that waits stays as kept. One
+  // refused while one the same is parked joins that row, which stays, since a screen open over it
+  // names its op id
   const settle: WaitingSaves<P>["settle"] = async (opId, outcome) => {
     await change(async () => {
       const save = await read(keyOf(opId));
@@ -159,7 +166,21 @@ export const waitingSaves = <P>(args: {
       if (next === save) {
         return false;
       }
-      await (next === null ? storage.removeItem(keyOf(opId)) : write(next));
+      if (next === null) {
+        await storage.removeItem(keyOf(opId));
+        return true;
+      }
+      const saves = await list();
+      const parked = saves.find(
+        (kept) =>
+          kept.refused !== null && kept.opId !== opId && sameSave(kept.payload, next.payload),
+      );
+      if (parked === undefined) {
+        await write(next);
+      } else {
+        await storage.removeItem(keyOf(opId));
+        await write({ ...parked, refused: next.refused });
+      }
       return true;
     });
   };
@@ -185,6 +206,11 @@ export const waitingSaves = <P>(args: {
         savedAt: stamp.savedAt,
       };
       await change(async () => {
+        for (const kept of await list()) {
+          if (kept.refused === null && sameSave(kept.payload, payload)) {
+            await storage.removeItem(keyOf(kept.opId));
+          }
+        }
         await write(save);
         return true;
       });

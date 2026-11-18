@@ -17,7 +17,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Save a link from the Add menu or ⌘P**, into the folder you're looking at or Unsorted; Add › Add files… adds files the same way.
 - **What you save fills itself in, without a model**: title, site, author, cover and readable text, and "Page not read" says why when a page can't be read, with Read the page again to retry.
 - **Save from Chrome, Arc, Brave, Edge or Vivaldi** with the Inteligir extension, on your browser's own sign-in to inteligir.com; its Sign in opens inteligir.com's sign-in, a save made offline lands once you're back online, and one made signed out lands the moment you sign in again, in the account it was saved for.
-- **A save your library refuses stays in the extension's popup**: it is listed once under "Didn't reach your library" in your library's words, however often you save that page, with Try again and Let it go, and the popup counts the saves still waiting to be sent ("1 save waiting").
+- **A save your library refuses stays in the extension's popup**: it is listed once under "Didn't reach your library" in your library's words, however often you save that page, with Try again and Let it go, and the popup counts the pages still waiting to be sent ("1 save waiting"), a page saved several times while offline once.
 - **The extension says a refusal in your library's words** ("Your library is full."), the same sentence your iPhone shows, in the popup and on the toolbar button.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.
@@ -39,7 +39,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An import is read on your device**: keep the window open until it says what it added, and your browser asks before you close or reload it mid-import; if it closes, choose the same file again and it carries on, adding nothing twice.
 - **Your library on your iPhone**: covers, kinds, search, every file, editing, and what you last opened readable offline.
 - **Create your account on your iPhone** with the invite code you were sent.
-- **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back.
+- **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back, a link shared twice waiting once, and one your library refuses is listed once however often you share it.
 - **Ask the agent on your iPhone**, in the same conversations as your Mac and your browser.
 - **Photos on your iPhone are pictures of their own**: Add a photo in the library, at most 2048 pixels and with no location.
 - **Deleted brings everything back**, an item's files included; Delete forever… and Empty Deleted… remove them for good.
