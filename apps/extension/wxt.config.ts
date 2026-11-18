@@ -4,14 +4,15 @@
 // is the Web Store's zip, checked here before anything uploads it. Every module imports what it
 // uses (`imports: false`), so no global stands for one.
 
-import { spawnSync } from "node:child_process";
-import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "wxt";
+import { z } from "zod";
 
 import product from "../../package.json" with { type: "json" };
 import { DEV_CLOUD_ORIGIN, extensionManifest, flavorOfMode } from "./src/manifest";
@@ -33,6 +34,29 @@ const shippedFiles = (dir: string): string[] =>
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .toSorted();
+
+// the texts of code a workspace the extension bundles vendored, which it keeps in its licenses/
+const vendoredLicences = () =>
+  z
+    .array(z.object({ path: z.string() }))
+    .parse(
+      JSON.parse(
+        execFileSync(
+          "pnpm",
+          ["ls", "--json", "--depth", "-1", "--filter-prod", "@repo/extension..."],
+          { encoding: "utf-8" },
+        ),
+      ),
+    )
+    .flatMap(({ path: dir }) => {
+      const texts = path.join(dir, "licenses");
+      return existsSync(texts)
+        ? readdirSync(texts).map((name) => ({
+            absoluteSrc: path.join(texts, name),
+            relativeDest: `licenses/${name}`,
+          }))
+        : [];
+    });
 
 // what the store signs: no file naming a checkout's cloud, and the zip holding exactly the build's
 // files. Its manifest is extensionManifest("store"), held there by build:manifestGenerated, whose
@@ -71,6 +95,10 @@ export default defineConfig({
     "vite:build:extendConfig": (entrypoints, viteConfig) => {
       const group = entrypoints.map((entrypoint) => entrypoint.name).join("-");
       viteConfig.build = { ...viteConfig.build, license: { fileName: `licenses/${group}.md` } };
+    },
+    // beside them, the licence of code a workspace it bundles vendored
+    "build:publicAssets": (_wxt, files) => {
+      files.push(...vendoredLicences());
     },
     // what a build ships is the function its tests call: WXT adds the worker and the popup from
     // the entrypoints, so a manifest that says anything else fails the build (a field WXT leaves

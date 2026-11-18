@@ -16,7 +16,7 @@ src/
   components/    the site's own components
   lib/           the site's auth client, document policies, config and page markdown
 agent/           the built-in agent, eve's: its channel, hooks, tools, filing rules and mock model
-scripts/         write-licenses.ts, which writes public/licenses.md at prebuild
+scripts/         write-licenses.ts, which writes public/licenses.md and the vendored texts at prebuild
 next.config.ts   Cache Components, the React Compiler, the static policy and headers, Turbopack's
                  `?raw` and the import worker's alias, eve's mount
 vercel.json      the functions' region and the crons
@@ -35,7 +35,7 @@ vercel.json      the functions' region and the crons
 | `/app/reset-password`                              | the reset mail's link: a new password on its token                          |
 | `/connect/authorize`                               | an assistant's consent page, on the request the OAuth provider signed       |
 | `/llms.txt`, `/robots.txt`, `/sitemap.xml`         | for agents and crawlers                                                     |
-| `/licenses.md`                                     | every production package's licence, written at prebuild                     |
+| `/licenses.md`, `/licenses/*.txt`                  | every production package's licence and each vendored text, at prebuild      |
 | `/api/auth/*`                                      | Better Auth, its allowlisted routes alone (`@repo/service`'s `auth/`)       |
 | `/api/sign-up`                                     | sign-up behind the invite gate, POST alone                                  |
 | `/api/markdown/*`                                  | what `proxy.ts` rewrites a markdown request to; no public address           |

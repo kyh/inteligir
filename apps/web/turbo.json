@@ -3,7 +3,8 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      // the licences page is gitignored, so a cache hit that left it out would serve a 404
+      // the licences page and the vendored texts are gitignored, so a cache hit that left them out
+      // would serve a 404
       // eve's build is the agent `next start` serves
       "outputs": [
         ".next/**",
@@ -11,7 +12,8 @@
         "!.next/cache/**",
         "!.next/dev/**",
         "next-env.d.ts",
-        "public/licenses.md"
+        "public/licenses.md",
+        "public/licenses/**"
       ]
     },
     // next typegen writes the route types and next-env.d.ts the program includes

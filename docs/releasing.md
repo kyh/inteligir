@@ -324,6 +324,8 @@ The unpacked store build, against production, with no dev build loaded.
 - **The store build** loads in Chrome, Arc, Brave and Edge with the id
   `EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`), and
   the Web Store listing and the site's Save link open it.
+- **Notices**: the store build's `licenses/` holds a notices file per group of
+  entrypoints and the licence of each project vendored in what it bundles.
 - **Sign in** through the welcome tab, which opens the site's sign-in; the
   browser shows in Settings › Account.
 - **Save**: the toolbar saves, a second save says already saved, right-click
@@ -413,6 +415,8 @@ note under the editor's content policy; what it cannot run is below.
 
 - **A password reset** mailed on production signs every device out, and a
   reset or sign-up started from the consent page lands back there.
+- **Notices**: on production, the home page's Licenses and Settings › About's
+  open `/licenses.md`, and each vendored text it links answers.
 - **Share cards** for /about and /privacy in a chat app; `apps/web/public/og.jpg`
   and the store listing's pitch are current.
 - **The two policies on Vercel**, which serves a route rendered per request from

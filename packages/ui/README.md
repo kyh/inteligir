@@ -17,6 +17,7 @@ src/hooks/       shared hooks
 src/lib/         UI system helpers and the controlled theme provider
 src/styles/      Tailwind theme, Inter, typeset styles
 components.json  shadcn config: base-rhea, zinc, the @fluid registry
+licenses/        the licences of shadcn, Fluid Functionalism and Beautiful UI
 ```
 
 ## Seams and rules a change keeps

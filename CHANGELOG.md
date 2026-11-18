@@ -46,7 +46,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Ask the agent to add to an item's note** and it writes after what's there, in a saved page, a picture or a PDF with no note yet too; what it adds stays when the page is read again.
 - **A link can open an item on its words**: add `find=` and the words to an item's address, and its find bar opens on them.
 - **Terms of Use**, at inteligir.com/terms.
-- **The open-source software Inteligir is built on, and its licenses**: Licenses in Settings › About opens them in your browser, inteligir.com links them at the foot of its home page, and the browser extension carries its own.
+- **The open-source software Inteligir is built on, and its licenses**, the code copied into it from other projects among them: Licenses in Settings › About opens them in your browser, inteligir.com links them at the foot of its home page, and the browser extension carries its own.
 
 ### Changed
 

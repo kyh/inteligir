@@ -41,6 +41,7 @@ src/
   *.ts(x)        the editor surface and its in-document affordances, and the host seam
 styles-entry.css what a host imports as `@repo/editor/styles.css`: the rules and the sources Tailwind scans
 styles.css       the rules, their selectors spelled in `style-hooks.ts`
+licenses/        Plate's licence, for the nodes and chrome vendored from it
 ```
 
 ## Seams

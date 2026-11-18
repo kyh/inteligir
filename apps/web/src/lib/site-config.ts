@@ -1,7 +1,7 @@
 const GITHUB = "https://github.com/kyh/inteligir";
 
-// the notices a licence asks to travel with a copy: every package the pages bundle, beside
-// public/licenses, the texts of what is vendored
+// the notices a licence asks to travel with a copy: every package the pages bundle, and a link to
+// the text of each thing vendored, served under /licenses/
 export const LICENSES_PATH = "/licenses.md";
 
 export const siteConfig = {

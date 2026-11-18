@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { glob, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
@@ -139,7 +139,16 @@ test.describe(() => {
   });
 });
 
-test("the home page links the licences of the packages the site bundles, and what is vendored is served beside them", async ({
+// the licence of code a workspace vendored, which it keeps in its own licenses/
+const vendoredTexts = async (): Promise<string[]> => {
+  const texts: string[] = [];
+  for await (const text of glob("{apps,packages,tools}/*/licenses/*.txt", { cwd: REPO })) {
+    texts.push(text);
+  }
+  return texts;
+};
+
+test("the home page links the licences of the packages the site bundles, which link each vendored text, served as kept", async ({
   cloud,
   page,
   request,
@@ -148,9 +157,17 @@ test("the home page links the licences of the packages the site bundles, and wha
   const footer = page.getByRole("link", { exact: true, name: "Licenses" });
   const href = await footer.getAttribute("href");
   const packages = await request.get(`${cloud.origin}${href ?? ""}`);
-  expect(await packages.text()).toMatch(/^## react - \S+ \(MIT\)$/mu);
-  const vendored = await request.get(`${cloud.origin}/licenses/shadcn.txt`);
-  expect(await vendored.text()).toContain("Copyright (c) 2023 shadcn");
+  const licences = await packages.text();
+  expect(licences).toMatch(/^## react - \S+ \(MIT\)$/mu);
+  const texts = await vendoredTexts();
+  expect(texts).not.toEqual([]);
+  for (const text of texts) {
+    const linked = `/licenses/${path.basename(text)}`;
+    expect(licences).toContain(`](${linked})`);
+    const served = await request.get(`${cloud.origin}${linked}`);
+    expect(served.status(), linked).toBe(200);
+    expect(await served.text(), linked).toBe(await readFile(path.join(REPO, text), "utf-8"));
+  }
 });
 
 test("a print is light under the dark theme, which stays on the screen", async ({

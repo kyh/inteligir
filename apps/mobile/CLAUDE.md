@@ -106,6 +106,10 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   both clients.** iPhone only (owner decision), credentials and build numbers EAS's, and
   `PRODUCTION_CLOUD_ORIGIN` the one fallback, since per-profile env respells the origin.
   `apps/mobile/eas.json`.
+- **The phone carries no third-party notices.** Metro writes no licence file, so notices need a
+  list made on every path that bundles the phone (`expo start`, `expo export`, an EAS build and an
+  EAS update) or a new dependency, and a screen to show them where the phone has no Settings; that
+  tool is the owner's call. `apps/mobile/package.json`.
 - **The phone's version is the product's, and its share extension a signed target of its own.** A
   JS-only fix is an EAS Update to builds of the same fingerprint and a native change a new build
   (owner decision); its bundle id, encryption answer and required reasons are held to what App Store

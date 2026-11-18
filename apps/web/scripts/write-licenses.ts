@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
@@ -7,6 +15,11 @@ import { z } from "zod";
 // Turbopack has no counterpart of Vite's build.license, so pnpm lists them. `@repo/web...` follows
 // the workspace packages the site imports, whose own dependencies a bare `@repo/web` leaves out;
 // --filter-prod skips a workspace package reached only as a devDependency.
+const SITE = ["--filter-prod", "@repo/web..."];
+
+const pnpm = (args: readonly string[]): string =>
+  execFileSync("pnpm", args, { encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 });
+
 const report = z.record(
   z.string(),
   z.array(
@@ -19,15 +32,7 @@ const report = z.record(
   ),
 );
 
-const listed = report.parse(
-  JSON.parse(
-    execFileSync(
-      "pnpm",
-      ["licenses", "list", "--prod", "--json", "--filter-prod", "@repo/web..."],
-      { encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 },
-    ),
-  ),
-);
+const workspaces = z.array(z.object({ path: z.string() }));
 
 // the file names Vite's build.license reads a package's text from
 const LICENCE_FILE = /^(?:license|licence|copying)/iu;
@@ -46,7 +51,9 @@ const byText = (a: string, b: string): number => {
   return a < b ? -1 : 1;
 };
 
-const sections = Object.values(listed)
+const sections = Object.values(
+  report.parse(JSON.parse(pnpm(["licenses", "list", "--prod", "--json", ...SITE]))),
+)
   .flat()
   .flatMap(({ license, name, paths, versions }) =>
     versions.map((version, index) => ({ dir: paths[index], license, name, version })),
@@ -57,7 +64,27 @@ const sections = Object.values(listed)
     return `## ${name} - ${version} (${license})\n${text === undefined ? "" : `\n${text}\n`}`;
   });
 
+// what a workspace the site is built from vendored, whose licence it keeps in its licenses/
+const vendored = workspaces
+  .parse(JSON.parse(pnpm(["ls", "--json", "--depth", "-1", ...SITE])))
+  .flatMap(({ path: dir }) => {
+    const texts = path.join(dir, "licenses");
+    return existsSync(texts)
+      ? readdirSync(texts).map((name) => ({ name, source: path.join(texts, name) }))
+      : [];
+  })
+  .toSorted((a, b) => byText(a.name, b.name));
+
+const VENDORED = new URL("../public/licenses/", import.meta.url);
+rmSync(VENDORED, { force: true, recursive: true });
+mkdirSync(VENDORED);
+for (const { name, source } of vendored) {
+  copyFileSync(source, new URL(name, VENDORED));
+}
+
+const links = vendored.map(({ name }) => `- [${path.parse(name).name}](/licenses/${name})`);
+
 writeFileSync(
   new URL("../public/licenses.md", import.meta.url),
-  `# Licenses\n\nThe site is built from packages under the following licenses:\n\n${sections.join("\n")}`,
+  `# Licenses\n\nThe site holds code copied from these projects, under their licenses:\n\n${links.join("\n")}\n\nThe site is built from packages under the following licenses:\n\n${sections.join("\n")}`,
 );

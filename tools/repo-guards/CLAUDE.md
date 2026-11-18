@@ -9,10 +9,12 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   its rule and the file to change. Why: a guard repeating pnpm, tsc, knip,
   oxlint or a build is one more table to keep in step. `tools/repo-guards/README.md`.
 - **Vendored code is this repo's code, except for the attribution**: rename and
-  delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
-  conflict is no reason; the site serves the licences
-  (`apps/web/public/licenses`), and the .app ships its crates' notices
-  (`apps/desktop/src-tauri/about.toml`).
+  delete freely, keeping each `// Vendored from X, MIT.` header and the
+  project's licence in the workspace's `licenses/`, which the site and the
+  extension carry for every workspace they bundle. Why: a re-pull conflict is
+  no reason, and the licence asks its text travel with every copy, as the .app
+  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
+  `apps/web/scripts/write-licenses.ts`.
 - **A bundle's notices are its build's**: Vite's `build.license` writes the
   licence of each package the extension's zip holds, a file per group of
   entrypoints. Why: a generator of ours is a list to keep in step with the
