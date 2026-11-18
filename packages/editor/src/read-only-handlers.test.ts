@@ -2,6 +2,7 @@
 // plugin only when its editOnly keeps its handlers for an editable editor. So with no connection a
 // paste, a drop or a key reaches every other plugin, and one that writes would edit an item the
 // cloud cannot take. A handler that slips through still writes nothing: the model refuses the op.
+// `tools/e2e/src/saved-note.spec.ts` presses these keys and the chords in a browser.
 
 import { describe, expect, it } from "vitest";
 import { DOM_HANDLERS, createPlateEditor, pipeHandler } from "platejs/react";
@@ -64,6 +65,25 @@ describe("a read-only editor's DOM handlers", () => {
   it("are named in LIVE_READ_ONLY only while one runs read-only", () => {
     const live = new Set(KITS.flatMap(([, kit]) => liveKeys(kit)));
     expect(Object.keys(LIVE_READ_ONLY).filter((key) => !live.has(key))).toStrictEqual([]);
+  });
+});
+
+// Plate binds a plugin's `shortcuts` through its hotkeys effect, outside the handler pipe, so no
+// editOnly gates a chord, and one fires read-only from a link holding the focus. Their gate is the
+// model's (`edit-guard.ts`): each of these only transforms, so each writes nothing read-only.
+const CHORDS_THAT_TRANSFORM = [
+  "bold.toggle",
+  "italic.toggle",
+  "p.toggleParagraph",
+  "underline.toggle",
+];
+
+describe("a read-only editor's chords", () => {
+  it.each(KITS)("in the %s kit are only chords the model refuses", (_profile, kit) => {
+    expect(
+      Object.keys(createPlateEditor({ plugins: kit }).meta.shortcuts).toSorted(),
+      "a chord no editOnly gates: name it in CHORDS_THAT_TRANSFORM once it only transforms, or gate its handler on editor.dom.readOnly",
+    ).toStrictEqual(CHORDS_THAT_TRANSFORM);
   });
 });
 
