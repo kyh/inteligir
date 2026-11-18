@@ -59,7 +59,7 @@ highlights quoted in its note, and an Obsidian folder comes in as a zip.
 
 The agent runs in our cloud on Anthropic's Claude, on our account, so you need no plan and we never
 ask for an API key. Each account gets a free daily allowance. What the agent reads to answer you goes
-to Anthropic. It asks before it deletes anything, and Undo under each answer takes its changes back
+to Anthropic. What it deletes waits in Deleted, and Undo under each answer takes its changes back
 for seven days.
 
 Your own Claude or ChatGPT can reach the same library through the connector, once you allow it.
