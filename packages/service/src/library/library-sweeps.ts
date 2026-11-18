@@ -28,8 +28,9 @@ import { STORED_ITEM_COLUMNS, tagRowsOf } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { anyOf, chunksOf, textArray } from "./set-sql";
 
-// the most items a change of tags lands in one write: about 4 s under the lock, measured at 5,000
-const SWEEP_LOT = 5000;
+// the most items a change of tags lands in one write: about 1 s under the lock, where 5,000 took
+// 4-5 s with the search indexes' fastupdate off, at every other write's 5 s wait
+const SWEEP_LOT = 1000;
 // the items a change of tags reads and writes a statement at a time
 const TAG_CHUNK = 500;
 

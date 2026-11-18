@@ -190,10 +190,11 @@ decisions port with its code from the tag `cloudflare-last`.
 - **An id list goes to Postgres as one array parameter, never spread.** drizzle
   spreads an array into a parameter each, and a sweep of 50,000 items passes
   Postgres's 65,535. `packages/service/src/library/set-sql.ts`.
-- **A change of tags over 5,000 items goes to `sweep` jobs of 5,000, each a
+- **A change of tags over 1,000 items goes to `sweep` jobs of 1,000, each a
   write of its own; every other sweep lands in its call.** Deriving tags and
-  search rows costs about 4 s a 5,000 under the lock, and past the 5 s lock
-  wait every other write of the account is refused.
+  search rows costs about 1 s a 1,000 under the lock; 5,000 took 4-5 s with
+  the search indexes' fastupdate off, at the 5 s wait past which every other
+  write of the account is refused.
   `packages/service/src/library/library-sweeps.ts`.
 - **A restore of many items brings back, of those at one address, only the one
   deleted last, and none a live item holds.** Two at one address each pass a

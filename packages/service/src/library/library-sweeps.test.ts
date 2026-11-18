@@ -88,11 +88,7 @@ dbSuite("a sweep over a scope", () => {
         fields: stubFields({ folderId: null, savedAt: SAVED_AT, tags: [], url }),
         id: mintLibraryId(Date.now()),
       };
-      const full = noteOf(
-        "Full of tags.",
-        Array.from({ length: 500 }, (_, at) => `t${String(at)}`),
-      );
-      await seed(accountId, [link, full, ...notesOf(4998)]);
+      await seed(accountId, [link, ...notesOf(4999)]);
       const all = { except: [], scope: { kind: "all" as const } };
       const deleted = { except: [], scope: { kind: "deleted" as const } };
 
@@ -115,17 +111,12 @@ dbSuite("a sweep over a scope", () => {
       await expect(
         library.items.sweep({
           ...all,
-          verb: { addTags: ["swept"], folder: { path: "Archive" }, kind: "organize", pinned: true },
+          verb: { folder: { path: "Archive" }, kind: "organize", pinned: true },
         }),
-      ).resolves.toStrictEqual({ items: 5000, refused: [full.id] });
-      await expect(taggedWith(accountId, "swept")).resolves.toBe(4999);
+      ).resolves.toStrictEqual({ items: 5000, refused: [] });
       await expect(library.items.row({ id: holder.id })).resolves.toMatchObject({
-        fields: { folderId: expect.any(String), pinnedAt: expect.any(Number), tags: ["swept"] },
+        fields: { folderId: expect.any(String), pinnedAt: expect.any(Number) },
       });
-      const page = await library.listing.page({ limit: 1, scope: { kind: "tag", tag: "swept" } });
-      expect(page.total).toBe(4999);
-      const found = await library.search({ query: "swept" });
-      expect(found.hits.length).toBeGreaterThan(0);
 
       await library.items.sweep({ ...all, verb: { kind: "delete" } });
       await expect(
@@ -140,24 +131,45 @@ dbSuite("a sweep over a scope", () => {
     },
   );
 
+  it("lands a change of tags over 1,000 items in the call, naming the one a rule left", async () => {
+    const { accountId, library } = await personalLibrary();
+    const full = noteOf(
+      "Full of tags.",
+      Array.from({ length: 500 }, (_, at) => `t${String(at)}`),
+    );
+    await seed(accountId, [full, ...notesOf(999)]);
+    await expect(
+      library.items.sweep({
+        except: [],
+        scope: { kind: "all" },
+        verb: { addTags: ["swept"], kind: "organize" },
+      }),
+    ).resolves.toStrictEqual({ items: 1000, refused: [full.id] });
+    await expect(taggedWith(accountId, "swept")).resolves.toBe(999);
+    const page = await library.listing.page({ limit: 1, scope: { kind: "tag", tag: "swept" } });
+    expect(page.total).toBe(999);
+    const found = await library.search({ query: "swept" });
+    expect(found.hits.length).toBeGreaterThan(0);
+  });
+
   it(
-    "leaves a change of tags over 5,000 items as lots, each landing as a write of its own",
+    "leaves a change of tags over 1,000 items as lots, each landing as a write of its own",
     { timeout: 60_000 },
     async () => {
       const { accountId, library } = await personalLibrary();
-      await seed(accountId, notesOf(5001));
+      await seed(accountId, notesOf(1001));
       await expect(
         library.items.sweep({
           except: [],
           scope: { kind: "all" },
           verb: { addTags: ["lot"], kind: "organize", pinned: true },
         }),
-      ).resolves.toStrictEqual({ items: 5001, refused: [] });
+      ).resolves.toStrictEqual({ items: 1001, refused: [] });
       const [pinned] = await db
         .select({ n: count() })
         .from(item)
         .where(and(eq(item.accountId, accountId), isNotNull(item.pinnedAt)));
-      expect(pinned?.n).toBe(5001);
+      expect(pinned?.n).toBe(1001);
       await expect(taggedWith(accountId, "lot")).resolves.toBe(0);
 
       const lots = await db
@@ -166,7 +178,7 @@ dbSuite("a sweep over a scope", () => {
         .where(and(eq(job.accountId, accountId), eq(job.kind, "sweep")));
       const parsed = lots.map(({ payload }) => sweepLotSchema.parse(payload));
       expect(parsed.map((lot) => lot.ids.length).toSorted((a, b) => a - b)).toStrictEqual([
-        1, 5000,
+        1, 1000,
       ]);
       for (const lot of parsed) {
         const landed = await writeLibrary(
@@ -176,7 +188,7 @@ dbSuite("a sweep over a scope", () => {
         );
         expect(landed).toStrictEqual({ ok: true, value: [] });
       }
-      await expect(taggedWith(accountId, "lot")).resolves.toBe(5001);
+      await expect(taggedWith(accountId, "lot")).resolves.toBe(1001);
     },
   );
 

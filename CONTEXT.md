@@ -245,7 +245,7 @@ tagged.
 then Move, Tag, Pin, Delete or Restore asks once the grid read only part of the
 scope, and what "Empty Deleted…" asks (`library.items.sweep`). The library
 takes the items the scope lists as it is asked and lands them in the call, a
-change of tags over 5,000 items a lot at a time from its jobs
+change of tags over 1,000 items a lot at a time from its jobs
 (`packages/service/src/library/library-sweeps.ts`). Not a bulk change, which
 names its items by id, a hundred a call.
 

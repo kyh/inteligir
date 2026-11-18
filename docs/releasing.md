@@ -395,7 +395,7 @@ The unpacked store build, against production, with no dev build loaded.
   open keeping its sign-in.
 - **A sweep against the cloud's database**: ⌘A then Delete over a scope of a
   few thousand items empties the grid within seconds while another tab still
-  reads, and ⌘A then Tag over more than 5,000 tags them all within a minute.
+  reads, and ⌘A then Tag over more than 1,000 tags them all within a minute.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
   Page not read opens its popover on a tap, and the header fits a phone.
 
