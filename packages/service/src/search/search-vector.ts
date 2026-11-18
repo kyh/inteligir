@@ -12,12 +12,15 @@ export type SearchText = DerivedItem["search"] & { readonly body: string };
 
 type Weight = "A" | "B" | "C" | "D";
 
+// the body's lexemes' weight, which a query asks to learn whether the body holds a term
+export const BODY_WEIGHT: Weight = "D";
+
 // ts_rank's default weights, {0.1, 0.2, 0.4, 1.0} for D to A, rank them 1 : 2 : 4 : 10
 const FIELD_WEIGHTS: readonly (readonly [keyof SearchText, Weight])[] = [
   ["title", "A"],
   ["headings", "B"],
   ["meta", "C"],
-  ["body", "D"],
+  ["body", BODY_WEIGHT],
 ];
 
 const WEIGHT_RANK: Readonly<Record<Weight, number>> = { A: 3, B: 2, C: 1, D: 0 };
@@ -105,7 +108,7 @@ export const searchVectorOf = (text: SearchText): string => {
   return [...positions]
     .map(([lexeme, held]) => {
       const at = [...held].map(([spot, weight]) =>
-        weight === "D" ? String(spot) : `${String(spot)}${weight}`,
+        weight === BODY_WEIGHT ? String(spot) : `${String(spot)}${weight}`,
       );
       return `${lexemeLiteral(lexeme)}:${at.join(",")}`;
     })

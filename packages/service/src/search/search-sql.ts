@@ -16,7 +16,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { passageIn, termMatch } from "./search-excerpt";
 import { planSearchQuery } from "./search-query";
 import type { SearchQueryPlan, SearchQueryTerm } from "./search-query";
-import { lexemeLiteral } from "./search-vector";
+import { BODY_WEIGHT, lexemeLiteral } from "./search-vector";
 
 // the side of Deleted a search answers from: an item in Deleted is found only from Deleted itself
 export type SearchSide = "live" | "deleted";
@@ -36,15 +36,21 @@ const PASSAGE_SCAN_CHARS = 64 * 1024;
 // more than the passage keeps either side
 const LITERAL_PASSAGE_REACH = 2048;
 
-// the plan as a tsquery literal: each term its word, a prefix while it is still being typed, or its
-// stem's shadow, which no prefix reaches
+// a term as a tsquery literal: its word, a prefix while it is still being typed, or its stem's
+// shadow, which no prefix reaches; a weight matches only the lexemes of the field that carries it
+const termQuery = (term: SearchQueryTerm, weight = ""): string => {
+  const label = (prefix: boolean) =>
+    prefix || weight !== "" ? `:${prefix ? "*" : ""}${weight}` : "";
+  return `(${lexemeLiteral(term.token)}${label(term.prefix)} | ${lexemeLiteral(`~${term.stem}`)}${label(false)})`;
+};
+
 export const tsqueryOf = (plan: SearchQueryPlan): string =>
-  plan.terms
-    .map(
-      (term) =>
-        `(${lexemeLiteral(term.token)}${term.prefix ? ":*" : ""} | ${lexemeLiteral(`~${term.stem}`)})`,
-    )
-    .join(plan.match === "all" ? " & " : " | ");
+  plan.terms.map((term) => termQuery(term)).join(plan.match === "all" ? " & " : " | ");
+
+// any of the terms in the body's lexemes, so a hit its title, headings or fields alone matched is
+// told apart
+export const bodyTsqueryOf = (terms: readonly SearchQueryTerm[]): string =>
+  terms.map((term) => termQuery(term, BODY_WEIGHT)).join(" | ");
 
 const PRINTABLE_ASCII = /^[ -~]+$/u;
 
@@ -168,18 +174,22 @@ const literalPassages = async (
 };
 
 // a line of each item's body opening holding a term as the vector matched it, else of what its
-// fields and tags say of it
+// fields and tags say of it. Only a body whose lexemes hold a term is read: stemming the opening of
+// one the title alone matched, word by word, costs milliseconds a hit and finds nothing
 const rankedPassages = async (
   db: DbExecutor,
   accountId: string,
   shown: readonly ShownHit[],
   terms: readonly SearchQueryTerm[],
 ): Promise<Map<string, string>> => {
+  const inBody = sql`${itemSearch.vec} @@ ${bodyTsqueryOf(terms)}::tsquery`;
   const rows = await db
     .select({
       digest: itemBody.digest,
       id: itemSearch.itemId,
-      text: sql<string>`left(${itemSearch.text}, ${PASSAGE_SCAN_CHARS})`,
+      text: sql<
+        string | null
+      >`case when ${inBody} then left(${itemSearch.text}, ${PASSAGE_SCAN_CHARS}) end`,
     })
     .from(itemSearch)
     .leftJoin(
@@ -202,7 +212,7 @@ const rankedPassages = async (
     const fields = fieldsOf.get(row.id);
     const meta =
       fields === undefined || row.digest === null ? "" : deriveItem(fields, row.digest).search.meta;
-    const passage = passageIn(row.text, find) ?? passageIn(meta, find);
+    const passage = (row.text === null ? null : passageIn(row.text, find)) ?? passageIn(meta, find);
     if (passage !== null) {
       passages.set(row.id, passage);
     }

@@ -16,7 +16,7 @@ import { readItem } from "../library/library-rows";
 import { writeLibrary } from "../library/library-store";
 import { makeAccount, personalLibrary, seedItem } from "../test-support/library-fixture";
 import { planSearchQuery } from "./search-query";
-import { isPrintableAscii, likeLiteral, tsqueryOf } from "./search-sql";
+import { bodyTsqueryOf, isPrintableAscii, likeLiteral, tsqueryOf } from "./search-sql";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
 
@@ -44,6 +44,13 @@ describe(tsqueryOf, () => {
     );
     expect(any === undefined ? null : tsqueryOf(any)).toBe(
       "('interviewing' | '~interview') | ('cand':* | '~cand')",
+    );
+  });
+
+  it("asks the body for any term at the body's weight", () => {
+    const [all] = planSearchQuery("interviewing cand");
+    expect(bodyTsqueryOf(all?.terms ?? [])).toBe(
+      "('interviewing':D | '~interview':D) | ('cand':*D | '~cand':D)",
     );
   });
 });
@@ -168,6 +175,28 @@ dbSuite("a search in Postgres", () => {
     const tagged = await note(accountId, ["Nothing here."], { tags: ["gardening"] });
     const found = await library.search({ query: "garden" });
     expect(found.hits).toMatchObject([{ id: tagged, snippet: "gardening" }]);
+  });
+
+  it("reads the body of a hit only when its body's words hold a term", async () => {
+    const { accountId, library } = await personalLibrary();
+    const titled = await note(accountId, ["Nothing here."], {
+      tags: ["gardening"],
+      title: "Gardening",
+    });
+    const typed = await note(accountId, ["Weeding the gardens today."]);
+    // the row's text holds the word its vector's body never did: a passage from it would be a
+    // read of the body
+    await db
+      .update(itemSearch)
+      .set({ text: "A gardening line the body's words never held." })
+      .where(and(eq(itemSearch.accountId, accountId), eq(itemSearch.itemId, titled)));
+    const found = await library.search({ query: "gard" });
+    expect(new Map(found.hits.map((hit) => [hit.id, hit.snippet]))).toStrictEqual(
+      new Map([
+        [titled, "gardening"],
+        [typed, "Weeding the gardens today."],
+      ]),
+    );
   });
 
   it("names at most its candidates for a literal passage more items hold", async () => {
