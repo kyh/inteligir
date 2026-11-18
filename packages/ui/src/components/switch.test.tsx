@@ -115,6 +115,22 @@ const dragAcross = async (takes: boolean): Promise<HTMLElement> => {
   return control;
 };
 
+describe("a flick right after a press", () => {
+  it("chooses the side it is let go on, though the press's own resize still moves the thumb", async () => {
+    const onCheckedChange = vi.fn<(checked: boolean) => void>();
+    render(<Switch label="Pinned" checked onCheckedChange={onCheckedChange} />);
+    const control = screen.getByRole("switch", { name: "Pinned" });
+    await thumbPath(control, 2);
+    fireEvent.pointerDown(control, { clientX: 20, pointerId: 1 });
+    await thumbPath(control, 2);
+    fireEvent.pointerMove(control, { clientX: 0, pointerId: 1 });
+    await thumbPath(control, 2);
+    fireEvent.pointerUp(control, { clientX: 0, pointerId: 1 });
+    fireEvent.click(control);
+    expect(onCheckedChange.mock.calls.map(([checked]) => checked)).toStrictEqual([false]);
+  });
+});
+
 describe("the thumb after a drag", () => {
   it("springs back to the off side when the owner keeps it off", async () => {
     const control = await dragAcross(false);

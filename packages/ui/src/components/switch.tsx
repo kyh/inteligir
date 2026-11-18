@@ -111,6 +111,9 @@ const Switch = ({
         return;
       }
       dragging.current = true;
+      // a spring still moving the thumb, the press's own resize or a hover's among them, would set
+      // it back under the pointer every frame, so the drag stops it
+      motionX.stop();
     }
 
     const dragMin = THUMB_OFFSET;
