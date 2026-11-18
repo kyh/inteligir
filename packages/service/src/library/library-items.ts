@@ -5,6 +5,7 @@
 import { organized } from "@repo/contract/library/cell-rules";
 import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
+import { withReading } from "@repo/contract/library/item-reading";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
 import type { itemSummarySchema } from "@repo/contract/library/library-wire";
 import { item, purgedItem } from "@repo/db/library-schema";
@@ -157,6 +158,18 @@ export const setDeleted = async (
     }
   }
   return { addressHeld, changed, missing };
+};
+
+// a link's page read again: it waits, pending, as a link saved to read later does, and the reading
+// replaces only its article; an item with no address has no page to read
+export const refreshItem = async (scope: WriteScope, itemId: string): Promise<LiveItemRow> => {
+  const held = await readItem(scope.tx, scope.accountId, itemId);
+  if (held === null || held.fields.url === null) {
+    return refuse({ kind: "not-found" });
+  }
+  const landed = await landFields(scope, held, withReading(held.fields, { kind: "asked" }));
+  await askFills(scope, [landed]);
+  return landed;
 };
 
 // Back from Deleted in a statement, each of `ids` in Deleted but a link whose address a live item

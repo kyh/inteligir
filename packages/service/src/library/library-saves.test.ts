@@ -227,6 +227,40 @@ dbSuite("saving a web address", () => {
         item: { fields: { reading: { state: "read" }, title: "A refusing site" }, id: failed.id },
       });
     });
+
+    it("is read again on asking, waiting with its article and when it was read kept, once under its op id, and a note has no page to read", async () => {
+      const { accountId, library } = await personalLibrary();
+      const read = await library.items.save(pageSave("https://example.com/again"));
+      const readAt = read.item.fields.reading.state === "read" ? read.item.fields.reading.at : -1;
+      const opId = newId();
+      const refreshed = await library.items.refresh({ id: read.item.id, opId });
+      expect(refreshed).toMatchObject({
+        item: { fields: { reading: { at: readAt, state: "pending" } }, id: read.item.id },
+      });
+      await expect(bodyOf(library, read.item.id)).resolves.toStrictEqual([
+        {
+          children: [{ text: "The quick brown fox jumps over the lazy dog." }],
+          section: "article",
+        },
+      ]);
+      await expect(fillJobs(accountId)).resolves.toMatchObject([
+        { id: `fill:${read.item.id}`, kind: "fill", payload: { url: "https://example.com/again" } },
+      ]);
+      const head = await headOf(accountId);
+      await expect(library.items.refresh({ id: read.item.id, opId })).resolves.toStrictEqual(
+        refreshed,
+      );
+      expect(await headOf(accountId)).toBe(head);
+
+      const note = await library.items.createNote({ markdown: "Mine.", title: "A note" });
+      await expect(refusalOf(library.items.refresh({ id: note.item.id }))).resolves.toMatchObject({
+        code: "NOT_FOUND",
+        defined: true,
+      });
+      await expect(refusalOf(library.items.refresh({ id: newId() }))).resolves.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
   });
 
   it("links a [[Title]] in a save's words to the one live item filed under it, in any case or form, by its title or an alias", async () => {

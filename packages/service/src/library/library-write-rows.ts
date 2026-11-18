@@ -26,6 +26,7 @@ import {
   landNew,
   organizeItems,
   purgeItems,
+  refreshItem,
   setDeleted,
 } from "./library-items";
 import { libraryHead } from "./library-rows";
@@ -158,6 +159,15 @@ export const libraryWriteRows = {
           context.library,
           { answer: purgedSchema, opId: input.opId },
           async (scope) => await purgeItems(scope, input.ids),
+        ),
+      ),
+    ),
+    refresh: writing.items.refresh.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: landedSchema, opId: input.opId },
+          async (scope) => ({ item: await refreshItem(scope, input.id) }),
         ),
       ),
     ),
