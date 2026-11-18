@@ -92,20 +92,22 @@ const parentElement = (editor: PlateEditor, path: Path): [TElement, Path] | null
 
 // Turn-into names the block the user sees, as the block menu does. A code line stands for its code
 // block: a line converted alone is reverted by the normalizer or nested inside the fence, losing its
-// text. A toggle's summary row (first child) stands for the toggle: "Toggle → Text" must unwrap it,
-// not no-op on the inner paragraph.
+// text. A quote's own block stands for the quote, and a toggle's summary row (first child) for the
+// toggle: "Quote → Text" must unwrap it, and "Quote" inside one must not nest a second.
 const turnIntoTarget = (editor: PlateEditor, entry: [TElement, Path]): [TElement, Path] => {
   const [node, path] = entry;
   const block =
     node.type === editor.getType(KEYS.codeLine) ? (parentElement(editor, path) ?? entry) : entry;
   const [, blockPath] = block;
-  if (blockPath.at(-1) === 0) {
-    const toggle = parentElement(editor, blockPath);
-    if (toggle !== null && toggle[0].type === editor.getType(KEYS.toggle)) {
-      return toggle;
-    }
+  const parent = parentElement(editor, blockPath);
+  if (parent === null) {
+    return block;
   }
-  return block;
+  const [container] = parent;
+  const standsForParent =
+    container.type === editor.getType(KEYS.blockquote) ||
+    (container.type === editor.getType(KEYS.toggle) && blockPath.at(-1) === 0);
+  return standsForParent ? parent : block;
 };
 
 export const effectiveBlockEntry = (editor: PlateEditor, at?: TRange): [TElement, Path] | null => {
@@ -224,6 +226,19 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
       );
       for (let i = texts.length - 1; i >= 0; i -= 1) {
         applyTarget(editor, [...at.slice(0, -1), index + i], opt);
+      }
+      return;
+    } else if (node.type === editor.getType(KEYS.blockquote) && opt.type !== KEYS.blockquote) {
+      // Retyped in place, the quote's paragraphs nest inside one paragraph and serialize as one
+      // line; unwrapped, each block it held takes the target, as a code block's lines do.
+      const index = at.at(-1);
+      if (index === undefined) {
+        return;
+      }
+      const count = node.children.length;
+      editor.tf.unwrapNodes({ at });
+      for (let i = count - 1; i >= 0; i -= 1) {
+        turnIntoAt(editor, [...at.slice(0, -1), index + i], opt);
       }
       return;
     }
