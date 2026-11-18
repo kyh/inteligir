@@ -179,6 +179,15 @@ describe("the keys an item's fields are read from", () => {
     });
   });
 
+  it("keeps an id or an instant that does not read as YAML, in the file's order", () => {
+    expect(unheldOf("saved: someday\nstatus: active\nid: 42\n")).toStrictEqual({
+      id: 42,
+      saved: "someday",
+    });
+    expect(unheldOf("saved: 1965-01-01\n")).toStrictEqual({ saved: "1965-01-01" });
+    expect(unheldYaml(readFrontmatter("id: abc\nsaved: 2026-10-17\n"))).toBeNull();
+  });
+
   it("saves an item at the import's instant where `saved:` is before 1970", () => {
     expect(fieldsOf("saved: 1965-01-01\npinned: true\n")).toMatchObject({
       pinnedAt: NOW,
@@ -303,6 +312,15 @@ describe("the keys no property holds", () => {
     const yaml = `status: active\n${PAST_A_LINE}: value\n'': empty\n`;
     expect(said(yaml).properties).toStrictEqual({ status: "active" });
     expect(unheldOf(yaml)).toStrictEqual({ "": "empty", [PAST_A_LINE]: "value" });
+  });
+
+  it("keeps a `__proto__` key, which no property holds, as YAML, and a value naming one as written", () => {
+    const front = readFrontmatter("__proto__: polluted\nstatus: active\n");
+    expect(factsOf(front).properties).toStrictEqual({ status: "active" });
+    expect(unheldYaml(front)).toBe("__proto__: polluted");
+    expect(said("meta: { __proto__: 1, a: 2 }\n").properties).toStrictEqual({
+      meta: "{ __proto__: 1, a: 2 }",
+    });
   });
 
   it("keeps the keys past what the properties' bytes hold, in the file's order", () => {

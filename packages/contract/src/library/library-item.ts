@@ -35,8 +35,11 @@ const jsonBytes = (value: JsonValue): number => utf8ByteLength(canonicalJson(val
 
 const text = z.string().min(1).max(ITEM_FIELD_CAPS.line);
 
-// a property's key: a line, as a frontmatter key is
-export const propertyKeySchema = text;
+// a property's key: a line, as a frontmatter key is, but `__proto__`, which zod's record drops as it
+// parses, so a property under it would vanish with no word on its way in
+export const propertyKeySchema = text.refine((key) => key !== "__proto__", {
+  error: "is no property's key",
+});
 
 const listOf = (entry: z.ZodString) =>
   z

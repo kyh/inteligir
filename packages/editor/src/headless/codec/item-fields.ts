@@ -7,7 +7,8 @@
 // `tags` the tag grammar refuses are kept. `id` and `saved` are the item's own, its identity and
 // its instant, so neither is ever a property. A block that is not YAML is no field's, and the
 // import keeps it as the note's first code block, as it keeps the keys no property holds: one
-// whose name is past a line, or past what the properties' bytes hold.
+// whose name is past a line or is `__proto__`, one past what the properties' bytes hold, and an
+// `id` or a `saved` that does not read.
 
 import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { Document, ParsedNode } from "yaml";
@@ -145,15 +146,20 @@ const pageReading = (kind: ItemKind, at: number | null, error: string | null): R
 };
 
 // what no field took of the keys: the item's properties while a key is a property's and the
-// properties' bytes hold its value, the rest kept as YAML, in the file's order
-const holdLeft = (left: KeyValues) => {
+// properties' bytes hold its value, the rest kept as YAML, in the file's order, the item's own
+// among them
+const holdLeft = (left: KeyValues, own: ReadonlySet<string>) => {
   const held = new Map<string, PropertyValue>();
   const unheld = new Map<string, PropertyValue>();
   // the properties' braces, then each key and value and the comma before them
   let bytes = 2;
   for (const [key, value] of left) {
     const more = jsonBytes(key) + 1 + jsonBytes(value) + (held.size > 0 ? 1 : 0);
-    if (propertyKeySchema.validate(key) && bytes + more <= ITEM_FIELD_CAPS.propertiesBytes) {
+    if (
+      !own.has(key) &&
+      propertyKeySchema.validate(key) &&
+      bytes + more <= ITEM_FIELD_CAPS.propertiesBytes
+    ) {
       held.set(key, value);
       bytes += more;
     } else {
@@ -169,6 +175,7 @@ const holdLeft = (left: KeyValues) => {
 const readKeys = (file: KeyValues): ReadKeys => {
   // what no field took of each key, which `holdLeft` keeps under the key's own name
   const left = new Map(file);
+  const ownKeys = new Set<string>();
   // a key its field takes whole or not at all
   const whole = <T>(key: string, read: (value: PropertyValue) => T | null): T | null => {
     const value = file.get(key);
@@ -178,11 +185,10 @@ const readKeys = (file: KeyValues): ReadKeys => {
     }
     return took;
   };
-  // a key of the item's own, which no property keeps where it does not read
+  // a key of the item's own, which no property keeps, so one that does not read stays YAML
   const own = <T>(key: string, read: (value: PropertyValue) => T | null): T | null => {
-    const took = whole(key, read);
-    left.delete(key);
-    return took;
+    ownKeys.add(key);
+    return whole(key, read);
   };
   // a list or one bare string, as Obsidian accepts: each entry as `spell` writes it, the first of
   // a spelling kept, while the list holds its entries and its bytes, and what the field did not
@@ -241,19 +247,23 @@ const readKeys = (file: KeyValues): ReadKeys => {
     savedAt: own("saved", instant),
     title: whole("title", written),
   };
-  const { properties, unheld } = holdLeft(left);
+  const { properties, unheld } = holdLeft(left, ownKeys);
   return { facts: { ...facts, properties }, unheld };
 };
 
 const jsonValue = z.json();
 
-// a value as JSON; one JSON cannot spell (`.nan`, a `!!binary`) keeps its source text
+// a value as JSON; one JSON cannot spell (`.nan`, a `!!binary`) keeps its source text, as does one
+// holding a `__proto__` key, which zod's JSON drops as it parses
 const valueOf = (node: ParsedNode | null, doc: Document.Parsed, yaml: string): PropertyValue => {
   if (node === null) {
     return null;
   }
-  const json = jsonValue.safeParse(node.toJS(doc));
-  return json.success ? json.data : yaml.slice(node.range[0], node.range[1]).trimEnd();
+  const value: unknown = node.toJS(doc);
+  const json = jsonValue.safeParse(value);
+  return json.success && JSON.stringify(json.data) === JSON.stringify(value)
+    ? json.data
+    : yaml.slice(node.range[0], node.range[1]).trimEnd();
 };
 
 // each top-level key and its value, in the file's order; null for a block that is no YAML mapping:
