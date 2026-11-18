@@ -22,6 +22,7 @@ const NONCE_DOCUMENTS = [
   "/app/sign-up",
   "/app/forgot-password",
   "/app/reset-password",
+  "/connect/authorize",
 ];
 
 const sees = (url: string, headers: Record<string, string> = {}) =>
@@ -63,7 +64,6 @@ describe("which requests the proxy sees", () => {
     "/api/health",
     "/v1/rpc/account/devices/list",
     "/connector",
-    "/connect/authorize",
     "/llms.txt",
     "/licenses.md",
     "/og.jpg",
