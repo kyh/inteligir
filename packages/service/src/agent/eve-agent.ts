@@ -20,6 +20,7 @@ import type { ToolModelOutput } from "eve/tools";
 import { sealTurnSet } from "../library/library-change-sets";
 import type { TurnStop, UsageAt } from "./agent-limits";
 import { AGENT_TURN_STEPS, bookTurn, chargeSpend } from "./agent-limits";
+import { agentEnabled, filingRulesFor } from "./agent-preference";
 import { costMicroUsdOf, WEB_SEARCH_MICRO_USD } from "./agent-model";
 import type { AgentCallOutcome, AgentTool } from "./agent-tools";
 import { AGENT_TOOLS, callAgentTool } from "./agent-tools";
@@ -65,6 +66,10 @@ export const runAgentTool = async (
     { callId: toolCall.callId, eveSessionId: toolCall.eveSessionId, input: toolCall.input },
   );
 };
+
+// the filing rules the session's caller holds its turns to, none while they keep none
+export const callerFilingRules = async (auth: EveAuth): Promise<string | null> =>
+  await filingRulesFor(eveCallerOf(auth).accountId);
 
 // what the model reads of a call: its text, as an error's unless the call ran
 export const agentCallModelOutput = ({ kind, text }: AgentCallOutcome): ToolModelOutput =>
@@ -246,7 +251,8 @@ const stopping = async (at: TurnAt | null, stop: TurnStop | null): Promise<boole
 // What a turn may still spend, as eve records each fact that spends it: a turn booked as it
 // starts, each model call counted as the turn asks for it, its tokens and each web search charged
 // as eve records them. True when a limit stops the turn, which the hook then cancels; a cancel from
-// `turn.started` or `model.requested` lands before that model call
+// `turn.started` or `model.requested` lands before that model call. A turn the person's switch
+// finds off stops there too, cancelled as a stop is, and books nothing
 export const limitEveFact = async ({
   at: now,
   auth,
@@ -263,6 +269,9 @@ export const limitEveFact = async ({
       const at = { accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId };
       return await db.transaction(async (tx) => {
         await keepTurn(tx, at, now);
+        if (!(await agentEnabled(accountId, tx))) {
+          return true;
+        }
         const stop = await bookTurn(tx, spentAt, now);
         if (stop !== null) {
           await stampTurnStop(tx, at, stop);
@@ -272,10 +281,13 @@ export const limitEveFact = async ({
     }
     case "model.requested": {
       const { owner } = event.data;
-      if (!("turnId" in owner) || runs(view, { turnId: owner.turnId }).length <= AGENT_TURN_STEPS) {
+      if (!("turnId" in owner)) {
         return false;
       }
-      return await stopping(turnAt(owner.turnId), "steps");
+      if (runs(view, { turnId: owner.turnId }).length > AGENT_TURN_STEPS) {
+        return await stopping(turnAt(owner.turnId), "steps");
+      }
+      return !(await agentEnabled(accountId));
     }
     case "usage.recorded": {
       if (event.data.kind !== "model") {

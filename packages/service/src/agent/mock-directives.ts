@@ -4,6 +4,7 @@
 //   long <chars>                a reply of that much text, after that many milliseconds
 //   tokens <count>              each model call reports that many output tokens, and none without
 //   context                     a reply of the screen the message was sent from, as the model read it
+//   rules                       a reply of the filing rules the model read after the agent's prompt
 // A step is a tool result since that message; with no step left, the reply names what it called,
 // and a message with no directive is said back.
 
@@ -13,6 +14,7 @@ const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const TOKENS = /^tokens\s+(?<count>[1-9]\d{0,8})$/u;
 const CONTEXT = /^context$/u;
+const RULES = /^rules$/u;
 
 const callInputSchema = z.record(z.string(), z.json());
 type CallInput = z.infer<typeof callInputSchema>;
@@ -44,9 +46,16 @@ export const mockUsageOf = (message: string) => {
   return { inputTokens: 0, outputTokens: count === undefined ? 0 : Number(count) };
 };
 
-// what the mock does at `step`, the tool results it read since the message, which it read with
-// `screen`, the client context it was sent with, or none
-export const mockStep = (message: string, step: number, screen: string | null): MockStep => {
+// what the model read beside the message, each null for none
+export interface MockRead {
+  // the client context the message was sent with
+  readonly screen: string | null;
+  // the person's filing rules, after the agent's prompt
+  readonly rules: string | null;
+}
+
+// what the mock does at `step`, the tool results it read since the message
+export const mockStep = (message: string, step: number, { rules, screen }: MockRead): MockStep => {
   const lines = linesOf(message);
   const calls = lines.flatMap((line) => callOf(line) ?? []);
   const next = calls[step];
@@ -55,6 +64,9 @@ export const mockStep = (message: string, step: number, screen: string | null): 
   }
   if (lines.some((line) => CONTEXT.test(line))) {
     return { afterMs: 0, kind: "reply", text: `Sent from: ${screen ?? "nowhere"}` };
+  }
+  if (lines.some((line) => RULES.test(line))) {
+    return { afterMs: 0, kind: "reply", text: `Filing rules: ${rules ?? "none"}` };
   }
   const chars = lines
     .map((line) => LONG.exec(line)?.groups?.chars)

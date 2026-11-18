@@ -8,9 +8,9 @@
 // limits hook's (apps/web/agent/hooks/limits.ts) first, whose cancel stops the turn before its
 // next step, then the record hook's `*`; a text delta is a line of its own, which no hook gets. A
 // turn plays the mock model's script (`../agent/mock-directives`) as the mock model does
-// (apps/web/agent/lib/mock-model.ts), each step a model call that runs the calls it asks for as
-// eve runs the agent's tools and then reports its usage, its reply written after its wait,
-// streamed in pieces before it completes.
+// (apps/web/agent/lib/mock-model.ts), each step a model call that reads the filing rules as the
+// agent's instruction does, runs the calls it asks for as eve runs the agent's tools and then
+// reports its usage, its reply written after its wait, streamed in pieces before it completes.
 
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
@@ -22,7 +22,13 @@ import type { Fact, Progress, SessionView } from "eve/events";
 import { mockStep, mockUsageOf } from "../agent/mock-directives";
 import type { MockStep } from "../agent/mock-directives";
 import { principalOf } from "../agent/eve-admission";
-import { agentTools, limitEveFact, recordEveFact, runAgentTool } from "../agent/eve-agent";
+import {
+  agentTools,
+  callerFilingRules,
+  limitEveFact,
+  recordEveFact,
+  runAgentTool,
+} from "../agent/eve-agent";
 import { eveOperationId } from "../agent/eve-token";
 import type {
   AgentCaller,
@@ -286,7 +292,10 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
         turn.steering = new AbortController();
       }
       const runId = await requestModel(sessionId, turn);
-      const next = mockStep(sentText(latest), step, screenOf(latest));
+      const rules = await callerFilingRules(
+        principalOf({ ...stateOf(sessionId).caller, eveSessionId: null }),
+      );
+      const next = mockStep(sentText(latest), step, { rules, screen: screenOf(latest) });
       if (next.kind === "call") {
         await call(sessionId, turn, next);
         step += 1;

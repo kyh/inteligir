@@ -5,16 +5,19 @@
 import { AgentUnavailableError, NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
-import { agentPreference } from "@repo/db/agent-schema";
+import { agentThread } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import { opAnswer } from "@repo/db/library-schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { answer } from "../library/library-access";
 import { mintLibraryId } from "../library/library-ids";
-import { priorAnswer } from "../library/library-store";
+import { priorAnswer, writeLibrary } from "../library/library-store";
+import type { LibraryWriter } from "../library/library-store";
 import { errorFields } from "../log";
 import { nextDayAt, refuseSendPastLimits, turnsLeftToday } from "./agent-limits";
+import { agentEnabled, switchedSchema, writeAgentEnabled } from "./agent-preference";
 import type { ThreadRow } from "./agent-threads";
 import {
   openThread,
@@ -148,8 +151,9 @@ interface SendInput {
   readonly viewContext?: z.infer<typeof agentViewContextSchema> | undefined;
 }
 
-// A message to the thread it names, or the first of a new one. One that would start a turn is
-// refused while the day's limits are spent; one sent to a running turn joins it, booking nothing.
+// A message to the thread it names, or the first of a new one, refused while the person keeps the
+// agent off. One that would start a turn is refused while the day's limits are spent; one sent to a
+// running turn joins it, booking nothing.
 // A delivered message's op id answers a resend as it answered, whatever the limits say since; a new
 // thread takes the op id as its own, so a first message sent again finds the thread it opened and
 // eve the session that thread created, and eve delivers a later one once under it
@@ -164,6 +168,9 @@ export const sendToAgent = async (
     opId === undefined ? null : await priorAnswer(db, accountId, opId, threadAnswerSchema);
   if (prior !== null) {
     return prior.value;
+  }
+  if (!(await agentEnabled(accountId))) {
+    throw new AgentUnavailableError();
   }
   const now = Date.now();
   const named = input.threadId === undefined ? null : await threadOf(accountId, input.threadId);
@@ -192,11 +199,14 @@ export const sendToAgent = async (
         now,
       ),
   );
-  const answer: ThreadAnswer = { status: "running", threadId: delivered.id };
+  const sent: ThreadAnswer = { status: "running", threadId: delivered.id };
   if (opId !== undefined) {
-    await db.insert(opAnswer).values({ accountId, answer, at: now, opId }).onConflictDoNothing();
+    await db
+      .insert(opAnswer)
+      .values({ accountId, answer: sent, at: now, opId })
+      .onConflictDoNothing();
   }
-  return answer;
+  return sent;
 };
 
 // stops the thread's running turn; an ended session has none to stop
@@ -224,6 +234,58 @@ export const cancelAgentTurn = async (
   }
   const after = await threadOf(accountId, threadId);
   return { status: after?.status ?? "idle", threadId };
+};
+
+// Every turn the account runs stopped, as a stop of each does. One that can't be stopped now is
+// logged, and stops before its next model call all the same, which reads the switch
+// (`./eve-agent`)
+const stopRunningTurns = async (runtime: AgentRuntime | null, accountId: string) => {
+  const running = await db
+    .select()
+    .from(agentThread)
+    .where(
+      and(
+        eq(agentThread.accountId, accountId),
+        eq(agentThread.status, "running"),
+        isNull(agentThread.deletedAt),
+      ),
+    );
+  await Promise.all(
+    running.map(async (row) => {
+      const { eveSessionId } = row;
+      if (runtime === null || eveSessionId === null) {
+        return;
+      }
+      try {
+        await runtime.platform.cancel(callerOf(row), eveSessionId);
+      } catch (error) {
+        if (!isSessionEnded(error)) {
+          console.error({ event: "agent-stop-failed", threadId: row.id, ...errorFields(error) });
+        }
+      }
+    }),
+  );
+};
+
+// The person's switch: off stops every turn the account runs and refuses its sends until it is on
+// again, and its threads stay readable. A resend of an off answers as it did, and stops what runs
+// only while the agent is still off
+export const setAgentEnabled = async (
+  runtime: AgentRuntime | null,
+  writer: LibraryWriter,
+  input: { readonly enabled: boolean; readonly opId?: string | undefined },
+): Promise<z.output<typeof switchedSchema>> => {
+  const switched = answer(
+    await writeLibrary(
+      writer,
+      { answer: switchedSchema, opId: input.opId },
+      async (scope) => await writeAgentEnabled(scope, input.enabled),
+    ),
+  );
+  if (!(await agentEnabled(writer.accountId))) {
+    await stopRunningTurns(runtime, writer.accountId);
+  }
+  return switched;
 };
 
 // A deleted thread's eve session ended, then its row, its events and turns with it: "kept" while its
@@ -291,14 +353,8 @@ export const purgeRetiredThreads = async (
 };
 
 // whether the person keeps the agent on, and what is left of the day's allowance
-export const agentStatus = async (accountId: string, now: number) => {
-  const [preference] = await db
-    .select({ enabled: agentPreference.enabled })
-    .from(agentPreference)
-    .where(eq(agentPreference.accountId, accountId));
-  return {
-    enabled: preference?.enabled ?? true,
-    resetsAt: nextDayAt(now),
-    turnsLeft: await turnsLeftToday(accountId, now),
-  };
-};
+export const agentStatus = async (accountId: string, now: number) => ({
+  enabled: await agentEnabled(accountId),
+  resetsAt: nextDayAt(now),
+  turnsLeft: await turnsLeftToday(accountId, now),
+});
