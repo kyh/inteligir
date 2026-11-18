@@ -10,18 +10,18 @@ import { isWebUrl } from "../items/item-url";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
 
-// a file's bytes are named by their SHA-256, as R2 keeps them
+// a file's bytes are named by their SHA-256, as the file store keeps them
 export const SHA256_HEX_RE = /^[0-9a-f]{64}$/u;
 const sha256 = z.string().regex(SHA256_HEX_RE);
 
 // unix milliseconds
 const instant = z.number().int().nonnegative();
 
-// An item's row, its card and url key included, must fit a SQLite Durable Object's 2 MB
-// (https://developers.cloudflare.com/durable-objects/platform/limits/), so every field is capped:
-// the short ones at a line's length (in UTF-16 units, as zod counts), the description at a
-// paragraph's, and each list and the properties by the bytes of their JSON, since a list of
-// short entries can still be long. The largest legal row is about 0.7 MB, summed by a test.
+// An item's row, its card and url key included, travels whole beside its body in one answer, which
+// a Vercel function caps at 4.5 MB (vercel.com/docs/functions/limitations), so every field is
+// capped: the short ones at a line's length (in UTF-16 units, as zod counts), the description at a
+// paragraph's, and each list and the properties by the bytes of their JSON, since a list of short
+// entries can still be long. The largest legal row is about 0.7 MB.
 export const ITEM_FIELD_CAPS = {
   description: 10_000,
   line: 1000,

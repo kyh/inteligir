@@ -20,8 +20,8 @@ import type { LibraryBlock, LibraryElement, LibraryNode, LibrarySection } from "
 const PREVIEW_MAX = 140;
 // a line the card shows of the body (a title read from it, a heading in its outline), cut shorter
 const SHOWN_LINE_MAX = 100;
-// the headings a card's outline keeps, from the top: the card rides in the item's row, which a
-// Durable Object caps at 2 MB, and a heading block may hold half a megabyte
+// the headings a card's outline keeps, from the top: the card rides in the item's row, which every
+// listing reads, and a heading block may hold half a megabyte
 const OUTLINE_MAX = 200;
 
 // a top-level block of an item's body, in reading order: the person's note or the page a fill read
@@ -293,8 +293,8 @@ const OUTLINE_LEVELS = new Map<string, OutlineEntry["level"]>([
 // every heading ranks as one, at every depth
 const HEADING_TYPES = new Set<string>(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
-// what the digest keeps of the headings, a sixteenth of what the item's 2 MB row could hold at
-// three bytes a unit; the index row clips them again with the rest
+// what the digest keeps of the headings, from the top; the index row clips them again with the
+// rest
 const HEADINGS_MAX = 64 * 1024;
 
 export const cardPreview = (blocks: readonly LibraryBlock[]): string => {

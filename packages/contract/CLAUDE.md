@@ -1,7 +1,7 @@
 # Decisions: @repo/contract
 
 `/v1`'s one wire, and the library model both ends of it validate against. Every
-client and the Worker compile against it, so it is zod and oRPC's contract
+client and the service compile against it, so it is zod and oRPC's contract
 with no node or react import (`oxlint.config.ts`) and no workspace dependency
 in its manifest, and the model's modules take no `crypto` global: the clock,
 random bytes and fresh ids are injected.
@@ -21,8 +21,8 @@ random bytes and fresh ids are injected.
   `packages/contract/src/library/library-nodes.ts`.
 - **An item is fields and blocks, and everything else is derived in the same
   transaction.** A frontmatter block would be a second spelling of its columns,
-  and each field's cap keeps the largest row inside a Durable Object's 2 MB.
-  `packages/contract/src/library/derive-item.ts`.
+  and each field's cap keeps the largest row, beside a whole body, inside a
+  function's 4.5 MB answer. `packages/contract/src/library/derive-item.ts`.
 - **A base guards only what a device computed away from the cell, a property's
   op, and a body is no op.** A verb of the cell's reads the fields it changes in
   the transaction that lands them, where a base cannot fail, and a body is

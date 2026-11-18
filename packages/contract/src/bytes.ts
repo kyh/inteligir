@@ -1,6 +1,6 @@
-// web-crypto globals only: this leaf loads on workerd, node, the browser and hermes.
+// web-crypto globals only: this leaf loads on node, the browser and hermes.
 
-// btoa is a global on workerd, node, the browser and hermes (rn 0.74+); Buffer is not. chunked:
+// btoa is a global on node, the browser and hermes (rn 0.74+); Buffer is not. chunked:
 // a whole asset spread into fromCharCode overflows the argument list.
 export const base64FromBytes = (bytes: Uint8Array): string => {
   let binary = "";

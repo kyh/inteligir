@@ -1,7 +1,7 @@
 # @repo/contract
 
-ONE contract: `/v1`, the wire between every client and the Worker, as one oRPC
-contract on `/v1/rpc` (`account.*` answered by the Worker, `library.*` by the
+ONE contract: `/v1`, the wire between every client and the cloud, as one oRPC
+contract on `/v1/rpc` (`account.*` answered over Better Auth, `library.*` by the
 account's library cell), the plain-HTTP routes it names, the build every
 request names, the browser extension's identity, and the library model both
 ends validate against. Its decisions are this package's
@@ -9,14 +9,13 @@ ends validate against. Its decisions are this package's
 
 ## Why it exists
 
-`/v1` is a deployed Worker answering installs that may be months stale, so
-every client and the Worker compile against one spelling of it, and it breaks
-only behind the client build floor (`packages/service/CLAUDE.md` § The wire).
-It loads in the Mac's and the browser's page, on node, on workerd and in React
-Native, so it names no platform, no workspace and no markdown parser, and no
-client bundles the service's code, `@repo/db`'s drizzle, MCP or OpenAPI
-(`oxlint.config.ts`). Callers supply the clock, the random bytes and every
-fresh id.
+`/v1` is a deployment answering installs that may be months stale, so every
+client and the service compile against one spelling of it, and it breaks only
+behind the client build floor (`packages/service/CLAUDE.md` § The wire). It
+loads in the Mac's and the browser's page, on node and in React Native, so it
+names no platform, no workspace and no markdown parser, and no client bundles
+the service's code, `@repo/db`'s drizzle, MCP or OpenAPI (`oxlint.config.ts`).
+Callers supply the clock, the random bytes and every fresh id.
 
 ## Layout
 
@@ -26,8 +25,8 @@ src/
                  rows, every refusal it answers and its sentence, and what a failed call means
   account/       what the account's rows read and answer: the password's bounds, its devices, its
                  deletion, sign-up
-  library/       the socket's frames and the model: the node set, an item's fields and ops, a
-                 folder's order, the listing, the cell's rules
+  library/       the model and its wire: the node set, an item's fields and ops, a body's save, a
+                 folder's order, the listing, what moved, the agent's events, the cell's rules
   items/         what an item is on every device: its kinds, a url's one key, a read page's facts
   knowledge/     what a markdown file is, a tag's name, the folder tree's paths
   extension/     the extension's key, id and origin
@@ -57,5 +56,5 @@ pnpm --filter @repo/contract typecheck
 generator (`test-support/seeded-random.ts`). The fake cell runs the cases in
 `test-support/cell-conformance.ts`, which the service runs over the real cell,
 so a case added there holds both. A change to a row reaches every
-client and the Worker at once: run the service's suites and the e2e flows that
+client and the cloud at once: run the service's suites and the e2e flows that
 drive it too.

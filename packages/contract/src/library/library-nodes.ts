@@ -20,8 +20,8 @@ export type LibrarySection = z.infer<typeof librarySectionSchema>;
 const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/u;
 const blockIdSchema = z.string().regex(BLOCK_ID_RE);
 
-// a Durable Object row holds 2 MB; a block holds a quarter of that, so its text column and its
-// JSON fit one row together
+// a block holds half of what a body may (`BODY_MAX_BYTES` in `./library-wire`), as much as one
+// paste may add
 export const BLOCK_MAX_BYTES = 512 * 1024;
 
 // how deep a block nests: a table in a column in a tab panel is under ten, and a parse of

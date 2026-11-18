@@ -282,7 +282,7 @@ export default defineConfig({
   ],
   rules: {
     "no-restricted-imports": restrictedImports([]),
-    // ordered awaits are deliberate: the outbox sends oldest first, an import pages R2
+    // ordered awaits are deliberate: the outbox sends oldest first, an import lands a batch at a time
     "no-await-in-loop": "off",
     // it flags the exhaustive switch with no default, whose fall-through is what tsc checks
     "typescript/consistent-return": "off",
