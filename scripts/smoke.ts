@@ -9,6 +9,7 @@
  *                                     #   SMOKE_PASSWORD when both are set
  *
  * With VERCEL_AUTOMATION_BYPASS_SECRET set, every request carries it past a deployment's protection.
+ * On CI (`.github/workflows/smoke.yml`, the deployment's check) a leg that cannot run fails.
  */
 import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -33,10 +34,23 @@ type HeaderMap = Readonly<Record<string, string>>;
 
 type Leg =
   | { readonly label: string; readonly run: () => Promise<void> }
-  // a leg that does not run here: its route has not landed, or there is no login to sign in with
+  // a leg that does not run here: there is no login to sign in with
   | { readonly label: string; readonly skip: string };
 
-const { SMOKE_EMAIL, SMOKE_PASSWORD, SMOKE_URL, VERCEL_AUTOMATION_BYPASS_SECRET } = process.env;
+// unset, or empty as a workflow passes a secret nobody set
+const envOf = (name: string): string | undefined => {
+  const value = process.env[name];
+  return value === "" ? undefined : value;
+};
+
+const SMOKE_EMAIL = envOf("SMOKE_EMAIL");
+const SMOKE_PASSWORD = envOf("SMOKE_PASSWORD");
+const SMOKE_URL = envOf("SMOKE_URL");
+const VERCEL_AUTOMATION_BYPASS_SECRET = envOf("VERCEL_AUTOMATION_BYPASS_SECRET");
+
+// a gate runs every leg: one it skips would let a deployment through unchecked
+const GATE = envOf("CI") !== undefined;
+
 const BASE_URL = (SMOKE_URL ?? "http://localhost:5174").replace(/\/$/u, "");
 
 // the seeded login locally; a deployment never holds the seeded account
@@ -326,6 +340,9 @@ const LEGS: readonly Leg[] = [
 
 const runLeg = async (number: string, leg: Leg) => {
   if ("skip" in leg) {
+    if (GATE) {
+      fail(`${number} ${leg.label}: ${leg.skip}`);
+    }
     console.log(`  ${styleText("dim", `○ ${number} ${leg.label}: ${leg.skip}`)}`);
     return;
   }

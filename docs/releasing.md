@@ -137,6 +137,38 @@ bundle identifier `com.inteligir.mobile`. If EAS's install fails under pnpm 12,
 the fallback is a custom build, `.eas/build/production.yml`, that installs with
 `pnpm install --frozen-lockfile --filter @repo/mobile...`.
 
+## Once per product: the deployment's checks
+
+Every push to main is a production deployment of the Vercel project
+`inteligir`, and Vercel moves the production domains to it only once its
+Deployment Checks pass: CI's `check` on the commit, and
+`Vercel - inteligir: smoke`, the status `.github/workflows/smoke.yml` sets when
+`pnpm smoke` passes against the deployment's own URL, before any domain points
+at it. Once:
+
+1. **The smoke account.** Mint a production invite (`apps/web/README.md` §
+   Invites) and sign up with it at the production `/app/sign-up` with an
+   address you read and a long random password, kept in `.release/`. It never
+   holds anything: each run's file names no item, so housekeeping lets it go a
+   day later.
+2. **Secrets.** In the project's Settings › Deployment Protection, turn on
+   Protection Bypass for Automation, then give the repo its secret and the
+   account:
+   `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET`, `gh secret set SMOKE_EMAIL`,
+   `gh secret set SMOKE_PASSWORD`. On CI a leg that cannot run fails, so a
+   missing secret fails the check rather than passing it unsigned.
+3. **The checks.** Settings › Environments › Production keeps automatic
+   aliasing on. After a push whose Smoke run reported, Settings › Build and
+   Deployment › Deployment Checks › Add Checks › GitHub requires `check` and
+   `Vercel - inteligir: smoke`.
+
+Passing: a pushed commit's production deployment waits, its checks pending,
+until both pass, and only then do the production domains move to it; a run
+with a wrong `SMOKE_PASSWORD` holds the next one, which Force Promote on its
+page releases. Where the team's plan has no Deployment Checks, or they leave
+`inteligir.vercel.app` unheld, the fallback is to watch each push's Smoke run
+(`gh run list --workflow smoke.yml`) and run `vercel rollback` on a red one.
+
 ## 1. Version and changelog
 
 On main, clean, at the commit to ship:

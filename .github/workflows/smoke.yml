@@ -1,0 +1,61 @@
+name: Smoke
+
+# The runtime legs a deployment must pass (`pnpm smoke`), run against the deployment itself before
+# Vercel moves a production domain to it: one of its Deployment Checks (docs/releasing.md § Once
+# per product: the deployment's checks). Vercel dispatches `vercel.deployment.ready` before the
+# checks run, and a dispatch runs this file as main holds it, so the job checks out the commit
+# Vercel deployed.
+on:
+  repository_dispatch:
+    types: [vercel.deployment.ready]
+
+permissions:
+  contents: read
+  # the status action finds its own job's steps to read their outcome
+  actions: read
+  statuses: write
+
+# a redeploy of a commit waits for the run before it, since both write one status on it
+concurrency:
+  group: smoke-${{ github.event.client_payload.git.sha }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # previews wait on nothing, and one commit gets one status
+    if: ${{ github.event.client_payload.environment == 'production' }}
+    runs-on: ubuntu-latest
+    # a backstop: install and the legs take about two minutes
+    timeout-minutes: 15
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+    steps:
+      # pending now, then the job's outcome once it ends, on the deployed commit under the one name
+      # the Deployment Check requires
+      - name: Deployment check status
+        uses: vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712 # v1
+        with:
+          name: "Vercel - inteligir: smoke"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.client_payload.git.sha }}
+
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # every leg against the deployment's own URL, past its protection, signed in as the smoke
+      # account; on CI a leg missing its login fails rather than skips
+      - name: Smoke
+        run: pnpm smoke
+        env:
+          SMOKE_URL: ${{ github.event.client_payload.url }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}

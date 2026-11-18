@@ -122,7 +122,9 @@ TURBO_SCM_BASE=<base> pnpm verify:affected   # a work stream: only what it reach
 ```
 
 CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
-`verify` is not a green CI; a PR runs both in full on its last commit.
+`verify` is not a green CI; a PR runs both in full on its last commit. A push to
+main deploys production, which waits for CI and for `pnpm smoke` against the
+deployment (`.github/workflows/smoke.yml`).
 
 ### Platform matrix
 

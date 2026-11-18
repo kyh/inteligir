@@ -88,8 +88,8 @@ reserve, PUT and settle to whichever store the app keeps, then read back whole
 and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login; with
 `SMOKE_URL` it checks that deployment, signed in only with `SMOKE_EMAIL` and
 `SMOKE_PASSWORD`, and `VERCEL_AUTOMATION_BYPASS_SECRET` carries it past the
-deployment's protection. A leg whose route has not landed prints what it waits
-for.
+deployment's protection. Without a login it skips the signed-in leg, except on
+CI, where a leg that cannot run fails.
 
 `pnpm dev` runs `tauri dev --config src-tauri/tauri.local.conf.json`: the Rust
 shell compiled and launched on its `devUrl`, `http://localhost:5174/library`,
@@ -199,6 +199,13 @@ the shell's test, typecheck and format alone, since its macOS code compiles
 and runs only there. Each step CI adds on top of
 `pnpm verify` carries the reason `verify` cannot run it as a comment beside it
 in `.github/workflows/ci.yml`.
+
+A push to main deploys production on Vercel, which holds the deployment off the
+production domains until its Deployment Checks pass: CI's `check`, and
+`.github/workflows/smoke.yml`, which Vercel's `vercel.deployment.ready`
+dispatch starts to run `pnpm smoke` against the deployment itself, signed in as
+the smoke account (`docs/releasing.md` § Once per product: the deployment's
+checks).
 
 ## Tests
 
