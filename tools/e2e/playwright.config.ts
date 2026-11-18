@@ -14,9 +14,8 @@ const PENDING_TESTS = [
   "Back and the tab's close ask before they lose typing no connection carried",
   "a PDF item draws in the browser's own viewer",
   "the palette finds exactly the items holding the words, a word typed a moment ago included",
-  // each waits on the agent's record keeping a message's screen, and on a note that opens
-  "a message names the screen it left from: the open item, then the grid's selection",
   // each waits on notes saved, not live
+  "a message from an open item names the item",
   "Undo this turn takes the agent's line back and keeps what was typed, in the cell and both tabs",
   // each waits on the filing rules' rows (packages/service/src/rpc/unrouted.test.ts)
   "the filing rules start from the starter's and save, and Tidy my library files from Unsorted",

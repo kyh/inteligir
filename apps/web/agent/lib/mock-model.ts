@@ -10,9 +10,19 @@ const stepOf = ({ messages }: MockModelRequest): number => {
   return messages.slice(lastUser + 1).filter(({ role }) => role === "tool").length;
 };
 
+// eve's label on the client context it hands the model, this turn's alone
+const CLIENT_CONTEXT = "Client context:\n";
+
+const screenOf = ({ messages }: MockModelRequest): string | null => {
+  const sent = messages.findLast(
+    ({ role, text }) => role === "user" && text.startsWith(CLIENT_CONTEXT),
+  );
+  return sent === undefined ? null : sent.text.slice(CLIENT_CONTEXT.length);
+};
+
 const reply = async (request: MockModelRequest): Promise<MockModelResponse> => {
   const message = request.lastUserMessage ?? "";
-  const next = mockStep(message, stepOf(request));
+  const next = mockStep(message, stepOf(request), screenOf(request));
   const usage = mockUsageOf(message);
   if (next.kind === "call") {
     return { toolCalls: [{ input: next.input, name: next.tool }], usage };

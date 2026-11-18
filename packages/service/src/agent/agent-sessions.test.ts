@@ -191,6 +191,22 @@ dbSuite("the built-in agent's conversations", () => {
     expect(events.at(-1)?.event).toMatchObject({ reason: "done", turn: 1 });
   });
 
+  it("hands the model the screen each message was sent from, for its own turn alone", async () => {
+    const { accountId, library } = await personalLibrary();
+    const screen = { itemId: mintLibraryId(Date.now()), surface: "item" as const };
+    const sent = await sendToAgent(runtime, accountId, { text: "context", viewContext: screen });
+    await platform.turnsSettled();
+    await sendToAgent(runtime, accountId, { text: "context", threadId: sent.threadId });
+    await platform.turnsSettled();
+
+    const events = await keptOf(library, sent.threadId);
+    const replies = events.flatMap(({ event, type }) => (type === "agent.message" ? [event] : []));
+    expect(replies).toStrictEqual([
+      { text: `Sent from: ${JSON.stringify(screen)}`, type: "agent.message" },
+      { text: "Sent from: nowhere", type: "agent.message" },
+    ]);
+  });
+
   it("brings back by Undo this turn and Undo this conversation the items its turns deleted", async () => {
     const { accountId, library } = await personalLibrary();
     const first = noteOf("First");

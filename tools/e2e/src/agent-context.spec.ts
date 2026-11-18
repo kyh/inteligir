@@ -4,31 +4,26 @@ import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { z } from "zod";
 import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./fixtures";
 
-const UserMessageSchema = z.looseObject({
-  text: z.string(),
-  type: z.literal("user.message"),
-  viewContext: z.json().optional(),
-});
+const TextEventSchema = z.looseObject({ text: z.string(), type: z.string() });
 
-// the person's messages in the account's one conversation, in the order sent
-const sentMessages = async (library: V1Client["library"]) => {
+// what the person sent or the agent wrote in the account's one conversation, in order
+const textsOf = async (library: V1Client["library"], type: "agent.message" | "user.message") => {
   const { threads } = await library.agent.list({});
   const [thread] = threads;
   if (thread === undefined) {
     return [];
   }
-  const sent: z.infer<typeof UserMessageSchema>[] = [];
+  const texts: string[] = [];
   for await (const streamed of await library.agent.events({ threadId: thread.id })) {
     if (streamed.kind === "caughtUp") {
       break;
     }
-    const parsed =
-      streamed.kind === "event" ? UserMessageSchema.safeParse(streamed.row.event) : null;
-    if (parsed?.success === true) {
-      sent.push(parsed.data);
+    const parsed = streamed.kind === "event" ? TextEventSchema.safeParse(streamed.row.event) : null;
+    if (parsed?.success === true && parsed.data.type === type) {
+      texts.push(parsed.data.text);
     }
   }
-  return sent;
+  return texts;
 };
 
 const send = async (page: Page, text: string) => {
@@ -37,51 +32,58 @@ const send = async (page: Page, text: string) => {
   await composer.press("Enter");
 };
 
-// what the person sent last, once its turn ended, as the thread keeps it: a fresh account's day
-// takes two turns, so each test sends two at most
-const lastSentFrom = (page: Page, library: V1Client["library"]) => async (count: number) => {
-  await expect(page.locator("[data-thread] [data-turn-ended]")).toHaveCount(count);
-  const messages = await sentMessages(library);
-  expect(messages).toHaveLength(count);
-  return messages.at(-1)?.viewContext;
+const SENT_FROM = /^Sent from: (?<screen>.*)$/su;
+
+// the screen the model read with a message, as the mock model's `context` line says it back, or
+// undefined for none
+const screenIn = (reply: string | undefined) => {
+  const screen = SENT_FROM.exec(reply ?? "")?.groups?.screen;
+  expect(screen).toBeDefined();
+  return screen === "nowhere" ? undefined : z.json().parse(JSON.parse(screen ?? "null"));
 };
 
-test("a message names the screen it left from: the open item, then the grid's selection", async ({
+// the screen the model read with the person's next message, once its turn ended: a fresh
+// account's day takes two turns, so each test asks twice at most
+const screenAsked = (page: Page, library: V1Client["library"]) => async (turns: number) => {
+  await send(page, "context");
+  await expect(page.locator("[data-thread] [data-turn-ended]")).toHaveCount(turns);
+  const replies = await textsOf(library, "agent.message");
+  expect(replies).toHaveLength(turns);
+  return screenIn(replies.at(-1));
+};
+
+test("a message from an open item names the item", async ({ cloud, library, page }) => {
+  const plans = await library.items.createNote({ markdown: "A trip in spring.", title: "Plans" });
+  await openLibrary(page, cloud, `?item=${plans.item.id}`);
+  await page.keyboard.press("ControlOrMeta+K");
+  expect(await screenAsked(page, library)(1)).toEqual({ itemId: plans.item.id, surface: "item" });
+});
+
+test("a message names the grid's selection it left from, and none from Deleted", async ({
   cloud,
   library,
   page,
 }) => {
-  const plans = await library.items.createNote({ markdown: "A trip in spring.", title: "Plans" });
   const groceries = await library.items.createNote({ markdown: "Apples.", title: "Groceries" });
-  const lastSent = lastSentFrom(page, library);
-  await openLibrary(page, cloud, `?item=${plans.item.id}`);
-  await page.keyboard.press("ControlOrMeta+K");
-  await send(page, "Make this shorter.");
-  expect(await lastSent(1)).toEqual({ itemId: plans.item.id, surface: "item" });
-
-  await page.getByRole("button", { name: "Back to the library" }).click();
+  const asked = screenAsked(page, library);
+  await openLibrary(page, cloud);
   await page
     .getByRole("grid", { name: "Library" })
     .getByRole("gridcell", { name: "Groceries" })
     .click();
-  await send(page, "What is this one?");
-  expect(await lastSent(2)).toEqual({
+  await page.keyboard.press("ControlOrMeta+K");
+  expect(await asked(1)).toEqual({
     itemIds: [groceries.item.id],
     scope: { kind: "all" },
     selected: 1,
     surface: "library",
   });
-});
 
-test("a message sent from Deleted names no screen", async ({ cloud, library, page }) => {
-  await openLibrary(page, cloud);
   await page
     .getByRole("list", { name: "Deleted" })
     .getByRole("button", { name: "Deleted" })
     .click();
-  await page.keyboard.press("ControlOrMeta+K");
-  await send(page, "Anything here?");
-  expect(await lastSentFrom(page, library)(1)).toBeUndefined();
+  expect(await asked(2)).toBeUndefined();
 });
 
 test("Undo this turn takes the agent's line back and keeps what was typed, in the cell and both tabs", async ({
@@ -167,14 +169,15 @@ test("the filing rules start from the starter's and save, and Tidy my library fi
   await expect(page.locator("[data-tidy-request]")).toBeVisible();
   await send(
     page,
-    `call organize_items ${JSON.stringify({ folder: { path: "Birds" }, ids: [heron.item.id] })}`,
+    `call organize_items ${JSON.stringify({ folder: { path: "Birds" }, ids: [heron.item.id] })}\ncontext`,
   );
   await expect(page.getByText("Filed items")).toBeVisible();
   const { folders } = await library.organize.outline();
   const birds = folders.find((folder) => folder.name === "Birds");
   const { fields } = await library.items.read({ id: heron.item.id });
   expect(fields.folderId).toBe(birds?.id);
-  const [asked] = await sentMessages(library);
-  expect(asked?.text).toMatch(/^Tidy my library:[\s\S]*organize_items/u);
-  expect(asked?.viewContext).toMatchObject({ scope: { kind: "unsorted" } });
+  const [asked] = await textsOf(library, "user.message");
+  expect(asked).toMatch(/^Tidy my library:[\s\S]*organize_items/u);
+  const [reply] = await textsOf(library, "agent.message");
+  expect(screenIn(reply)).toMatchObject({ scope: { kind: "unsorted" } });
 });

@@ -88,6 +88,10 @@ export interface FakeAgentPlatform extends AgentPlatform {
 
 const sentText = ({ text }: AgentMessage): string => text;
 
+// the client context as eve hands it the model: an object as its JSON
+const screenOf = ({ clientContext }: AgentMessage): string | null =>
+  clientContext === undefined ? null : JSON.stringify(clientContext);
+
 const piecesOf = (text: string): string[] => {
   const pieces: string[] = [];
   for (let start = 0; start < text.length; start += DELTA_CHARS) {
@@ -266,26 +270,30 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
 
   // the mock model's turn: a step per call, then its reply, each step reading the latest message
   // that joined since the last
-  const play = async (sessionId: string, turn: RunningTurn, message: string): Promise<void> => {
+  const play = async (
+    sessionId: string,
+    turn: RunningTurn,
+    message: AgentMessage,
+  ): Promise<void> => {
     turn.stop.signal.throwIfAborted();
     let latest = message;
     let step = 0;
     for (;;) {
       const steered = turn.steered.splice(0).at(-1);
       if (steered !== undefined) {
-        latest = sentText(steered);
+        latest = steered;
         step = 0;
         turn.steering = new AbortController();
       }
       const runId = await requestModel(sessionId, turn);
-      const next = mockStep(latest, step);
+      const next = mockStep(sentText(latest), step, screenOf(latest));
       if (next.kind === "call") {
         await call(sessionId, turn, next);
         step += 1;
       } else {
         await reply(sessionId, turn, next);
       }
-      await recordInTurn(sessionId, turn, modelSettledOf(runId, turn.id, latest));
+      await recordInTurn(sessionId, turn, modelSettledOf(runId, turn.id, sentText(latest)));
       if (next.kind === "reply" && turn.steered.length === 0) {
         await record(sessionId, [
           { data: { outcome: "completed", turnId: turn.id }, type: "turn.settled" },
@@ -296,7 +304,11 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
   };
 
   // a stop lands where the turn waits, and settles it cancelled
-  const runTurn = async (sessionId: string, turn: RunningTurn, message: string): Promise<void> => {
+  const runTurn = async (
+    sessionId: string,
+    turn: RunningTurn,
+    message: AgentMessage,
+  ): Promise<void> => {
     try {
       await play(sessionId, turn, message);
     } catch (error) {
@@ -345,7 +357,7 @@ export const createFakeAgentPlatform = (): FakeAgentPlatform => {
       { data: { cause: { deliveryId }, follows: null, turnId }, type: "turn.started" },
       consumed,
     ]);
-    turn.done = runTurn(sessionId, turn, sentText(message));
+    turn.done = runTurn(sessionId, turn, message);
     runs.push(turn.done);
     return deliveryId;
   };

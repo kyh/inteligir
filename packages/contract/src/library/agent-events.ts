@@ -5,8 +5,6 @@
 
 import { z } from "zod";
 
-import { agentViewContextSchema } from "./library-wire";
-
 // how much of a tool's result a stored event carries: the agent reads the whole of it, and a
 // thread's event row never carries a page
 const TOOL_RESULT_SUMMARY_MAX = 2000;
@@ -28,12 +26,8 @@ const TURN_END_REASONS = [
 export type TurnEndReason = (typeof TURN_END_REASONS)[number];
 
 export const agentEventSchema = z.discriminatedUnion("type", [
-  // what the person sent, and the screen they sent it from; one sent while a turn runs joins it
-  z.object({
-    text: z.string(),
-    type: z.literal("user.message"),
-    viewContext: agentViewContextSchema.optional(),
-  }),
+  // what the person sent; one sent while a turn runs joins it
+  z.object({ text: z.string(), type: z.literal("user.message") }),
   // what the agent wrote back
   z.object({ text: z.string(), type: z.literal("agent.message") }),
   // a short note of what the agent found or does next, written before the tool call it introduces

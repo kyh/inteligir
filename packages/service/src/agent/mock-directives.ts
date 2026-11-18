@@ -3,6 +3,7 @@
 //   call <tool> <json object>   one step that calls that tool with that input
 //   long <chars>                a reply of that much text, after that many milliseconds
 //   tokens <count>              each model call reports that many output tokens, and none without
+//   context                     a reply of the screen the message was sent from, as the model read it
 // A step is a tool result since that message; with no step left, the reply names what it called,
 // and a message with no directive is said back.
 
@@ -11,6 +12,7 @@ import { z } from "zod";
 const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const TOKENS = /^tokens\s+(?<count>[1-9]\d{0,8})$/u;
+const CONTEXT = /^context$/u;
 
 const callInputSchema = z.record(z.string(), z.json());
 type CallInput = z.infer<typeof callInputSchema>;
@@ -42,13 +44,17 @@ export const mockUsageOf = (message: string) => {
   return { inputTokens: 0, outputTokens: count === undefined ? 0 : Number(count) };
 };
 
-// what the mock does at `step`, the tool results it read since the message
-export const mockStep = (message: string, step: number): MockStep => {
+// what the mock does at `step`, the tool results it read since the message, which it read with
+// `screen`, the client context it was sent with, or none
+export const mockStep = (message: string, step: number, screen: string | null): MockStep => {
   const lines = linesOf(message);
   const calls = lines.flatMap((line) => callOf(line) ?? []);
   const next = calls[step];
   if (next !== undefined) {
     return { input: next.input, kind: "call", tool: next.tool };
+  }
+  if (lines.some((line) => CONTEXT.test(line))) {
+    return { afterMs: 0, kind: "reply", text: `Sent from: ${screen ?? "nowhere"}` };
   }
   const chars = lines
     .map((line) => LONG.exec(line)?.groups?.chars)
