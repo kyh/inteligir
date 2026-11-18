@@ -1,10 +1,11 @@
 // The phone's runtime as the app composes it, over a key-value store and a folder in memory, an
 // auth the suite holds, and the contract's fake cell for the account: every move between signed in
-// and signed out, what each one keeps and clears, and what an answer of what moved asks again.
+// and signed out, what each one keeps and clears, what an answer of what moved asks again, and a
+// conversation followed over the phone's own wire.
 
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { dehydrate, focusManager } from "@tanstack/react-query";
+import { dehydrate, focusManager, QueryObserver } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
@@ -16,6 +17,7 @@ import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";
 import type { MemoryFolder } from "../test-support/memory-folder";
 import { memoryKv } from "@repo/client/test-support/memory-kv";
+import { threadQueries } from "@repo/client/thread-queries";
 import type { MemoryKv } from "@repo/client/test-support/memory-kv";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
@@ -445,6 +447,51 @@ describe("what moved, as the phone asks it", () => {
     focusManager.setFocused(true);
     await delay(20);
     expect(asks()).toBe(1);
+  });
+});
+
+describe("a conversation, as the phone follows it", () => {
+  const THREAD = "0190a000-0000-7000-8000-0000000000c1";
+
+  it("streams a thread's events over its own wire as they land, and picks up after the last one held when the screen opens again", async () => {
+    const cell = createFakeCell();
+    cell.threadEvent(THREAD, { text: "File my reading.", type: "user.message" });
+    const network = cell.device("phone");
+    const followed: Request[] = [];
+    const { runtime } = runtimeOver(cell, {
+      fetch: async (request) => {
+        if (request.url.endsWith("/library/agent/events")) {
+          followed.push(request.clone());
+        }
+        return await network.transport.fetch(request);
+      },
+      keys: fakePhoneAuth(KEPT_SESSION),
+    });
+    await runtime.start();
+    const { client, queries } = signedIn(runtime);
+    const shown = new QueryObserver(
+      runtime.queryClient,
+      threadQueries({ client, orpc: queries }).threadEvents(THREAD),
+    );
+    const types = () => shown.getCurrentResult().data?.rows.map((row) => row.type) ?? [];
+    const stop = shown.subscribe(() => {
+      // the thread's screen draws what it holds
+    });
+    await expect.poll(types).toStrictEqual(["user.message"]);
+    expect(followed[0]?.headers.get("cookie")).toBe(KEPT_SESSION);
+
+    cell.threadEvent(THREAD, { text: "Filed 3 items.", type: "agent.message" });
+    await expect.poll(types).toStrictEqual(["user.message", "agent.message"]);
+
+    // the screen closes, the turn ends meanwhile, and the screen opens again
+    stop();
+    cell.threadEvent(THREAD, { reason: "done", turn: 1, type: "turn.ended" });
+    const reopened = shown.subscribe(() => {
+      // the thread's screen draws what it holds
+    });
+    await expect.poll(types).toStrictEqual(["user.message", "agent.message", "turn.ended"]);
+    expect(followed.at(-1)?.headers.get("last-event-id")).toBe("1:1:0");
+    reopened();
   });
 });
 

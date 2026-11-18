@@ -38,4 +38,8 @@ say one thing of one library.
 - **A thread's events are one query that follows its stream from after the last one held.** A
   stream the cloud cut or a device left picks up by `lastEventId`, so nothing reads a whole
   conversation again, and an answer of what moved never restarts it.
-  `packages/client/src/thread-queries.ts`.
+  `packages/client/src/thread-stream.ts`.
+- **A live event asks again what it moved: a message or a turn's end, the threads and what Undo
+  takes back; a result or a turn's end, what moved in the library.** The stream is the first to
+  know, so Undo shows as a turn ends and the agent's note shows at once, not on the next beat;
+  history a first read replays moves nothing. `packages/client/src/thread-stream.ts`.

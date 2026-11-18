@@ -1,7 +1,7 @@
 // An account's library cell as a client's suites need it, in memory: `/v1/rpc` served by oRPC's
 // own handler over the rows a client writes through and the reads its screens make (an item whole,
-// a listing's pages, the rail's counts and every title), a store on its own origin that a file's
-// upload is sent to, and `/v1/blobs/<sha>`, each device
+// a listing's pages, the rail's counts and every title, a thread's events as the suite feeds them),
+// a store on its own origin that a file's upload is sent to, and `/v1/blobs/<sha>`, each device
 // reaching it through a transport of its own whose network a suite can take down or whose next
 // answers it can lose after the cell acted. It keeps the rules a client leans on: a property op
 // lands only on the base it names (`@repo/contract/library/field-ops`) and answers CONFLICT where
@@ -12,14 +12,21 @@
 // `./cell-conformance` hold it to the real cell, which runs them too. A suite seeds it without a
 // call, and reads an item back as a listing or `items.get` answers it.
 
+import { on } from "node:events";
 import { createORPCClient } from "@orpc/client";
 import type { ClientContext, ClientLink } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import { implement } from "@orpc/server";
+import { implement, withEventMeta } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
+import type { AgentEvent } from "../library/agent-events";
 import type { folderOpSchema, listedItemSchema } from "../library/library-wire";
-import { folderRowSchema, itemSummarySchema, liveItemRowSchema } from "../library/library-wire";
+import {
+  folderRowSchema,
+  itemSummarySchema,
+  liveItemRowSchema,
+  threadEventRowSchema,
+} from "../library/library-wire";
 import { v1Contract, V1_RPC_PATH } from "../rpc/v1-contract";
 import type { V1Client } from "../rpc/v1-contract";
 import {
@@ -73,6 +80,7 @@ type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ListedItem = z.infer<typeof listedItemSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
+type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 type OpenRow = LiveRow & { readonly bodyVersion: number };
 type HeldItem = OpenRow & { readonly blocks: BodyBlock[] };
 type Changes = Awaited<ReturnType<V1Client["library"]["changes"]>>;
@@ -116,6 +124,9 @@ export interface FakeCell {
   readonly uploads: string[];
   // every call is refused as a revoked sign-in
   readonly signOut: () => void;
+  // an event of the agent's in `threadId`, kept for every stream that opens after it and handed to
+  // every stream open on the thread now
+  readonly threadEvent: (threadId: string, event: AgentEvent) => void;
 }
 
 const NOW = 1_700_000_100_000;
@@ -164,6 +175,10 @@ export const createFakeCell = (): FakeCell => {
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
+  // each thread's events, as its record hook keeps them, and the live ones as they land
+  const threads = new Map<string, ThreadEventRow[]>();
+  const threadFed = new EventTarget();
+  const fedSchema = z.object({ detail: threadEventRowSchema });
 
   // an id as a device mints one, drawn from the package's one seeded generator, so a run repeats
   const random = mulberry32(ID_SEED);
@@ -466,6 +481,33 @@ export const createFakeCell = (): FakeCell => {
       })),
     },
     library: {
+      agent: {
+        events: os.library.agent.events.handler(async function* events({
+          input,
+          lastEventId,
+          signal,
+        }) {
+          // heard from before the kept events are read, so no event falls between the two
+          const fed = on(threadFed, input.threadId, { signal });
+          const kept = threads.get(input.threadId) ?? [];
+          for (const row of kept.slice(
+            kept.findIndex(({ eventId }) => eventId === lastEventId) + 1,
+          )) {
+            yield withEventMeta({ kind: "event" as const, row }, { id: row.eventId });
+          }
+          yield { kind: "caughtUp" as const };
+          try {
+            for await (const [landed] of fed) {
+              const { detail: row } = fedSchema.parse(landed);
+              yield withEventMeta({ kind: "event" as const, row }, { id: row.eventId });
+            }
+          } catch (error) {
+            if (signal?.aborted !== true) {
+              throw error;
+            }
+          }
+        }),
+      },
       changes: os.library.changes.handler(({ input }) => changes(input.after)),
       files: {
         reserve: os.library.files.reserve.handler(({ input }) =>
@@ -733,6 +775,18 @@ export const createFakeCell = (): FakeCell => {
     },
     signOut: () => {
       signedOut = true;
+    },
+    threadEvent: (threadId, event) => {
+      const kept = threads.get(threadId) ?? [];
+      const row: ThreadEventRow = {
+        at: NOW + kept.length,
+        event,
+        eventId: `1:${String(kept.length)}:0`,
+        threadId,
+        type: event.type,
+      };
+      threads.set(threadId, [...kept, row]);
+      threadFed.dispatchEvent(new CustomEvent(threadId, { detail: row }));
     },
     uploads,
   };

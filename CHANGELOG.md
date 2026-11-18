@@ -28,6 +28,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again, New conversation leaves a conversation for the list, and a day allows a couple of answers, each of up to 20 steps, which deleting a conversation doesn't give back.
 - **The agent searches the web and reads public pages** when what you ask reaches past your library.
 - **The agent's reply appears as it is written, and a message you send while it works joins what it is doing**, so you can steer it mid-answer; Stop ends the answer where it is.
+- **What the agent changes shows as it works**: a note it writes or an item it deletes appears in your library at once, and Undo this turn as its answer ends, on every device following the conversation.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
 - **Let an assistant only read your library**: when it asks to read and change it, tick Only let it read the library before you allow it, and it lists only the tools that read.
 - **Resetting your password disconnects every connected assistant**: connect each one again from your assistant afterwards.

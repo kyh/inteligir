@@ -2,7 +2,7 @@
 // an answer of what moved (`./library-changes`) marks stale the queries over what it names. An
 // item's read goes again only when the copy held is older than the sequence the answer names, so a
 // note's typing reads its row again only when it changed what a row holds. A thread's events follow
-// it as it happens (`./thread-queries`), so nothing here reads them again.
+// it as it happens (`./thread-stream`), so nothing here reads them again.
 
 import type { RouterUtils } from "@orpc/tanstack-query";
 import type { QueryClient } from "@tanstack/query-core";
