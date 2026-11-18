@@ -192,6 +192,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A switch you flick the moment you press it switches**, where a quick flick from on to off went back unless you held it first.
 - **The menu key opens a card's menu with its first item lit**, as a menu's button opened from the keyboard does, where it opened with nothing lit.
 - **⌘A, Delete and a selected card's menu wait for the folder, tag, Deleted or kind you just chose to show its own items**, so a confirm never counts the grid you left.
+- **A folder, tag or Deleted you just chose shows none of the kinds, the count or the "empty" of the one you left** while its own items are on their way, and a message to the agent sent then names no selection counted over a kind you just left.
 - **Empty Deleted… stays offered while the grid is narrowed to a kind Deleted holds none of.**
 - **A confirm and a notice count as the header does**: "Delete 8,512 items?", not "8512".
 - **Leaving a note in your browser while its save is stuck asks within 5 seconds** whether to leave without saving, as your iPhone does, instead of Back or another item doing nothing until the connection answers.

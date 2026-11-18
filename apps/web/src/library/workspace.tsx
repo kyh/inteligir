@@ -29,6 +29,7 @@ import { useWindowCapture } from "./library/capture/window-capture";
 import { useLibraryCommands } from "./library/library-commands";
 import { createLibrarySelection, selectedIn } from "./library/library-selection";
 import { LibraryView } from "./library/library-view";
+import type { ListingPlaceholder } from "./library/library-view";
 import { listingQuery } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
@@ -69,6 +70,17 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
+  const scopeKey = JSON.stringify(scope);
+  // the scope whose listing stands: the address's once its own first page answered, else the
+  // scope the tab left, whose listing holds the grid's place until then
+  const [listedScope, setListedScope] = useState(scopeKey);
+  if (!listing.isPlaceholderData && listedScope !== scopeKey) {
+    setListedScope(scopeKey);
+  }
+  let placeholder: ListingPlaceholder = null;
+  if (listing.isPlaceholderData) {
+    placeholder = listedScope === scopeKey ? "same-scope" : "other-scope";
+  }
   // the selection as it changes, which the panel's Info follows: what it names of the listing as
   // far as that is read
   const selected = useStore(selection.store, (state) => state.selected);
@@ -76,7 +88,6 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
 
   // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since
   // an id both scopes list would stay selected and a ⌘A would name the new scope
-  const scopeKey = JSON.stringify(scope);
   const selectedUnder = useRef(scopeKey);
   useEffect(() => {
     if (selectedUnder.current !== scopeKey) {
@@ -128,14 +139,17 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
     onCapture: commands.save,
   });
 
-  // what the agent is told about the screen a message leaves from
-  const viewContext = (): AgentViewContext | undefined =>
-    viewContextOf({
+  // what the agent is told about the screen a message leaves from: a selection counted over the
+  // listing of the scope and kind on screen, so none while another's holds its place
+  const viewContext = (): AgentViewContext | undefined => {
+    const told = placeholder === null ? picked : selectedIn(selected, NOTHING_LISTED);
+    return viewContextOf({
       kind,
       openItem,
       scope,
-      selected: { count: picked.count, ids: picked.rows.map((row) => row.id) },
+      selected: { count: told.count, ids: told.rows.map((row) => row.id) },
     });
+  };
 
   // the panel's item: the open one, else the one card selected
   const panelItem = openItem ?? (picked.count === 1 ? (picked.rows[0]?.id ?? null) : null);
@@ -176,7 +190,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
                           void listing.fetchNextPage();
                         }
                       },
-                      placeholder: listing.isPlaceholderData,
+                      placeholder,
                       standing: cellStanding({
                         data: view,
                         error: listing.error,

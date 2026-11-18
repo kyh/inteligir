@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { forgetAccountStorage } from "./cloud/account-storage";
+import { newId } from "./library/new-id";
 import { windowLayout } from "./prefs";
 import { layOutCardGrids } from "./test-support/card-grid-layout";
 import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page";
@@ -546,6 +547,130 @@ describe("where the tab is", () => {
 
     await shows("All items");
     await screen.findByText(NOTHING_SELECTED);
+  });
+});
+
+// the whole page over a cell whose listing pages answer only once `land` is called, from the
+// moment `hold` is: the listing of a scope or kind the tab moves to
+const pageHoldingListings = async (entry: string, cell: FakeCell) => {
+  const held = deferred();
+  const holding = { now: false };
+  const { calls } = await pageAt(entry, cell, async (call) => {
+    if (call.path === "library.listing.page" && holding.now) {
+      await held.promise;
+    }
+    return call.path === "library.agent.send"
+      ? { status: "running", threadId: newId() }
+      : undefined;
+  });
+  return {
+    calls,
+    hold: () => {
+      holding.now = true;
+    },
+    land: held.resolve,
+  };
+};
+
+const kindChips = (): HTMLElement | null => screen.queryByLabelText("Kind");
+// the count the header gives beside the scope's title
+const headerCount = (count: string): HTMLElement | null => {
+  const bar = screen.getByRole("heading", { level: 1 }).parentElement;
+  return bar === null ? null : within(bar).queryByText(count);
+};
+
+describe("a scope or kind whose listing is on its way", () => {
+  it("shows the grid the tab left, but not its kinds or its count", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const { cell } = readingFolder();
+    cell.seed.item({ kind: "pdf", title: "Paper" });
+    const page = await pageHoldingListings("/library", cell);
+    await shows("All items");
+    await within(await screen.findByLabelText("Kind")).findByRole("button", { name: /^PDFs/u });
+    expect(headerCount("3")).not.toBeNull();
+
+    page.hold();
+    fireEvent.click(railRow("Folders", /^Reading/u));
+    await shows("Reading");
+    expect(screen.getByRole("gridcell", { name: "Paper" })).toBeDefined();
+    expect(kindChips()).toBeNull();
+    expect(headerCount("3")).toBeNull();
+
+    page.land();
+    await waitFor(() => {
+      expect(screen.queryByRole("gridcell", { name: "Paper" })).toBeNull();
+    });
+    expect(
+      within(kindChips() ?? document.body).queryByRole("button", { name: /^PDFs/u }),
+    ).toBeNull();
+    expect(headerCount("2")).not.toBeNull();
+  });
+
+  it("keeps the scope's kinds while another kind of it is on its way", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const { cell, folderId } = readingFolder();
+    const page = await pageHoldingListings(`/library?folder=${folderId}`, cell);
+    await shows("Reading");
+    const chips = await screen.findByLabelText("Kind");
+
+    page.hold();
+    fireEvent.click(within(chips).getByRole("button", { name: /^Images/u }));
+    await waitFor(() => {
+      expect(addressed("kind")).toBe("image");
+    });
+    expect(within(chips).getByRole("button", { name: /^Notes/u })).toBeDefined();
+    page.land();
+  });
+
+  it("says nothing of an empty scope the tab left", async () => {
+    const cell = createFakeCell();
+    cell.seed.item({ title: NOTE });
+    const page = await pageHoldingListings("/library?scope=deleted", cell);
+    await screen.findByText("Nothing deleted");
+
+    page.hold();
+    fireEvent.click(railRow("Library", /^All items/u));
+    await shows("All items");
+    expect(screen.queryByText("Nothing deleted")).toBeNull();
+    expect(screen.queryByText("Your library is empty")).toBeNull();
+    page.land();
+    await screen.findByRole("grid", { name: "Library" });
+  });
+
+  it("tells the agent of no selection counted over the kind the tab left", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const { cell, folderId } = readingFolder();
+    const page = await pageHoldingListings(`/library?folder=${folderId}`, cell);
+    fireEvent.keyDown(await screen.findByRole("grid", { name: "Library" }), chord("a"));
+
+    page.hold();
+    fireEvent.click(
+      within(await screen.findByLabelText("Kind")).getByRole("button", { name: /^Images/u }),
+    );
+    await waitFor(() => {
+      expect(addressed("kind")).toBe("image");
+    });
+    fireEvent.keyDown(window, chord("k"));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Message the agent" }), {
+      target: { value: "What are these?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await vi.waitFor(() => {
+      expect(callsTo(page.calls, "library.agent.send")).toStrictEqual([
+        {
+          text: "What are these?",
+          viewContext: {
+            itemIds: [],
+            kinds: ["image"],
+            scope: { folderId, kind: "folder" },
+            selected: 0,
+            surface: "library",
+          },
+        },
+      ]);
+    });
+    page.land();
   });
 });
 
