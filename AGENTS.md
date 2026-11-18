@@ -129,7 +129,7 @@ CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
 | --------------- | -------------------- | ---------------------------------------------------------------------------------------- |
 | Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                |
 | Library tab     | `pnpm dev:web`       | **Once it is on Next**: `account`, `library`, `search`, `editor`, `note-links`, `saving` |
-| Connector       | `pnpm dev:web`       | **Once it is on Next**: an MCP client on `/connector`, OAuth with PKCE; `connector`      |
+| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                     |
 | Built-in agent  | `pnpm dev:web`       | **Once it is on eve, over its mock model**: `agent-panel`, `agent-context`               |
 | Mac app         | `pnpm dev`           | **Its shell**: `cargo test`; the window needs a human                                    |
 | Extension       | `pnpm dev:extension` | **In Chromium, once saving is on Next**: `extension`                                     |

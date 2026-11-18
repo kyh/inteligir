@@ -25,11 +25,13 @@ export interface Web {
   readonly strays: string[];
 }
 
-interface PageRelay {
+type PageProtocol = "http:" | "https:";
+
+export interface PageRelay {
   // what the app's PAGE_FETCH_RELAY_URL names
   readonly url: string;
-  // a page host no other test has
-  readonly pageHost: () => Web;
+  // a page host no other test has, on http unless the test asks for https
+  readonly pageHost: (protocol?: PageProtocol) => Web;
   // every address under no page host the app asked for, which fails the test that was running
   readonly strays: readonly string[];
   readonly close: () => Promise<void>;
@@ -74,9 +76,9 @@ export const servePageRelay = async (): Promise<PageRelay> => {
       server.close();
       await once(server, "close");
     },
-    pageHost: () => {
+    pageHost: (protocol = "http:") => {
       // a `.test` name no resolver answers (RFC 6761), any site's to the fill's guard
-      const host = `http://${crypto.randomUUID()}.pages.inteligir.test`;
+      const host = `${protocol}//${crypto.randomUUID()}.pages.inteligir.test`;
       const web: Web = {
         fetched: [],
         pageUrl: (pathname) => `${host}${pathname}`,

@@ -23,23 +23,27 @@ vercel.json      the functions' region
 
 ## Routes
 
-| Route                                      | What                                                                        |
-| ------------------------------------------ | --------------------------------------------------------------------------- |
-| `/`, `/about`, `/contact`                  | the site's pages, prerendered; their markdown under `Accept: text/markdown` |
-| `/privacy`, `/terms`                       | `docs/privacy.md` and `docs/terms.md`, rendered                             |
-| `/library`, `/library/settings`            | the library tab, Settings over it; a 307 to `/app/sign-in?next=…` unsigned  |
-| `/app`                                     | a 307 to `/library`                                                         |
-| `/app/sign-in`, `/app/sign-up`             | the account pages, skipped to `next` when signed in                         |
-| `/app/forgot-password`                     | asks for the reset mail                                                     |
-| `/app/reset-password`                      | the reset mail's link: a new password on its token                          |
-| `/llms.txt`, `/robots.txt`, `/sitemap.xml` | for agents and crawlers                                                     |
-| `/licenses.md`                             | every production package's licence, written at prebuild                     |
-| `/api/auth/*`                              | Better Auth, its allowlisted routes alone (`@repo/service`'s `auth/`)       |
-| `/api/sign-up`                             | sign-up behind the invite gate, POST alone                                  |
-| `/api/markdown/*`                          | what `proxy.ts` rewrites a markdown request to; no public address           |
-| `/api/health`                              | `{"ok":true}` once the database answers, else 503                           |
-| `/api/*`                                   | a JSON 404                                                                  |
-| `/v1/rpc/*`                                | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`)            |
+| Route                                              | What                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------- |
+| `/`, `/about`, `/contact`                          | the site's pages, prerendered; their markdown under `Accept: text/markdown` |
+| `/privacy`, `/terms`                               | `docs/privacy.md` and `docs/terms.md`, rendered                             |
+| `/library`, `/library/settings`                    | the library tab, Settings over it; a 307 to `/app/sign-in?next=…` unsigned  |
+| `/app`                                             | a 307 to `/library`                                                         |
+| `/app/sign-in`, `/app/sign-up`                     | the account pages, skipped to `next` when signed in                         |
+| `/app/forgot-password`                             | asks for the reset mail                                                     |
+| `/app/reset-password`                              | the reset mail's link: a new password on its token                          |
+| `/connect/authorize`                               | an assistant's consent page, on the request the OAuth provider signed       |
+| `/llms.txt`, `/robots.txt`, `/sitemap.xml`         | for agents and crawlers                                                     |
+| `/licenses.md`                                     | every production package's licence, written at prebuild                     |
+| `/api/auth/*`                                      | Better Auth, its allowlisted routes alone (`@repo/service`'s `auth/`)       |
+| `/api/sign-up`                                     | sign-up behind the invite gate, POST alone                                  |
+| `/api/markdown/*`                                  | what `proxy.ts` rewrites a markdown request to; no public address           |
+| `/api/health`                                      | `{"ok":true}` once the database answers, else 503                           |
+| `/api/*`                                           | a JSON 404                                                                  |
+| `/v1/rpc/*`                                        | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`)            |
+| `/connector`                                       | the library's tools for a connected assistant, POST alone (`mcp/`)          |
+| `/.well-known/oauth-protected-resource/*`          | the connector's metadata, naming its authorization server                   |
+| `/.well-known/oauth-authorization-server/api/auth` | the OAuth provider's metadata, its issuer `/api/auth`                       |
 
 ## Testing and the dev loop
 

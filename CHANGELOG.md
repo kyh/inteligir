@@ -27,6 +27,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.
 - **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it asks before deleting or saving a link, New conversation leaves a conversation for the list, and a day allows a couple of answers.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
+- **Let an assistant only read your library**: when it asks to read and change it, tick Only let it read the library before you allow it, and it lists only the tools that read.
+- **Resetting your password disconnects every connected assistant**: connect each one again from your assistant afterwards.
 - **Your own Claude or ChatGPT writes notes the way the built-in agent does**: a connected assistant can read the library's writing guide, so the tabs, callouts, charts and links between items it writes show as blocks, not as literal text; one connected earlier lists the guide once it refreshes the connector's tools.
 - **Bring your Raindrop bookmarks in** from a Raindrop backup's CSV file, in Settings › Import.
 - **Bring a zip of notes in**, a folder of notes or an Obsidian folder, in Settings › Import; what it can't read is counted under "couldn't be read".

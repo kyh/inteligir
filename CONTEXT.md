@@ -129,19 +129,21 @@ refuses is parked with the library's words, for Try again or Let it go. The
 only writes a device keeps offline. Not a queue of edits: a save typed into an
 app, a photo and a delete each need a connection.
 
-**connector** — the library as a remote MCP server: `/connector` on the Worker
-(`packages/service/src/connector/connector-route.ts`), the library's procedures
-tagged as tools (`library-tools.ts`) and served in the account's cell, behind
-OAuth with a read-and-change scope, `library`, and a read-only one,
-`library:read` (`connector-auth.ts`). Every **connected assistant** calls it,
-and `/v1` serves the same procedures. Connector is Claude's word for it and the
-product's, which never says MCP.
+**connector** — the library as a remote MCP server: `/connector`
+(`packages/service/src/mcp/connector-server.ts`), the library's procedures
+tagged as tools (`packages/service/src/library/library-tools.ts`), behind
+Better Auth's OAuth provider with a read-and-change scope, `library`, and a
+read-only one, `library:read` (`packages/service/src/auth/oauth-auth.ts`).
+Every **connected assistant** calls it, and `/v1` serves the same procedures.
+Connector is Claude's word for it and the product's, which never says MCP.
 
 **connected assistant** — the person's own Claude or ChatGPT, signed in to the
-**connector** by OAuth on our consent page
-(`packages/service/src/connector/consent-route.ts`); its model runs on its own
-plan, never ours. Each one is a grant on the account, which Settings ›
-Account's Connected assistants lists and disconnects (`assistant-grants.ts`).
+**connector** by OAuth, allowed on the consent page `/connect/authorize`
+(`apps/web/src/app/(auth)/connect/authorize/`); its model runs on its own
+plan, never ours. Each one is a grant, a consent on the account, which
+Settings › Account's Connected assistants lists and disconnects
+(`packages/service/src/auth/connected-assistants.ts`), and a password reset
+disconnects them all.
 Not the **built-in agent**, though both call the same tools, and it reads as
 a guide the spec the agent's prompt holds.
 

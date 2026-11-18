@@ -289,11 +289,16 @@ test("each mount hands its request to the service, which answers in its door's p
 
 test("the connector's routes answer in their own protocol", async ({ cloud, request }) => {
   await expectProtocolAnswers(request, cloud.origin, [
-    { method: "GET", route: "/oauth/token", status: 405 },
-    { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
+    { method: "GET", route: "/api/auth/oauth2/token", status: 404 },
+    { method: "GET", route: "/api/auth/oauth2/nope", status: 404 },
+    { method: "POST", route: "/.well-known/oauth-authorization-server/api/auth", status: 405 },
+    { method: "POST", route: "/.well-known/oauth-protected-resource/connector", status: 405 },
     { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
-    { method: "PUT", route: "/connect/authorize", status: 405 },
-    { method: "GET", route: "/oauth/nope", status: 404 },
-    { method: "GET", route: "/.well-known/nope", status: 404 },
+    {
+      headers: { origin: "https://evil.example" },
+      method: "POST",
+      route: CONNECTOR_PATH,
+      status: 403,
+    },
   ]);
 });

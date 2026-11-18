@@ -401,12 +401,14 @@ The unpacked store build, against production, with no dev build loaded.
 
 On production's `/connector`, signed in to an account there.
 
-- **claude.ai**: add the custom connector, consent, read, edit, Disconnect; a
-  sign-up from the consent page returns to it.
-- **Claude Code**: `claude mcp add`, the consent page's warning, 10 tools, and
-  `read_item` and `read_guide` answering inline.
-- **ChatGPT**: a developer-mode connector, consent, and the five reading tools
-  alone under read-only.
+- **claude.ai**: add the custom connector, sign in and Allow on
+  `/connect/authorize`, read, edit, Disconnect in Settings and the next call
+  asks to connect again; a sign-in from the authorize step returns to it.
+- **Claude Code**: `claude mcp add`, the consent page's warning that access goes
+  to an app on this computer, 10 tools, and `read_item` and `read_guide`
+  answering inline; still connected after an hour, on its refresh token.
+- **ChatGPT**: a developer-mode connector, Only let it read the library, and
+  the five reading tools alone.
 
 ### The built-in agent
 

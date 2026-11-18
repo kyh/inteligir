@@ -26,10 +26,11 @@ import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import postgres from "postgres";
+import type { Sql } from "postgres";
 import { z } from "zod";
 import { workerDatabase } from "./databases";
 import { servePageRelay } from "./page-relay";
-import type { Web } from "./page-relay";
+import type { PageRelay, Web } from "./page-relay";
 
 const WEB = path.resolve(import.meta.dirname, "../../../apps/web");
 const NEXT_BIN = path.join(WEB, "node_modules/next/dist/bin/next");
@@ -42,8 +43,10 @@ export interface Cloud {
   readonly origin: string;
   // an unspent invite code
   readonly mint: () => Promise<string>;
-  // a page host no other test has
-  readonly pageHost: () => Web;
+  // a page host no other test has, on http unless the test asks for https
+  readonly pageHost: PageRelay["pageHost"];
+  // the worker's database, for what a test sets up that no route can
+  readonly sql: Sql;
   // every address under no page host the app asked for, which fails the test that was running
   readonly strays: readonly string[];
   // the oldest build the app takes, which every client here names
@@ -221,6 +224,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           },
           origin,
           pageHost: relay.pageHost,
+          sql,
           strays: relay.strays,
         });
         await sql.end();

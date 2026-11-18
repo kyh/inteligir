@@ -7,7 +7,6 @@ const ci = process.env.CI !== undefined;
 const PENDING_FILES = [
   "agent-context.spec.ts",
   "agent-panel.spec.ts",
-  "connector.spec.ts",
   "editor.spec.ts",
   "import.spec.ts",
   "note-links.spec.ts",
@@ -17,8 +16,6 @@ const PENDING_TESTS = [
   // each lands in the library tab
   "the site's sign-up spends its invite, and a signed-out tab signs in and comes back",
   "Settings waits offline, ends another device, turns the agent off, signs out and deletes",
-  // the connector's routes
-  "the connector's routes answer in their own protocol",
   // each opens a file or a note
   "the grid opens, narrows, previews, tags, deletes, files and follows the cell",
   "Back and the tab's close ask before they lose typing no connection carried",

@@ -74,9 +74,9 @@ the first's. Run again, it changes nothing already there; `--dry-run` prints
 the steps and does none of them.
 
 `pnpm dev:web` is `next dev` on 5174 over that database: the site, the account
-pages, `/api/auth/*`, `/api/sign-up`, `/v1/rpc` and `/api/health`. The library
-tab, the connector and the built-in agent are not served on Next yet, so
-`/library` signed in answers a 404. `pnpm build` then
+pages, the library tab, `/api/auth/*`, `/api/sign-up`, `/v1/rpc`, the connector
+at `/connector` and `/api/health`. The built-in agent is not served on Next
+yet. `pnpm build` then
 `pnpm --filter @repo/web start` serves the production build on the same port.
 
 `pnpm smoke` (`scripts/smoke.ts`) checks a running app as a deployment must

@@ -32,9 +32,10 @@ decisions port with its code from the tag `cloudflare-last`.
   update, forwards to a second Better Auth instance and releases the claim if
   the sign-up fails.** Better Auth reads `disableSignUp` per instance, so the
   public one refuses sign-up outright. `packages/service/src/auth/invite.ts`.
-- **The auth door answers the six Better Auth routes a client calls, by method
-  and path, and a plain 404 to every other.** A list of routes to shut leaves
-  open the one a release adds. `packages/service/src/auth/auth-route.ts`.
+- **The auth door answers the Better Auth routes a client calls, by method and
+  path, an assistant's five OAuth routes among them, and a plain 404 to every
+  other.** A list of routes to shut leaves open the one a release adds.
+  `packages/service/src/auth/auth-route.ts`.
 - **Better Auth's `baseURL` is the deployment's one origin, `APP_URL` or
   Vercel's production or preview URL, never a request's host.** A reset link
   minted from a forged `Host` would carry its token to another site.
@@ -62,6 +63,41 @@ decisions port with its code from the tag `cloudflare-last`.
   log in production would hold live reset links, and with mail off a reset is
   refused up front rather than promising a link. No sender is built in (owner
   decision pending). `packages/service/src/auth/send-email.ts`.
+
+## The connector
+
+- **An assistant connects on Better Auth's OAuth provider and cimd, PKCE
+  required, registering by its metadata document or by itself; the person signs
+  in and allows it on the site's `/connect/authorize`.** The provider is stock,
+  and a consent page of the site's own reads the signed request on the server
+  and can offer read-only. `packages/service/src/auth/oauth.ts`.
+- **A token is opaque, `ito_`-prefixed, stored hashed and minted for
+  `${APP_URL}/connector` alone, and each call reads its grant again: token,
+  assistant and consent, its scopes those both hold.** A disconnect or a
+  narrowed consent reaches a live token at once, and no token reaches another
+  resource. `packages/service/src/auth/oauth-auth.ts`.
+- **A token the provider bound to a key takes the DPoP scheme and a fresh
+  proof; any other, Bearer.** Both metadata documents advertise DPoP, so an
+  assistant that holds a key is served. `packages/service/src/mcp/connector-server.ts`.
+- **Disconnecting deletes the consent and every token of that assistant, and a
+  password reset disconnects every one.** Settings lists consents, never tokens,
+  and a reset is the person taking the account back.
+  `packages/service/src/auth/connected-assistants.ts`.
+- **The tools are oRPC's `McpRegistrar` over the routed library, filtered to
+  the rows tagged a tool and, for a read-only grant, to the reads.** A tool is
+  added by tagging its row, and a grant is never offered a tool its row would
+  refuse. `packages/service/src/mcp/connector-server.ts`.
+- **`/connector` refuses a foreign Origin before anything, then a request with
+  no valid token, then one not a POST, then the grant's budget spent, a batch
+  and a body past Vercel's 4.5 MB.** One request is one call of the budget, and
+  a browser page can't spend a person's token.
+  `packages/service/src/mcp/connector-server.ts`.
+- **The registration hour is Better Auth's longest window, so its prune of
+  `rate_limit` waits an hour.** The app's own windows stay within 60 s, pruned
+  only after they lapse. `packages/service/src/auth/oauth.ts`.
+- **An assistant's metadata document is fetched through `PAGE_FETCH_RELAY_URL`
+  when it is set off Vercel.** cimd's transport refuses every host a test can
+  serve. `packages/service/src/auth/oauth.ts`.
 
 ## The wire
 
