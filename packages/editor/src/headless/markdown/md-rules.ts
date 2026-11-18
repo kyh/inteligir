@@ -127,23 +127,47 @@ const CONTAINER_TYPES: ReadonlySet<string> = new Set([
 export const writtenInList = (block: TElement): boolean =>
   isListLine(block) || numberProp(block, "indent") !== undefined;
 
+// where the block before stands: outside any list, on a list's own run of lines, or nested in a
+// list item or on the lines after such a block
+type ListPlace = "outside" | "run" | "nested";
+
+const markedAt = (block: TElement, depth: number): TElement => ({
+  children: [block],
+  [LIST_DEPTH_KEY]: depth,
+  type: LIST_NESTED_KEY,
+});
+
 // Plate writes only a paragraph as a list item, so every other block with an indent, which its
-// list rule reads under the item it nests in, is marked here and nested by `nestInLists`
-export const markListNesting = (blocks: readonly Descendant[]): Descendant[] =>
-  blocks.map((block) => {
+// list rule reads under the item it nests in, is marked here and nested by `nestInLists`. Plate
+// roots a run of list lines at its first line's indent, so each line after such a block is marked
+// with its own depth too, and goes on as the items of the list the block sits in.
+export const markListNesting = (blocks: readonly Descendant[]): Descendant[] => {
+  const marked: Descendant[] = [];
+  let place: ListPlace = "outside";
+  for (const block of blocks) {
     if (!ElementApi.isElement(block)) {
-      return block;
+      marked.push(block);
+      place = "outside";
+      continue;
     }
     const inner: TElement = CONTAINER_TYPES.has(block.type)
       ? { ...block, children: markListNesting(block.children) }
       : block;
     const indent = numberProp(inner, "indent");
-    if (isListLine(inner) || indent === undefined) {
-      return inner;
+    if (indent === undefined) {
+      marked.push(inner);
+      place = "outside";
+    } else if (isListLine(inner)) {
+      marked.push(place === "nested" ? markedAt(inner, indent) : inner);
+      place = place === "nested" ? "nested" : "run";
+    } else {
+      const { indent: _indent, listStyleType: _style, checked: _checked, ...rest } = inner;
+      marked.push(markedAt(rest, indent));
+      place = place === "outside" ? "outside" : "nested";
     }
-    const { indent: _indent, listStyleType: _style, checked: _checked, ...rest } = inner;
-    return { children: [rest], [LIST_DEPTH_KEY]: indent, type: LIST_NESTED_KEY };
-  });
+  }
+  return marked;
+};
 
 const isEmptyInlineEquation = (node: Descendant): boolean =>
   ElementApi.isElement(node) &&
@@ -511,10 +535,12 @@ const readBlockquote = (
   return alert === undefined ? quote : { ...quote, alert };
 };
 
-// the marker is a raw line of its own: as text the writer escapes its `[`, and GitHub reads an
-// alert only where the marker stands alone
+// a quote's lists nest as a container's do, since Plate's quote writes its blocks flat; the marker
+// is a raw line of its own: as text the writer escapes its `[`, and GitHub reads an alert only
+// where the marker stands alone
 const writeBlockquote = (node: TElement, options: SerializeMdOptions): Blockquote => {
-  const quote = defaultBlockquote(node, options);
+  const stock = defaultBlockquote(node, options);
+  const quote = { ...stock, children: nestInLists(stock.children) };
   const alert = alertProp(node);
   if (alert === undefined) {
     return quote;
