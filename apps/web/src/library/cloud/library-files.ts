@@ -5,7 +5,6 @@
 import { V1_BLOBS_NAME_PARAM, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { uploadBlob } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
-import { fileSha } from "@repo/contract/library/file-sha";
 
 // `/v1` for the bytes the wire does not carry, and the page's answer to a session's end met there,
 // which the wire's own calls answer the same way (`./v1.ts`)
@@ -30,6 +29,13 @@ export const readFile = async (cloud: V1Transport, sha: string): Promise<Blob> =
   return await response.blob();
 };
 
+// The sha `fileSha` spells, by the browser's own digest rather than the contract's pure JS: the
+// browser hashes off the page's thread, so a file of up to 100 MB leaves the page answering
+const shaOf = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> => {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
 // the bytes in the library's files, answering the sha a block or an import names them by; a file
 // the cloud refused throws as a refused call does
 export const uploadFile = async (
@@ -37,7 +43,7 @@ export const uploadFile = async (
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
 ): Promise<string> => {
-  const sha = fileSha(bytes);
+  const sha = await shaOf(bytes);
   await uploadBlob(cloud, { bytes, mime, sha }, cloud.onSessionEnd);
   return sha;
 };

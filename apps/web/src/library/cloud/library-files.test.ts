@@ -1,5 +1,7 @@
+import { fileSha } from "@repo/contract/library/file-sha";
 import { sharedFailure } from "@repo/contract/rpc/call-outcome";
-import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { refusalResponse } from "@repo/contract/test-support/refusal-response";
 import {
   AccountGoneError,
@@ -12,22 +14,36 @@ import { describe, expect, it } from "vitest";
 import { uploadFile } from "./library-files";
 import type { FileCloud } from "./library-files";
 
-const answering = (answer: () => Response) => {
+// the page's cloud over `transport`, keeping each session end it meets
+const pageCloud = (transport: V1Transport) => {
   const ended: SessionEnd[] = [];
   const cloud: FileCloud = {
-    fetch: async () => await Promise.resolve(answer()),
+    ...transport,
     onSessionEnd: (end) => {
       ended.push(end);
     },
-    origin: "https://library.test",
   };
   return { cloud, ended };
 };
+
+const answering = (answer: () => Response) =>
+  pageCloud({
+    fetch: async () => await Promise.resolve(answer()),
+    origin: "https://library.test",
+  });
 
 const upload = async (cloud: FileCloud): Promise<string> =>
   await uploadFile(cloud, new Uint8Array([1, 2, 3]), "image/png");
 
 describe("a file sent up from the page", () => {
+  it("goes under the sha every other host spells for its bytes", async () => {
+    const cell = createFakeCell();
+    const { cloud } = pageCloud(cell.device("page").transport);
+    const bytes = Uint8Array.from({ length: 1024 * 1024 + 7 }, (_, at) => (at * 31) % 251);
+    await expect(uploadFile(cloud, bytes, "image/png")).resolves.toBe(fileSha(bytes));
+    expect(cell.uploads).toStrictEqual([fileSha(bytes)]);
+  });
+
   it.each([
     ["signed-out", new UnauthorizedError()],
     ["gone", new AccountGoneError()],
