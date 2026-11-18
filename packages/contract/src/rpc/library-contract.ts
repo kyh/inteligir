@@ -12,6 +12,7 @@ import { z } from "zod";
 import { propertyOpSchema } from "../library/field-ops";
 import { importedFieldsSchema, libraryItemFieldsSchema } from "../library/library-item";
 import { storableBlockSchema } from "../library/library-nodes";
+import { listingSortSchema } from "../library/listing-sort";
 
 import {
   AgentBudgetError,
@@ -48,7 +49,6 @@ import {
   folderRowSchema,
   listedItemSchema,
   listingPageInputSchema,
-  listingSortSchema,
   MARKDOWN_MAX,
   MESSAGE_MAX,
   newIdSchema,
@@ -116,6 +116,9 @@ const saveLinkInputSchema = z.strictObject({
   url: FIELDS.url.unwrap(),
 });
 const deleteInputSchema = z.strictObject({ ids, opId });
+
+// what an organize answers, and what the cell keeps under its op id to answer a resend
+export const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 
 // tags, folder, pin and title for the items a call names by id
 const organizeInputSchema = z.strictObject({
@@ -351,7 +354,7 @@ const itemsContract = {
         path: ["title"],
       }),
     )
-    .output(z.object({ items: z.array(itemSummarySchema) })),
+    .output(organizedSchema),
 
   // to Deleted, where an item can be restored
   delete: signedBase

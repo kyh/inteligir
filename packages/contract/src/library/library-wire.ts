@@ -15,6 +15,7 @@ import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
+import { listingSortSchema } from "./listing-sort";
 
 // ---- ids, times and counters ----
 
@@ -216,8 +217,6 @@ export const editRefusalSchema = z.discriminatedUnion("kind", [
 
 const itemKindSchema = z.enum(ITEM_KINDS);
 
-// the orders a list is browsed in: newest saved, last changed, or by title
-export const listingSortSchema = z.enum(["saved", "modified", "title"]);
 export const kindsSchema = z.array(itemKindSchema).min(1);
 
 // a page of the items a scope lists, from `cursor`, narrowed to `kinds`: in the `sort` order, or

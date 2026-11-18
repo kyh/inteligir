@@ -16,10 +16,10 @@ import type {
   itemSummarySchema,
   listedItemSchema,
   listingPageInputSchema,
-  listingSortSchema,
   sweptSchema,
   tagCountSchema,
 } from "./library-wire";
+import { listingSortSchema } from "./listing-sort";
 import { FolderRail } from "./folder-rail";
 import type { ListingFolder } from "./folder-rail";
 import { compareText } from "./order-key";
@@ -134,7 +134,7 @@ export class LibraryIndex<R extends ListingRow> {
       this.sorted.clear();
       return;
     }
-    for (const sort of ["saved", "modified", "title"] as const) {
+    for (const sort of listingSortSchema.options) {
       if (bySort(prior, row, sort) !== 0) {
         this.dropSort(sort);
       }

@@ -1,5 +1,6 @@
 // CLAUDE.md § What the tab remembers is a field of a persisted store
 
+import { listingSortSchema } from "@repo/contract/library/listing-sort";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
@@ -67,8 +68,8 @@ const paneWidth = z
   .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px))));
 
 // the orders the grid offers; a search ranks, so it takes none of them
-export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
-export type LibrarySort = (typeof LIBRARY_SORTS)[number];
+export const LIBRARY_SORTS = listingSortSchema.options;
+export type LibrarySort = z.infer<typeof listingSortSchema>;
 
 // the device's, so a change in one window reaches every other
 export const devicePrefs = persisted(
@@ -85,7 +86,7 @@ export const devicePrefs = persisted(
 export const windowLayout = persisted(
   "inteligir.layout",
   z.object({
-    librarySort: field(z.enum(LIBRARY_SORTS), "saved"),
+    librarySort: field(listingSortSchema, "saved"),
     // closed until asked for: the open item's panel button or an ask of the agent opens it
     panelOpen: field(z.boolean(), false),
     // the right panel is the same primitive as the rail, dragged by the same handle

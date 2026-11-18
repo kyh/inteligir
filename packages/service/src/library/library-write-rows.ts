@@ -4,11 +4,8 @@
 // when it names one, and every refusal as the error its row declares (`./library-access`).
 
 import { noteFields } from "@repo/contract/library/item-makes";
-import {
-  bodyWriteSchema,
-  folderRowSchema,
-  itemSummarySchema,
-} from "@repo/contract/library/library-wire";
+import { bodyWriteSchema, folderRowSchema } from "@repo/contract/library/library-wire";
+import { organizedSchema } from "@repo/contract/rpc/library-contract";
 import { TooManyRequestsError } from "@repo/contract/rpc/v1-errors";
 import { z } from "zod";
 
@@ -39,7 +36,6 @@ import { landedSchema, landPropertyOps } from "./library-writes";
 const ids = z.array(z.string());
 const changedSchema = z.object({ addressHeld: ids, changed: ids, missing: ids });
 const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
-const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 const purgedSchema = z.object({ missing: ids, purged: ids });
 
 export const libraryWriteRows = {

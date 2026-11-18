@@ -24,10 +24,10 @@ import type { bodyWriteSchema, folderOpSchema, listedItemSchema } from "../libra
 import {
   BODY_MAX_BYTES,
   folderRowSchema,
-  itemSummarySchema,
   liveItemRowSchema,
   threadEventRowSchema,
 } from "../library/library-wire";
+import { organizedSchema } from "../rpc/library-contract";
 import { v1Contract, V1_RPC_PATH } from "../rpc/v1-contract";
 import type { V1Client } from "../rpc/v1-contract";
 import {
@@ -489,7 +489,6 @@ export const createFakeCell = (): FakeCell => {
   const landedSchema = z.object({ item: liveItemRowSchema });
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
   const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
-  const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
   const deletedSchema = z.object({ deleted: z.array(z.string()), missing: z.array(z.string()) });
   const restoredSchema = z.object({
     addressHeld: z.array(z.string()),

@@ -11,6 +11,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { ListingFolder } from "@repo/contract/library/folder-rail";
 import { LibraryIndex, scopeFilter } from "@repo/contract/library/library-index";
 import type { ListingPage, ListingQuery, ListingRow } from "@repo/contract/library/library-index";
+import { listingSortSchema } from "@repo/contract/library/listing-sort";
 import { compareText } from "@repo/contract/library/order-key";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
@@ -162,7 +163,6 @@ const query = (overrides: Partial<ListingQuery>): ListingQuery => ({
   ...overrides,
 });
 
-const SORTS = ["saved", "modified", "title"] as const;
 const KIND_FILTERS = [undefined, ["note"], ["link", "pdf", "image"]] as const;
 
 dbSuite("the SQL listing beside the library model's", () => {
@@ -191,7 +191,7 @@ dbSuite("the SQL listing beside the library model's", () => {
         })),
       ];
       for (const scope of scopes) {
-        for (const sort of SORTS) {
+        for (const sort of listingSortSchema.options) {
           for (const kinds of KIND_FILTERS) {
             await expectAlike(
               query({ ...scopeFilter(scope), kinds, order: { by: sort } }),
@@ -201,7 +201,7 @@ dbSuite("the SQL listing beside the library model's", () => {
         }
       }
 
-      for (const sort of SORTS) {
+      for (const sort of listingSortSchema.options) {
         for (let offset = 0; ; offset += 37) {
           const facts = await expectAlike(
             query({ limit: 37, offset, order: { by: sort } }),
