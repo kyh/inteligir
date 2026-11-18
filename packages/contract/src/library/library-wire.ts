@@ -309,6 +309,8 @@ export const itemReadSchema = z.object({
     ]),
     savedAt: isoInstant,
     site: z.string().nullable(),
+    // the item's own tags, those an organize adds and removes, and not a `#tag` its text holds,
+    // which a summary's tags name too: no organize takes one out of the text
     tags: z.array(z.string()),
     title: z.string(),
     url: z.string().nullable(),

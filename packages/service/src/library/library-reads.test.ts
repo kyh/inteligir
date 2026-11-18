@@ -133,6 +133,26 @@ dbSuite("what the library answers a read of one item", () => {
     }
   });
 
+  it("answers the item's own tags, the ones an organize takes out, where its summary names its text's too", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { id } = await seedItem(accountId, {
+      blocks: lines("Plant the #beans in spring."),
+      fields: noteFixture({ savedAt: SAVED_AT, tags: ["garden"], title: "Beans" }),
+    });
+    await expect(library.items.read({ id })).resolves.toMatchObject({
+      fields: { tags: ["garden"] },
+      view: { markdown: "Plant the #beans in spring.\n" },
+    });
+    await expect(library.items.list({})).resolves.toMatchObject({
+      items: [{ id, tags: ["beans", "garden"] }],
+    });
+    await library.items.organize({ ids: [id], removeTags: ["garden", "beans"] });
+    await expect(library.items.read({ id })).resolves.toMatchObject({ fields: { tags: [] } });
+    await expect(library.items.list({})).resolves.toMatchObject({
+      items: [{ id, tags: ["beans"] }],
+    });
+  });
+
   it("writes a page link under its item's title as it stands, and names the items linking in and out", async () => {
     const { accountId, library } = await personalLibrary();
     const renamed = await seedItem(accountId, { fields: noteFixture({ title: "New name" }) });

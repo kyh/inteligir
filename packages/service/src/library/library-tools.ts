@@ -91,7 +91,7 @@ export const libraryTools = {
         _meta: { "anthropic/maxResultSizeChars": 100_000 },
         annotations: READ,
         description:
-          "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [Title](mention:id).",
+          "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [Title](mention:id). Its tags are those organize_items adds and removes; a #tag written in its text, which list_items also names among an item's tags, changes only by edit_item.",
         name: "read_item",
         title: "Read an item",
       }),
