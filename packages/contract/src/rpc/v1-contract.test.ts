@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { utf8ByteLength } from "../library/canonical-json";
 import type { BodyBlock } from "../library/derive-item";
-import { BODY_MAX_BYTES, liveItemRowSchema } from "../library/library-wire";
+import { BODY_MAX_BYTES, itemReadSchema, liveItemRowSchema } from "../library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
 import { V1_CUSTOM_ERROR_STATUS, V1_ERROR_STATUS_MAP } from "./v1-errors";
@@ -335,6 +335,15 @@ describe("the library's wire", () => {
       later: true,
     });
     expect(parsed).toStrictEqual(row);
+  });
+
+  it("says when an item's page was read, as the item's own reading always does", () => {
+    const { reading } = itemReadSchema.shape.fields.shape;
+    const at = "2026-10-01T00:00:00.000Z";
+    expect(reading.validate({ at: null, state: "read" })).toBe(false);
+    expect(reading.validate({ at, state: "read" })).toBe(true);
+    expect(reading.validate({ at: null, state: "pending" })).toBe(true);
+    expect(reading.validate({ at: null, error: "Timed out.", state: "failed" })).toBe(true);
   });
 
   // a Vercel function takes 4.5 MB in a request (vercel.com/docs/functions/limitations), the call

@@ -134,6 +134,29 @@ const linkingTo = async (db: DbExecutor, accountId: string, target: StoredItem) 
       ),
     );
 
+// where its page reading stands, its times as instants
+const readingOf = (reading: StoredItem["fields"]["reading"]): ItemRead["fields"]["reading"] => {
+  switch (reading.state) {
+    case "none": {
+      return reading;
+    }
+    case "pending": {
+      return { at: reading.at === null ? null : isoOf(reading.at), state: reading.state };
+    }
+    case "read": {
+      return { at: isoOf(reading.at), state: reading.state };
+    }
+    case "failed": {
+      return {
+        at: reading.at === null ? null : isoOf(reading.at),
+        error: reading.error,
+        state: reading.state,
+      };
+    }
+    // no default
+  }
+};
+
 // the item's markdown from its body's blocks, a page of them, beside the items it links with
 export const readItemView = async (
   db: DbExecutor,
@@ -155,7 +178,6 @@ export const readItemView = async (
   );
   const into = await linkingTo(db, accountId, stored);
   const { fields } = stored;
-  const { reading } = fields;
   const detailed = input.responseFormat === "detailed";
   return {
     fields: {
@@ -168,10 +190,7 @@ export const readItemView = async (
       pinned: fields.pinnedAt !== null,
       properties: detailed ? fields.properties : undefined,
       published: fields.published,
-      reading:
-        reading.state === "none"
-          ? reading
-          : { ...reading, at: reading.at === null ? null : isoOf(reading.at) },
+      reading: readingOf(fields.reading),
       savedAt: isoOf(fields.savedAt),
       site: fields.site,
       tags: fields.tags,

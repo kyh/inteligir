@@ -303,7 +303,8 @@ export const itemReadSchema = z.object({
     // where a link's page reading stands: `pending` until the library reads it, `failed` with why
     reading: z.discriminatedUnion("state", [
       z.object({ state: z.literal("none") }),
-      z.object({ at: isoInstant.nullable(), state: z.enum(["pending", "read"]) }),
+      z.object({ at: isoInstant.nullable(), state: z.literal("pending") }),
+      z.object({ at: isoInstant, state: z.literal("read") }),
       z.object({ at: isoInstant.nullable(), error: z.string(), state: z.literal("failed") }),
     ]),
     savedAt: isoInstant,

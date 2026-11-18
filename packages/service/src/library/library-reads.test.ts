@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { stubFields } from "@repo/contract/library/item-makes";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { itemReadSchema } from "@repo/contract/library/library-wire";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import { dbSuite } from "@repo/db/test-database";
@@ -93,6 +96,41 @@ dbSuite("what the library answers a read of one item", () => {
     await expect(library.items.read({ id })).resolves.toMatchObject({
       fields: { deletedAt: new Date(SAVED_AT + 1).toISOString() },
     });
+  });
+
+  it("says where a link's reading stands, when it was read or tried as an instant", async () => {
+    const { accountId, library } = await personalLibrary();
+    const iso = new Date(SAVED_AT + 1).toISOString();
+    const readings: [LibraryItemFields["reading"], unknown][] = [
+      [{ state: "none" }, { state: "none" }],
+      [
+        { at: null, state: "pending" },
+        { at: null, state: "pending" },
+      ],
+      [
+        { at: SAVED_AT + 1, state: "pending" },
+        { at: iso, state: "pending" },
+      ],
+      [
+        { at: SAVED_AT + 1, state: "read" },
+        { at: iso, state: "read" },
+      ],
+      [
+        { at: null, error: "Timed out.", state: "failed" },
+        { at: null, error: "Timed out.", state: "failed" },
+      ],
+    ];
+    for (const [reading, read] of readings) {
+      const fields = stubFields({
+        folderId: null,
+        savedAt: SAVED_AT,
+        tags: [],
+        url: `https://example.com/${randomUUID()}`,
+      });
+      const { id } = await seedItem(accountId, { fields: { ...fields, reading } });
+      const answer = await library.items.read({ id });
+      expect(itemReadSchema.parse(answer).fields.reading).toStrictEqual(read);
+    }
   });
 
   it("writes a page link under its item's title as it stands, and names the items linking in and out", async () => {
