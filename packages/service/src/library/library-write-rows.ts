@@ -55,7 +55,8 @@ export const libraryWriteRows = {
   // library's room and a request of its store, which a grant that only reads may not
   files: {
     reserve: writing.files.reserve.handler(async ({ context, input }) => {
-      if (!(await spendHolderBudget("fileReserve", context.library.accountId))) {
+      const spent = await spendHolderBudget("fileReserve", context.library.accountId);
+      if (spent.kind === "refused") {
         throw new TooManyRequestsError();
       }
       return answer(await reserveFile(context.library, input));

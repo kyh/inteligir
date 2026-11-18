@@ -1,11 +1,14 @@
 // `/v1` as every client calls it, and what a call that did not land met, in a client's terms: a
 // refusal of the sign-in itself (the credential, the account, this build), a budget to wait out, or
-// no answer at all, beside each procedure's own refusals, which its caller reads. A file's bytes
-// go to the store between two calls, and a store that refused them reads as no answer. What a call
-// made of the save it carried is one reading for every host that keeps a save (`CallOutcome`).
+// no answer at all, beside each procedure's own refusals, which its caller reads. A busy answer
+// naming its wait is waited out and the call sent again before its caller hears of it. A file's
+// bytes go to the store between two calls, and a store that refused them reads as no answer. What
+// a call made of the save it carried is one reading for every host that keeps a save
+// (`CallOutcome`).
 
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { RetryAfterLinkPlugin } from "@orpc/client/plugins";
 
 import { refusalText } from "./refusal-text";
 import { V1_RPC_PATH } from "./v1-contract";
@@ -62,7 +65,9 @@ export const sessionEndOf = (cause: unknown): SessionEnd | null => {
 };
 
 // the cell's calls over the transport; the link hears every call's failure once, before its
-// caller does, so a sign-in the cloud ended is answered whichever call met it
+// caller does, so a sign-in the cloud ended is answered whichever call met it. A session's spent
+// minute names the seconds until the next (`retry-after`), which the link waits out, so a long
+// run of calls, an import's, goes on past it rather than ending
 export const v1Client = (
   transport: V1Transport,
   onSessionEnd?: (end: SessionEnd) => void,
@@ -79,6 +84,7 @@ export const v1Client = (
         }),
       ],
       origin: transport.origin,
+      plugins: [new RetryAfterLinkPlugin()],
       url: V1_RPC_PATH,
     }),
   );

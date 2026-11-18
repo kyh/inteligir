@@ -1,9 +1,10 @@
 // A zip of markdown read into the library, an earlier version's notes or an Obsidian vault, by the
-// codec's plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each
-// note's frontmatter and sends every file up by its sha, a few at once; the cell says how each
-// planned note stands; pass two reads each new note whole and lands it; last, every file no item
-// names becomes an item of its own. An item's id comes from the zip's listing and its path, so
-// reading the same zip again lands nothing twice.
+// codec's plan (`@repo/editor/headless/codec/import-plan`): first each file is hashed and the cell
+// asked which a live item names, which the library holds already; pass one lists the zip, keeps
+// each note's frontmatter and sends every other file up by its sha, a few at once; the cell says
+// how each planned note stands; pass two reads each new note whole and lands it; last, every file
+// no item names becomes an item of its own. An item's id comes from the zip's listing and its path,
+// so reading the same zip again lands nothing twice, and sends up no file again an item holds.
 
 import { dirnamePath } from "@repo/contract/knowledge/folder-path";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
@@ -40,8 +41,7 @@ export const NOT_A_ZIP =
 const NOTE_MAX_BYTES = 1024 * 1024;
 
 // pass one reads and keeps this many paths at once, so one file's round trips overlap another's;
-// few, since each holds its bytes, up to BLOB_MAX_BYTES, until it is kept, and each keep spends the
-// session's budget of /v1 calls, which a resumed import spends again on every file
+// few, since each holds its bytes, up to BLOB_MAX_BYTES, until it is kept
 export const PATHS_AT_ONCE = 3;
 
 const encoder = new TextEncoder();
@@ -90,6 +90,10 @@ const bytesOf = async (entry: FileEntry): Promise<Uint8Array<ArrayBuffer> | null
   }
 };
 
+// a file's bytes, or null for one past what the library keeps
+const fileBytesOf = async (entry: FileEntry): Promise<Uint8Array<ArrayBuffer> | null> =>
+  entry.uncompressedSize > BLOB_MAX_BYTES ? null : await bytesOf(entry);
+
 const textOf = async (entry: FileEntry): Promise<string | null> => {
   const bytes = await bytesOf(entry);
   return bytes === null ? null : decoder.decode(bytes);
@@ -100,9 +104,32 @@ const frontmatterOf = (text: string): string => {
   return lines.slice(0, frontmatterEnd(lines) ?? 0);
 };
 
-// pass one's reading of a path: a note's frontmatter, or a file kept by its sha
+// the sha of each of the zip's files a live item names, by its path: the library holds those, so
+// the import sends them up no more, though it reads each other file twice, once to hash it
+const heldFiles = async (
+  cell: ImportCell,
+  listing: readonly Listed[],
+): Promise<ReadonlyMap<string, string>> => {
+  const files = listing.filter(({ path }) => importPathKind(path) === "file");
+  const hashed = await inPool(files, PATHS_AT_ONCE, async ({ entry, path }) => {
+    const bytes = await fileBytesOf(entry);
+    return bytes === null ? [] : [{ path, sha: fileSha(bytes) }];
+  });
+  const shas = hashed.flat();
+  const named = new Set(
+    await inChunks([...new Set(shas.map(({ sha }) => sha))], async (chunk) => {
+      const answer = await cell.named(chunk);
+      return answer.named;
+    }),
+  );
+  return new Map(shas.flatMap(({ path, sha }) => (named.has(sha) ? [[path, sha]] : [])));
+};
+
+// pass one's reading of a path: a note's frontmatter, or a file by its sha, kept unless the library
+// holds it
 const readListed = async (
   cell: ImportCell,
+  held: ReadonlyMap<string, string>,
   { entry, path }: Listed,
 ): Promise<ImportEntry | "skipped" | "unreadable"> => {
   const kind = importPathKind(path);
@@ -115,7 +142,11 @@ const readListed = async (
       return text === null ? "unreadable" : { kind, path, text: frontmatterOf(text) };
     }
     case "file": {
-      const bytes = entry.uncompressedSize > BLOB_MAX_BYTES ? null : await bytesOf(entry);
+      const heldSha = held.get(path);
+      if (heldSha !== undefined) {
+        return { kind, path, sha: heldSha };
+      }
+      const bytes = await fileBytesOf(entry);
       const sha = bytes === null ? null : await cell.keep(bytes, fileTypeOf(path));
       return sha === null ? "unreadable" : { kind, path, sha };
     }
@@ -153,9 +184,11 @@ export const readMarkdownZip = async (
   const ids: PlanIds = { newItemId: (path) => importItemId(fingerprint, path) };
   const entries: ImportEntry[] = [];
   const notes = new Map<string, FileEntry>();
-  const reads = await inPool(unwrapExport(listing), PATHS_AT_ONCE, async (listed) => ({
+  const unwrapped = unwrapExport(listing);
+  const held = await heldFiles(cell, unwrapped);
+  const reads = await inPool(unwrapped, PATHS_AT_ONCE, async (listed) => ({
     entry: listed.entry,
-    read: await readListed(cell, listed),
+    read: await readListed(cell, held, listed),
   }));
   for (const { entry, read } of reads) {
     if (read === "unreadable") {

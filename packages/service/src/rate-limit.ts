@@ -64,11 +64,19 @@ export const callerRateKey = (family: CallerRateFamily, request: Request): strin
 export const holderRateKey = (family: HolderRateFamily, holderId: string): string =>
   `${HOLDER_RATE_KEY_PREFIXES[family]}${holderId}`;
 
+// what a spend met: room in its window, or a window spent, and the whole seconds until the next
+// opens, which a refusal names as its `retry-after`
+type BudgetSpend =
+  | { readonly kind: "allowed" }
+  | { readonly kind: "refused"; readonly retryAfterSeconds: number };
+
+const ALLOWED: BudgetSpend = { kind: "allowed" };
+
 // one upsert: a read-then-write limiter lets N concurrent requests read one count and all pass, so
 // the count is read from the write itself
-const allowInWindow = async (key: string, window: RateWindow): Promise<boolean> => {
+const allowInWindow = async (key: string, window: RateWindow): Promise<BudgetSpend> => {
   if (env.RATE_LIMIT_DISABLED) {
-    return true;
+    return ALLOWED;
   }
   const nowMs = Date.now();
   const lapsed = sql`${nowMs} - ${rateLimit.lastRequest} > ${window.windowMs}`;
@@ -82,17 +90,24 @@ const allowInWindow = async (key: string, window: RateWindow): Promise<boolean> 
       },
       target: rateLimit.key,
     })
-    .returning({ count: rateLimit.count });
+    .returning({ count: rateLimit.count, opened: rateLimit.lastRequest });
   // the count climbs past max inside a spent window and resets when the next opens
-  return settled === undefined || settled.count <= window.max;
+  if (settled === undefined || settled.count <= window.max) {
+    return ALLOWED;
+  }
+  // the window shuts through its last millisecond, so the next opens the one after
+  const untilOpen = settled.opened + window.windowMs + 1 - nowMs;
+  return { kind: "refused", retryAfterSeconds: Math.max(1, Math.ceil(untilOpen / 1000)) };
 };
 
 export const spendCallerBudget = async (
   family: CallerRateFamily,
   request: Request,
-): Promise<boolean> => await allowInWindow(callerRateKey(family, request), RATE_WINDOWS[family]);
+): Promise<BudgetSpend> =>
+  await allowInWindow(callerRateKey(family, request), RATE_WINDOWS[family]);
 
 export const spendHolderBudget = async (
   family: HolderRateFamily,
   holderId: string,
-): Promise<boolean> => await allowInWindow(holderRateKey(family, holderId), RATE_WINDOWS[family]);
+): Promise<BudgetSpend> =>
+  await allowInWindow(holderRateKey(family, holderId), RATE_WINDOWS[family]);

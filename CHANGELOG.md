@@ -204,6 +204,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Deleting an account with many files goes through the first time**: its files go from our cloud within a day after, a batch at a time.
 - **Deleting your account ends the built-in agent's session of each conversation at once.**
 - **What an assistant registered is forgotten a day after it registered or you last disconnected it, once no account has it connected**: one you disconnect connects again that day as it is; after that, if connecting it fails, remove the connector in your assistant and add it again.
+- **An import of a folder of more than about a thousand files goes on to its end**, where it stopped partway, and choosing the same file again sends up none of the files your library already has; when you ask more of your library in a minute than it takes, the window, the apps and the extension wait the moment out rather than saying it can't be reached.
 - **An import of notes written in Chinese, Japanese, Korean or emoji no longer stops partway**: a note too long to be one item is counted under "couldn't be read" and the rest come in.
 - **inteligir.com's pages hold still as they load**: the text no longer jumps when the font arrives, the library's title bar stands before its items do, and a sign-in error no longer moves the form.
 - **Password changed says what happened**: every device and browser that was signed in is signed out.

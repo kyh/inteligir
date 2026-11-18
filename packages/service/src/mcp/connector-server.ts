@@ -278,9 +278,10 @@ export const handleConnectorRequest = async (request: Request): Promise<Response
     });
   }
   const { principal } = authenticated;
-  if (!(await spendHolderBudget("connectorCall", principal.actor.grantId))) {
+  const spent = await spendHolderBudget("connectorCall", principal.actor.grantId);
+  if (spent.kind === "refused") {
     return jsonRpcError(429, "Too many requests. Try again in a minute.", {
-      headers: { "retry-after": "60" },
+      headers: { "retry-after": String(spent.retryAfterSeconds) },
     });
   }
   if (!isJsonContentType(request.headers.get("content-type"))) {

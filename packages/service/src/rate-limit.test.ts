@@ -1,5 +1,6 @@
 // The app's windows on Better Auth's rate_limit table: each spend one upsert, so concurrent ones
-// count exactly, a window that lapsed opens afresh, and RATE_LIMIT_DISABLED counts nothing.
+// count exactly, a spent window names the seconds until it opens, a window that lapsed opens
+// afresh, and RATE_LIMIT_DISABLED counts nothing.
 
 import { randomUUID } from "node:crypto";
 
@@ -21,10 +22,15 @@ const countOf = async (key: string): Promise<number | undefined> => {
   return row?.count;
 };
 
+const allowed = async (holderId: string): Promise<boolean> => {
+  const spent = await spendHolderBudget("accountDelete", holderId);
+  return spent.kind === "allowed";
+};
+
 const spendTimes = async (holderId: string, times: number): Promise<boolean[]> => {
   const spent = [];
   for (let spend = 0; spend < times; spend += 1) {
-    spent.push(await spendHolderBudget("accountDelete", holderId));
+    spent.push(await allowed(holderId));
   }
   return spent;
 };
@@ -41,10 +47,7 @@ dbSuite("a window", () => {
     const spends = 8 * max;
 
     const spent = await Promise.all(
-      Array.from(
-        { length: spends },
-        async () => await spendHolderBudget("accountDelete", holderId),
-      ),
+      Array.from({ length: spends }, async () => await allowed(holderId)),
     );
 
     expect(spent.filter(Boolean)).toHaveLength(max);
@@ -61,7 +64,7 @@ dbSuite("a window", () => {
     ]);
 
     vi.setSystemTime(opened + windowMs);
-    await expect(spendHolderBudget("accountDelete", holderId)).resolves.toBe(false);
+    await expect(allowed(holderId)).resolves.toBe(false);
 
     vi.setSystemTime(opened + windowMs + 1);
     await expect(spendTimes(holderId, max + 1)).resolves.toStrictEqual([
@@ -70,11 +73,33 @@ dbSuite("a window", () => {
     ]);
   });
 
+  it("names the whole seconds until it opens, never fewer", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const opened = Date.now();
+    const holderId = randomUUID();
+    await spendTimes(holderId, max);
+
+    await expect(spendHolderBudget("accountDelete", holderId)).resolves.toStrictEqual({
+      kind: "refused",
+      retryAfterSeconds: windowMs / 1000 + 1,
+    });
+    vi.setSystemTime(opened + windowMs - 1500);
+    await expect(spendHolderBudget("accountDelete", holderId)).resolves.toStrictEqual({
+      kind: "refused",
+      retryAfterSeconds: 2,
+    });
+    vi.setSystemTime(opened + windowMs);
+    await expect(spendHolderBudget("accountDelete", holderId)).resolves.toStrictEqual({
+      kind: "refused",
+      retryAfterSeconds: 1,
+    });
+  });
+
   it("counts each holder apart", async () => {
     const spent = randomUUID();
     await spendTimes(spent, max + 1);
 
-    await expect(spendHolderBudget("accountDelete", randomUUID())).resolves.toBe(true);
+    await expect(allowed(randomUUID())).resolves.toBe(true);
   });
 
   it("counts nothing while RATE_LIMIT_DISABLED is true", async () => {
@@ -84,7 +109,9 @@ dbSuite("a window", () => {
     const holderId = randomUUID();
 
     for (let spend = 0; spend <= max; spend += 1) {
-      await expect(disabled.spendHolderBudget("accountDelete", holderId)).resolves.toBe(true);
+      await expect(disabled.spendHolderBudget("accountDelete", holderId)).resolves.toStrictEqual({
+        kind: "allowed",
+      });
     }
     await expect(countOf(holderRateKey("accountDelete", holderId))).resolves.toBeUndefined();
   });
