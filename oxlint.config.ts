@@ -113,6 +113,12 @@ export default defineConfig({
       },
     },
     {
+      // eve names a tool after its file, and its built-in search and fetch fill only their own
+      // snake_case slots; a disable directive can't reach a rule about the file's path
+      files: ["apps/web/agent/tools/web_fetch.ts", "apps/web/agent/tools/web_search.ts"],
+      rules: { "unicorn/filename-case": "off" },
+    },
+    {
       // Playwright reads a fixture's needs from its `{}` destructure, and its `use` is no React hook
       files: ["tools/e2e/**"],
       rules: { "no-empty-pattern": "off", "react-hooks/rules-of-hooks": "off" },

@@ -202,6 +202,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
             APP_URL: origin,
             BETTER_AUTH_SECRET: "e2e-better-auth-secret-000000000000",
             EMAIL_MODE: "log",
+            // An origin of its own starts no agent beside the app: `next build` writes the agent's
+            // one port into its rewrite, which workers on one build can't each listen on. The
+            // agent's flows wait in PENDING until each worker runs an agent of its own.
+            EVE_NEXT_PRODUCTION_ORIGIN: "http://127.0.0.1:4274",
             // the worker's own folder of files, which its uploads go to on the app's own origin
             FILE_STORE_DIR: path.join(project.outputDir, `files-${String(workerIndex)}`),
             HOME: process.env.HOME,

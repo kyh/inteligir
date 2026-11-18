@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withEve } from "eve/next";
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -53,9 +54,13 @@ const config: NextConfig = {
     await Promise.resolve([{ destination: LIBRARY_PAGE_PATH, permanent: false, source: "/app" }]),
   turbopack: {
     resolveAlias: { "decode-named-character-reference": { browser: NAMED_REFERENCES_TABLE } },
-    // Vite's `?raw`, which Turbopack has no built-in for: the legal pages import their docs' text
+    // Vite's `?raw`, which Turbopack has no built-in for: the legal pages import their docs' text,
+    // and the built-in agent's prompt its files (@repo/service/agent/agent-prompt)
     rules: { "*": { condition: { query: "?raw" }, type: "text" } },
   },
 };
 
-export default config;
+// outermost, as eve's own wrapper: off Vercel it serves the agent (apps/web/agent) under /eve/v1
+// from eve's build, on EVE_NEXT_PRODUCTION_PORT, which `next build` writes into its rewrite, so
+// build and start name one port
+export default withEve(config);

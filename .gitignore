@@ -25,6 +25,8 @@ apps/web/public/licenses.md
 # build output
 dist/
 .output/
+# eve's build and its local runs' workflow data (apps/web/agent)
+.eve/
 # wxt's generated types and tsconfig (apps/extension), written by `wxt prepare`
 .wxt/
 

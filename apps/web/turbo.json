@@ -4,8 +4,10 @@
   "tasks": {
     "build": {
       // the licences page is gitignored, so a cache hit that left it out would serve a 404
+      // eve's build is the agent `next start` serves
       "outputs": [
         ".next/**",
+        ".output/**",
         "!.next/cache/**",
         "!.next/dev/**",
         "next-env.d.ts",

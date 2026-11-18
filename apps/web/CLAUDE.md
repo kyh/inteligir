@@ -44,6 +44,11 @@ routes over `@repo/service`. The cloud's decisions are
   and the canonical site everywhere else.** A preview that named the site
   would send an agent, and what the preview handed it, there.
   `packages/service/src/app-url.ts`.
+- **The built-in agent is eve's folder `apps/web/agent`, mounted by `withEve`
+  outermost in `next.config.ts`, and the build runs `eve build` before `next
+  build`.** Off Vercel `next start` serves eve's build on
+  `EVE_NEXT_PRODUCTION_PORT` (4274 unset), which `next build` writes into its
+  rewrite, so build and start name one port. `apps/web/next.config.ts`.
 - **The licences page is written at prebuild from pnpm's list of every
   production package the site's workspace reaches.** Turbopack has no
   counterpart of Vite's `build.license`, so the list over-includes what only

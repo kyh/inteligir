@@ -413,21 +413,21 @@ On production's `/connector`, signed in to an account there.
 ### The built-in agent
 
 Production has its own AI Gateway and Anthropic workspace. An account has two
-turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
+turns a UTC day (`AGENT_DAY_TURNS` in `packages/service/src/agent/agent-limits.ts`).
 
 - **The gateway**: it holds its own key, with Authenticated Gateway on, no
   payload logs and a spend limit of $5 a day split by the `account` metadata
-  key; its Anthropic workspace is separate and capped; `AGENT_GATEWAY_URL` is
-  its Anthropic route.
+  key; its Anthropic workspace is separate and capped; the deployment reaches
+  it by the project's OIDC token, and Vercel Workflow runs eve's sessions.
 - **A real turn**, open in a tab and the Mac at once: events
   stream, the conversation follows the reply to its end and the reply does not
   blink as it lands, one change set, Undo keeps a note you typed in since, the allowance
   counts, and cache reads show.
 - **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
   spent per-account limit ends it as the day's allowance.
-- **Real-model behaviour**: a declined turn finishes on the fallback; approvals
-  allow, deny and time out; Tidy my library follows the rules; the agent writes
-  the dialect.
+- **Real-model behaviour**: a declined turn finishes on the fallback; a search
+  cites its pages and a page read answers from it; Tidy my library follows the
+  rules; the agent writes the dialect.
 - **Across deploys**: a prompt change between two turns is taken up, and a long
   conversation compacts and goes on after a pause and a deploy.
 - **A link the agent saves from a hostile page** waits for the seal

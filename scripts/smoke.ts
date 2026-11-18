@@ -225,7 +225,12 @@ const LEGS: readonly Leg[] = [
       }
     },
   },
-  { label: "/eve/v1/health answers 200", skip: "waits for the agent on eve" },
+  {
+    label: "the built-in agent answers /eve/v1/health",
+    run: async () => {
+      await expectStatus(await request("/eve/v1/health"), 200, "/eve/v1/health");
+    },
+  },
   { label: "/api/cron/jobs refuses a call without its secret, 401", skip: "waits for the crons" },
   {
     label: "a build below the floor is refused with 426",
