@@ -1,5 +1,5 @@
 // `/v1`'s one wire, `/v1/rpc` (`@repo/contract/rpc/v1-contract`): every call is admitted first
-// (`./admit`), before anything reads its path or body, then served by the rows routed so far, with
+// (`./admit`), before anything reads its path or body, then served by the contract's rows, with
 // oRPC's default methods (no GET, so nothing a call carries rides a URL).
 
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
@@ -19,12 +19,13 @@ import { logUnhandled } from "../log";
 import { accountRouter } from "./account-router";
 import { admit } from "./admit";
 import { libraryRouter } from "./library-router";
+import { os } from "./orpc";
 import type { RpcContext } from "./orpc";
 import { logRpcFailure } from "./rpc-log";
 import { rpcFault, rpcRefusal } from "./rpc-refusal";
 
-// every contract row this serves; ./unrouted.test.ts names the rest
-export const v1Router = { account: accountRouter, library: libraryRouter };
+// every row the contract declares, which `os.router` refuses to build short of one
+const v1Router = os.router({ account: accountRouter, library: libraryRouter });
 
 type HandlerPlugins = NonNullable<RPCHandlerOptions<RpcContext>["plugins"]>;
 

@@ -127,10 +127,9 @@ decisions port with its code from the tag `cloudflare-last`.
   extension reaches the site under its host permission, and an origin allowed
   to send `expo-origin` would hold the phone's door.
   `packages/service/src/rpc/admit.ts`.
-- **The router grows by area, and a suite names the contract's rows not served
-  yet.** `os.router(v1Contract)` compiles only once every row is there; the list
-  shrinks as each area lands, and goes with the last.
-  `packages/service/src/rpc/unrouted.test.ts`.
+- **`/v1/rpc` serves the whole contract, built by `os.router`.** It compiles
+  only once every row is there, so a row the contract gains is served or the
+  build fails. `packages/service/src/rpc/v1-rpc.ts`.
 
 ## The library
 
