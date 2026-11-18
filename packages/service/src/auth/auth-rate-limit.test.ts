@@ -18,6 +18,8 @@ const ATTEMPT_CAP = 20;
 // ./auth.ts's window for every route, and Better Auth's own stricter one for a sign-in
 const AUTH_MAX = 10;
 const SIGN_IN_MAX = 3;
+// ./oauth.ts's window for an assistant registering itself
+const REGISTER_MAX = 10;
 
 const signInFrom = async (callerIp: string): Promise<Response> =>
   await authPost(
@@ -29,6 +31,18 @@ const signInFrom = async (callerIp: string): Promise<Response> =>
 // a route under ./auth.ts's window alone, which answers with no session
 const signOutFrom = async (callerIp: string): Promise<Response> =>
   await authPost("/sign-out", { [CALLER_IP_HEADER]: callerIp, origin: ORIGIN });
+
+// an assistant registering itself, under ./oauth.ts's window
+const registerFrom = async (callerIp: string): Promise<Response> =>
+  await authFetch("/oauth2/register", {
+    body: JSON.stringify({
+      client_name: "Probe",
+      redirect_uris: ["https://probe.example/callback"],
+      token_endpoint_auth_method: "none",
+    }),
+    headers: { "content-type": "application/json", [CALLER_IP_HEADER]: callerIp },
+    method: "POST",
+  });
 
 const statusesOf = async (times: number, call: () => Promise<Response>): Promise<number[]> => {
   const statuses = [];
@@ -53,6 +67,12 @@ dbSuite("Better Auth's limiter", () => {
     await expect(
       statusesOf(AUTH_MAX + 1, async () => await signOutFrom("203.0.113.12")),
     ).resolves.toStrictEqual([...Array.from({ length: AUTH_MAX }, () => 200), 429]);
+  });
+
+  it("holds one address to 10 assistants registered an hour", async () => {
+    await expect(
+      statusesOf(REGISTER_MAX + 1, async () => await registerFrom("203.0.113.20")),
+    ).resolves.toStrictEqual([...Array.from({ length: REGISTER_MAX }, () => 201), 429]);
   });
 
   it("prunes the app's lapsed rows beside its own when one of its windows rolls over", async () => {
