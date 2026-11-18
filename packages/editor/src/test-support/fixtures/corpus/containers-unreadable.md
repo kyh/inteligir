@@ -1,11 +1,12 @@
 :::toggle draft
 not a toggle: the opener carries a word
 
-:::tabs
+::::tabs
 loose text before any panel
-=== A
+:::tab[A]
 x
 :::
+::::
 
 :::columns
 :::

@@ -1,8 +1,9 @@
-:::tabs
-=== One
+::::tabs
+:::tab[One]
 first
 
 > [!NOTE]
 > body
 
 :::
+::::

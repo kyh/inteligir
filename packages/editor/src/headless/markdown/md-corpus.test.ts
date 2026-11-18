@@ -44,6 +44,8 @@ const KEPT_BELOW_ALL = new Map([
 // the voids a file is written to hold, so its cases read and write those nodes, not text that spells
 // them; an escaped one is its text
 const VOIDS_HELD = new Map<string, readonly string[]>([
+  ["date-edges.md", [KEYS.date]],
+  ["date-only-paragraph.md", [KEYS.date]],
   ["escaped-constructs.md", []],
   ["list-soft-break-beside-void.md", [FORMULA_PILL_KEY, KEYS.mention]],
   ["soft-break-beside-void.md", [KEYS.date, FORMULA_PILL_KEY, KEYS.img, KEYS.mention]],

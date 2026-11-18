@@ -8,7 +8,8 @@ summary
 after
 :::
 
-:::tabs
-=== One
-\=== Two
+::::tabs
+:::tab[One]
+\:::tab[Two]
 :::
+::::
