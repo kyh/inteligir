@@ -1,8 +1,9 @@
 // A zip of markdown read into the library, this app's export or an Obsidian vault, by the codec's
-// plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each note's frontmatter and
-// sends every file up by its sha; the cell says how each planned note stands; pass two reads each
-// new note whole and lands it; last, every file no item names becomes an item of its own. An item's
-// id comes from the zip's listing and its path, so reading the same zip again lands nothing twice.
+// plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each note's
+// frontmatter and sends every file up by its sha, a few at once; the cell says how each planned
+// note stands; pass two reads each new note whole and lands it; last, every file no item names
+// becomes an item of its own. An item's id comes from the zip's listing and its path, so reading
+// the same zip again lands nothing twice.
 
 import { dirnamePath } from "@repo/contract/knowledge/folder-path";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
@@ -22,7 +23,13 @@ import { lfOnly } from "@repo/editor/headless/markdown/md-read";
 import { BlobReader, ZipReader } from "@zip.js/zip.js/lib/zip-core-native.js";
 import type { FileEntry } from "@zip.js/zip.js/lib/zip-core-native.js";
 
-import { createBatcher, importFolder, ImportStoppedError, inChunks } from "./import-landing";
+import {
+  createBatcher,
+  importFolder,
+  ImportStoppedError,
+  inChunks,
+  inPool,
+} from "./import-landing";
 import type { ImportCell, ImportTally, NoteStanding } from "./import-landing";
 
 export const NOT_A_ZIP =
@@ -31,6 +38,11 @@ export const NOT_A_ZIP =
 // reading a note costs about 10 s of CPU a MiB of markdown, and more than linearly past it, so a
 // longer one is left out as unreadable rather than stall the import on it
 const NOTE_MAX_BYTES = 1024 * 1024;
+
+// pass one reads and keeps this many paths at once, so one file's round trips overlap another's;
+// few, since each holds its bytes, up to BLOB_MAX_BYTES, until it is kept, and each keep spends the
+// session's budget of /v1 calls, which a resumed import spends again on every file
+export const PATHS_AT_ONCE = 3;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -141,14 +153,17 @@ export const readMarkdownZip = async (
   const ids: PlanIds = { newItemId: (path) => importItemId(fingerprint, path) };
   const entries: ImportEntry[] = [];
   const notes = new Map<string, FileEntry>();
-  for (const listed of unwrapExport(listing)) {
-    const read = await readListed(cell, listed);
+  const reads = await inPool(unwrapExport(listing), PATHS_AT_ONCE, async (listed) => ({
+    entry: listed.entry,
+    read: await readListed(cell, listed),
+  }));
+  for (const { entry, read } of reads) {
     if (read === "unreadable") {
       tally.unreadable += 1;
     } else if (read !== "skipped") {
       entries.push(read);
       if (read.kind === "doc") {
-        notes.set(read.path, listed.entry);
+        notes.set(read.path, entry);
       }
     }
   }

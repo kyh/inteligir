@@ -1,3 +1,5 @@
+import { setTimeout as delay } from "node:timers/promises";
+
 import { urlKey } from "@repo/contract/items/item-url";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
@@ -8,7 +10,7 @@ import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";
 import type { ImportCell, ImportedItem } from "./import-landing";
 import type { ImportNews } from "./import-news";
 import { readImport } from "./import-reading";
-import { NOT_A_ZIP } from "./markdown-import";
+import { NOT_A_ZIP, PATHS_AT_ONCE } from "./markdown-import";
 
 const encoder = new TextEncoder();
 
@@ -106,6 +108,42 @@ const titled = (items: ReadonlyMap<string, NewItem>, title: string): NewItem => 
   return item;
 };
 
+// the cell's keep made slow, a later file sooner, refusing every file past `roomFor` as a full
+// library does, and what it saw: the most keeps under way at once, and any asked after a refusal
+const slowKeeps = (cell: ImportCell, roomFor = Number.POSITIVE_INFINITY) => {
+  const seen = { afterRefusal: 0, calls: 0, mostAtOnce: 0 };
+  let underWay = 0;
+  let refused = false;
+  const slow: ImportCell = {
+    ...cell,
+    keep: async (bytes, mime) => {
+      seen.calls += 1;
+      const call = seen.calls;
+      if (refused) {
+        seen.afterRefusal += 1;
+      }
+      if (call > roomFor) {
+        refused = true;
+        throw new ImportStoppedError(LIBRARY_FULL);
+      }
+      underWay += 1;
+      seen.mostAtOnce = Math.max(seen.mostAtOnce, underWay);
+      await delay(Math.max(1, 30 - call * 2));
+      underWay -= 1;
+      return await cell.keep(bytes, mime);
+    },
+  };
+  return { cell: slow, seen };
+};
+
+const lonePdfs = (count: number): Record<string, Uint8Array> =>
+  Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [
+      `Files/f${String(index).padStart(2, "0")}.pdf`,
+      encoder.encode(`%PDF-1.7\n% file ${String(index)}\n`),
+    ]),
+  );
+
 describe("a zip of notes read on the device", () => {
   it("lands a vault's notes, their links and files, and its folders", async () => {
     const library = fakeCell();
@@ -152,6 +190,31 @@ describe("a zip of notes read on the device", () => {
       counts: { added: 1, alreadySaved: 0, unreadable: 1 },
       kind: "done",
     });
+  });
+
+  it("keeps a few files at once, and lands them in the zip's order", async () => {
+    const library = fakeCell();
+    const slow = slowKeeps(library.cell);
+    expect(await read(slow.cell, await zipOf(lonePdfs(10)), "markdown")).toStrictEqual({
+      counts: { added: 10, alreadySaved: 0, unreadable: 0 },
+      kind: "done",
+    });
+    expect(slow.seen.mostAtOnce).toBe(PATHS_AT_ONCE);
+    expect([...library.items.values()].map((item) => item.fields.title)).toStrictEqual(
+      Array.from({ length: 10 }, (_, index) => `f${String(index).padStart(2, "0")}`),
+    );
+  });
+
+  it("keeps no file after the library refuses one as full, and lands nothing", async () => {
+    const library = fakeCell();
+    const slow = slowKeeps(library.cell, 2);
+    expect(await read(slow.cell, await zipOf(lonePdfs(10)), "markdown")).toMatchObject({
+      kind: "failed",
+      message: LIBRARY_FULL,
+    });
+    expect(slow.seen.afterRefusal).toBe(0);
+    expect(slow.seen.calls).toBeLessThanOrEqual(2 + PATHS_AT_ONCE);
+    expect(library.items.size).toBe(0);
   });
 
   it("stops on a file that is no zip, saying how", async () => {

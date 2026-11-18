@@ -85,6 +85,42 @@ export const inChunks = async <T, A>(
   return answers;
 };
 
+// each of `all` read with at most `size` reads under way, answered in its order; once a read
+// throws, no read starts after it, and its failure is thrown once those under way have ended
+export const inPool = async <T, A>(
+  all: readonly T[],
+  size: number,
+  read: (one: T) => Promise<A>,
+): Promise<A[]> => {
+  const queue = all.entries();
+  const answers: (readonly [number, A])[] = [];
+  const failures: { readonly error: unknown }[] = [];
+  const lane = async (): Promise<void> => {
+    while (failures.length === 0) {
+      const next = queue.next();
+      if (next.done === true) {
+        return;
+      }
+      const [index, one] = next.value;
+      try {
+        answers.push([index, await read(one)]);
+      } catch (error) {
+        failures.push({ error });
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: size }, async () => {
+      await lane();
+    }),
+  );
+  const [failure] = failures;
+  if (failure !== undefined) {
+    throw failure.error;
+  }
+  return answers.toSorted(([one], [other]) => one - other).map(([, answer]) => answer);
+};
+
 export interface Batcher {
   readonly add: (item: ImportedItem) => Promise<void>;
   readonly flush: () => Promise<void>;
