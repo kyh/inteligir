@@ -219,7 +219,11 @@ overrides:
   "@expo/metro-config>lightningcss": 1.30.1
   "react-native-css>lightningcss": 1.30.1
   "@types/react": "catalog:"
-  # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
+  # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite, and
+  # better-auth's optional drizzle peers under the workspaces that never name drizzle), and a second
+  # drizzle-orm fails every instanceof across the two
+  drizzle-kit: "catalog:"
+  drizzle-orm: "catalog:"
   vite: "catalog:"
 
 patchedDependencies:
