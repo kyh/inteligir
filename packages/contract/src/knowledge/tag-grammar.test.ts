@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
+import { inlineTagSpans } from "./tag-grammar";
 
 const tagsIn = (text: string): string[] => inlineTagSpans(text).map(({ tag }) => tag);
 

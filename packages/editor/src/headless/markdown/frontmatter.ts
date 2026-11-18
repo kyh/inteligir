@@ -2,8 +2,8 @@
 // YAML says is `@repo/editor/headless/codec/item-fields`'s to read.
 
 // remark-frontmatter's default `yaml` fence, read past the BOM micromark skips; the content group
-// is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
-const FRONTMATTER_RE = /^﻿?---[ \t]*(?<eol>\r?\n)(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
+// is optional so an empty block matches
+const FRONTMATTER_RE = /^﻿?---[ \t]*\r?\n(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
 
 export const frontmatterYaml = (text: string): string | null => {
   const match = FRONTMATTER_RE.exec(text);

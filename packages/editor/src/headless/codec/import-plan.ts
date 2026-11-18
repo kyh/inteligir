@@ -1,11 +1,11 @@
-// A folder of markdown, this app's export or an Obsidian vault, read into the library in two
-// passes, so no doc is held whole longer than its own reading. Pass one plans from every path
+// A folder of markdown, an earlier version's notes or an Obsidian vault, read into the library in
+// two passes, so no doc is held whole longer than its own reading. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
 // doc at a time against the whole plan, resolving a `[[…]]` by the resolver's tiers (path, name,
-// alias, `@repo/editor/headless/knowledge/link-resolve`) and a page link by the `id:` its target's file
-// carries. Last, every file no item names becomes an item of its own, so a bare file is a card of
-// its own. A zip's paths reach all this with the folder an unpacked export was zipped under taken
-// off (`unwrapExport`). Obsidian's settings (`.obsidian/`), every other dot-folder and what an
+// alias, `./link-resolve.ts`) and a page link by the `id:` its target's file carries. Last, every
+// file no item names becomes an item of its own, so a bare file is a card of its own. A zip's paths
+// reach all this with the folder an earlier version's notes were zipped under taken off
+// (`unwrapExport`). Obsidian's settings (`.obsidian/`), every other dot-folder and what an
 // operating system left are skipped, and a `.canvas` or a `.base` is always an item, never an
 // attachment. An `AGENTS.md` is a note like any other, unless
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
@@ -29,9 +29,6 @@ import {
   isDotEntryPath,
   isOsLitterPath,
 } from "@repo/contract/knowledge/doc-file";
-import { mdLinkTarget, mdLinkUrl } from "@repo/editor/headless/knowledge/link-extract";
-import { buildResolver } from "@repo/editor/headless/knowledge/link-resolve";
-import type { TargetResolver } from "@repo/editor/headless/knowledge/link-resolve";
 import {
   basenamePath,
   dirnamePath,
@@ -47,6 +44,9 @@ import type { WikiReach, WikiTarget } from "@repo/editor/headless/markdown/remar
 import { factsOf, readFrontmatter, titleOf } from "./item-fields";
 import { importItem } from "./item-markdown";
 import type { FoundFile, ImportedItem } from "./item-markdown";
+import { mdLinkTarget, mdLinkUrl } from "./link-extract";
+import { buildResolver } from "./link-resolve";
+import type { TargetResolver } from "./link-resolve";
 import type { LinkedItem } from "./read-blocks";
 
 // what a path in the folder is to an import
@@ -267,8 +267,8 @@ export const importPlannedDoc = (
   // an anchor alone names a place in this note, which a page link cannot
   const wiki = (link: WikiTarget, embed: boolean): WikiReach =>
     link.target === "" ? null : reachedAt(reader.resolver.resolveWiki(link.target), embed);
-  // a page link names a planned item by its id: one a `[[…]]` resolved to, or the one this app's
-  // export wrote, which its file carries
+  // a page link names a planned item by its id: one a `[[…]]` resolved to, or the one an earlier
+  // version wrote, which its file carries
   const item = (key: string): LinkedItem | null => {
     const target = reader.byId.get(key) ?? reader.byId.get(key.toLowerCase());
     return target === undefined ? null : { itemId: target.itemId, title: target.title };

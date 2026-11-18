@@ -59,8 +59,6 @@
     "./headless/kits/rich-blocks-base": "./src/headless/kits/rich-blocks-base.ts",
     "./headless/kits/tabs-base": "./src/headless/kits/tabs-base.ts",
     "./headless/kits/toggle-base": "./src/headless/kits/toggle-base.ts",
-    "./headless/knowledge/link-extract": "./src/headless/knowledge/link-extract.ts",
-    "./headless/knowledge/link-resolve": "./src/headless/knowledge/link-resolve.ts",
     "./headless/knowledge/text-matches": "./src/headless/knowledge/text-matches.ts",
     "./headless/lib/embed-url": "./src/headless/lib/embed-url.ts",
     "./headless/lib/url": "./src/headless/lib/url.ts",

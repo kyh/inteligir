@@ -176,7 +176,7 @@ arrive as `unknown` and become domain values there alone.
   `packages/editor/src/headless/codec/import-plan.ts`.
 - **A `[[…]]` names what the resolver answers to.** Obsidian's links are read only where markdown
   comes in from outside, and `.md` is the one extension a link leaves off, so a `.txt` note links
-  as `[[todo.txt]]`. `packages/editor/src/headless/knowledge/link-resolve.test.ts`.
+  as `[[todo.txt]]`. `packages/editor/src/headless/codec/link-resolve.test.ts`.
 - **An agent's view is written a group at a time: a list with what nests under it, any other
   block alone.** A group's place in the text is where it was written and a page writes only its own
   groups, each once, ending before the one that would pass its budget, since finding a block's

@@ -1,6 +1,7 @@
 // No TagChipBaseKit: a decoration never enters the value, and a base twin is the first step
-// toward a tag node in the user's bytes. Suppression mirrors @repo/editor/headless/knowledge/link-extract
-// (tags only in mdast text nodes) — a chip the index does not know navigates to an empty list.
+// toward a tag node in the user's bytes. Code and a link's label draw no chip, as
+// `@repo/contract/library/derive-item` reads no tag there, since a chip the library does not know
+// navigates to an empty list.
 
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";

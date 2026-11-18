@@ -1,9 +1,9 @@
-// A zip of markdown read into the library, this app's export or an Obsidian vault, by the codec's
-// plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each note's
-// frontmatter and sends every file up by its sha, a few at once; the cell says how each planned
-// note stands; pass two reads each new note whole and lands it; last, every file no item names
-// becomes an item of its own. An item's id comes from the zip's listing and its path, so reading
-// the same zip again lands nothing twice.
+// A zip of markdown read into the library, an earlier version's notes or an Obsidian vault, by the
+// codec's plan (`@repo/editor/headless/codec/import-plan`): pass one lists the zip, keeps each
+// note's frontmatter and sends every file up by its sha, a few at once; the cell says how each
+// planned note stands; pass two reads each new note whole and lands it; last, every file no item
+// names becomes an item of its own. An item's id comes from the zip's listing and its path, so
+// reading the same zip again lands nothing twice.
 
 import { dirnamePath } from "@repo/contract/knowledge/folder-path";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";

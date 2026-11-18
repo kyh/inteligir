@@ -1,2 +1,2 @@
-// the folder an export of this app kept its files in, which an import reads as the mark of one
+// the folder an earlier version's notes kept their files in, which an import reads as their mark
 export const DEFAULT_ATTACHMENTS_FOLDER = "assets";
