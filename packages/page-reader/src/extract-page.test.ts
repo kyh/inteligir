@@ -231,6 +231,45 @@ describe("the article", () => {
     );
   });
 
+  // defuddle drops a list of two to eight short items with no closing stop near the article's start
+  // or end, nested or not, as a blog's metadata (its content patterns), and a base64 picture of
+  // under 133 characters as a lazy load's placeholder; the reader patches nothing around its
+  // extractor, and reads a to-do list it is handed as one
+  it("hands the reader a list item's paragraphs and its nested lists, less a short list it reads as a blog's metadata", () => {
+    const { readable } = extracted("nested-lists");
+    if (readable.kind !== "content") {
+      throw new Error("the extractor gave up on the page");
+    }
+    for (const kept of [
+      "Seeing it all at once",
+      "Sleeping bag and pad at the bottom",
+      "One spare shirt",
+      'href="#the-steps"',
+      'src="data:image/png;base64,',
+    ]) {
+      expect(readable.html, kept).toContain(kept);
+    }
+    for (const dropped of ["Water filter", "Headlamp with fresh batteries", "First aid kit"]) {
+      expect(readable.html, dropped).not.toContain(dropped);
+    }
+  });
+
+  it("reads a list item's paragraphs and the lists under it at their depth, an in-page link as its words and an inline picture as its alt", () => {
+    const { blocks } = read("nested-lists").article;
+    const textOf = (node: LibraryNode): string =>
+      "text" in node ? node.text : node.children.map(textOf).join("");
+    const blockOf = (words: string): LibraryBlock | undefined =>
+      blocks.find((block) => textOf(block).startsWith(words));
+    expect(blockOf("Lay everything out")).toMatchObject({ indent: 1, listStyleType: "decimal" });
+    expect(blockOf("Seeing it all at once")).toMatchObject({ indent: 2, type: "p" });
+    expect(blockOf("Sleeping bag and pad")).toMatchObject({ indent: 2, listStyleType: "disc" });
+    expect(blockOf("One spare shirt")).toMatchObject({ indent: 3, listStyleType: "disc" });
+    expect(blockOf("Weigh the pack")).toMatchObject({ indent: 1, listStart: 3 });
+    expect(blockOf("A loaded pack on a scale")).toMatchObject({ indent: 2, type: "p" });
+    expect(typesIn(blocks).has("a")).toBe(false);
+    expect(JSON.stringify(blocks)).not.toContain("data:");
+  });
+
   it("keeps an in-page link as its words", () => {
     expect(
       written(
