@@ -105,15 +105,17 @@ interface Connecting {
   readonly allowed: string;
   // the key an assistant binds its tokens to, if it holds one
   readonly dpop?: DpopKey;
+  // the registration an assistant keeps from connecting before, which it connects again on
+  readonly registered?: string;
 }
 
 // the person's session authorizes, answers the consent page, and the code is traded
 export const connectAssistant = async (
   name: string,
-  { allowed, cookie, dpop, scope }: Connecting,
+  { allowed, cookie, dpop, registered, scope }: Connecting,
 ): Promise<{ readonly clientId: string; readonly tokens: Tokens }> => {
   const redirectUri = `https://${name.toLowerCase()}.example/callback`;
-  const clientId = await registerAssistant(name, redirectUri);
+  const clientId = registered ?? (await registerAssistant(name, redirectUri));
   const verifier = randomBytes(32).toString("base64url");
   const state = randomBytes(8).toString("hex");
   const authorize = new URLSearchParams({

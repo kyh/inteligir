@@ -416,8 +416,8 @@ Specifically, in our cloud:
   those 30 days. Resetting your password or deleting the account ends every
   assistant's access at once. What an assistant registered (its name and
   addresses, never yours) is filed under no account, so deleting the account
-  leaves it; it is deleted within the hour once it is a day old and no account
-  has it connected.
+  leaves it; it is deleted within the hour once a day has passed since it
+  registered or was last disconnected and no account has it connected.
 - **Vercel's request log**, and its AI Gateway's record of each request the
   built-in agent makes, keep each entry for the time Vercel sets for our
   account.

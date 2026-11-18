@@ -1,7 +1,7 @@
 // The assistants a person let into their library, as Settings › Account lists them, and the one way
 // to let one go: its consent and every token minted under it go in one transaction, so its next call
 // is refused and its refresh token is dead. A reset password lets every one go, and housekeeping
-// forgets what an assistant registered once nothing of anyone's names it.
+// forgets what an assistant registered a day after nothing of anyone's names it.
 
 import {
   oauthAccessToken,
@@ -38,7 +38,8 @@ export const listAssistants = async (userId: string) => {
 };
 
 // the person's grants, or the one `grantId` names, locked, then their tokens and the grants
-// themselves; answers how many went
+// themselves, each assistant's registration stamped so housekeeping's day starts again at the
+// disconnect; answers how many went
 const revokeGrants = async (tx: Tx, userId: string, grantId?: string): Promise<number> => {
   const grants = await tx
     .select({ clientId: oauthConsent.clientId, id: oauthConsent.id })
@@ -56,6 +57,10 @@ const revokeGrants = async (tx: Tx, userId: string, grantId?: string): Promise<n
     await tx.delete(oauthAccessToken).where(minted(oauthAccessToken));
     await tx.delete(oauthRefreshToken).where(minted(oauthRefreshToken));
     await tx.delete(oauthConsent).where(eq(oauthConsent.id, grant.id));
+    await tx
+      .update(oauthClient)
+      .set({ updatedAt: new Date() })
+      .where(eq(oauthClient.clientId, grant.clientId));
   }
   return grants.length;
 };
@@ -71,7 +76,8 @@ export const revokeAllAssistants = async (userId: string): Promise<void> => {
   });
 };
 
-// a day outlasts any sign-in and consent between an assistant registering and its first grant
+// a day outlasts any sign-in and consent between an assistant registering and its first grant, and
+// lets a disconnected assistant connect again on the registration it keeps
 const UNNAMED_REGISTRATION_MS = 24 * 60 * 60 * 1000;
 
 const unnamedBy = (
@@ -84,9 +90,9 @@ const unnamedBy = (
       .where(eq(table.clientId, oauthClient.clientId)),
   );
 
-// Housekeeping's: a registration no consent or token names, a day after it registered or its
-// metadata document was last read, deleted. It is filed under no account, so neither a disconnect
-// nor an account's delete reaches it. Answers how many went
+// Housekeeping's: a registration no consent or token names, a day after it registered, its metadata
+// document was last read or it was last disconnected, deleted. It is filed under no account, so
+// neither a disconnect nor an account's delete reaches it. Answers how many went
 export const pruneUnnamedRegistrations = async (now: number): Promise<number> => {
   const pruned = await db
     .delete(oauthClient)
