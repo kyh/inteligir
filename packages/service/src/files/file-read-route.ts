@@ -198,6 +198,8 @@ const readHeld = async (
     return new Response(null, { headers, status: 416 });
   }
   const asked = ask.kind === "range" ? ask.range : null;
+  // Next and Vercel drop a route's content-length on the way out, so a HEAD's never reaches the
+  // device; a media loader takes the size from a range's content-range, which they keep
   if (request.method === "HEAD") {
     return answered(headers, null, asked, held.bytes);
   }
