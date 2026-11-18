@@ -22,6 +22,7 @@ import {
 import { cn } from "@repo/ui/lib/cn";
 
 import { alertProp } from "@repo/editor/headless/node-props";
+import { lockHolds } from "@repo/editor/kits/rich-block-lock-kit";
 
 interface AlertPresentation {
   Icon: ComponentType<{ className?: string }>;
@@ -77,7 +78,7 @@ export const BlockquoteElement = (props: PlateElementProps) => {
       as="blockquote"
       className={cn("rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0", accent)}
     >
-      <DropdownMenu disabled={readOnly}>
+      <DropdownMenu disabled={readOnly || lockHolds(editor, element)}>
         <DropdownMenuTrigger
           contentEditable={false}
           className={cn(

@@ -196,7 +196,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent reads a long item a part at a time**, so a long saved page with a picture in a list can be read.
 - **A note that opens with a callout is titled and found by its words**, not `[!NOTE]`.
 - **An item no longer shows twice in your iPhone's library** when the library changed as you scrolled.
-- **On your iPhone, a date, link, equation or formula inside columns or tabs no longer opens an editor that couldn't save.**
+- **On your iPhone, a date, link, equation, formula or callout label inside columns or tabs no longer opens an editor or menu that couldn't save.**
 - **Every page prints light, even in the dark theme**: the site, the extension's pages and the phone's editor page, and the library's window no longer turns light behind the print dialog.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
