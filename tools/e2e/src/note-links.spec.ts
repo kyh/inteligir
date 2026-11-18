@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { expect } from "@playwright/test";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import type { Page } from "@playwright/test";
-import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./fixtures";
+import { EDITOR, markdownOf, openLibrary, skipScriptedPaste, test, typeAfter } from "./fixtures";
 
 const PASSAGE = "Herons wait before they strike.";
 const STAYS = "This paragraph stays where it is.";
@@ -90,11 +90,13 @@ test("a formula reads a pill of its note by name, Extract makes a linked note, a
 });
 
 test("a picture pasted into a note is kept by its sha and drawn at once, after a reload and elsewhere", async ({
+  browserName,
   cloud,
   library,
   page,
   secondContext,
 }) => {
+  skipScriptedPaste(browserName);
   const { item } = await library.items.createNote({
     markdown: `${PARAGRAPH}\n`,
     title: "Field notes",

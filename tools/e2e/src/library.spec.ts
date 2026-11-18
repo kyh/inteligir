@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
-import { EDITOR, newId, openLibrary, test, typeAfter, upload } from "./fixtures";
+import { EDITOR, newId, openLibrary, skipScriptedPaste, test, typeAfter, upload } from "./fixtures";
 
 const PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -181,10 +181,12 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
 // one the library holds, so only the PDF's bytes go to the store
 test("a paste and a drop on the grid land a link, a picture and a PDF", async ({
   account,
+  browserName,
   cloud,
   library,
   page,
 }) => {
+  skipScriptedPaste(browserName);
   const sha = await upload(cloud, account, new Uint8Array(PIXEL), "image/png");
   await library.items.createFile({
     folderId: null,
@@ -291,7 +293,8 @@ test.describe(() => {
 });
 
 // Chromium frames the PDF viewer, so a page policy that refuses the frame is a console error the
-// watch fails on, and the frame never appears; headless WebKit and Firefox frame no viewer at all
+// watch fails on, and the frame never appears; headless WebKit frames no viewer at all, and
+// Firefox's frame tells Playwright no address
 test("a PDF item draws in the browser's own viewer", async ({
   account,
   browserName,

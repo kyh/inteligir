@@ -13,7 +13,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { expect, test as base } from "@playwright/test";
-import type { BrowserContext, Page } from "@playwright/test";
+import type { BrowserContext, Page, PlaywrightWorkerOptions } from "@playwright/test";
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
@@ -406,6 +406,12 @@ export const typeAfter = async (page: Page, line: string, typed: string): Promis
   await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
   await page.keyboard.press("End");
   await page.keyboard.type(typed);
+};
+
+// Firefox hands a paste event a script made an empty copy of its clipboardData, so a flow that
+// pastes that way runs in Chromium and WebKit
+export const skipScriptedPaste = (browserName: PlaywrightWorkerOptions["browserName"]): void => {
+  test.skip(browserName === "firefox", "Firefox empties a scripted paste's clipboardData");
 };
 
 // an item's markdown, as a poll reads it

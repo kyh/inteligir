@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
-import { download, openLibrary, test } from "./fixtures";
+import { download, openLibrary, skipScriptedPaste, test } from "./fixtures";
 
 // a PNG's head alone, of a cover's size: the fill reads a picture's size and decodes nothing
 const coverOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
@@ -29,11 +29,13 @@ const coverShaOf = async (library: V1Client["library"], id: string): Promise<str
 
 test("a link pasted on the grid is read by the cloud's own fill, and saved again is the same item", async ({
   account,
+  browserName,
   cloud,
   library,
   page: tab,
   web,
 }) => {
+  skipScriptedPaste(browserName);
   const cover = coverOf(640, 400);
   web.pages.set("/cover.png", { body: cover, type: "image/png" });
   web.pages.set("/essay", {

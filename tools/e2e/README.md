@@ -49,7 +49,8 @@ and the Mac app's engine, never its window: a new window, a download's folder
 and the leave prompt are the shell's, which `cargo test` and the owner's Mac
 smoke cover. Neither engine loads an extension, so `extension.spec.ts` runs in
 Chromium alone, and a test that only Chromium can run skips the others by
-`browserName`.
+`browserName`. Firefox empties the clipboard data of a paste a script makes,
+so the flows that paste that way skip it (`skipScriptedPaste`).
 
 ## The phone
 
