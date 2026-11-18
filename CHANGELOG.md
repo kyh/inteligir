@@ -25,8 +25,8 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An item opens full size**: a file in its viewer, a saved page as its article under Open original, and what you type into a saved page stays your note when it's read again.
 - **Info** shows what an item is and where it came from, and moves, tags and pins one or many.
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.
-- **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again, New conversation leaves a conversation for the list, and a day allows a couple of answers, each of up to 20 steps, which deleting a conversation doesn't give back.
-- **The agent searches the web and reads public pages** when what you ask reaches past your library.
+- **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again (what it deletes waits in Deleted, and Undo this turn brings it back), New conversation leaves a conversation for the list, and a day allows a couple of answers, each of up to 20 steps, which deleting a conversation doesn't give back.
+- **The agent searches the web and reads public pages without asking first** when what you ask reaches past your library, so a page it reads can steer what it does: the privacy policy says what goes where, and Settings › Account › Built-in agent turns it off.
 - **The agent's reply appears as it is written, and a message you send while it works joins what it is doing**, so you can steer it mid-answer; Stop ends the answer where it is.
 - **What the agent changes shows as it works**: a note it writes or an item it deletes appears in your library at once, and Undo this turn as its answer ends, on every device following the conversation.
 - **When the built-in agent has done all it can for everyone in a day, it says it's at capacity and when it's back**, apart from your own day's allowance.
@@ -52,7 +52,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
 - **A check for updates that can't reach the release feed says so in Settings › About, with the reason, and puts up no notice**: the notice that stays is for an update there is something to do about, Download, Restart, or Try again after a download or restart that failed.
-- **The privacy policy reads plainly, each practice stated once**: your library in your account, what each device sends, and how to ask for a copy, a correction or a deletion.
+- **The privacy policy reads plainly, each practice stated once**: your library in your account, who runs our cloud and its model (Vercel, Supabase, Resend and Anthropic), what each device and the agent send, and how to ask for a copy, a correction or a deletion.
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since and any you made while it worked, a pin or a new name included; a note you typed in after the agent wrote it stays as you left it, text and all, and Undo says it kept changes made since.
 - **Only the agent's changes are kept for Undo**: what you, a connected assistant or an import change is not, and Undo this turn and Undo this conversation work as before.
 - **Undo offers only what is left to take back**: an undo on one device takes the Undo buttons off your others as it lands, a press on a turn already taken back says "There's nothing left to undo.", and an item Undo kept because you changed it since can be undone later, its turn keeping its Undo until nothing of it is left.
@@ -65,7 +65,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
 - **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too.
 - **⌘P says why a search found nothing**: nothing in your library matches, it needs a connection, or the search failed.
-- **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, up to 5 seconds earlier, and a long page is read in about two thirds of the time.
+- **A saved link fills itself in sooner**: its title, cover and text start arriving as soon as it's saved, or within a minute of the agent saving it, and a long page is read in about two thirds of the time.
 - **A link's AVIF or HEIC cover is held to the same limits as any picture**: one under 200 pixels, a tracking pixel or an icon, or over 50 megapixels isn't kept as its cover.
 - **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
 - **A saved link you haven't named keeps an empty title**: its card and the title box go by its address until its page names it, and a title you type is never replaced by the page's.
@@ -126,7 +126,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A link or file that couldn't be saved says why**, and what was saved before it is counted: "Stopped after 2 of 5."
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
 - **What another device changed shows within 15 seconds**: a save, move, tag or delete made elsewhere appears in the window or app you have in front within 15 seconds, and at once when you come back to it or your connection returns.
-- **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
 - **A note naming a file your library no longer holds says so above it**, and saves again once you remove the file.
 - **A note holds about 1 MB**, where it held about 8 MB: split a longer one into several notes. A paste of more than about half that at once isn't added, and a note past its size stops saving until you shorten it.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
@@ -188,7 +187,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent's reply stays on screen as it lands**: its text no longer blinks at the end of each message, and the conversation follows the reply as it is written until you scroll up.
 - **A finished step in the agent's work no longer draws an empty bar**, and only a failed step opens to say why.
 - **A message typed to the agent stays when you switch the panel to Info and back**, and Send stays held while a message is on its way, after switching the tab and back too.
-- **A question the agent asks is declined for you after ten minutes, every time**: a restart while it waited could leave one waiting with no end.
 - **A conversation that hits something it can't read ends with an error** instead of showing the agent working for good; start a new conversation to carry on.
 - **The agent's edit of one line leaves the rest of the note as it was**: an underline or a picture's size beside a list that holds a code block or a picture is no longer dropped.
 - **The agent reads a long item a part at a time**, so a long saved page with a picture in a list can be read.
