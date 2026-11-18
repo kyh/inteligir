@@ -24,8 +24,10 @@
     "@repo/db": "workspace:*",
     "@repo/editor": "workspace:*",
     "@vercel/blob": "catalog:",
+    "ai": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
+    "eve": "catalog:",
     "next": "catalog:",
     "platejs": "catalog:",
     "resend": "catalog:",
@@ -37,6 +39,7 @@
     "@orpc/client": "catalog:",
     "@types/node": "catalog:",
     "dotenv-cli": "catalog:",
+    "platejs": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

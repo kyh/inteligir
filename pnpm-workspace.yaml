@@ -58,6 +58,8 @@ catalog:
   # exact, the build sp-presigned-put and sp-ranged-stream proved: a ranged read of a private blob
   # is passed through `get`'s headers, which its docs do not promise
   "@vercel/blob": 2.9.0
+  # the built-in agent's SDK, eve's peer: the agent's tools and hooks type against its model output
+  ai: ^7.0.173
   # exact, and the same as the @better-auth/core override: they are released in lockstep, and a
   # pair one patch apart resolves a second core
   "@better-auth/cimd": 1.7.25
@@ -74,6 +76,9 @@ catalog:
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
   eas-cli: 24.12.1
+  # exact: the built-in agent's framework (apps/web/agent), whose session store strands a session on
+  # any upgrade off Vercel Workflow, and whose docs the agent's code is written against
+  eve: 1.0.0
   # a block's order key, between two neighbours, with no renumbering
   fractional-indexing: ^4.0.0
   # the range `expo` itself pins: the phone's babel.config.js names the preset, and Babel resolves

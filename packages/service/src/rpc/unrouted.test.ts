@@ -25,13 +25,7 @@ it("names every row not routed yet", () => {
   expect(pathsOf(v1Contract).filter((path) => !routed.has(path))).toMatchInlineSnapshot(`
     [
       "account.socketTicket",
-      "library.agent.send",
       "library.agent.respond",
-      "library.agent.cancel",
-      "library.agent.list",
-      "library.agent.events",
-      "library.agent.delete",
-      "library.agent.status",
       "library.agent.setEnabled",
       "library.agent.rules",
       "library.agent.setRules",

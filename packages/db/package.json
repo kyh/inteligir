@@ -2,9 +2,10 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "Postgres: Better Auth's tables, the invite codes and every account's library, the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase, and the throwaway databases the suites and the e2e flows run on.",
+  "description": "Postgres: Better Auth's tables, the invite codes, every account's library and the built-in agent's threads, the client over POSTGRES_URL, the drizzle-kit push of its schema and the extensions it leans on, local Supabase, and the throwaway databases the suites and the e2e flows run on.",
   "type": "module",
   "exports": {
+    "./agent-schema": "./src/agent-schema.ts",
     "./auth-schema": "./src/auth-schema.ts",
     "./drizzle-client": "./src/drizzle-client.ts",
     "./library-schema": "./src/library-schema.ts",

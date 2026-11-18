@@ -147,28 +147,30 @@ disconnects them all.
 Not the **built-in agent**, though both call the same tools, and it reads as
 a guide the spec the agent's prompt holds.
 
-**built-in agent** — the app's own agent: our loop over Claude, one Durable
-Object for each **thread** (`packages/service/src/agent/agent-thread.ts`),
-through AI Gateway, on our bill within the account's daily allowance. It
-changes the library only through the account's cell, by the procedures the
-**connector** serves; it has no shell, files or web of its own, and deleting
-and saving a link ask the person first. The person meets it in the panel's
+**built-in agent** — the app's own agent: eve's, in `apps/web/agent`, served
+by the deployment under `/eve/v1`, on Claude through AI Gateway, on our bill
+within the account's daily allowance. It changes the library only by the
+procedures tagged as the **connector**'s tools
+(`packages/service/src/agent/agent-tools.ts`); it has no shell or files, it
+searches the web and reads public pages, and it deletes or saves a link when
+asked, asking nothing more. The person meets it in the panel's
 Agent tab and switches it in Settings › Account
 (`apps/web/src/library/agent/agent-panel.tsx`); "The agent has used today's
 allowance" is its `AGENT_BUDGET` refusal. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
-Claude ends it, the person stops it, or its step cap does
-(`AGENT_MAX_STEPS`); waiting on an approval does not end it. Its **answer** is
+Claude ends it or the person stops it, a row of `agent_turn` numbered in its
+**thread**, which the record hook writes as eve starts it. Its **answer** is
 what the person reads of it: the reply, its progress notes and its calls, under
-which "Undo this turn" reverts its one **change set**. The cell counts it
-against the day before it starts, and a send while its thread's turn runs
-waits its turn (`packages/service/src/agent/agent-turns.ts`). Not a connected
-assistant's call, which is no turn.
+which "Undo this turn" reverts its one **change set**. A message sent while its
+thread's turn runs joins that turn (`packages/service/src/agent/eve-agent.ts`).
+Not a connected assistant's call, which is no turn.
 
 **thread** — a conversation with the **built-in agent**, the account's, so
-every device shows it: its transcript in its own object and its events as rows
-of the cell (`agent-turns.ts`). The panel calls it a conversation.
+every device shows it: a row of `agent_thread` over one eve session at a time,
+and its events as rows of `agent_thread_event`
+(`packages/service/src/agent/agent-sessions.ts`). The panel calls it a
+conversation.
 
 ## The library
 

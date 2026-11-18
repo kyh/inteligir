@@ -42,6 +42,12 @@ describe("env", () => {
     expect(parseEnv({ CRON_SECRET: "s3cret" }).CRON_SECRET).toBe("s3cret");
   });
 
+  it("runs the agent's mock model only off Vercel", () => {
+    expect(parseEnv({ AGENT_MOCK_MODEL: "true" }).AGENT_MOCK_MODEL).toBe(true);
+    expect(() => parseEnv({ AGENT_MOCK_MODEL: "true", VERCEL: "1" })).toThrow(/local runs/u);
+    expect(parseEnv({ VERCEL: "1" }).AGENT_MOCK_MODEL).toBe(false);
+  });
+
   it("keeps APP_URL to its origin", () => {
     expect(parseEnv({ APP_URL: "https://inteligir.vercel.app/library/" }).APP_URL).toBe(
       "https://inteligir.vercel.app",

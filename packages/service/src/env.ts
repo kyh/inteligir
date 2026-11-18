@@ -59,6 +59,14 @@ const GIB = 1024 ** 3;
 
 const envSchema = z
   .object({
+    // the built-in agent answers from eve's mock model, by the directives `@repo/service/agent/mock-
+    // directives` reads: for local runs and the suites, never a deployment's
+    AGENT_MOCK_MODEL: flag,
+
+    // the AI Gateway's key off Vercel, where the deployment's OIDC token stands in for it; unset
+    // there, the built-in agent is unavailable unless its mock model is on
+    AI_GATEWAY_API_KEY: optionalText,
+
     APP_URL: origin,
 
     BETTER_AUTH_SECRET: optionalText,
@@ -116,6 +124,14 @@ const envSchema = z
 
 export const ENV_KEYS = envSchema.keyof().options;
 
-export const parseEnv = (source: NodeJS.ProcessEnv) => envSchema.parse(source);
+export const parseEnv = (source: NodeJS.ProcessEnv) => {
+  const parsed = envSchema.parse(source);
+  if (parsed.AGENT_MOCK_MODEL && source.VERCEL === "1") {
+    throw new Error(
+      "AGENT_MOCK_MODEL is for local runs: a deployment's agent answers with its model",
+    );
+  }
+  return parsed;
+};
 
 export const env = parseEnv(process.env);

@@ -280,6 +280,33 @@ decisions port with its code from the tag `cloudflare-last`.
   device's revalidations then cost no store read.
   `packages/service/src/files/file-read-route.ts`.
 
+## The built-in agent
+
+- **The agent is eve's, served by the deployment under `/eve/v1`, and only the
+  app calls it, with a token minted for that call's thread and session.** A
+  page can't reach a session, and `proxy.ts` can't gate eve's routes, so the
+  channel admits each request itself; `/eve/v1/health` is public.
+  `packages/service/src/agent/eve-admission.ts`.
+- **A thread is ours, over one numbered eve session at a time: one that ended
+  or idled 7 days goes on in the next, created under `<thread>.<number>`.** eve
+  ends a session on a failed model call, and a create retried under its
+  operation id answers the same session. `packages/service/src/agent/agent-sessions.ts`.
+- **The record hook keeps what eve did as rows keyed by where eve recorded it,
+  and a turn by its eve turn id in its session.** eve delivers a hook at least
+  once and numbers turns per session, so a replay writes nothing and session
+  2's `turn_0` is a new turn. `packages/service/src/agent/eve-agent.ts`.
+- **The agent's tools are the library's rows tagged `mcp.tool` that the router
+  serves, each write's op id hashed from its eve session and call.** A list
+  kept by hand drifts from what the connector offers, and a step eve reruns
+  lands its write once. `packages/service/src/agent/agent-tools.ts`.
+- **The mock model answers only with `AGENT_MOCK_MODEL` off Vercel, read at
+  each model call.** A deployment that boots with it is refused, and a build
+  never bakes it in. `packages/service/src/agent/availability.ts`.
+- **A deleted thread's rows go at once, and its eve session is ended after the
+  response.** No tombstone waits for a sweep, and the channel refuses the
+  session's every route but stop once its thread is gone.
+  `packages/service/src/agent/agent-sessions.ts`.
+
 ## Search
 
 - **An item's search vector is a literal built from our own tokenizer, every
