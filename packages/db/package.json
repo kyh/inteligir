@@ -19,7 +19,7 @@
     "push:remote": "dotenv -e ../../.env.production.local -- node scripts/push.ts",
     "reset": "pnpm start && supabase db reset && pnpm push",
     "start": "supabase start --runtime native && supabase status --env --output-format text --override-name DB_URL=POSTGRES_URL > ../../.env.local",
-    "status": "supabase status",
+    "status": "pnpm with-env node scripts/status.ts",
     "stop": "supabase stop",
     "studio": "pnpm with-env drizzle-kit studio",
     "test": "vitest run",

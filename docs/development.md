@@ -51,7 +51,8 @@ pnpm db:start                                   # local Postgres 17 on 54622 (Su
 pnpm db:push                                    # sql/extensions.sql, then the Postgres schema, after an edit to it
 pnpm --filter @repo/db push:check               # a second push plans nothing, as CI asks
 pnpm --filter @repo/db studio                   # browse local Postgres (Drizzle Studio)
-pnpm --filter @repo/db stop                     # stop it; `status` says whether it runs
+pnpm --filter @repo/db status                   # whether Postgres answers where POSTGRES_URL points, from any worktree
+pnpm --filter @repo/db stop                     # stop the local Postgres this checkout started
 pnpm db:seed                                    # the dev account and DEV-INVITE, into the pushed database; safe to run again
 ```
 
@@ -72,7 +73,8 @@ fresh `BETTER_AUTH_SECRET` when there is none, starts local Postgres
 (`pnpm db:start`) unless one already answers where `POSTGRES_URL` points, then
 runs `pnpm db:push` and `pnpm db:seed` (`AGENTS.md` § Seeded login). Worktrees
 share the one local Postgres on 54622, so a second worktree's bootstrap reuses
-the first's. Run again, it changes nothing already there; `--dry-run` prints
+the first's, writing its URL into `.env.local` when no env file of its own names
+one, as an `.env` copied from another checkout does not. Run again, it changes nothing already there; `--dry-run` prints
 the steps and does none of them.
 
 `pnpm dev:web` is `next dev` on 5174 over that database: the site, the account

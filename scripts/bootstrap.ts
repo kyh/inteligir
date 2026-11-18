@@ -1,8 +1,8 @@
 /**
  * `pnpm bootstrap`: a fresh clone to a database the app runs on, with no server running. Writes
  * .env from .env.example when there is none, starts local Postgres unless one already answers
- * where POSTGRES_URL points (another worktree's, which this one shares), pushes the schema and
- * seeds the dev account. Safe to re-run: each step leaves what is already there. `--dry-run`
+ * where POSTGRES_URL points (another worktree's, which this one shares, naming it in .env.local
+ * when no env file here does), pushes the schema and seeds the dev account. Safe to re-run: each step leaves what is already there. `--dry-run`
  * prints the steps and does none of them.
  */
 import { execSync } from "node:child_process";
@@ -57,17 +57,38 @@ const createEnv = () => {
   console.log("  ✓ .env created");
 };
 
+const postgresUrlIn = (name: string): string | undefined =>
+  fs.existsSync(envFile(name))
+    ? parseEnv(fs.readFileSync(envFile(name), "utf-8")).POSTGRES_URL
+    : undefined;
+
 // where the scripts will reach Postgres: the shell's, then .env.local's, then .env's, as `with-env`
-// reads them; .env.example's stands in for an .env a dry run did not write
-const postgresUrl = (): URL => {
-  const fromFiles = [".env.local", ".env", ".env.example"]
-    .filter((name) => fs.existsSync(envFile(name)))
-    .map((name) => parseEnv(fs.readFileSync(envFile(name), "utf-8")).POSTGRES_URL);
-  const url = [process.env.POSTGRES_URL, ...fromFiles].find((value) => value !== undefined);
-  if (url === undefined) {
+// reads them, .env.example's standing in for an .env this run writes from it; else, for an .env
+// copied from another checkout that names none, .env.example's, which no script reads
+const postgresUrl = () => {
+  const dotEnv = fs.existsSync(envFile(".env")) ? ".env" : ".env.example";
+  const named = process.env.POSTGRES_URL ?? postgresUrlIn(".env.local") ?? postgresUrlIn(dotEnv);
+  if (named !== undefined) {
+    return { url: new URL(named), named: true };
+  }
+  const example = postgresUrlIn(".env.example");
+  if (example === undefined) {
     throw new Error("No POSTGRES_URL in the shell, .env.local, .env or .env.example.");
   }
-  return new URL(url);
+  return { url: new URL(example), named: false };
+};
+
+// where `pnpm db:start` writes it, so the build and the e2e flows reach the reused Postgres too
+const namePostgresUrl = (url: URL) => {
+  if (DRY_RUN) {
+    console.log(`  [dry-run] write POSTGRES_URL=${url.href} into .env.local`);
+    return;
+  }
+  const file = envFile(".env.local");
+  const kept = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
+  const separator = kept === "" || kept.endsWith("\n") ? "" : "\n";
+  fs.writeFileSync(file, `${kept}${separator}POSTGRES_URL=${url.href}\n`);
+  console.log("  ✓ .env.local names it");
 };
 
 const answers = async ({ hostname, port }: URL): Promise<boolean> => {
@@ -84,9 +105,12 @@ const answers = async ({ hostname, port }: URL): Promise<boolean> => {
 
 const startPostgres = async () => {
   console.log("\nStarting local Postgres...");
-  const url = postgresUrl();
+  const { url, named } = postgresUrl();
   if (await answers(url)) {
     console.log(`  ✓ Postgres already answers on ${url.host}, reused`);
+    if (!named) {
+      namePostgresUrl(url);
+    }
     return;
   }
   try {

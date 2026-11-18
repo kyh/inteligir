@@ -19,7 +19,7 @@ src/run-databases.ts       a run's template database pushed once, its clones and
 src/test-database*.ts      dbSuite, and the vitest globalSetup and setup file that give each suite file a database
 sql/extensions.sql         the extensions push applies before the schema
 supabase/                  local Supabase: Postgres and its pooler alone, natively, no Docker
-scripts/                   push and its second-push check
+scripts/                   push, its second-push check, and status
 drizzle.config.ts          Postgres, on POSTGRES_URL_NON_POOLING ?? POSTGRES_URL
 ```
 
@@ -31,7 +31,8 @@ pnpm db:push                                 # sql/extensions.sql, then drizzle-
 pnpm --filter @repo/db push:check            # a second push must plan nothing
 pnpm --filter @repo/db studio                # Drizzle Studio on local Postgres
 pnpm --filter @repo/db reset                 # local Postgres emptied, then pushed
-pnpm --filter @repo/db stop | status
+pnpm --filter @repo/db status               # whether Postgres answers where POSTGRES_URL points, from any worktree
+pnpm --filter @repo/db stop                 # local Postgres stopped, from the checkout that started it
 ```
 
 The scripts read the root `.env.local`, then `.env`, and a variable already set
