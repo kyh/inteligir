@@ -7,9 +7,8 @@ appId: com.inteligir.mobile
 - inputText: ${EMAIL}
 - tapOn: Password
 - inputText: ${PASSWORD}
-# Return, not hideKeyboard: the keyboard covers Sign in, and hiding it empties the password field
+# Return on the last field sends the form
 - pressKey: Enter
-- tapOn: Sign in
 # the system offers to keep the password once the sign-in lands, while the simulator's AutoFill is on
 - tapOn:
     text: Not Now
