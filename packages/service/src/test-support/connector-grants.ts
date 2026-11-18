@@ -81,7 +81,7 @@ export const dpopKey = (): DpopKey => {
   };
 };
 
-export const registerAssistant = async (name: string, redirectUri: string): Promise<string> => {
+const registerAssistant = async (name: string, redirectUri: string): Promise<string> => {
   const response = await authFetch("/oauth2/register", {
     body: JSON.stringify({
       client_name: name,
