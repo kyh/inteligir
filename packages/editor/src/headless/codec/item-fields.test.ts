@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { z } from "zod";
 
-import { blankItemFields } from "@repo/contract/library/item-makes";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { blankItemFields, importedFields } from "@repo/contract/library/item-makes";
+import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 
-import { factsOf, itemFields, readFrontmatter, titleOf } from "./item-fields";
+import { factsOf, itemFields, readFrontmatter, titleOf, unheldYaml } from "./item-fields";
 import type { FileFacts } from "./item-fields";
 
 const NOW = Date.UTC(2026, 10, 16);
@@ -13,6 +15,19 @@ const fieldsOf = (yaml: string | null, name = "Name") =>
   itemFields(factsOf(readFrontmatter(yaml)), name, NOW);
 const aliasesOf = (yaml: string): string[] => said(yaml).fields.aliases;
 const tagsOf = (yaml: string): string[] => said(yaml).fields.tags;
+const keysSchema = z.record(z.string(), z.json());
+const unheldOf = (yaml: string): z.infer<typeof keysSchema> | null => {
+  const unheld = unheldYaml(readFrontmatter(yaml));
+  return unheld === null ? null : keysSchema.parse(parse(unheld));
+};
+
+const LINE = ITEM_FIELD_CAPS.line;
+// a name past what a line holds, which no tag, alias or key holds whole
+const PAST_A_LINE = "a".repeat(LINE + 1);
+const LONG_ALIASES = Array.from(
+  { length: ITEM_FIELD_CAPS.listEntries },
+  (_, index) => `${String(index).padStart(3, "0")}${"a".repeat(LINE - 3)}`,
+);
 
 // each list ten of the one before, so the last names ten thousand
 const tenOf = (entry: string): string => `[${Array.from({ length: 10 }, () => entry).join(", ")}]`;
@@ -48,6 +63,19 @@ describe("a file's frontmatter, read once", () => {
       ...blank,
       properties: { status: "active" },
     });
+  });
+
+  it("keeps no block as fields an item refuses", () => {
+    for (const yaml of [
+      "saved: 1965-01-01\nurl: https://a.com\nfetched: 1969-12-31T23:59:59Z\n",
+      `aliases: [${LONG_ALIASES.join(", ")}]\n`,
+      `tags: [${PAST_A_LINE}]\n`,
+      `${PAST_A_LINE}: value\n`,
+      "key: ''\n'': empty\n",
+    ]) {
+      const fields = importedFields(fieldsOf(yaml));
+      expect(importedFieldsSchema.safeParse(fields).error?.issues).toBeUndefined();
+    }
   });
 
   it("keeps every key no field names, typed as written", () => {
@@ -151,6 +179,14 @@ describe("the keys an item's fields are read from", () => {
     });
   });
 
+  it("saves an item at the import's instant where `saved:` is before 1970", () => {
+    expect(fieldsOf("saved: 1965-01-01\npinned: true\n")).toMatchObject({
+      pinnedAt: NOW,
+      properties: {},
+      savedAt: NOW,
+    });
+  });
+
   it("pins by a checkbox alone, as of when the item was saved", () => {
     expect(fieldsOf("pinned: true\nsaved: 2026-10-17\n")).toMatchObject({
       pinnedAt: Date.UTC(2026, 9, 17),
@@ -219,6 +255,15 @@ describe("a file's aliases", () => {
       properties: { aliases: names.slice(ITEM_FIELD_CAPS.listEntries) },
     });
   });
+
+  it("takes no more bytes than a list holds, and keeps the rest", () => {
+    const yaml = `aliases: [${LONG_ALIASES.join(", ")}]\n`;
+    const { aliases } = said(yaml).fields;
+    // each name and its quotes, a comma between, in brackets
+    const fit = Math.floor((ITEM_FIELD_CAPS.listBytes - 1) / (LINE + 3));
+    expect(aliases).toStrictEqual(LONG_ALIASES.slice(0, fit));
+    expect(unheldOf(yaml)).toStrictEqual({ aliases: LONG_ALIASES.slice(fit) });
+  });
 });
 
 describe("a file's tags", () => {
@@ -242,6 +287,35 @@ describe("a file's tags", () => {
       fields: { tags: [] },
       properties: { tags: 2026 },
     });
+  });
+
+  it("leaves a tag past a line a property", () => {
+    const tag = "a".repeat(LINE);
+    expect(said(`tags: [${tag}, ${PAST_A_LINE}]\n`)).toMatchObject({
+      fields: { tags: [tag] },
+      properties: { tags: [PAST_A_LINE] },
+    });
+  });
+});
+
+describe("the keys no property holds", () => {
+  it("keeps a key that is no property's as YAML that reads back to it", () => {
+    const yaml = `status: active\n${PAST_A_LINE}: value\n'': empty\n`;
+    expect(said(yaml).properties).toStrictEqual({ status: "active" });
+    expect(unheldOf(yaml)).toStrictEqual({ "": "empty", [PAST_A_LINE]: "value" });
+  });
+
+  it("keeps the keys past what the properties' bytes hold, in the file's order", () => {
+    const big = "x".repeat(ITEM_FIELD_CAPS.propertiesBytes / 2);
+    const yaml = `first: ${big}\nsecond: ${big}\nthird: small\n`;
+    expect(said(yaml).properties).toStrictEqual({ first: big, third: "small" });
+    expect(unheldOf(yaml)).toStrictEqual({ second: big });
+  });
+
+  it("keeps nothing as YAML where every key is held, and a block that is not YAML whole", () => {
+    expect(unheldYaml(readFrontmatter(null))).toBeNull();
+    expect(unheldYaml(readFrontmatter("status: active\n"))).toBeNull();
+    expect(unheldYaml(readFrontmatter("a: [1\n"))).toBe("a: [1\n");
   });
 });
 
@@ -268,9 +342,9 @@ describe("where a file's page stands", () => {
     expect(fieldsOf(yaml).reading).toStrictEqual({ state: "none" });
   });
 
-  it("keeps a `fetched:` that is no instant a property", () => {
-    expect(said("kind: link\nurl: https://a.com\nfetched: someday\n")).toMatchObject({
-      properties: { fetched: "someday" },
+  it.each(["someday", "1965-01-01"])("keeps a `fetched: %s`, no instant, a property", (fetched) => {
+    expect(said(`kind: link\nurl: https://a.com\nfetched: ${fetched}\n`)).toMatchObject({
+      properties: { fetched },
       reading: { at: null, state: "pending" },
     });
   });

@@ -22,7 +22,7 @@ import type { MarkdownRead } from "@repo/editor/headless/markdown/md-read";
 import { yamlCodeBlock } from "@repo/editor/headless/markdown/md-rules";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-import { factsOf, itemFields, readFrontmatter } from "./item-fields";
+import { factsOf, itemFields, readFrontmatter, unheldYaml } from "./item-fields";
 import { readBody, storedBlocks } from "./read-body";
 import type { BodyPorts } from "./read-body";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
@@ -142,8 +142,9 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     facts.fields.kind,
     ports,
   );
-  if (front.kind === "invalid") {
-    note.unshift(yamlCodeBlock(front.yaml));
+  const unheld = unheldYaml(front);
+  if (unheld !== null) {
+    note.unshift(yamlCodeBlock(unheld));
   }
   const reading: BodyPorts = {
     links: { image: ports.file, item: ports.item },

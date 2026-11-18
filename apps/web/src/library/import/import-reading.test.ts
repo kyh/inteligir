@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { urlKey } from "@repo/contract/items/item-url";
 import { fileSha } from "@repo/contract/library/file-sha";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
 import { describe, expect, it } from "vitest";
 
@@ -100,6 +101,20 @@ const VAULT = {
   "pic.png": PNG,
 };
 
+const PAST_A_LINE = "a".repeat(ITEM_FIELD_CAPS.line + 1);
+const LONG_ALIASES = Array.from(
+  { length: ITEM_FIELD_CAPS.listEntries },
+  (_, index) => `- ${String(index).padStart(3, "0")}${"a".repeat(ITEM_FIELD_CAPS.line - 3)}`,
+);
+
+// notes whose frontmatter holds what no field takes as written
+const ODD_NOTES = {
+  "Aliases.md": encoder.encode(`---\naliases:\n${LONG_ALIASES.join("\n")}\n---\nBody.\n`),
+  "Key.md": encoder.encode(`---\n${PAST_A_LINE}: value\n---\nBody.\n`),
+  "Old.md": encoder.encode("---\nsaved: 1965-01-01\n---\nBody.\n"),
+  "Tag.md": encoder.encode(`---\ntags: [${PAST_A_LINE}]\n---\nBody.\n`),
+};
+
 const titled = (items: ReadonlyMap<string, NewItem>, title: string): NewItem => {
   const item = [...items.values()].find((candidate) => candidate.fields.title === title);
   if (item === undefined) {
@@ -188,6 +203,14 @@ describe("a zip of notes read on the device", () => {
     );
     expect(ended).toStrictEqual({
       counts: { added: 1, alreadySaved: 0, unreadable: 1 },
+      kind: "done",
+    });
+  });
+
+  it("lands a note whose frontmatter holds what no field takes as written", async () => {
+    const library = fakeCell();
+    expect(await read(library.cell, await zipOf(ODD_NOTES), "markdown")).toStrictEqual({
+      counts: { added: 4, alreadySaved: 0, unreadable: 0 },
       kind: "done",
     });
   });

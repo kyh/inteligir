@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
@@ -724,6 +725,14 @@ describe("one file as its item", () => {
     expect(item.fields.kind).toBe("note");
     expect(types(item)).toStrictEqual(["code_block", "p"]);
     expect(JSON.stringify(item.blocks[0]?.block)).toContain("key: [unclosed");
+  });
+
+  it("keeps the keys no property holds as the note's first code block", () => {
+    const key = "k".repeat(ITEM_FIELD_CAPS.line + 1);
+    const item = imported(`---\nstatus: active\n${key}: value\n---\n\nBody.\n`);
+    expect(item.fields.properties).toStrictEqual({ status: "active" });
+    expect(types(item)).toStrictEqual(["code_block", "p"]);
+    expect(JSON.stringify(item.blocks[0]?.block)).toContain(`${key}: value`);
   });
 
   // its input is past the 512 KiB block cap, and parsing that much markdown takes seconds on a

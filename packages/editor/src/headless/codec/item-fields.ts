@@ -3,12 +3,13 @@
 // `title`, `kind`, `url`, `site`, `author`, `published`, `saved`, `fetched`, `fetch-error`,
 // `description`, `lang`, `tags`, `aliases` and `pinned`. What of a value its reader does not take
 // stays a property under the key's own name, as every other key does whole, so a
-// `published: true`, a `kind: book`, a `pinned: yes` and the entries of `tags` the tag grammar
-// refuses are kept. `id` and `saved` are the item's own, its identity and its instant, so neither
-// is ever a property. A block that is not YAML is no field's, and the import keeps it as the
-// note's first code block.
+// `published: true`, a `kind: book`, a `pinned: yes`, a `fetched:` before 1970 and the entries of
+// `tags` the tag grammar refuses are kept. `id` and `saved` are the item's own, its identity and
+// its instant, so neither is ever a property. A block that is not YAML is no field's, and the
+// import keeps it as the note's first code block, as it keeps the keys no property holds: one
+// whose name is past a line, or past what the properties' bytes hold.
 
-import { isMap, isScalar, parseDocument } from "yaml";
+import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { Document, ParsedNode } from "yaml";
 import { z } from "zod";
 
@@ -16,16 +17,17 @@ import { isItemKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
+import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import type { Reading } from "@repo/contract/library/item-reading";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS, propertyKeySchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import { parseItemTime } from "@repo/editor/headless/items/item-time";
 
 type KeyValues = ReadonlyMap<string, PropertyValue>;
 
 export interface FileFacts {
-  // the `id:` the file carries, which a page link this app's export wrote keys by
+  // the `id:` the file carries, which a page link an earlier version wrote keys by
   readonly id: string | null;
   // null where the file's own name is the title
   readonly title: string | null;
@@ -46,7 +48,13 @@ export type Frontmatter =
   | { readonly kind: "none" }
   // a block that is not YAML, as written
   | { readonly kind: "invalid"; readonly yaml: string }
-  | { readonly kind: "fields"; readonly facts: FileFacts };
+  // `unheld`: the keys no property holds, as YAML; null for none
+  | { readonly kind: "fields"; readonly facts: FileFacts; readonly unheld: string | null };
+
+interface ReadKeys {
+  readonly facts: FileFacts;
+  readonly unheld: string | null;
+}
 
 // a text, the spaces around it left off, cut between characters to the `max` UTF-16 units a field
 // counts; null for none left
@@ -62,6 +70,9 @@ const cut = (text: string, max: number): string | null => {
   const kept = whole.slice(0, end).trimEnd();
   return kept === "" ? null : kept;
 };
+
+// what a value adds to a list's or a map's bytes as the item's caps count them, canonical JSON
+const jsonBytes = (value: PropertyValue): number => utf8ByteLength(canonicalJson(value));
 
 const textValue = z.string();
 const textList = z.array(textValue);
@@ -112,10 +123,11 @@ const publishedOf = (value: PropertyValue): string | null =>
   line(numberValue.validate(value) ? String(value) : value);
 
 // a tag as Obsidian writes one, a `#` before it left off; one outside the tag grammar
-// (`reading list`, a quoted `2026`) is no tag, since no inline `#` could spell it
+// (`reading list`, a quoted `2026`) is no tag, since no inline `#` could spell it, and one past a
+// line is none an item holds
 const tagOf = (entry: string): string | null => {
   const tag = (entry.startsWith("#") ? entry.slice(1) : entry).trim();
-  return isTagName(tag) ? tag : null;
+  return isTagName(tag) && tag.length <= ITEM_FIELD_CAPS.line ? tag : null;
 };
 
 // where the page of a file with an address stands: failed where the file says why, read where it
@@ -132,8 +144,30 @@ const pageReading = (kind: ItemKind, at: number | null, error: string | null): R
     : { state: "none" };
 };
 
-const readKeys = (file: KeyValues): FileFacts => {
-  // what no field took of each key, which stays a property under it
+// what no field took of the keys: the item's properties while a key is a property's and the
+// properties' bytes hold its value, the rest kept as YAML, in the file's order
+const holdLeft = (left: KeyValues) => {
+  const held = new Map<string, PropertyValue>();
+  const unheld = new Map<string, PropertyValue>();
+  // the properties' braces, then each key and value and the comma before them
+  let bytes = 2;
+  for (const [key, value] of left) {
+    const more = jsonBytes(key) + 1 + jsonBytes(value) + (held.size > 0 ? 1 : 0);
+    if (propertyKeySchema.validate(key) && bytes + more <= ITEM_FIELD_CAPS.propertiesBytes) {
+      held.set(key, value);
+      bytes += more;
+    } else {
+      unheld.set(key, value);
+    }
+  }
+  return {
+    properties: Object.fromEntries(held),
+    unheld: unheld.size === 0 ? null : stringify(unheld, { lineWidth: 0 }).trimEnd(),
+  };
+};
+
+const readKeys = (file: KeyValues): ReadKeys => {
+  // what no field took of each key, which `holdLeft` keeps under the key's own name
   const left = new Map(file);
   // a key its field takes whole or not at all
   const whole = <T>(key: string, read: (value: PropertyValue) => T | null): T | null => {
@@ -151,17 +185,24 @@ const readKeys = (file: KeyValues): FileFacts => {
     return took;
   };
   // a list or one bare string, as Obsidian accepts: each entry as `spell` writes it, the first of
-  // a spelling kept, and what the field did not take left; a key left empty leaves nothing
+  // a spelling kept, while the list holds its entries and its bytes, and what the field did not
+  // take left; a key left empty leaves nothing
   const list = (key: string, spell: (entry: string) => string | null): string[] => {
     const value = file.get(key) ?? null;
     const entries = Array.isArray(value) ? value : [value];
     const took = new Map<string, string>();
     const refused: PropertyValue[] = [];
+    // the list's brackets, then each entry and the comma before it
+    let bytes = 2;
     for (const entry of value === null ? [] : entries) {
       const spelled = textValue.validate(entry) ? spell(entry) : null;
       const held = spelled !== null && took.has(spelled.toLowerCase());
-      if (spelled !== null && !held && took.size < ITEM_FIELD_CAPS.listEntries) {
+      const more = spelled === null ? 0 : jsonBytes(spelled) + (took.size > 0 ? 1 : 0);
+      const fits =
+        took.size < ITEM_FIELD_CAPS.listEntries && bytes + more <= ITEM_FIELD_CAPS.listBytes;
+      if (spelled !== null && !held && fits) {
         took.set(spelled.toLowerCase(), spelled);
+        bytes += more;
       } else if (!held) {
         refused.push(entry);
       }
@@ -200,7 +241,8 @@ const readKeys = (file: KeyValues): FileFacts => {
     savedAt: own("saved", instant),
     title: whole("title", written),
   };
-  return { ...facts, properties: Object.fromEntries(left) };
+  const { properties, unheld } = holdLeft(left);
+  return { facts: { ...facts, properties }, unheld };
 };
 
 const jsonValue = z.json();
@@ -241,12 +283,29 @@ export const readFrontmatter = (yaml: string | null): Frontmatter => {
     return { kind: "none" };
   }
   const file = keyValues(yaml);
-  return file === null ? { kind: "invalid", yaml } : { facts: readKeys(file), kind: "fields" };
+  return file === null ? { kind: "invalid", yaml } : { ...readKeys(file), kind: "fields" };
 };
 
 // what a file says of its item: nothing, where it has no frontmatter that reads
 export const factsOf = (front: Frontmatter): FileFacts =>
-  front.kind === "fields" ? front.facts : readKeys(new Map());
+  front.kind === "fields" ? front.facts : readKeys(new Map()).facts;
+
+// what of a file's frontmatter its item cannot hold, as the YAML its note keeps: a block that is
+// not YAML whole, else the keys no property holds; null for none
+export const unheldYaml = (front: Frontmatter): string | null => {
+  switch (front.kind) {
+    case "none": {
+      return null;
+    }
+    case "invalid": {
+      return front.yaml;
+    }
+    case "fields": {
+      return front.unheld;
+    }
+    // no default
+  }
+};
 
 // the title a file's item takes: its `title:`, an empty one among them, else the file's own name
 export const titleOf = (facts: FileFacts, name: string): string =>

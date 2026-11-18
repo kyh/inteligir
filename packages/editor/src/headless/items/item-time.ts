@@ -1,5 +1,6 @@
-// An item's `saved` and `fetched` instants. Import-free, and never Date.parse: its reading of a
-// date-only string or an offset differs across runtimes, so the arithmetic is Date.UTC's alone.
+// An item's `saved` and `fetched` instants, which are never before 1970 (`library-item.ts`).
+// Import-free, and never Date.parse: its reading of a date-only string or an offset differs across
+// runtimes, so the arithmetic is Date.UTC's alone.
 
 const DATE_RE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
 const INSTANT_RE =
@@ -8,6 +9,8 @@ const INSTANT_RE =
 const MS_PER_MINUTE = 60_000;
 
 const numberOf = (text: string | undefined): number => (text === undefined ? 0 : Number(text));
+
+const itemInstant = (ms: number | null): number | null => (ms !== null && ms >= 0 ? ms : null);
 
 // Date.UTC reads a year under 100 as 19xx, so the year is set after the fact, and it rolls a day
 // the month does not hold into the next, so a day that does not read back names no date
@@ -28,12 +31,14 @@ const utcMs = (
 };
 
 // epoch ms for `YYYY-MM-DD` (UTC midnight) or `YYYY-MM-DDTHH:MM[:SS[.fff]](Z|±HH:MM)`; null for
-// anything else, an impossible date (`2026-02-30`) or time among it
+// anything else, an impossible date (`2026-02-30`) or time and an instant before 1970 among it
 export const parseItemTime = (value: string): number | null => {
   const text = value.trim();
   const date = DATE_RE.exec(text)?.groups;
   if (date !== undefined) {
-    return utcMs(numberOf(date.year), numberOf(date.month), numberOf(date.day), 0, 0, 0, 0);
+    return itemInstant(
+      utcMs(numberOf(date.year), numberOf(date.month), numberOf(date.day), 0, 0, 0, 0),
+    );
   }
   const instant = INSTANT_RE.exec(text)?.groups;
   if (instant === undefined) {
@@ -53,8 +58,5 @@ export const parseItemTime = (value: string): number | null => {
   const ms = numberOf((instant.fraction ?? "").slice(0, 3).padEnd(3, "0"));
   const offset = (instant.sign === "-" ? -1 : 1) * (offsetHour * 60 + offsetMinute);
   const at = utcMs(year, month, day, hour, minute, second, ms);
-  return at === null ? null : at - offset * MS_PER_MINUTE;
+  return itemInstant(at === null ? null : at - offset * MS_PER_MINUTE);
 };
-
-// `YYYY-MM-DDTHH:MM:SSZ`, the one spelling every writer stores; milliseconds are dropped
-export const formatItemTime = (ms: number): string => `${new Date(ms).toISOString().slice(0, 19)}Z`;

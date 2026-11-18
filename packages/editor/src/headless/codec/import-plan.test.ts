@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import type { ImportedFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
@@ -21,7 +22,7 @@ import type { ImportEntry, PlanIds } from "./import-plan";
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
 
-// an Obsidian vault beside a note this app wrote, the binaries named by a pretend sha
+// an Obsidian vault beside a note an earlier version wrote, the binaries named by a pretend sha
 const OBSIDIAN_VAULT = {
   ".obsidian/app.json": '{"theme":"moonstone"}',
   "Notes/Daily.md": [
@@ -73,6 +74,22 @@ const OBSIDIAN_VAULT = {
     ":::",
     "",
   ].join("\n"),
+} satisfies Record<string, string>;
+
+const PAST_A_LINE = "a".repeat(ITEM_FIELD_CAPS.line + 1);
+const LONG_ALIASES = Array.from(
+  { length: ITEM_FIELD_CAPS.listEntries },
+  (_, index) => `- ${String(index).padStart(3, "0")}${"a".repeat(ITEM_FIELD_CAPS.line - 3)}`,
+);
+const BIG = "x".repeat(ITEM_FIELD_CAPS.propertiesBytes / 2);
+
+// notes whose frontmatter holds what no field or property takes as written
+const HOSTILE_NOTES = {
+  "Aliases.md": `---\naliases:\n${LONG_ALIASES.join("\n")}\n---\nBody.\n`,
+  "Big.md": `---\nfirst: ${BIG}\nsecond: ${BIG}\n---\nBody.\n`,
+  "Key.md": `---\n${PAST_A_LINE}: value\n'': empty\n---\nBody.\n`,
+  "Old.md": "---\nsaved: 1965-01-01\nurl: https://a.com\nfetched: 1960-05-01\n---\nBody.\n",
+  "Tag.md": `---\ntags: [ok, ${PAST_A_LINE}]\n---\nBody.\n`,
 } satisfies Record<string, string>;
 
 const shaOf = (path: string): string =>
@@ -308,7 +325,7 @@ describe("an Obsidian vault read into the library", () => {
     );
   });
 
-  it("reads a link this app's export wrote by its item's id, and one to no item as its words", () => {
+  it("reads a link an earlier version wrote by its item's id, and one to no item as its words", () => {
     const { items } = readFolder(
       {
         "Beta.md": `---\nid: ${PROJECT_ID}\n---\nBeta's words.\n`,
@@ -383,6 +400,25 @@ describe("an Obsidian vault read into the library", () => {
     for (const { fields } of library.items) {
       expect(importedFieldsSchema.safeParse(fields).error?.issues, fields.title).toBeUndefined();
     }
+  });
+
+  it("plans every note of frontmatter no field takes as written as an item the library takes", () => {
+    const hostile = readFolder(HOSTILE_NOTES, new Map());
+    expect(hostile.items.map((item) => item.fields.title).toSorted()).toStrictEqual([
+      "Aliases",
+      "Big",
+      "Key",
+      "Old",
+      "Tag",
+    ]);
+    for (const { blocks, fields, itemId } of hostile.items) {
+      const sent = { blocks, cover: null, fields, folder: null, id: itemId, kind: "new" };
+      expect(importedItemSchema.safeParse(sent).error?.issues, fields.title).toBeUndefined();
+    }
+    expect(byTitle(hostile, "Old").fields).toMatchObject({
+      properties: { fetched: "1960-05-01" },
+      savedAt: CODEC_NOW,
+    });
   });
 
   it.each(["a%20b.png", "100%.png", "a b.png"])("embeds %s as the bytes it names", (name) => {

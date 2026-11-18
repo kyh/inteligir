@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatItemTime, parseItemTime } from "./item-time";
+import { parseItemTime } from "./item-time";
 
 describe(parseItemTime, () => {
   it.each([
@@ -16,6 +16,8 @@ describe(parseItemTime, () => {
     ["2026-10-17T09:12:30+02:00", Date.UTC(2026, 9, 17, 7, 12, 30)],
     ["2026-10-17T09:12:30-05:30", Date.UTC(2026, 9, 17, 14, 42, 30)],
     ["2026-10-17t09:12:30z", Date.UTC(2026, 9, 17, 9, 12, 30)],
+    ["1970-01-01", 0],
+    ["1970-01-01T01:00:00+01:00", 0],
   ])("%s", (text, expected) => {
     expect(parseItemTime(text)).toBe(expected);
   });
@@ -42,21 +44,14 @@ describe(parseItemTime, () => {
     expect(parseItemTime(text)).toBeNull();
   });
 
-  it("keeps a year under 100 as written", () => {
-    const ms = parseItemTime("0050-03-01");
-    expect(ms).not.toBeNull();
-    expect(formatItemTime(ms ?? 0)).toBe("0050-03-01T00:00:00Z");
-  });
-});
+  it.each(["1965-01-01", "1969-12-31T23:59:59Z", "1970-01-01T00:30:00+01:00", "0050-03-01"])(
+    "refuses %j, before 1970",
+    (text) => {
+      expect(parseItemTime(text)).toBeNull();
+    },
+  );
 
-describe(formatItemTime, () => {
-  it("writes seconds and Z, dropping milliseconds", () => {
-    expect(formatItemTime(Date.UTC(2026, 9, 17, 9, 12, 30, 999))).toBe("2026-10-17T09:12:30Z");
-  });
-
-  it("round-trips through the parser at second precision", () => {
-    for (let ms = Date.UTC(1999, 0, 1); ms < Date.UTC(2040, 0, 1); ms += 86_399_517) {
-      expect(parseItemTime(formatItemTime(ms))).toBe(Math.floor(ms / 1000) * 1000);
-    }
+  it("reads a year under 100 as written, so before 1970, never as 19xx", () => {
+    expect(parseItemTime("0075-01-01")).toBeNull();
   });
 });
