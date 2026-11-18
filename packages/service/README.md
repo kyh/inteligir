@@ -39,6 +39,8 @@ src/body/article-body.ts     a page's article set on a body, the note kept
 src/jobs/job-queue.ts        the job table: ask, lease under skip locked, finish, retry by backoff
 src/jobs/job-kinds.ts        what each kind of job runs, its payload's schema and its tries
 src/jobs/drain-jobs.ts       the drain: a kick after a write's response, /api/cron/jobs every minute
+src/jobs/housekeeping.ts     /api/cron/housekeeping hourly: the prunes, then the files let go
+src/files/file-release.ts    a file unnamed a day: its row deleted, its object removed by a job
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
 ```

@@ -312,6 +312,12 @@ decisions port with its code from the tag `cloudflare-last`.
   read through the kind's schema when it runs; one that no longer reads is
   dropped.** A kind with no entry fails to compile, and a payload an older build
   wrote never wedges the drain. `packages/service/src/jobs/job-kinds.ts`.
+- **Housekeeping, hourly, lets a file go once nothing has named it for a day:
+  its row deleted under its account's lock, its object removed by a
+  `file-release` job.** What is unnamed is read once the lock is held, so a name
+  committed while it waited keeps its file, and the store's removal waits on
+  the network after the commit, never under the lock.
+  `packages/service/src/files/file-release.ts`.
 
 ## The built-in agent
 

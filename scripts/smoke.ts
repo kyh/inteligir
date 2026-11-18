@@ -1,7 +1,7 @@
 /**
  * The runtime gate against a running app, a deployment's or `next start`'s: its health, the site's
- * policy, the sign-in gate, the build floor, and a signed-in call through two doors and a file
- * through the store. Calls go through the contract's own client, so a changed procedure shape
+ * policy, the sign-in gate, the crons' secret, the build floor, and a signed-in call through two
+ * doors and a file through the store. Calls go through the contract's own client, so a changed procedure shape
  * breaks this at typecheck.
  *
  *   pnpm smoke                        # against http://localhost:5174, signed in as the seeded login
@@ -53,6 +53,9 @@ const BYPASS: HeaderMap =
   VERCEL_AUTOMATION_BYPASS_SECRET === undefined
     ? {}
     : { "x-vercel-protection-bypass": VERCEL_AUTOMATION_BYPASS_SECRET };
+
+// apps/web/vercel.json's crons
+const CRON_PATHS = ["/api/cron/agent", "/api/cron/housekeeping", "/api/cron/jobs"];
 
 // an install at the floor every deployment answers by default, and one below it
 const BUILD = clientBuildHeaders({ platform: "mobile", version: "0.7.0" });
@@ -294,7 +297,19 @@ const LEGS: readonly Leg[] = [
       await expectStatus(await request("/eve/v1/health"), 200, "/eve/v1/health");
     },
   },
-  { label: "/api/cron/jobs refuses a call without its secret, 401", skip: "waits for the crons" },
+  {
+    label: "every cron route refuses a call without its secret, 401",
+    run: async () => {
+      for (const path of CRON_PATHS) {
+        await expectStatus(await request(path), 401, `${path} with no secret`);
+        await expectStatus(
+          await request(path, { headers: { authorization: "Bearer not-the-secret" } }),
+          401,
+          `${path} with another secret`,
+        );
+      }
+    },
+  },
   {
     label: "a build below the floor is refused with 426",
     run: async () => {

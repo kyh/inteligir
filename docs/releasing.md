@@ -382,6 +382,10 @@ The unpacked store build, against production, with no dev build loaded.
   names, or is the theme script its hash names; `curl -sI <deployment>/` shows
   `script-src 'self' 'unsafe-inline'`, and `curl -sI <deployment>/v1/blobs/<sha>`
   only the file's own policy.
+- **The crons on Vercel**: the project's Cron Jobs tab lists `/api/cron/jobs`
+  every minute, `/api/cron/housekeeping` hourly and `/api/cron/agent` every 15
+  minutes, each run answering 200 in the logs; a file in Deleted emptied a day
+  ago is gone from the Blob store.
 
 ### The library in a browser tab
 

@@ -112,7 +112,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Back on your iPhone leaves a note at once** unless you typed in it or added a file this visit, and the edge swipe goes back the same way.
 - **On your iPhone, Send and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.
 - **A conversation on your iPhone loads only what is new** while the agent works, and Ask the agent lists every conversation at once.
-- **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room.
+- **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room, a file's a day later.
 - **A change your library can't take says why**, and puts it back.
 - **Pin, Unpin and Restore from the grid's menu say how many items they changed**, and a restore names every item that stayed in Deleted because another item has its address.
 - **Moving, tagging, pinning, deleting or restoring more items than the grid has read, past the first 200, is one request your library finishes before it answers**: the notice says how many items changed, a tag change on more than 1,000 items finishes shortly after, such a run has no Stop and no Undo, and a delete asks first and its items wait in Deleted.

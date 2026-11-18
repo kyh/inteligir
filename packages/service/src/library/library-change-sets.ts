@@ -16,16 +16,15 @@ import {
   changeSetItem,
   file,
   itemBody,
-  libraryState,
   opAnswer,
 } from "@repo/db/library-schema";
 import { and, eq, inArray, isNotNull, isNull, lt, notExists, sql } from "drizzle-orm";
-import type { SQLWrapper } from "drizzle-orm";
 import { z } from "zod";
 
 import { holdSetFiles, releaseSetFiles } from "../files/file-names";
 import { inverseOpSchema } from "./inverse-ops";
 import type { InverseOp } from "./inverse-ops";
+import { idleAccounts } from "./idle-accounts";
 import { mintLibraryId } from "./library-ids";
 import type { TurnActor } from "./library-principal";
 import { refuse } from "./library-refusal";
@@ -216,15 +215,6 @@ export const dropEntries = async (
     }
   }
 };
-
-// of the accounts holding these rows, those no write holds now: a prune locks them as a write
-// does, and leaves a busy one for its next run, so it never races an Undo
-const idleAccounts = (tx: Tx, holding: SQLWrapper) =>
-  tx
-    .select({ accountId: libraryState.accountId })
-    .from(libraryState)
-    .where(inArray(libraryState.accountId, holding))
-    .for("update", { skipLocked: true });
 
 // Every set whose turn ended past Undo's reach, gone with its entries, and every ended set left
 // with nothing to take back, of each account no write holds; the files only those sets named are

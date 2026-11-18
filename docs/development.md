@@ -81,7 +81,8 @@ which `next dev` starts eve's own server. `pnpm build` then
 
 `pnpm smoke` (`scripts/smoke.ts`) checks a running app as a deployment must
 pass: `/api/health`, the home page's static policy, `/privacy`, `/library`'s
-307 to sign in, a 426 below the build floor, a signed-in call through the
+307 to sign in, the agent's health, every cron route's 401 without
+`CRON_SECRET`, a 426 below the build floor, a signed-in call through the
 extension's door and the phone's, and a file of its own each run sent by
 reserve, PUT and settle to whichever store the app keeps, then read back whole
 and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login; with
