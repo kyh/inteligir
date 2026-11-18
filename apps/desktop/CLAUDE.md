@@ -46,8 +46,9 @@ carries, and updates.
 - **The release notes are the changelog, written for the person using the app.** A release's body is
   `CHANGELOG.md`'s top section, refused unless titled for the version, since a list of commit
   subjects says only that something changed. `apps/desktop/scripts/release-notes.ts`.
-- **The shell is proved by `cargo test`, and the packaged app by the owner's Mac smoke.** WebKitGTK
-  is not the Mac's engine, and the tab's own flows drive the page the window shows.
+- **The shell is proved by `cargo test`, its engine by Playwright's WebKit, and the packaged app by
+  the owner's Mac smoke.** WebKitGTK is not the Mac's engine, `pnpm e2e:webkit` runs the tab's own
+  flows in WebKit, and only the window opens a browser, saves a download or hides on close.
   `docs/releasing.md`.
 - **The shell's plumbing is copied between repos and diverges on purpose.** The window, pin and
   updater are shared with kyh/init and the pin and packaging with kyh/idlebiz, each shaped to its

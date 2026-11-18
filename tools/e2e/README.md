@@ -5,9 +5,11 @@ Outside `pnpm verify`; turbo builds both first.
 
 ```sh
 pnpm bootstrap                    # once: local Postgres and its schema
-pnpm e2e                          # every flow
+pnpm e2e                          # every flow, in Chromium
 pnpm e2e -- site                  # one file
 pnpm e2e -- -g "sign-in"          # tests whose title matches
+pnpm e2e:webkit                   # every flow but the extension's, in WebKit
+pnpm e2e:firefox                  # the same, in Firefox
 ```
 
 The run needs the Postgres server `POSTGRES_URL` names, read from the root
@@ -36,4 +38,14 @@ test:
 
 CI installs the browser with
 `pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`,
-a Mac with `pnpm --filter @repo/e2e exec playwright install --no-shell chromium`.
+a Mac with `pnpm --filter @repo/e2e exec playwright install --no-shell chromium`
+(`webkit firefox` too for their runs), and CI runs Chromium alone.
+
+## The engines
+
+`playwright.config.ts` has a project per engine. WebKit stands in for Safari
+and the Mac app's engine, never its window: a new window, a download's folder
+and the leave prompt are the shell's, which `cargo test` and the owner's Mac
+smoke cover. Neither engine loads an extension, so `extension.spec.ts` runs in
+Chromium alone, and a test that only Chromium can run skips the others by
+`browserName`.

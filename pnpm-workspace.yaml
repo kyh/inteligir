@@ -33,8 +33,9 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
-  # exact, the playwright-core apps/web pins, so the two share one Chromium build
-  "@playwright/test": 1.63.0
+  # exact, as dataembed pins it: a version names the browser builds `playwright install` fetches,
+  # and this one's WebKit is 27.2
+  "@playwright/test": 1.65.1
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
   "@tailwindcss/postcss": ^4.3.3

@@ -38,6 +38,7 @@ pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate ta
 pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify             # The static gate (CI adds the e2e flows on top)
 pnpm e2e                # The Playwright flows, over the app's build and the extension's dev build
+pnpm e2e:webkit         # The same flows but the extension's, in WebKit; e2e:firefox in Firefox (not in CI)
 pnpm smoke              # The runtime legs a deployment passes, against the app on :5174 (SMOKE_URL for another)
 ```
 
@@ -227,4 +228,6 @@ variables and nothing of `.env`, the app reaching that agent at `EVE_BASE_URL`,
 and each test signs up an account by invite (`tools/e2e/src/fixtures.ts`). It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
 runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
-retries are 0, since a flaky flow is a bug.
+retries are 0, since a flaky flow is a bug. `pnpm e2e:webkit` and
+`pnpm e2e:firefox` run the same flows in Playwright's other engines, outside
+CI (`tools/e2e/README.md` § The engines).

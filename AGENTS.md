@@ -134,7 +134,7 @@ deployment (`.github/workflows/smoke.yml`).
 | Library tab     | `pnpm dev:web`       | **Once it is on Next**: `account`, `library`, `search`, `editor`, `note-links`, `saving` |
 | Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                     |
 | Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                           |
-| Mac app         | `pnpm dev`           | **Its shell**: `cargo test`; the window needs a human                                    |
+| Mac app         | `pnpm dev`           | **Its shell and engine**: `cargo test`; `pnpm e2e:webkit`; the window needs a human      |
 | Extension       | `pnpm dev:extension` | **In Chromium, once saving is on Next**: `extension`                                     |
 | Phone           | `pnpm dev:mobile`    | **Its parts**: its suites; the app needs the simulator or a device                       |
 

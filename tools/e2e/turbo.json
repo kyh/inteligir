@@ -6,6 +6,15 @@
     "e2e": {
       "dependsOn": ["@repo/web#build", "@repo/extension#build"],
       "cache": false
+    },
+    // the same flows in Playwright's other engines, which load no extension
+    "e2e:firefox": {
+      "dependsOn": ["@repo/web#build"],
+      "cache": false
+    },
+    "e2e:webkit": {
+      "dependsOn": ["@repo/web#build"],
+      "cache": false
     }
   }
 }

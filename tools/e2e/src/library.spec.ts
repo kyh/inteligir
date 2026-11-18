@@ -291,8 +291,15 @@ test.describe(() => {
 });
 
 // Chromium frames the PDF viewer, so a page policy that refuses the frame is a console error the
-// watch fails on, and the frame never appears
-test("a PDF item draws in the browser's own viewer", async ({ account, cloud, library, page }) => {
+// watch fails on, and the frame never appears; headless WebKit and Firefox frame no viewer at all
+test("a PDF item draws in the browser's own viewer", async ({
+  account,
+  browserName,
+  cloud,
+  library,
+  page,
+}) => {
+  test.skip(browserName !== "chromium", "only Chromium frames its PDF viewer");
   const sha = await upload(cloud, account, PDF, "application/pdf");
   const lecture = await library.items.createFile({
     folderId: null,

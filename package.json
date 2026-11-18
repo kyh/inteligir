@@ -16,6 +16,8 @@
     "dev:mobile": "turbo run dev -F @repo/mobile",
     "dev:web": "turbo watch dev -F @repo/web...",
     "e2e": "turbo run e2e",
+    "e2e:firefox": "turbo run e2e:firefox",
+    "e2e:webkit": "turbo run e2e:webkit",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write && turbo run format:fix",
     "knip": "knip",
