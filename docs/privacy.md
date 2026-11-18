@@ -90,8 +90,11 @@ through the Service or otherwise includes:
   location information, and other similar data. Specifically:
   - Every change a device of yours makes to items, files, folders and tags goes
     to your library in our cloud. A note saves a second after you stop typing
-    in it, and every 5 seconds while you keep typing, as the whole note; your
-    other devices show it when they next ask, within 15 seconds while in front.
+    in it, and every 5 seconds while you keep typing, as the whole note; while
+    the built-in agent edits a note you have open, the note keeps what you type
+    but saves it only once the agent's edit ends, a minute at most, into what
+    the agent left. Your other devices show it when they next ask, within 15
+    seconds while in front.
     Nobody learns who else has a note open or where their cursor is.
   - For seven days after a turn of the built-in agent ends, so Undo can take it
     back, your library keeps what that turn changed in each item's fields, the
