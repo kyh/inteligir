@@ -15,10 +15,11 @@ src/
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, document policies, config and page markdown
+agent/           the built-in agent, eve's: its channel, hooks, tools, filing rules and mock model
 scripts/         write-licenses.ts, which writes public/licenses.md at prebuild
 next.config.ts   Cache Components, the React Compiler, the static policy and headers, Turbopack's
-                 `?raw` and the import worker's alias
-vercel.json      the functions' region
+                 `?raw` and the import worker's alias, eve's mount
+vercel.json      the functions' region and the crons
 ```
 
 ## Routes
@@ -39,11 +40,15 @@ vercel.json      the functions' region
 | `/api/sign-up`                                     | sign-up behind the invite gate, POST alone                                  |
 | `/api/markdown/*`                                  | what `proxy.ts` rewrites a markdown request to; no public address           |
 | `/api/health`                                      | `{"ok":true}` once the database answers, else 503                           |
+| `/api/dev/files`                                   | off Vercel with no Blob key, the folder store's upload, PUT alone; else 404 |
 | `/api/cron/jobs`                                   | Vercel Cron, every minute: drains every account's due jobs                  |
 | `/api/cron/housekeeping`                           | Vercel Cron, hourly: prunes change sets and op answers, releases files      |
 | `/api/cron/agent`                                  | Vercel Cron, every 15 minutes: the agent's stranded turns and threads       |
 | `/api/*`                                           | a JSON 404                                                                  |
 | `/v1/rpc/*`                                        | `/v1`'s one wire, POST alone (`@repo/service`'s `rpc/v1-rpc.ts`)            |
+| `/v1/rpc/library/agent/events`                     | a thread's events as one stream, cut at 280 s for the device to pick up     |
+| `/v1/blobs/<sha>`                                  | a library file's bytes, HEAD and ranges, under the file's own policy        |
+| `/eve/v1/*`                                        | the built-in agent, eve's, which only the app calls; `/eve/v1/health` open  |
 | `/connector`                                       | the library's tools for a connected assistant, POST alone (`mcp/`)          |
 | `/.well-known/oauth-protected-resource/*`          | the connector's metadata, naming its authorization server                   |
 | `/.well-known/oauth-authorization-server/api/auth` | the OAuth provider's metadata, its issuer `/api/auth`                       |
@@ -59,3 +64,15 @@ the tab's `library` (node, `*.test.ts`) and `library-dom` (jsdom,
 `*.test.tsx`), compiled by the React Compiler as it ships. `generate` runs
 `next typegen`, whose route types the app's program, its `typecheck` and the
 root's lint read.
+
+## Invites
+
+Minting an invite is a row, deliberately: no admin page, no self-serve
+issuance. Locally `pnpm db:seed` writes `DEV-INVITE`, and another is an
+`invite_code` row added in `pnpm --filter @repo/db studio`; in production, a
+row inserted in the Supabase project's SQL editor, its code 6 to 64 letters,
+digits or dashes:
+
+```sql
+insert into invite_code (code) values ('...');
+```

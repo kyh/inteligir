@@ -1,8 +1,9 @@
 # @repo/service
 
 The cloud's code, which `apps/web` serves: the environment it reads, one zod
-schema in `src/env.ts`, accounts on Better Auth over Postgres, `/v1/rpc` and
-the library's reads and writes on Postgres.
+schema in `src/env.ts`, accounts on Better Auth over Postgres, the connector,
+`/v1/rpc`, the library's reads and writes on Postgres, its files, jobs and
+fills, and the built-in agent's side of eve.
 Its decisions are this package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
@@ -15,8 +16,10 @@ src/auth/auth.ts        the two Better Auth instances, the session reads, the to
 src/auth/auth-route.ts  /api/auth/*: the six routes a client calls, a 404 to the rest
 src/auth/invite.ts      POST /api/sign-up: claim the code, forward, release on failure
 src/auth/send-email.ts  the reset mail's one transport, in EMAIL_MODE's way
+src/auth/oauth.ts       the connector's sign-in: Better Auth's OAuth provider and cimd, PKCE
+src/mcp/connector-server.ts /connector: the library's tools to a connected assistant, its grant read each call
 src/seed.ts             pnpm db:seed: the dev account and DEV-INVITE
-src/rpc/v1-rpc.ts       /v1/rpc: admit, then the rows routed so far, a fault in the protocol
+src/rpc/v1-rpc.ts       /v1/rpc: admit, then the whole contract's rows, a fault in the protocol
 src/rpc/admit.ts        the build floor, the door and its session, before a call is read
 src/rpc/orpc.ts         the contract's implementer, its context the admitted principal
 src/rpc/account-router.ts account.devices.* and account.delete
@@ -36,6 +39,9 @@ src/library/library-reads.ts an item whole or as markdown, an agent's list and s
 src/body/write-body.ts       a body written over the version its writer read: a save, an edit once made
 src/body/edit-body.ts        an agent's edit by passages, made outside the write and made again if stale
 src/body/article-body.ts     a page's article set on a body, the note kept
+src/files/file-landing.ts    a file's reserve and settle: the store's upload URL, then its bytes hashed and kept
+src/files/file-store-of.ts   which store keeps files: Blob, a folder off Vercel, or none
+src/files/file-read-route.ts /v1/blobs/<sha>: HEAD, preconditions and ranges from the row, the bytes streamed
 src/jobs/job-queue.ts        the job table: ask, lease under skip locked, finish, retry by backoff
 src/jobs/job-kinds.ts        what each kind of job runs, its payload's schema and its tries
 src/jobs/drain-jobs.ts       the drain: a kick after a write's response, /api/cron/jobs every minute
@@ -48,6 +54,13 @@ src/fill/public-dispatcher.ts the Agent whose lookup refuses a name that resolve
 src/fill/fill-landing.ts     a reading landed on an item still waiting for it
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
+src/agent/eve-agent.ts       what eve asks of the app: the library tools as the turn, the record and limits hooks
+src/agent/eve-admission.ts   who may reach an eve session: the app's token for that thread
+src/agent/agent-sessions.ts  a thread over its eve sessions: send, stop, delete
+src/agent/relay.ts           a thread's events, kept then live, as one stream
+src/agent/agent-limits.ts    the day's allowance and dollar ceilings, from the agent_usage ledger
+src/agent/agent-cron.ts      /api/cron/agent every 15 minutes: stranded turns, deleted threads, the ledger's month
+src/background.ts            work after a response, inside its route's maxDuration
 ```
 
 `apps/web` mounts the three handlers (`src/app/api/auth/[...all]/route.ts`,

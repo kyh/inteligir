@@ -1,8 +1,9 @@
 # Decisions: @repo/service and the cloud
 
 The cloud's code, which `apps/web` serves on Node: the environment it reads,
-accounts, `/v1` and the library. It imports no React and no DOM (`oxlint.config.ts`). Another area's
-decisions port with its code from the tag `cloudflare-last`.
+accounts, the connector, `/v1`, the library, bodies, files, background work,
+fills, the built-in agent's side of eve and search. It imports no React and no
+DOM (`oxlint.config.ts`).
 
 ## The environment
 

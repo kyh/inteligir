@@ -23,7 +23,7 @@ arrive as `unknown` and become domain values there alone.
   that runs out, is `too-deep` and a throwing rule `failed`, and every caller refuses either, so no
   platform reads what another refuses. `packages/editor/src/headless/markdown/md-read.ts`.
 - **The markdown runs headless, and what runs headless sits in `headless/`.** The folder reaches
-  no React, `@repo/ui`, stylesheet or node and nothing of the editor outside it, and the Worker and
+  no React, `@repo/ui`, stylesheet or node and nothing of the editor outside it, and the service and
   the page reader import the editor from it alone, so the codec runs wherever the library does, and
   a body read back from what it wrote is that body, ids aside. `oxlint.config.ts`.
 - **The editor ships its behaviour CSS, and the appearance dials are one declaration.** Every hook
@@ -126,7 +126,7 @@ arrive as `unknown` and become domain values there alone.
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
 - **A fold is the device's view state, and holds none of the library's words.** It sits in local
-  storage as the heading's block id, dropped on leaving the account, since a fold in the cell
+  storage as the heading's block id, dropped on leaving the account, since a fold in the library
   makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
 - **A table cell keeps a code span's and an equation's pipes, and its `<br/>` parts its blocks.**
   gfm splits a row at every bare pipe and the writer joins a cell's blocks with `<br/>`, so both

@@ -42,10 +42,11 @@ What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 
 ## For developers
 
-One Cloudflare Worker ([`apps/web`](./apps/web/README.md)) serves the site,
-the accounts and the cloud, each account's library one SQLite Durable Object;
-the Mac app's window, the browser tab, the iPhone app and the browser extension
-read and write it online over one `/v1` wire. The signed Mac build is on the
+One Next.js app on Vercel ([`apps/web`](./apps/web/README.md)) serves the
+site, the accounts, the cloud and the built-in agent, each account's library
+its rows in Postgres on Supabase and its files in Vercel Blob; the Mac app's
+window, the browser tab, the iPhone app and the browser extension read and
+write it online over one `/v1` wire. The signed Mac build is on the
 latest GitHub release, the iPhone app ships to TestFlight and the extension to
 the Chrome Web Store ([`docs/releasing.md`](./docs/releasing.md)).
 

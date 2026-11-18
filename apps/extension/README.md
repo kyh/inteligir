@@ -22,10 +22,10 @@ The pages ask the worker, and the worker asks the cloud.
 ## Testing and the dev loop
 
 `pnpm dev:extension` runs WXT's dev loop, `.output/chrome-mv3-dev`, which
-saves to `pnpm dev:web`'s Worker (`docs/development.md` § Browser extension).
+saves to `pnpm dev:web`'s app (`docs/development.md` § Browser extension).
 `wxt build` writes the dev build the e2e loads; `pnpm package:extension`
 (`--mode store`) writes the Web Store zip and the unpacked store build, which
 ride inteligir.com's sign-in alone. `pnpm --filter @repo/extension test` runs
 the worker's suites under node with no DOM and the pages' under jsdom, compiled
 as they ship; `pnpm e2e -- extension` loads the dev build in a real Chromium
-against a booted Worker.
+against a booted app.

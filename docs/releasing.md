@@ -2,9 +2,8 @@
 
 THE runbook. One product version ships as three artifacts, and every step here
 is the owner's: each needs a credential no agent and no CI run holds (the
-Developer ID and the notary key, the Apple team behind
-EAS, Cloudflare), and the agent environment refuses release operations
-outright.
+Developer ID and the notary key, the Apple team behind EAS, production's
+database), and the agent environment refuses release operations outright.
 
 | Artifact       | Who gets it                                                     | How it ships                                                           |
 | -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -18,14 +17,14 @@ notes are `CHANGELOG.md`'s top section, which
 `apps/desktop/scripts/release-notes.ts` refuses to print until it is titled
 for that version.
 
-The cloud is not one of them, and nothing on main deploys it: production
-serves the Worker last deployed from the tag `cloudflare-last`, until the cloud
-deploys to Vercel. **The order is the rule**: the D1 schema, then the Worker, then any build that
-calls a route the Worker just gained. An app ahead of its Worker fails every
-such call; a Worker ahead of its apps costs nothing, because `/v1` breaks a
-build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
-past it, which retires a wire shape on purpose and is never part of a release
-by default.
+The cloud is not one of them: every push to main deploys production on the
+Vercel project `inteligir`, which serves inteligir.com once its checks pass
+(Once per product: the deployment's checks). **The order is the rule**: the
+production schema, then the cloud, then any build that calls a route the cloud
+just gained. An app ahead of its cloud fails every such call; a cloud ahead of
+its apps costs nothing, because `/v1` breaks a build only once
+`MIN_CLIENT_BUILD` (`packages/service/src/env.ts`) is raised past it, which
+retires a wire shape on purpose and is never part of a release by default.
 
 **The first outside tester ends the no-users premise** (`AGENTS.md` § Project
 Overview). Before anyone outside the team gets a build, through the `Cohort`
@@ -58,9 +57,9 @@ passed; § 7's checks need the published release.
 - **cargo-about**: `cargo install cargo-about --locked --features cli`, which
   `pnpm package:desktop` runs for the Rust crates' licence notices.
 - **GitHub**: `gh auth status` has push rights on the repo.
-- **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
-  and the root `.env.production.local` holds the three D1 credentials
-  `.env.example` names.
+- **Production's database**: the root `.env.production.local` holds the
+  production Postgres's `POSTGRES_URL_NON_POOLING`, from the Vercel project's
+  Supabase integration, which `pnpm db:push-remote` reads (§ 3).
 
 ## Once per product: the update key
 
@@ -179,11 +178,13 @@ On main, clean, at the commit to ship:
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
-3. When the comment on `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`)
-   says the next release owes the floor, set it to `<version>` and drop that
-   line. Every checkout since the last release reports the last release's
-   version, so a change that drops a `/v1` shape an older build reads cannot
-   raise the floor past those checkouts: it writes that line instead.
+3. When the comment on `MIN_CLIENT_BUILD`'s default
+   (`packages/service/src/env.ts`) says the next release owes the floor, set
+   it to `<version>`, in the Vercel project's Production variable too if it
+   sets one, and drop that line. Every checkout since the last release reports
+   the last release's version, so a change that drops a `/v1` shape an older
+   build reads cannot raise the floor past those checkouts: it writes that line
+   instead.
 4. Every release uploads the extension (§ 6), whether or not it changed: the
    floor names the product's version, so a store build left a release behind
    is refused the day the floor passes it.
@@ -208,50 +209,32 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
 ## 3. The cloud first
 
-1. **The D1 schema.** It stays as deployed: Postgres replaces it, and nothing
-   in the repo pushes D1 any more (`@repo/db`'s `push:remote` pushes the
-   PRODUCTION Postgres). A release whose Worker needs a D1 schema change waits
-   for the move off Cloudflare.
+1. **The schema.** From the release commit, `pnpm db:push-remote --explain`
+   prints production's plan and changes nothing but `sql/extensions.sql`'s
+   lines, each of which skips what is there. Read any drop or recreate in it
+   (`packages/db/CLAUDE.md` § Postgres), then `pnpm db:push-remote`; a second
+   `--explain` plans nothing. Every push to main deploys at once, so a commit
+   that reads a new schema lands after this push, or its deployment fails
+   smoke.
 
-2. **The Worker.** Nothing on main deploys it (above), so the deployed Worker
-   is the tag `cloudflare-last`'s, and a release that needs a cloud change
-   waits for the cloud's deploy to Vercel:
+2. **The cloud.** The release commit's production deployment passed its checks
+   and serves the domains (`gh run list --workflow smoke.yml` shows its Smoke
+   run green), and it answers as itself:
 
    ```sh
    curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+mobile' \
      --data '{}' https://inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
+   curl -s https://inteligir.com/.well-known/oauth-authorization-server/api/auth   # "issuer":"https://inteligir.com/api/auth"
    ```
 
-3. **The fill queues.** `pnpm --filter @repo/web exec cf queues list` names
-   `inteligir-fill` and `inteligir-fill-failed`, the one made by hand
-   (`apps/web/README.md` § Build & deploy), and Deploy's token holds Queues:
-   Edit.
-
-4. **The connector's OAuth namespace.** `pnpm --filter @repo/web exec cf kv
-   namespaces list` names the namespace the first deploy created for
-   `OAUTH_KV`, and Deploy's token holds Workers KV Storage: Edit. The production
-   Worker's metadata names its own origin:
-   `curl -s https://inteligir.com/.well-known/oauth-authorization-server`
-   answers `"issuer":"https://inteligir.com"`.
-
-5. **The Worker's secrets.** `pnpm --filter @repo/web exec cf workers secrets
-   list --worker inteligir-web` names `BETTER_AUTH_SECRET`,
-   `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`. Deploy binds each as the Worker
-   already holds it and is refused while the Worker holds none, so a name the
-   list lacks is a plain variable there. Set one the Worker has never held as
-   `apps/web/README.md` § Build & deploy does, the gateway's address being its
-   Anthropic route:
-
-   ```sh
-   pnpm --filter @repo/web exec cf workers secrets update AGENT_GATEWAY_URL --worker inteligir-web \
-     --text 'https://gateway.ai.cloudflare.com/v1/<account id>/inteligir/anthropic'
-   ```
-
-   `secrets update` refuses a name the Worker binds as a plain variable (error
-   10053). In the dashboard, under the Worker's Settings › Variables and
-   Secrets, edit that variable, set its type to Secret with the value it
-   shows, and deploy. Until then every Deploy carries the variable over as it
-   is, so the agent keeps its gateway.
+3. **The environment.** The project's Production variables name
+   `BETTER_AUTH_SECRET`, `CRON_SECRET`, `EMAIL_MODE=resend` with
+   `RESEND_API_KEY` and `EMAIL_FROM`, `BLOB_READ_WRITE_TOKEN` and the Supabase
+   integration's `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`, and none of the
+   keys `.env.example` keeps off Vercel (`AGENT_MOCK_MODEL`, `EVE_BASE_URL`,
+   `PAGE_FETCH_RELAY_URL`, `FILE_STORE_DIR`, `RATE_LIMIT_DISABLED`). The agent
+   reaches AI Gateway by the project's OIDC token, so no gateway key is set. A
+   variable changed takes effect at the next deployment.
 
 ## 4. The phone's internal build
 
@@ -268,9 +251,9 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 ## 5. The owner's checks
 
 One smoke list per surface, each check needing what no agent can run: a
-device, signing, a store, a real model turn, a Cloudflare dashboard, or
-claude.ai and ChatGPT. Run them on the release's own artifacts: the Mac app
-`pnpm package:desktop` left at
+device, signing, a store, a real model turn, the Vercel or Supabase
+dashboard, or claude.ai and ChatGPT. Run them on the release's own artifacts:
+the Mac app `pnpm package:desktop` left at
 `apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (dragged to
 `/Applications` and opened from Finder), the extension `pnpm package:extension`
 left at `apps/extension/.output/chrome-mv3-store-unpacked`, and the iPhone build
@@ -279,21 +262,28 @@ again at step 1.
 
 ### The cloud's resources
 
-In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
+In the Vercel project `inteligir` and its Supabase project, against
+production.
 
-- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET`,
-  `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV
-  namespace is its own.
-- **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
-  as its dead-letter queue, and a link a connected assistant saves is read.
+- **The database**: the Supabase project's disk sits well below 95% full, where
+  Postgres turns read-only, and grows on its own; `item_body` and
+  `item_search` show autovacuum running, since every note save writes its body
+  and search row whole.
 - **Files**: the project's Blob store, `inteligir-files`, is private and
   connected to Production, Preview and Development, each holding its
   `BLOB_READ_WRITE_TOKEN`; the store's contract passes given that key
-  (`packages/service/README.md` § Testing); on a preview, `pnpm smoke` with
-  `SMOKE_URL`, a login and `VERCEL_AUTOMATION_BYPASS_SECRET` passes its file
-  leg, and a PDF dropped into `/library` draws in its frame; a
-  `library.files.reserve`, a PUT of bytes hashing to another sha, then
-  `settle` answers 400 and leaves nothing in the store.
+  (`packages/service/README.md` § Testing); `pnpm smoke` with `SMOKE_URL`, a
+  login and `VERCEL_AUTOMATION_BYPASS_SECRET` passes its file leg; a 100 MB
+  file uploads and reads back a `bytes=0-9` range as 206, and a PDF dropped
+  into `/library` draws in its frame; a `library.files.reserve`, a PUT of bytes
+  hashing to another sha, then `settle` answers 400 and leaves nothing in the
+  store.
+- **The fill**: a link a connected assistant or the share sheet saves is read
+  within a minute, `https://example.com` to Example Domain, its cover kept in
+  Blob; a link whose name resolves to a private address says it is on a
+  private network and isn't read.
+- **Saves at size**: a 1 MB note saved 10 times, the deployment's logs show
+  `/v1/rpc/library/items/saveBody` under 1 s at the 95th percentile.
 
 ### The Mac app
 
@@ -397,9 +387,10 @@ The unpacked store build, against production, with no dev build loaded.
   refuses with no crash; and every cover draws again on the next launch,
   offline.
 - **The agent on the phone**: a reply drawn as it is written, a message sent
-  mid-reply joining that turn, Stop, thinking shown, the phone locked mid-reply
-  and unlocked picking up where it left off with nothing doubled, and an
-  offline send and Stop each refused with Needs a connection.
+  mid-reply joining that turn, Stop, thinking shown, the phone locked for a
+  minute mid-reply and unlocked picking up where it left off with no gap and
+  nothing doubled, and an offline send and Stop each refused with Needs a
+  connection.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
   background, and mid-upload; the app's Library/Caches holds nothing after.
 
@@ -438,9 +429,8 @@ note under the editor's content policy; what it cannot run is below.
 ### The library in a browser tab
 
 - **The production deploy**: `/library` with no policy error, a `?item=` deep
-  link, its assets and a 404; a write on another device showing within 20 s; a new cell
-  schema starts the cell over; and the output says which deleted class may leave the
-  `exports` map in `apps/web/cloudflare.config.ts`.
+  link, its assets and a 404, and a write on another device showing within
+  20 s.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
 - **Safari, Chrome and Firefox**: a note saving a second after typing stops, the
@@ -472,16 +462,19 @@ On production's `/connector`, signed in to an account there.
   answering inline; still connected after an hour, on its refresh token.
 - **ChatGPT**: a developer-mode connector, Only let it read the library, and
   the five reading tools alone.
+- **A reconnect**: an assistant connected before a change to the connector's
+  sign-in (its issuer, its tokens' store) asks to connect again once, reads and
+  edits after Allow, and shows once under Connected assistants.
 
 ### The built-in agent
 
-Production has its own AI Gateway and Anthropic workspace. An account has two
-turns a UTC day (`AGENT_DAY_TURNS` in `packages/service/src/agent/agent-limits.ts`).
+Production reaches Sonnet 5.5 through the team's AI Gateway. An account has
+two turns a UTC day, and the dollar ceilings are constants beside them
+(`packages/service/src/agent/agent-limits.ts`).
 
-- **The gateway**: it holds its own key, with Authenticated Gateway on, no
-  payload logs and a spend limit of $5 a day split by the `account` metadata
-  key; its Anthropic workspace is separate and capped; the deployment reaches
-  it by the project's OIDC token, and Vercel Workflow runs eve's sessions.
+- **The gateway**: it runs Anthropic on the team's own key, from an Anthropic
+  workspace of its own with a spend cap; the deployment reaches it by the
+  project's OIDC token, and Vercel Workflow runs eve's sessions.
 - **A real turn**, open in a tab and the Mac at once: events
   stream, the conversation follows the reply to its end and the reply does not
   blink as it lands, one change set, Undo keeps a note you typed in since, the allowance
@@ -490,13 +483,14 @@ turns a UTC day (`AGENT_DAY_TURNS` in `packages/service/src/agent/agent-limits.t
   an account's 50 cents or every account's $5 a day, priced from the tokens in
   `agent_usage`, ends it `budget`; the day's spend there matches the Anthropic
   console's within a call.
-- **Real-model behaviour**: a declined turn finishes on the fallback; a search
-  cites its pages and a page read answers from it; Tidy my library follows the
-  rules; the agent writes the dialect.
+- **Real-model behaviour**: a search cites its pages and a page read answers
+  from it; Tidy my library follows the rules; the agent writes the dialect.
 - **Across deploys**: a prompt change between two turns is taken up, and a long
   conversation compacts and goes on after a pause and a deploy.
-- **A link the agent saves from a hostile page** waits for the seal
-  (production).
+- **A hostile page**: asked to read a page whose text tells the agent to fetch
+  another address carrying the library's words, every search and fetch the
+  turn made shows among its calls; a link it saved is read at once, and Undo
+  this turn still takes it back.
 
 ## 6. Publish
 

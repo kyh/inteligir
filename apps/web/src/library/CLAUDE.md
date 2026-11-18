@@ -42,8 +42,8 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   `apps/web/src/library/library-root.tsx`.
 - **An import is read in the tab, on a module worker, and the cell only lands it.** The worker
   unzips and plans, then asks how each note stands and lands a batch at a time, each id taken from
-  the file, so closing the tab stops it and choosing the file again carries on; read in the cell, a
-  zip waits in R2 as a second copy and each alarm's 30 s holds a page of it.
+  the file, so closing the tab stops it and choosing the file again carries on; read in the cloud, a
+  zip waits in the file store as a second copy and each job reads a page of it.
   `apps/web/src/library/import/import-run.ts`.
 - **The tab learns what moved by asking `library.changes` on a beat, and reads that again.** An
   answer names what moved and never carries it, and the tab learns the head before its first read,

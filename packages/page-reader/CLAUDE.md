@@ -2,7 +2,7 @@
 
 A saved page read into an item: its facts (title, site, author, date, description, cover
 candidates, oEmbed link) and its article, read as a tree into the library's `article` blocks. The
-extension's worker reads the page it is on and the Worker's fill every other saved link, both
+extension's worker reads the page it is on and the cloud's fill every other saved link, both
 through `read-html`; the host fetches the bytes, and nothing here dials. `pnpm --filter
 @repo/page-reader test` runs the committed corpus.
 

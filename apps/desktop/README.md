@@ -25,7 +25,7 @@ The page reaches the shell only for its update: three commands
 ## Testing and the dev loop
 
 ```bash
-pnpm dev:web          # the local Worker, which the debug window opens
+pnpm dev:web          # the local app, which the debug window opens
 pnpm dev              # tauri dev: the shell compiled and launched on localhost:5174/library
 ```
 

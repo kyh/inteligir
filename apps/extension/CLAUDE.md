@@ -13,7 +13,7 @@ what it may reach, and how it builds.
   whatever cookie the jar holds sends one account's save under another's session.
   `apps/extension/src/background/connection.ts`.
 - **A build knows its site, and no page messages the extension.** A store build's cloud is a literal
-  in its bundle and only a dev build's storage names another local Worker, since a page that names
+  in its bundle and only a dev build's storage names another local app, since a page that names
   the site hands a store build what it already holds. `apps/extension/src/background/connection.ts`.
 - **The extension has no sign-out of its own: the site's signs it out.** The popup and the welcome
   page say who is signed in and link the site, since a Disconnect of its own leaves the browser signed in on the

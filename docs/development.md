@@ -135,15 +135,15 @@ which the e2e loads. Its committed key gives the unpacked build the id
 `EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`),
 the one extension origin the cloud's sign-in trusts.
 
-THE DEV BUILD SAVES TO `pnpm dev:web`'S WORKER, AS WHOEVER IS SIGNED IN THERE:
+THE DEV BUILD SAVES TO `pnpm dev:web`'S APP, AS WHOEVER IS SIGNED IN THERE:
 it reads that browser's `better-auth.session_token` cookie for
 `http://localhost:5174` (its host permission names `http://localhost/*`, any
 port) and sends it as its bearer. Its welcome page's Sign in to Inteligir
 opens `http://localhost:5174/app/sign-in`, and signing in there is the whole of
-it. A dev build saves to a local Worker on another port once its storage names
+it. A dev build saves to a local app on another port once its storage names
 it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
 in the welcome page's console, which is how the e2e points the dev build at the
-Worker it boots (`tools/e2e/src/extension.spec.ts`). The store builds
+app it boots (`tools/e2e/src/extension.spec.ts`). The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
 `https://inteligir.com/*` as their one host and save there alone, whatever
@@ -151,20 +151,19 @@ their storage holds.
 
 ## Where state lives
 
-| What                                                                 | Where                                                                                                                                                                                   |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)            | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port, the phone flows' on 5175                                                                          |
-| Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
-| The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
-| The extension's account (email, its cookie's SHA-256), waiting saves | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
-| The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
-| Local Postgres (`pnpm db:start`)                                     | 54622, its transaction pooler 54629; its files in the Supabase CLI's own store, `~/.supabase/stacks`                                                                                    |
-| Accounts, sessions (every device's sign-in), invites                 | Local Postgres's `postgres` database; the suites' and the e2e's throwaway databases beside it (`wt_<name>__…`, `e2e_<run>…`)                                                            |
-| The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
-| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables made from `packages/db/src/cell/ddl.sql` as it wakes                                              |
-| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables made from `packages/db/src/note/ddl.sql` as it wakes                                                    |
-| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables made from `packages/db/src/thread/ddl.sql` as it wakes                                         |
-| Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
+| What                                                                       | Where                                                                                                                                                                                   |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)                  | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port, the phone flows' on 5175                                                                          |
+| Extension dev server (`pnpm dev:extension`)                                | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
+| The Mac app's WebKit store (the site's cookie, the tab's prefs)            | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
+| The extension's account (email, its cookie's SHA-256), waiting saves       | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
+| The iPhone's kept reads, the shares it waits on, its files                 | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
+| Local Postgres (`pnpm db:start`)                                           | 54622, its transaction pooler 54629; its files in the Supabase CLI's own store, `~/.supabase/stacks`                                                                                    |
+| Accounts, sessions (every device's sign-in), invites                       | Local Postgres's `postgres` database; the suites' and the e2e's throwaway databases beside it (`wt_<name>__…`, `e2e_<run>…`)                                                            |
+| Every account's library: items, bodies, search, folders, jobs, change sets | Local Postgres's `postgres` database (`packages/db/src/library-schema.ts`)                                                                                                              |
+| The built-in agent's threads, turns, events and spend                      | the same database (`packages/db/src/agent-schema.ts`); eve's own sessions, its build beside them, in `apps/web/.eve`                                                                    |
+| Connected assistants' clients, consents and tokens                         | the same database, Better Auth's OAuth provider's tables (`packages/db/src/auth-schema.ts`)                                                                                             |
+| The library's files                                                        | the folder `FILE_STORE_DIR` names, `.data/files` from the server's working folder (`apps/web/.data/files` under `pnpm dev:web`); Vercel Blob once `BLOB_READ_WRITE_TOKEN` is set        |
 
 ## Quality gates
 

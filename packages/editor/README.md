@@ -13,14 +13,14 @@ package, the rule table, the suites that hold its meaning and the kit-parity
 guards live together, and every host consumes one editor: the library tab
 (`apps/web/src/library`), the phone's DOM component
 (`apps/mobile/src/editor/page/note-page.tsx`) and, headless, the cell's codec
-(`packages/service/src/library/library-router.ts`). It reaches `@repo/contract`
+(`packages/service/src/library/library-codec.ts`). It reaches `@repo/contract`
 and `@repo/ui`, and no node, oRPC or shell.
 
 ## Layout
 
 ```
 src/
-  headless/      what runs with no React, which the Worker and the page reader load, and nothing
+  headless/      what runs with no React, which the service and the page reader load, and nothing
                  else of the editor (`oxlint.config.ts`):
     markdown/    the dialect over Plate's stock markdown: the plugin list, the rule table, the read
                  that refuses with a reason, fence names, the frontmatter fence, `serializeNote`

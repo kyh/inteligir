@@ -12,29 +12,32 @@ one that cannot be checked against code does not belong here.
 
 ## The library in the cloud
 
-One library cell per account, the devices that read it online, and the agents
-that reach it.
+One library cell per account, in Postgres, the devices that read it online,
+and the agents that reach it.
 
-**library cell** — one account's whole library: a SQLite Durable Object,
-`LibraryDO` (`packages/service/src/library/library-do.ts`), named only from a
-verified **principal** or by what the cell itself gave out. It holds the
-items' fields and bodies, folders, tags, links, threads and change sets, and
-every `/v1` library call and every **connector** call reaches it. The **file
-store** holds the bytes it names by hash, and D1 only the accounts. Not
-what a device shows: a device keeps at most a cache of what it last read.
+**library cell** — one account's whole library in the cloud: its rows in
+Postgres, every table keyed by the account (`packages/db/src/library-schema.ts`),
+written only in a transaction holding the account's `library_state` row
+(`packages/service/src/library/library-store.ts`) and reached only from a
+verified **principal**. It holds the items' fields and bodies, folders, tags,
+links, **jobs** and change sets; every `/v1` library call, **connector** call
+and **built-in agent** tool reaches it, and the agent's **threads** sit beside
+it (`packages/db/src/agent-schema.ts`). The **file store** holds the bytes it
+names by hash, and Better Auth's tables the accounts. A client's suites drive
+the fake cell (`@repo/contract/test-support/fake-cell`) in its place. Not what
+a device shows: a device keeps at most a cache of what it last read.
 
-**door** — where a request enters the cloud: a Start server route hands it to
-the service, and its path names one of the service's doors
-(`packages/service/src/doors.ts`), which says whose it is. A session comes
-through the site's tab or the Mac app's window, the iPhone, or the browser
-extension, each a door of its own (`packages/service/src/wire/v1-principal.ts`);
-the connector is an assistant's door alone. Not a route: a door answers every
-method of its paths.
+**door** — which device a `/v1` request says it came from, read before its
+**session** from a mark no other page can forge: a page of the site's own (a
+tab or the Mac app's window), the iPhone, or the browser extension
+(`packages/service/src/rpc/admit.ts`); the connector is an assistant's door
+alone (`packages/service/src/mcp/connector-server.ts`). Not a route: `/v1/rpc`
+and `/v1/blobs/<sha>` admit through every door.
 
-**principal** — who a library call is by, as the Worker verified it at its
-**door**: the account and the actor its writes are by (a **session**, or a
-**connected assistant** under one grant, the only actor with scopes). The
-Worker hands it to the cell beside the call, an argument no request can name
+**principal** — who a library call is by, as the cloud verified it at its
+**door**: the account and the actor its writes are by (a **session**, a
+**connected assistant** under one grant, the only actor with scopes, or the
+**built-in agent** in one **turn**), an argument no request can name
 (`packages/service/src/library/library-principal.ts`); the rate limits key
 on it. Not a credential: the cell never sees one.
 
@@ -269,8 +272,8 @@ report or a screenshot means translating back.
 
 **library tab** — the library as the person sees it at `/library`, in a
 browser tab or the Mac app's window: every item one card in one grid, read
-from the **library cell** through `/v1`, a query per screen that the **account
-socket** invalidates (`apps/web/src/library/`). "Library" in the product is
+from the **library cell** through `/v1`, a query per screen that **what
+moved** reads again (`apps/web/src/library/`). "Library" in the product is
 the whole of it, the tab's home.
 
 **Needs a connection** — what a screen says of something only the cloud
@@ -316,9 +319,9 @@ by Sign out.
 
 ## Words of the repo
 
-**vault** — survives only as the production R2 bucket's name,
-`inteligir-vault`, which holds the library's files; never rename it, and no
-product surface says it.
+**vault** — Obsidian's word for its folder of notes, which an import reads
+from a zip; no product surface says it
+(`tools/repo-guards/src/product-words.test.ts`).
 
 **flow** and **spec** — a Playwright test is a flow, and its file under
 `tools/e2e/src` a spec.

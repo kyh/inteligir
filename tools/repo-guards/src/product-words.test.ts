@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { readTextFile, REPO_ROOT, shippedFiles, sourceOf, workspaces } from "./repo";
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
-// site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
+// site and the consent page, @repo/service for the cloud's mail and refusals, @repo/contract for the
 // refusals and notices it hands a surface to show
 const SURFACES = [
   "@repo/client",
