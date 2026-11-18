@@ -8,6 +8,7 @@ import { refusalText } from "@repo/contract/rpc/refusal-text";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";
+import { formatCount } from "@repo/ui/lib/plural";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +29,6 @@ import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { TopBar } from "../top-bar";
 import { filesPayload } from "./capture/capture-payload";
-import { formatCount } from "./item-labels";
 import { KindChips } from "./kind-chips";
 import { useLibraryCommands } from "./library-commands";
 import { LibraryGrid } from "./library-grid";
@@ -39,6 +39,9 @@ import type { CellStanding } from "../cloud/needs-connection";
 // the scope's listing as the cell has answered it so far
 interface LibraryListing {
   readonly standing: CellStanding<ListingView>;
+  // what stands is still the listing of the scope or kind the tab left, kept on screen until the
+  // new one's first page answers
+  readonly placeholder: boolean;
   // the grid came near the end of what is read
   readonly more: () => void;
 }
@@ -248,8 +251,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
       ) : (
         <LibraryGrid
           listing={page}
-          scope={scope}
-          kind={kind}
+          shown={listing.placeholder ? null : { kind, scope }}
           selection={selection}
           onNearEnd={more}
         />
@@ -297,7 +299,7 @@ export const LibraryView = ({
             <Button
               size="compact"
               variant="destructive"
-              disabled={total === null || total === 0}
+              disabled={counts === undefined || counts.deleted === 0}
               onClick={() => {
                 commands.emptyDeleted();
               }}

@@ -9,12 +9,13 @@ import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Switch } from "@repo/ui/components/switch";
+import { formatCount } from "@repo/ui/lib/plural";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
-import { formatCount, isUrlItem } from "../library/item-labels";
+import { isUrlItem } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
 import { PropertiesPanel } from "./properties-panel";
 

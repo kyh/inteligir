@@ -176,6 +176,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
                           void listing.fetchNextPage();
                         }
                       },
+                      placeholder: listing.isPlaceholderData,
                       standing: cellStanding({
                         data: view,
                         error: listing.error,

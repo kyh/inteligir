@@ -26,6 +26,7 @@ import {
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar-menu";
 import { Tooltip } from "@repo/ui/components/tooltip";
+import { formatCount } from "@repo/ui/lib/plural";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDownIcon,
@@ -42,7 +43,6 @@ import {
 import { useState } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
-import { formatCount } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
 import { usePref, windowLayout } from "../prefs";
 import { folderPaths } from "./folder-paths";

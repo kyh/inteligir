@@ -159,6 +159,11 @@ describe("what a verb takes of the selection", () => {
       swept: { except: [], scope: { kind: "all" } },
     });
   });
+
+  it("is nothing while the grid still shows the listing of the scope the tab left", () => {
+    expect(targetOf(run({ kind: "all" }).selected, PARTLY_READ, null)).toBeNull();
+    expect(targetOf(run({ id: "b", kind: "click" }).selected, WHOLE, null)).toBeNull();
+  });
 });
 
 describe("the store", () => {

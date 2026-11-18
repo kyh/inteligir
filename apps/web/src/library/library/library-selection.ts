@@ -59,11 +59,22 @@ export type Target =
 export const targetCount = (target: Target): number =>
   target.kind === "ids" ? target.ids.length : target.count;
 
+// the scope and the kind a listing is of, which a ⌘A names
+export interface Shown {
+  readonly scope: LibraryScope;
+  readonly kind: ItemKind | null;
+}
+
+// none while the grid still shows the listing it left (`shown` null), whose rows and total are no
+// count of the scope now addressed, so a verb waits for that scope's first page
 export const targetOf = (
   selected: Selected,
   listing: Listing<{ readonly id: string }>,
-  shown: { readonly scope: LibraryScope; readonly kind: ItemKind | null },
-): Target => {
+  shown: Shown | null,
+): Target | null => {
+  if (shown === null) {
+    return null;
+  }
   const { count, rows } = selectedIn(selected, listing);
   if (selected.kind === "ids" || count === rows.length) {
     return { ids: rows.map((row) => row.id), kind: "ids" };

@@ -5,8 +5,6 @@
 // is a command's.
 
 import type { ListingView } from "@repo/client/listing-view";
-import type { ItemKind } from "@repo/contract/items/item-kind";
-import type { LibraryScope } from "@repo/contract/library-scope";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import type { CardGridHandle } from "@repo/ui/components/card-grid";
 import { mediaCardHeight } from "@repo/ui/components/media-card";
@@ -23,7 +21,7 @@ import { useLibraryCommands } from "./library-commands";
 import { shortcutFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
 import { isSelected, selectedIn, targetOf } from "./library-selection";
-import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
+import type { LibrarySelectionStore, MoveDelta, Shown } from "./library-selection";
 import { QuickLook } from "./quick-look";
 import type { ListedItem } from "./listing";
 
@@ -47,16 +45,17 @@ const MOVES: Partial<Record<ShortcutIn<"grid">["action"], { delta: MoveDelta; ex
 const NEAR_END_ROWS = 60;
 
 export interface LibraryGridProps {
-  // the listing as far as it is read, and the scope and kind it is of, which a ⌘A names
+  // the listing as far as it is read, and the scope and kind it is of, which a ⌘A names: none
+  // while it is still the listing of the scope the tab left, so ⌘A and the selection's verbs wait
+  // for the new scope's first page
   readonly listing: ListingView;
-  readonly scope: LibraryScope;
-  readonly kind: ItemKind | null;
+  readonly shown: Shown | null;
   readonly selection: LibrarySelectionStore;
   // the view came near the end of the rows read so far
   readonly onNearEnd: () => void;
 }
 
-export const LibraryGrid = ({ listing, scope, kind, selection, onNearEnd }: LibraryGridProps) => {
+export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGridProps) => {
   const rows = listing.items;
   const commands = useLibraryCommands();
   const [columns, setColumns] = useState(1);
@@ -84,8 +83,10 @@ export const LibraryGrid = ({ listing, scope, kind, selection, onNearEnd }: Libr
 
   const openMenu = (row: ListedItem, anchor: HTMLElement): void => {
     if (isSelected(state.selected, row.id)) {
-      const target = targetOf(state.selected, listing, { kind, scope });
-      setMenu({ anchor, row, subjects: selectedRows(), target });
+      const target = targetOf(state.selected, listing, shown);
+      if (target !== null) {
+        setMenu({ anchor, row, subjects: selectedRows(), target });
+      }
     } else {
       selection.apply({ id: row.id, kind: "click" });
       setMenu({ anchor, row, subjects: [row], target: { ids: [row.id], kind: "ids" } });
@@ -141,15 +142,18 @@ export const LibraryGrid = ({ listing, scope, kind, selection, onNearEnd }: Libr
       }
       case "select-all": {
         event.preventDefault();
-        selection.apply({ kind: "all" });
+        if (shown !== null) {
+          selection.apply({ kind: "all" });
+        }
         return;
       }
       case "delete-selection": {
         const subjects = selectedRows();
         if (subjects.length > 0) {
           event.preventDefault();
-          if (subjects.every((row) => row.fields.deletedAt === null)) {
-            commands.remove(targetOf(state.selected, listing, { kind, scope }));
+          const target = targetOf(state.selected, listing, shown);
+          if (target !== null && subjects.every((row) => row.fields.deletedAt === null)) {
+            commands.remove(target);
           }
         }
         break;

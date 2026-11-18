@@ -6,11 +6,6 @@ import { urlHost } from "@repo/contract/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
 import type { ListedItem } from "./listing";
 
-const COUNT_FORMAT = new Intl.NumberFormat("en-US");
-
-// "8,512": every count a person reads
-export const formatCount = (count: number): string => COUNT_FORMAT.format(count);
-
 // the file that stands for an item on its card and in Quick Look: its cover, else a picture's own
 export const coverOf = (row: ListedItem): string | null =>
   row.fields.coverSha ?? (row.fields.kind === "image" ? row.fields.originalSha : null);

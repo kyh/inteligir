@@ -175,6 +175,9 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **⌘A, Delete and a selected card's menu wait for the folder, tag, Deleted or kind you just chose to show its own items**, so a confirm never counts the grid you left.
+- **Empty Deleted… stays offered while the grid is narrowed to a kind Deleted holds none of.**
+- **A confirm and a notice count as the header does**: "Delete 8,512 items?", not "8512".
 - **Leaving a note in your browser while its save is stuck asks within 5 seconds** whether to leave without saving, as your iPhone does, instead of Back or another item doing nothing until the connection answers.
 - **A note nested deeper than an item holds is refused as that, not as too large**: the agent, a connected assistant and a link saved with a note are told to nest its lists and quotes fewer levels deep, instead of shortening it.
 - **A PDF opened in your library shows the name you added it with**, and its viewer's download, or saving a picture or recording from its item, keeps that name instead of a string of letters and numbers.

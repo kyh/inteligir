@@ -140,13 +140,13 @@ describe("Save a link", () => {
 });
 
 describe("Empty Deleted", () => {
-  it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to", async () => {
+  it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to, one it lists none of too", async () => {
     const cell = createFakeCell();
     const kept = cell.seed.item({ title: "Kept" });
     cell.seed.item({ deletedAt: 1, title: "A deleted note" });
     cell.seed.item({ deletedAt: 1, kind: "pdf", title: "A deleted paper" });
     const said = vi.spyOn(toast, "success");
-    const { calls } = await pageAt("/library?scope=deleted&kind=pdf", cell);
+    const { calls } = await pageAt("/library?scope=deleted&kind=video", cell);
 
     // offered once the listing answered
     const empty = await screen.findByRole("button", { name: "Empty Deleted…" });

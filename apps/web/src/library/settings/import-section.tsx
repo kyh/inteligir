@@ -5,6 +5,7 @@
 
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { Button } from "@repo/ui/components/button";
+import { formatCount } from "@repo/ui/lib/plural";
 import { useRef, useState } from "react";
 
 import { useOnline } from "../cloud/needs-connection";
@@ -12,7 +13,6 @@ import { usePageLibrary } from "../cloud/library-context";
 import { startImport, stopImport, useImportRun } from "../import/import-run";
 import type { ImportRun } from "../import/import-run";
 import type { ImportSource } from "../import/import-news";
-import { formatCount } from "../library/item-labels";
 import { Row, SectionHeading } from "./settings-chrome";
 
 // what an import says once it ran, or as it runs

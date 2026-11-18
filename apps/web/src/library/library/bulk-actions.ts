@@ -7,8 +7,7 @@
 
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
-
-import { formatCount } from "./item-labels";
+import { formatCount } from "@repo/ui/lib/plural";
 
 // `items` in order, `size` at a time: as many as one cell call takes
 const chunksOf = <T>(items: readonly T[], size: number): T[][] => {
