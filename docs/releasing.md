@@ -394,6 +394,11 @@ The unpacked store build, against production, with no dev build loaded.
   minute mid-reply and unlocked picking up where it left off with no gap and
   nothing doubled, and an offline send and Stop each refused with Needs a
   connection.
+- **A long conversation on the phone keeps to its end**: one longer than the
+  screen opens on its last message, a streamed reply and its Working… line stay
+  in view as they grow, the end stays above the keyboard as it comes up,
+  scrolling up holds the reader's place while the reply goes on, and the next
+  send, or scrolling back to the end, follows again.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
   background, and mid-upload; the app's Library/Caches holds nothing after.
 

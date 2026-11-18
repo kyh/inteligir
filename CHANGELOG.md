@@ -195,6 +195,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A note nested deeper than an item holds is refused as that, not as too large**: the agent, a connected assistant and a link saved with a note are told to nest its lists and quotes fewer levels deep, instead of shortening it.
 - **A PDF opened in your library shows the name you added it with**, and its viewer's download, or saving a picture or recording from its item, keeps that name instead of a string of letters and numbers.
 - **On your iPhone, the sign-in form stays above the keyboard**, and Return moves to the next field, then signs in or creates the account.
+- **A conversation with the agent on your iPhone opens on its newest message and keeps the reply in view as it's written**: scroll up to read back without it moving, and sending a message or scrolling back to the end follows it again.
 - **Deleting an account with many files goes through the first time**: its files go from our cloud within a day after, a batch at a time.
 - **Deleting your account ends the built-in agent's session of each conversation at once.**
 - **What an assistant registered is forgotten a day after it registered or you last disconnected it, once no account has it connected**: one you disconnect connects again that day as it is; after that, if connecting it fails, remove the connector in your assistant and add it again.

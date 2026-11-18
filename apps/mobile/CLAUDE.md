@@ -82,6 +82,10 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   `@repo/client` says of a conversation.** A send and a Stop are refused offline as
   every phone write is, since a turn runs in the cloud, and Undo of a turn is the Mac's or a tab's.
   `apps/mobile/src/app/agent/[thread].tsx`.
+- **A conversation keeps to its end in a plain `ScrollView`, until the reader's own drag, fling
+  or status-bar tap.** An inverted list sits a short conversation at the screen's foot, unlike the
+  tab's, and moves what a reader scrolled up to as the reply grows, and an offset read as content
+  grows says the end moved, not that the reader did. `apps/mobile/src/ui/follow-end.ts`.
 
 ## The look
 

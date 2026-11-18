@@ -1,9 +1,10 @@
 // One conversation with the built-in agent, drawn natively over the same logic the library's page
 // draws its panel with (`@repo/client`): the thread's events as they happen, held as the phone
 // last read them so it reads offline, the reply as it is written, each turn's ending in the
-// person's words, and the composer, whose message carries the item it was asked from. A send and a
-// stop go to the cloud, so each needs a connection and says so rather than wait for one; the day's
-// allowance and an agent switched off are said as the page says them.
+// person's words, and the composer, whose message carries the item it was asked from. It opens on
+// the newest message and keeps to it as the reply grows until the person scrolls up, and a send
+// goes back to it. A send and a stop go to the cloud, so each needs a connection and says so rather
+// than wait for one; the day's allowance and an agent switched off are said as the page says them.
 
 import { useMutation } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -27,6 +28,7 @@ import type { ThreadBlock } from "@repo/client/thread-entries";
 import { useLibrary, useThreadEvents, useThreads } from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
+import { useFollowEnd } from "@/ui/follow-end";
 import { online } from "@/ui/needs-connection";
 import { TextButton } from "@/ui/text-button";
 
@@ -140,11 +142,11 @@ const Conversation = ({ threadId }: { threadId: string }) => {
 
 const Composer = ({
   fromItem,
-  onThread,
+  onSent,
   threadId,
 }: {
   fromItem: string | null;
-  onThread: (threadId: string) => void;
+  onSent: (threadId: string) => void;
   threadId: string | null;
 }) => {
   const { queries } = useLibrary();
@@ -153,7 +155,7 @@ const Composer = ({
     queries.library.agent.send.mutationOptions({
       onSuccess: (answer) => {
         setText("");
-        onThread(answer.threadId);
+        onSent(answer.threadId);
       },
     }),
   );
@@ -200,6 +202,7 @@ const ConversationScreen = () => {
   const threadId = asked === null || asked === NEW_THREAD ? null : asked;
   const fromItem = firstParam(params.item);
   const title = useThreads()?.find((row) => row.id === threadId)?.title ?? "New conversation";
+  const end = useFollowEnd();
   return (
     <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen options={{ title }} />
@@ -209,6 +212,7 @@ const ConversationScreen = () => {
         keyboardVerticalOffset={headerHeight}
       >
         <ScrollView
+          {...end.props}
           className="grow basis-0"
           contentContainerClassName="px-4 pt-3 pb-6"
           contentInsetAdjustmentBehavior="automatic"
@@ -225,8 +229,9 @@ const ConversationScreen = () => {
         <Composer
           fromItem={fromItem}
           threadId={threadId}
-          onThread={(next) => {
+          onSent={(next) => {
             router.setParams({ thread: next });
+            end.follow();
           }}
         />
       </KeyboardAvoidingView>
