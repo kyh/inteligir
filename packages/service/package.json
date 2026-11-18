@@ -39,7 +39,6 @@
     "@orpc/client": "catalog:",
     "@types/node": "catalog:",
     "dotenv-cli": "catalog:",
-    "platejs": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
