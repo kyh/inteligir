@@ -53,8 +53,8 @@ pnpm --filter @repo/contract typecheck
 
 `/v1`'s rows and refusals run over a real `RPCHandler` and `RPCLink`
 (`rpc/v1-contract.test.ts`), and the model's properties draw from the one seeded
-generator (`test-support/seeded-random.ts`). The fake cell runs the cases in
-`test-support/cell-conformance.ts`, which the service runs over the real cell,
+generator (`test-support/seeded-random.test-utils.ts`). The fake cell runs the cases in
+`test-support/cell-conformance.test-utils.ts`, which the service runs over the real cell,
 so a case added there holds both. A change to a row reaches every
 client and the cloud at once: run the service's suites and the e2e flows that
 drive it too.

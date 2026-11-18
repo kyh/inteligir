@@ -178,7 +178,7 @@ On main, clean, at the commit to ship:
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
-3. When the comment on `MIN_CLIENT_BUILD`'s default
+3. When the `// WARNING:` line on `MIN_CLIENT_BUILD`'s default
    (`packages/service/src/env.ts`) says the next release owes the floor, set
    it to `<version>`, in the Vercel project's Production variable too if it
    sets one, and drop that line. Every checkout since the last release reports

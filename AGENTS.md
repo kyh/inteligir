@@ -155,6 +155,11 @@ production, which waits for CI and for `pnpm smoke` against the deployment
   words (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions, no escape comment**: parse
   or narrow. Kebab-case filenames. Illegal states unrepresentable.
+- **Lint is a clean gate over ultracite with landmines**: no prose comments
+  (a reason goes in a `CLAUDE.md` bullet or the commit; a dangerous recurring
+  footgun gets one `// WARNING:` line), no annotated return types (`satisfies`
+  or a typed variable), real implementations in suites, MSW for the network, no
+  sleeps or raised timeouts. The exceptions and why: `tools/repo-guards/CLAUDE.md`.
 - **`@repo/contract` is client-safe and platform-neutral**: no node, react,
   server or drizzle import, and its model no `crypto` global.
 - **knip is a CI gate, in one pass**: every file reachable, every export

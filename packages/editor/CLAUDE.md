@@ -143,14 +143,14 @@ arrive as `unknown` and become domain values there alone.
 - **With no connection an item reads but takes no edit.** It goes read-only under Plate's
   `readOnly` and says "Needs a connection", every writing handler `editOnly`, since the cloud is the
   truth; typing from before the drop reaches the note once it is back.
-  `packages/editor/src/read-only-handlers.test.ts`.
+  `packages/editor/src/kits/read-only-handlers.test.ts`.
 - **A note that takes no edit refuses one in the model.** Offline, in Deleted, held for the agent
   or in conflict, it drops every local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
   Plate's `readOnly` gates handlers and drawing, never a transform.
   `packages/editor/src/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
-  `tools/e2e/src/editor.spec.ts`.
+  `tools/e2e/src/editor.test.ts`.
 - **Every editor of a note keeps its blocks' ids and fixes its nodes alike.** A save, a merge and a
   laid body match blocks by id, and a body one kit stores opens unchanged in another.
   `packages/editor/src/stored-kits.test.tsx`.
