@@ -119,6 +119,13 @@ describe("a refused send", () => {
     );
   });
 
+  it("says every account's day is spent apart from the person's own allowance", () => {
+    const full = refused("SERVICE_UNAVAILABLE", { resetsAt: Date.UTC(2026, 10, 6, 0, 0) });
+    const words = sendRefusalWords(full, Date.UTC(2026, 10, 5, 12, 0));
+    expect(words).toMatch(/^The built-in agent is at capacity for today\. It’s back at /u);
+    expect(words).not.toMatch(/allowance|Settings/u);
+  });
+
   it("says the agent is off or out of reach, and any other refusal in its own sentence", () => {
     const off = refused("SERVICE_UNAVAILABLE");
     expect(sendRefusalWords(off, 0)).toMatch(/turn it on in Settings/u);

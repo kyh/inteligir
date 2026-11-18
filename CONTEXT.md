@@ -156,7 +156,9 @@ searches the web and reads public pages, and it deletes or saves a link when
 asked, asking nothing more. The person meets it in the panel's
 Agent tab and switches it in Settings › Account
 (`apps/web/src/library/agent/agent-panel.tsx`); "The agent has used today's
-allowance" is its `AGENT_BUDGET` refusal. Not a **connected assistant**.
+allowance" is its `AGENT_BUDGET` refusal, and "at capacity for today" its
+`SERVICE_UNAVAILABLE` once every account's day is spent. Not a **connected
+assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
 Claude ends it, the person stops it or a limit does, a row of `agent_turn`

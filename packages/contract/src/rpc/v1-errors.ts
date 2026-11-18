@@ -78,8 +78,10 @@ export const AgentBudgetError = error("AGENT_BUDGET", {
   message: "The agent has used today's allowance.",
 });
 
-// the built-in agent is off, or Anthropic cannot be reached; no turn starts and none is charged
+// the built-in agent is off, its model cannot be reached, or every account's spend for the day is
+// gone, when it is back at `resetsAt`; no turn starts and none is charged
 export const AgentUnavailableError = error("SERVICE_UNAVAILABLE", {
+  data: z.object({ resetsAt: z.number().int().nonnegative() }).optional(),
   message: "The agent can't be reached right now.",
 });
 

@@ -168,6 +168,7 @@ dbSuite("the built-in agent's limits", () => {
       const { accountId } = await personalLibrary();
       expect(await refusalOf(sendToAgent(runtime, accountId, { text: "Hello" }))).toMatchObject({
         code: "SERVICE_UNAVAILABLE",
+        data: { resetsAt: expect.any(Number) },
       });
     } finally {
       await db.delete(agentUsage).where(eq(agentUsage.accountId, spender));

@@ -29,6 +29,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent searches the web and reads public pages** when what you ask reaches past your library.
 - **The agent's reply appears as it is written, and a message you send while it works joins what it is doing**, so you can steer it mid-answer; Stop ends the answer where it is.
 - **What the agent changes shows as it works**: a note it writes or an item it deletes appears in your library at once, and Undo this turn as its answer ends, on every device following the conversation.
+- **When the built-in agent has done all it can for everyone in a day, it says it's at capacity and when it's back**, apart from your own day's allowance.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
 - **Let an assistant only read your library**: when it asks to read and change it, tick Only let it read the library before you allow it, and it lists only the tools that read.
 - **Resetting your password disconnects every connected assistant**: connect each one again from your assistant afterwards.

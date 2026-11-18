@@ -95,24 +95,30 @@ export const callRefusalWords = (cause: unknown): string =>
 
 const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
-// AGENT_BUDGET's data as the wire declares it
-const budgetDataSchema = z.object({ resetsAt: z.number().int().nonnegative() });
+// when the day's spend fills again, as AGENT_BUDGET's data and SERVICE_UNAVAILABLE's for every
+// account's day declare it
+const resetsAtSchema = z.object({ resetsAt: z.number().int().nonnegative() });
 
-// what a send the cell refused says: the allowance and when it fills again, the agent off or out
-// of reach, or any other refused call's words
+// when the agent is back, as a sentence of its own; none for no time or one already past
+const backAt = (resetsAt: number | null, nowMs: number): string =>
+  resetsAt !== null && resetsAt > nowMs ? ` It’s back at ${TIME.format(resetsAt)}.` : "";
+
+// what a send the cell refused says: the account's allowance and when it fills again, every
+// account's day spent and when it is back, the agent off or out of reach, or any other refused
+// call's words
 export const sendRefusalWords = (cause: unknown, nowMs: number): string => {
   if (!isOrpcError(cause) || !cause.defined) {
     return callRefusalWords(cause);
   }
+  const named = resetsAtSchema.safeParse(cause.data);
+  const resetsAt = named.success ? named.data.resetsAt : null;
   if (cause.code === "AGENT_BUDGET") {
-    const budget = budgetDataSchema.safeParse(cause.data);
-    const resetsAt = budget.success ? budget.data.resetsAt : null;
-    const when =
-      resetsAt !== null && resetsAt > nowMs ? ` It’s back at ${TIME.format(resetsAt)}.` : "";
-    return `The agent has used today’s allowance.${when}`;
+    return `The agent has used today’s allowance.${backAt(resetsAt, nowMs)}`;
   }
   if (cause.code === "SERVICE_UNAVAILABLE") {
-    return "The built-in agent is off or can’t be reached right now. You can turn it on in Settings.";
+    return resetsAt === null
+      ? "The built-in agent is off or can’t be reached right now. You can turn it on in Settings."
+      : `The built-in agent is at capacity for today.${backAt(resetsAt, nowMs)}`;
   }
   return callRefusalWords(cause);
 };

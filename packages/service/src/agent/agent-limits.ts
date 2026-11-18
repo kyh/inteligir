@@ -90,7 +90,7 @@ export const turnsLeftToday = async (accountId: string, now: number): Promise<nu
 export const refuseSendPastLimits = async (accountId: string, now: number): Promise<void> => {
   const spend = await daySpend(db, accountId, now);
   if (spend.totalMicroUsd >= TOTAL_DAY_MICRO_USD) {
-    throw new AgentUnavailableError();
+    throw new AgentUnavailableError({ data: { resetsAt: nextDayAt(now) } });
   }
   if (spend.turns >= AGENT_DAY_TURNS || spend.accountMicroUsd >= ACCOUNT_DAY_MICRO_USD) {
     throw new AgentBudgetError({ data: { resetsAt: nextDayAt(now) } });
