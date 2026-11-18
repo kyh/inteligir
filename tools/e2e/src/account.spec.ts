@@ -71,6 +71,41 @@ test("the site's sign-up spends its invite, and a signed-out tab signs in and co
   await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
 });
 
+test("a forgotten password resets by its mailed link: the old one is refused, the new one signs in", async ({
+  account,
+  cloud,
+  context,
+  page,
+}) => {
+  const newPassword = "e2e-reset-5678";
+  await context.clearCookies();
+  await page.goto(`${cloud.origin}/app/sign-in`);
+  await page.getByRole("link", { name: "Forgot your password?" }).click();
+  await expect(page).toHaveURL(`${cloud.origin}/app/forgot-password`);
+  const send = page.getByRole("button", { name: "Send reset link" });
+  await expect(send).toBeEnabled();
+  await page.getByLabel("Email").fill(account.email);
+  await send.click();
+  await expect(page.getByText("a reset link is on its way")).toBeVisible();
+
+  await page.goto(await cloud.mailedResetLink(account.email));
+  await expect(page).toHaveURL(
+    (url) => url.pathname === "/app/reset-password" && url.searchParams.has("token"),
+  );
+  const save = page.getByRole("button", { name: "Set new password" });
+  await expect(save).toBeEnabled();
+  await page.getByLabel("New password").fill(newPassword);
+  await page.getByLabel("Confirm password").fill(newPassword);
+  await save.click();
+  await expect(page.getByRole("heading", { name: "Password changed" })).toBeVisible();
+
+  const old = { email: account.email, password: account.password };
+  expect(await authPost(cloud, "/api/auth/sign-in/email", old), "the old password").toBe(401);
+  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await signInOnSite(page, { email: account.email, password: newPassword });
+  await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
+});
+
 test("Settings waits offline, ends another device, turns the agent off, signs out and deletes", async ({
   account,
   cloud,

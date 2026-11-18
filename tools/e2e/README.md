@@ -26,8 +26,9 @@ root `.env`, their output in `test-results/next-start-<worker>.log` and
 by the directives `packages/service/src/agent/mock-directives.ts` reads. Each
 test:
 
-- `cloud`: the origin, `mint()` for an invite, and `build`, the floor the app
-  starts with, which every client here names.
+- `cloud`: the origin, `mint()` for an invite, `mailedResetLink(to)`, the reset
+  link the app last mailed, read off its log (`EMAIL_MODE=log`), and `build`,
+  the floor the app starts with, which every client here names.
 - `web`: a page host of the test's own, whose `pages` map answers the app's
   fetch of each `pageUrl(path)` through `src/page-relay.ts`; any other fetch
   fails the test.

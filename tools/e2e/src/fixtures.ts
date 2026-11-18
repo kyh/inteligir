@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdir, open } from "node:fs/promises";
+import { mkdir, open, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -37,6 +37,8 @@ const NEXT_BIN = path.join(WEB, "node_modules/next/dist/bin/next");
 // the agent's server, which `eve build` writes inside `pnpm build`
 const AGENT_SERVER = path.join(WEB, ".output/server/index.mjs");
 const BOOT_BUDGET_MS = 60_000;
+// the app mails after it answers, so a reset's mail lands in its log a moment after
+const MAIL_BUDGET_MS = 10_000;
 const PASSWORD = "e2e-password-1234";
 // the system networking stack's user agent, which the account's devices list names an iPhone by
 const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
@@ -53,6 +55,8 @@ export interface Cloud {
   readonly strays: readonly string[];
   // the oldest build the app takes, which every client here names
   readonly build: string;
+  // the reset link the app last mailed `to`, read where EMAIL_MODE=log writes each mail: its log
+  readonly mailedResetLink: (to: string) => Promise<string>;
 }
 
 interface Cookie {
@@ -140,6 +144,15 @@ const serve = async (
   }
   await stop();
   throw new Error(`${ready} never answered; the server's output is in ${log}`);
+};
+
+const MAIL_TO = "[send-email] to: ";
+const RESET_LINK = /https?:\/\/\S*\/api\/auth\/reset-password\/\S+/u;
+
+// the reset link in the last mail `log` says went to `to`, or null while none has
+const loggedResetLink = (log: string, to: string): string | null => {
+  const mail = log.split(MAIL_TO).findLast((entry) => entry.startsWith(`${to}\n`));
+  return mail === undefined ? null : (RESET_LINK.exec(mail)?.[0] ?? null);
 };
 
 const buildHeaders = (cloud: Cloud): Record<string, string> => {
@@ -238,15 +251,29 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         // into the app's /eve/v1 rewrite, which workers on one build can't each listen on, and an
         // agent's origin of its own stops `next start` starting one there.
         try {
+          const appLog = `${outputOf("next-start")}.log`;
           const stopApp = await serve(
             [NEXT_BIN, "start", "--port", new URL(origin).port],
             `${origin}/api/health`,
             { ...env, EVE_BASE_URL: agentOrigin, EVE_NEXT_PRODUCTION_ORIGIN: agentOrigin },
-            `${outputOf("next-start")}.log`,
+            appLog,
           );
           const sql = postgres(database, { max: 1 });
           await use({
             build,
+            mailedResetLink: async (to) => {
+              const deadline = Date.now() + MAIL_BUDGET_MS;
+              while (Date.now() < deadline) {
+                const link = loggedResetLink(await readFile(appLog, "utf-8"), to);
+                if (link !== null) {
+                  return link;
+                }
+                await sleep(250);
+              }
+              throw new Error(
+                `no reset link was mailed to ${to}; the app's output is in ${appLog}`,
+              );
+            },
             mint: async () => {
               const code = `E2E-${crypto.randomUUID()}`;
               await sql`insert into invite_code ${sql({ code })}`;
