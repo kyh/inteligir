@@ -32,13 +32,15 @@ export default defineConfig({
         // no compiler: it would be inert, since it skips the ssr transform a node project runs
         extends: true,
         test: {
-          // the markdown grammar runs in the phone's WebView and the cell's isolate, so a quadratic
-          // allocation must fail its suite rather than pass on a multi-gigabyte default heap.
+          // the markdown grammar runs in the phone's WebView and in a Vercel function, whose heap
+          // every request its instance serves at once shares, so a quadratic allocation must fail
+          // its suite rather than pass on a multi-gigabyte default heap.
           execArgv: ["--max-old-space-size=512"],
           include: ["src/**/*.test.ts"],
           name: "editor",
-          // a corpus written through real Plate editors runs near 5s on the Linux runner beside the
-          // Workers pool, so the default is a coin-flip; parse-cost's ratios hold the time instead.
+          // a corpus written through real Plate editors takes 2s alone, and a full run shares the
+          // runner's cores with every suite turbo starts beside it, so the 5s default is a
+          // coin-flip; parse-cost's ratios hold the time instead.
           testTimeout: 20_000,
         },
       },
@@ -51,7 +53,8 @@ export default defineConfig({
           include: ["src/**/*.test.tsx"],
           name: "editor-dom",
           setupFiles: [DOM_CLEANUP],
-          // real Plate trees mount beside the Workers pool; 5s is a coin-flip under a full run.
+          // real Plate trees mount beside every suite turbo starts in a full run; 5s is a coin-flip
+          // there.
           testTimeout: 20_000,
         },
       },
