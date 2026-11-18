@@ -95,6 +95,18 @@ const IMPORT_WORKER_PLATFORM = {
   message: "the import runs in a module worker: no React and no @repo/ui",
   regex: REACT_OR_UI,
 };
+// a row reads a file's own imports, not theirs, so the worker reaches the app outside import/ only
+// through new-id.ts, which takes the worker's row too and imports none of the app's modules
+const NEW_ID = "apps/web/src/library/library/new-id.ts";
+const IMPORT_WORKER_WALL = {
+  group: ["../**", "!../library/new-id", "./import-run"],
+  message:
+    "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+};
+const NEW_ID_LEAF = {
+  message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
+  regex: "^\\.",
+};
 
 // an override's options replace the base's, so each restates the repo-wide rows
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
@@ -263,6 +275,19 @@ export default defineConfig({
           ...LIBRARY_IMPORTS,
           SHELL_API,
           IMPORT_WORKER_PLATFORM,
+          IMPORT_WORKER_WALL,
+          HEADLESS_ALONE,
+        ]),
+      },
+    },
+    {
+      files: [NEW_ID],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          ...LIBRARY_IMPORTS,
+          SHELL_API,
+          IMPORT_WORKER_PLATFORM,
+          NEW_ID_LEAF,
           HEADLESS_ALONE,
         ]),
       },
