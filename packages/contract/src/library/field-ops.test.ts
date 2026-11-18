@@ -54,6 +54,16 @@ describe(applyPropertyOps, () => {
     expect(removed.properties).toStrictEqual({ due: "2026-11-01" });
   });
 
+  it("keeps a key it changes where it stood, and puts a new one last", () => {
+    const held = noteFixture({ properties: { a: 1, b: 2, c: 3 } });
+    expect(
+      Object.keys(applied(held, [{ base: 1, key: "a", op: "property", value: 9 }]).properties),
+    ).toStrictEqual(["a", "b", "c"]);
+    expect(
+      Object.keys(applied(held, [{ key: "d", op: "property", value: 4 }]).properties),
+    ).toStrictEqual(["a", "b", "c", "d"]);
+  });
+
   it("reads its own value as done, and lands no batch one of whose bases moved", () => {
     const rated = noteFixture({ properties: { rating: 4 } });
     expect(

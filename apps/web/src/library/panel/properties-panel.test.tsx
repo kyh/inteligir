@@ -1,4 +1,5 @@
 import type { PropertyOp } from "@repo/contract/library/field-ops";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -48,6 +49,16 @@ describe("Info's Add property", () => {
     expect(onWrite.mock.calls).toStrictEqual([[{ key: "done", op: "property", value: true }]]);
   });
 
+  it("takes a name no longer than a line the item holds", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty(
+      "maxLength",
+      ITEM_FIELD_CAPS.line,
+    );
+  });
+
   it("stays open on a name the item already has, saying so, and on a number left empty", () => {
     const onWrite = mount({ status: "draft" });
     openAdd("Text", "status");
@@ -80,8 +91,31 @@ describe("a property's row", () => {
     ]);
   });
 
-  it("writes nothing from a line nobody typed in", () => {
+  it("shows the stored words again on Escape, writing nothing", () => {
+    const onWrite = mount({ status: "draft" });
+    const field = screen.getByLabelText("status");
+    fireEvent.change(field, { target: { value: "final" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.blur(field);
+
+    expect(field).toHaveProperty("value", "draft");
+    expect(onWrite).not.toHaveBeenCalled();
+  });
+
+  it("edits text holding line breaks as its lines, and writes them as typed", () => {
     const onWrite = mount({ note: "one\ntwo" });
+    const field = screen.getByLabelText("note");
+    expect(field.tagName).toBe("TEXTAREA");
+    fireEvent.change(field, { target: { value: "one\ntwo\nthree" } });
+    fireEvent.blur(field);
+
+    expect(onWrite.mock.calls).toStrictEqual([
+      [{ base: "one\ntwo", key: "note", op: "property", value: "one\ntwo\nthree" }],
+    ]);
+  });
+
+  it("writes nothing from lines nobody changed, though a stored \\r\\n reads back as \\n", () => {
+    const onWrite = mount({ note: "one\r\ntwo" });
     const field = screen.getByLabelText("note");
     fireEvent.focus(field);
     fireEvent.blur(field);

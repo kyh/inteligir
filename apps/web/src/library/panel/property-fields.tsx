@@ -1,10 +1,11 @@
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
+import { Textarea } from "@repo/ui/components/textarea";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { XIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import type { TypedProperty } from "./item-properties";
 
@@ -29,7 +30,7 @@ export const HELD: HeldByKind = {
 };
 
 const FIELD_CLASS =
-  "h-7 border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
+  "border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
 // One line of a property, edited where it stands. Uncontrolled and keyed by the stored value, so
 // a newer one redraws it; leaving it writes what was typed, and Escape, or a control left holding
@@ -45,20 +46,14 @@ export const LineField = <K extends "text" | "date" | "number">({
   value: Held<K>;
   onCommit: (next: Held<K>) => void;
 }) => {
-  // an input shows a stored line break as none, so only a line someone typed in is read back
-  const typed = useRef(false);
   const stored = String(value);
   return (
     <Input
       key={stored}
       type={type}
       defaultValue={stored}
-      onChange={() => {
-        typed.current = true;
-      }}
       onBlur={(e) => {
-        const next = typed.current ? HELD[type](e.target) : null;
-        typed.current = false;
+        const next = HELD[type](e.target);
         if (next === null) {
           e.target.value = stored;
         } else if (next !== value) {
@@ -73,17 +68,67 @@ export const LineField = <K extends "text" | "date" | "number">({
           e.preventDefault();
           e.currentTarget.blur();
         } else if (e.key === "Escape") {
-          typed.current = false;
+          e.currentTarget.value = stored;
           e.currentTarget.blur();
         }
       }}
       spellCheck={false}
       placeholder="Empty"
-      className={FIELD_CLASS}
+      className={cn("h-7", FIELD_CLASS)}
       aria-label={label}
     />
   );
 };
+
+// Text holding line breaks, edited as its lines, since an input shows them as none and would write
+// the value back joined. A textarea reads a stored \r\n or \r back as \n, so leaving it writes only
+// a change past that.
+const LinesField = ({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (next: string) => void;
+}) => {
+  const shown = value.replaceAll(/\r\n?/gu, "\n");
+  return (
+    <Textarea
+      key={value}
+      defaultValue={value}
+      onBlur={(e) => {
+        if (e.target.value !== shown) {
+          onCommit(e.target.value);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !isImeComposing(e)) {
+          e.currentTarget.value = value;
+          e.currentTarget.blur();
+        }
+      }}
+      spellCheck={false}
+      className={cn("min-h-7 py-1", FIELD_CLASS)}
+      aria-label={label}
+    />
+  );
+};
+
+export const TextField = ({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (next: string) => void;
+}) =>
+  /[\n\r]/u.test(value) ? (
+    <LinesField label={label} value={value} onCommit={onCommit} />
+  ) : (
+    <LineField label={label} type="text" value={value} onCommit={onCommit} />
+  );
 
 export const CheckboxField = ({
   label,
@@ -155,8 +200,8 @@ export const TagsField = ({
             onCommit(value.slice(0, -1));
           }
         }}
-        placeholder={value.length === 0 ? "Add tag" : ""}
-        aria-label={`${label} tags`}
+        placeholder={value.length === 0 ? "Empty" : ""}
+        aria-label={label}
         className="min-w-16 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground/60"
       />
     </div>

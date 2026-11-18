@@ -76,15 +76,14 @@ export const propertyVerdict = (fields: LibraryItemFields, op: PropertyOp): OpVe
   return sameOptionalJson(current, op.value) ? "satisfied" : "conflict";
 };
 
-export const landPropertyOp = (fields: LibraryItemFields, op: PropertyOp): LibraryItemFields => {
-  const properties = Object.fromEntries(
-    Object.entries(fields.properties).filter(([name]) => name !== op.key),
-  );
-  if (op.value !== undefined) {
-    properties[op.key] = op.value;
-  }
-  return { ...fields, properties };
-};
+// a key the item holds keeps its place, so Info's row stays where it was; a new one comes last
+export const landPropertyOp = (fields: LibraryItemFields, op: PropertyOp): LibraryItemFields => ({
+  ...fields,
+  properties:
+    op.value === undefined
+      ? Object.fromEntries(Object.entries(fields.properties).filter(([name]) => name !== op.key))
+      : { ...fields.properties, [op.key]: op.value },
+});
 
 export type GuardedOutcome =
   | { readonly kind: "applied"; readonly fields: LibraryItemFields; readonly changed: boolean }

@@ -149,6 +149,27 @@ describe("Info over an item", () => {
     expect(calls.some((call) => call.path === "library.items.get")).toBe(false);
   });
 
+  it("closes Add, and what was typed in it, as Info moves to another item it has read", async () => {
+    const cell = createFakeCell();
+    const first = cell.seed.item({ tags: ["first"] });
+    const second = cell.seed.item({ tags: ["second"] });
+    const { library } = fakePageLibrary({ cell });
+
+    const { rerender } = renderOnLibrary(<InfoTab itemId={second} />, library);
+    await screen.findByText("#second");
+    rerender(<InfoTab itemId={first} />);
+    await screen.findByText("#first");
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "status" },
+    });
+    rerender(<InfoTab itemId={second} />);
+
+    expect(screen.getByText("#second")).toBeDefined();
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add property" })).toBeDefined();
+  });
+
   it("draws an item in Deleted's properties as they are, with nothing to edit", async () => {
     const cell = createFakeCell();
     const id = cell.seed.item({ deletedAt: 1, properties: { status: "draft" }, title: "Gone" });

@@ -125,6 +125,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
           </dl>
           {fields.deletedAt === null ? (
             <PropertiesPanel
+              key={id}
               properties={fields.properties}
               onWrite={(op) => {
                 writeFields.mutate({ itemId: id, opId: crypto.randomUUID(), ops: [op] });

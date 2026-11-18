@@ -1,4 +1,5 @@
 import type { PropertyOp } from "@repo/contract/library/field-ops";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";
@@ -11,7 +12,14 @@ import type { ComponentProps, KeyboardEvent } from "react";
 
 import { nameRefusal, propertyOp, rowsOf } from "./item-properties";
 import type { Properties, TypedProperty } from "./item-properties";
-import { CheckboxField, HELD, LineField, TagsField, UnsupportedField } from "./property-fields";
+import {
+  CheckboxField,
+  HELD,
+  LineField,
+  TagsField,
+  TextField,
+  UnsupportedField,
+} from "./property-fields";
 import type { PropertyKind } from "./property-fields";
 
 const Field = ({
@@ -34,9 +42,11 @@ const Field = ({
     case "number": {
       return <LineField label={prop.key} type="number" value={prop.value} onCommit={onCommit} />;
     }
-    case "text":
     case "date": {
-      return <LineField label={prop.key} type={prop.type} value={prop.value} onCommit={onCommit} />;
+      return <LineField label={prop.key} type="date" value={prop.value} onCommit={onCommit} />;
+    }
+    case "text": {
+      return <TextField label={prop.key} value={prop.value} onCommit={onCommit} />;
     }
     default: {
       const exhaustive: never = prop;
@@ -149,6 +159,7 @@ const AddForm = ({
           ref={nameInput}
           autoFocus
           required
+          maxLength={ITEM_FIELD_CAPS.line}
           onChange={() => {
             setRefusal(null);
           }}

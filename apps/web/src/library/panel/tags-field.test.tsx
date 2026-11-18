@@ -5,8 +5,8 @@ import { TagsField } from "./property-fields";
 
 const mount = (value: string[]) => {
   const onCommit = vi.fn<(next: string[]) => void>();
-  render(<TagsField label="tags" value={value} onCommit={onCommit} />);
-  return { field: screen.getByRole("textbox", { name: "tags tags" }), onCommit };
+  render(<TagsField label="reading" value={value} onCommit={onCommit} />);
+  return { field: screen.getByRole("textbox", { name: "reading" }), onCommit };
 };
 
 const commit = (field: HTMLElement, value: string): void => {
