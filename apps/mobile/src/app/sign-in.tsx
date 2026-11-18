@@ -41,6 +41,7 @@ const SignInScreen = () => {
         {creating ? (
           <TextInput
             className={FIELD_CLASS}
+            accessibilityLabel="Name"
             placeholder="Name"
             value={name}
             onChangeText={setName}
@@ -50,6 +51,7 @@ const SignInScreen = () => {
         ) : null}
         <TextInput
           className={FIELD_CLASS}
+          accessibilityLabel="Email"
           placeholder="Email"
           value={email}
           onChangeText={setEmail}
@@ -61,6 +63,7 @@ const SignInScreen = () => {
         />
         <TextInput
           className={FIELD_CLASS}
+          accessibilityLabel="Password"
           placeholder="Password"
           value={password}
           onChangeText={setPassword}
@@ -71,6 +74,7 @@ const SignInScreen = () => {
         {creating ? (
           <TextInput
             className={FIELD_CLASS}
+            accessibilityLabel="Invite code"
             placeholder="Invite code"
             value={inviteCode}
             onChangeText={setInviteCode}

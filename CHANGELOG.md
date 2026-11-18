@@ -111,6 +111,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Resetting your password signs you out everywhere.**
 - **Signing out in a browser or the Mac app empties the site's cache**, files you opened included.
 - **Your iPhone asks for no device name.**
+- **VoiceOver names each field of your iPhone's sign-in**: Name, Email, Password and Invite code.
 - **On your iPhone, a GIF shows a placeholder for its cover in the list**: open the item to see it.
 - **Back on your iPhone leaves a note at once** unless you typed in it or added a file this visit, and the edge swipe goes back the same way.
 - **On your iPhone, Send and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.

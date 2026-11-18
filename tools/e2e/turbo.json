@@ -15,6 +15,13 @@
     "e2e:webkit": {
       "dependsOn": ["@repo/web#build"],
       "cache": false
+    },
+    // the phone's flows install its simulator build, whose cloud they listen as; Maestro runs on
+    // the Java JAVA_HOME names
+    "e2e:mobile": {
+      "dependsOn": ["@repo/web#build", "@repo/mobile#simulator"],
+      "cache": false,
+      "passThroughEnv": ["EXPO_PUBLIC_CLOUD_URL", "JAVA_HOME"]
     }
   }
 }

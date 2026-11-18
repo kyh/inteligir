@@ -1,0 +1,23 @@
+appId: com.inteligir.mobile
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- tapOn: Email
+- inputText: ${EMAIL}
+- tapOn: Password
+- inputText: ${PASSWORD}
+# Return, not hideKeyboard: the keyboard covers Sign in, and hiding it empties the password field
+- pressKey: Enter
+- tapOn: Sign in
+# the system offers to keep the password once the sign-in lands, while the simulator's AutoFill is on
+- tapOn:
+    text: Not Now
+    optional: true
+# a row is one label, its title then its date, and a selector is a regex the whole label matches
+- extendedWaitUntil:
+    visible: ${TITLE}, .*
+    timeout: 30000
+- tapOn: ${TITLE}, .*
+- tapOn: A line to type after.
+- inputText: " ${TYPED}"

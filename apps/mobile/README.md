@@ -42,8 +42,11 @@ transport, the file cache, the editor's actions, host and policies, the
 share outbox and the Library's query. `src/app-config.test.ts` holds the
 resolved config to what App Store Connect judges, and `src/styles.test.ts`
 compiles the sheet as Metro does. `pnpm build` runs `expo export --platform
-ios`, so `pnpm verify` bundles the phone and its editor's DOM bundle. What
-needs a device or the simulator is the phone's smoke list in
+ios`, so `pnpm verify` bundles the phone and its editor's DOM bundle.
+`pnpm e2e:mobile` builds a Release `.app` for the simulator (`pnpm --filter
+@repo/mobile simulator`, its cloud the origin `EXPO_PUBLIC_CLOUD_URL` names),
+signs it in and types into a note under Maestro (`tools/e2e/README.md` § The
+phone). What needs a device or a person is the phone's smoke list in
 `docs/releasing.md` § 5.
 
 ## Dev

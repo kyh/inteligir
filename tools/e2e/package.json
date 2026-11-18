@@ -2,11 +2,12 @@
   "name": "@repo/e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "Playwright flows over the built app, one next start per worker on its own database, and the extension, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
+  "description": "Playwright flows over the built app, one next start per worker on its own database, the extension and the phone's simulator build, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
   "type": "module",
   "scripts": {
     "e2e": "dotenv -e ../../.env.local -e ../../.env -- playwright test --project=chromium",
     "e2e:firefox": "dotenv -e ../../.env.local -e ../../.env -- playwright test --project=firefox",
+    "e2e:mobile": "dotenv -e ../../.env.local -e ../../.env -- playwright test --config=playwright.phone.config.ts",
     "e2e:webkit": "dotenv -e ../../.env.local -e ../../.env -- playwright test --project=webkit",
     "typecheck": "tsc --noEmit"
   },

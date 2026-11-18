@@ -10,6 +10,7 @@ pnpm e2e -- site                  # one file
 pnpm e2e -- -g "sign-in"          # tests whose title matches
 pnpm e2e:webkit                   # every flow but the extension's, in WebKit
 pnpm e2e:firefox                  # the same, in Firefox
+pnpm e2e:mobile                   # the phone's flows, in the iOS simulator (a Mac only)
 ```
 
 The run needs the Postgres server `POSTGRES_URL` names, read from the root
@@ -49,3 +50,24 @@ and the leave prompt are the shell's, which `cargo test` and the owner's Mac
 smoke cover. Neither engine loads an extension, so `extension.spec.ts` runs in
 Chromium alone, and a test that only Chromium can run skips the others by
 `browserName`.
+
+## The phone
+
+`pnpm e2e:mobile` runs `phone/` under `playwright.phone.config.ts`: one worker,
+whose `next start` listens on the port the phone's build was baked with
+(`EXPO_PUBLIC_CLOUD_URL`, which the root script names). Turbo builds the site
+and `@repo/mobile`'s `simulator` task, a Release `.app` in
+`apps/mobile/.simulator`, kept in turbo's cache by that origin.
+`phone/simulator.ts` boots a simulator of its own, `Inteligir e2e`, with no
+window, installs the build, and runs a flow's YAML in
+[Maestro](https://docs.maestro.dev); the spec seeds and reads back through
+`/v1`, so Maestro only taps and types. It needs Xcode, Maestro 2.12 or newer on
+`PATH` and Java 17 or newer at `JAVA_HOME`:
+
+```sh
+brew install openjdk@21 && curl -fsSL https://get.maestro.mobile.dev | bash
+export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+```
+
+The keyboard covers Sign in, so a flow presses Return to put it away:
+Maestro's `hideKeyboard` empties the password field.

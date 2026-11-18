@@ -85,6 +85,8 @@ interface WorkerFixtures {
   // the floor each app starts with, which every client here names: an install at it
   build: string;
   cloud: Cloud;
+  // the app's port, for a client that bakes its cloud's origin in; null for one the OS has free
+  cloudPort: number | null;
 }
 
 // asked of the OS before the boot, since the app's own origin is one of its variables
@@ -190,13 +192,14 @@ export const watchErrors = (context: BrowserContext, allowed: RegExp | null): st
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   build: ["0.7.0", { scope: "worker" }],
+  cloudPort: [null, { option: true, scope: "worker" }],
   cloud: [
-    async ({ build }, use, { project, workerIndex }) => {
+    async ({ build, cloudPort }, use, { project, workerIndex }) => {
       const relay = await servePageRelay();
       try {
         const database = await workerDatabase(workerIndex);
         // a loopback name, as the extension's dev build names its cloud
-        const origin = `http://localhost:${String(await freePort())}`;
+        const origin = `http://localhost:${String(cloudPort ?? (await freePort()))}`;
         const agentOrigin = `http://127.0.0.1:${String(await freePort())}`;
         await mkdir(project.outputDir, { recursive: true });
         const outputOf = (name: string) =>

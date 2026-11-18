@@ -136,7 +136,7 @@ deployment (`.github/workflows/smoke.yml`).
 | Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                           |
 | Mac app         | `pnpm dev`           | **Its shell and engine**: `cargo test`; `pnpm e2e:webkit`; the window needs a human      |
 | Extension       | `pnpm dev:extension` | **In Chromium, once saving is on Next**: `extension`                                     |
-| Phone           | `pnpm dev:mobile`    | **Its parts**: its suites; the app needs the simulator or a device                       |
+| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites; `pnpm e2e:mobile` (`tools/e2e/phone`)                  |
 
 ## Rules that matter
 

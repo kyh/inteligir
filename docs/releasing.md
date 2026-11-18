@@ -405,9 +405,11 @@ The unpacked store build, against production, with no dev build loaded.
 
 ### The iPhone app, in the simulator or a development build
 
-- **A release build in the simulator**: the editor's content policy under
-  WebKit, the `+native-intent` share address, a killed WebContent process
-  reloading, and every screen in light and dark.
+`pnpm e2e:mobile` signs a Release build in the simulator in and types into a
+note under the editor's content policy; what it cannot run is below.
+
+- **A release build in the simulator**: the `+native-intent` share address, a
+  killed WebContent process reloading, and every screen in light and dark.
 - **Cover memory on a device**: a Release build on the oldest supported iPhone
   (`pnpm --filter @repo/mobile ios --configuration Release --device`), Xcode
   attached to it (Debug › Attach to Process) with its memory gauge open: the

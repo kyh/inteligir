@@ -39,6 +39,7 @@ pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify             # The static gate (CI adds the e2e flows on top)
 pnpm e2e                # The Playwright flows, over the app's build and the extension's dev build
 pnpm e2e:webkit         # The same flows but the extension's, in WebKit; e2e:firefox in Firefox (not in CI)
+pnpm e2e:mobile         # The phone's flows: Maestro drives a Release build in the iOS simulator (a Mac; not in CI)
 pnpm smoke              # The runtime legs a deployment passes, against the app on :5174 (SMOKE_URL for another)
 ```
 
@@ -152,7 +153,7 @@ their storage holds.
 
 | What                                                                 | Where                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)            | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port                                                                                                    |
+| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)            | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port, the phone flows' on 5175                                                                          |
 | Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
 | The extension's account (email, its cookie's SHA-256), waiting saves | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
@@ -229,5 +230,6 @@ and each test signs up an account by invite (`tools/e2e/src/fixtures.ts`). It is
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
 runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
 retries are 0, since a flaky flow is a bug. `pnpm e2e:webkit` and
-`pnpm e2e:firefox` run the same flows in Playwright's other engines, outside
-CI (`tools/e2e/README.md` § The engines).
+`pnpm e2e:firefox` run the same flows in Playwright's other engines, and
+`pnpm e2e:mobile` the phone's in the iOS simulator under Maestro, on a Mac;
+none runs in CI (`tools/e2e/README.md` § The phone has what it needs).
