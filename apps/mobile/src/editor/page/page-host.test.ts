@@ -32,7 +32,6 @@ const pageOver = () => {
   let targets = [{ id: NOTE, title: "Plans" }];
   let reads = 0;
   const first: PageProps = {
-    cloudOrigin: "https://cell.test",
     createNote: async () => await Promise.resolve(OTHER),
     focus: false,
     itemId: NOTE,

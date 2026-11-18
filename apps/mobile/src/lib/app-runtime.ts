@@ -152,11 +152,13 @@ export const useSession = (): PhoneSession => {
   return useSyncExternalStore(session.subscribe, session.get);
 };
 
-// whether the phone reaches the cloud: in front and online
-export const useReach = (): boolean => {
-  const { reach } = getRuntime();
-  return useSyncExternalStore(reach.subscribe, reach.get);
-};
+// whether the phone has a connection, as TanStack Query hears it from the network; the app going
+// behind does not change it
+export const useOnline = (): boolean =>
+  useSyncExternalStore(
+    (listener) => onlineManager.subscribe(listener),
+    () => onlineManager.isOnline(),
+  );
 
 export const useLoginState = (): LoginState => {
   const rt = getRuntime();

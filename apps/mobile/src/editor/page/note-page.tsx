@@ -38,7 +38,7 @@ const NotePage = (props: NotePageProps) => {
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [host] = useState(() => {
     if (process.env.NODE_ENV === "production") {
-      insertPagePolicy(props.cloudOrigin);
+      insertPagePolicy();
     }
     return installPageHost(props);
   });

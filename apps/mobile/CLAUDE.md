@@ -18,12 +18,15 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **The web view hands a web link a tap followed to Safari and refuses the rest.** Its origin list
   admits every address, since the library hands what that list refuses to the OS before the policy
   runs. `apps/mobile/src/editor/web-view-policy.ts`.
-- **A production editor inserts its content policy before it draws, its one connection the note's
-  socket.** Expo's door into the page carries no nonce, so only the editor's own script may run.
-  `apps/mobile/src/editor/page/page-policy.ts`.
-- **The phone edits a note live as every device does, and reads what it last held with no
-  connection.** It turns read-only the moment the network or iOS's suspension cuts the socket, and
-  its life is one value, since a second ask or leave must not be representable.
+- **A production editor inserts its content policy before it draws, and opens no connection.**
+  Expo's door into the page carries no nonce, so only the editor's own script may run, and the
+  library is reached only through native's actions. `apps/mobile/src/editor/page/page-policy.ts`.
+- **The phone saves a note whole as every device does, through native's `readNote` and `saveNote`,
+  and reads what it last held with no connection.** It turns read-only only when the network goes,
+  never as the app goes behind, since React Native hears the app leave about a quarter second
+  before the page hears it hidden and a read-only note would never send its hidden flush.
+  `apps/mobile/src/editor/use-note-page.ts`.
+- **A note page's life is one value**, since a second ask or leave must not be representable.
   `apps/mobile/src/editor/note-page-life.ts`.
 - **New note opens with the caret at the end and the keyboard up, and a tag chip does nothing on
   the phone** (owner decision). `apps/mobile/src/editor/page/page-host.ts`.
@@ -38,9 +41,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   or paused.** What was last read shows offline and a write made there is refused at once
   (`networkMode: "always"`), since the cloud keeps the truth and only a share waits.
   `apps/mobile/src/lib/compose-runtime.ts`.
-- **Whether the phone reaches the cloud is one store: in front and online.** The socket, an open
-  note, the shares waiting and the session's check read it and nothing derives it again, since iOS
-  suspends a background app's socket anyway and two derivations disagree at `inactive`.
+- **Whether the phone reaches the cloud is one store: in front and online.** The shares waiting and
+  the session's check read it and nothing derives it again, since two derivations disagree at
+  `inactive`; an open note reads the network alone, since it saves as the app goes behind.
   `apps/mobile/src/lib/compose-runtime.ts`.
 - **The phone's key-value store is out of the device backup, and its files are in the cache**
   (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,

@@ -83,7 +83,7 @@ export interface EditorHostIo {
 }
 
 // whether the host can reach the cloud, and a listener told each time that changes: the network
-// alone in a tab, the app in front too on a phone
+// alone, on the phone too, where going behind must not stop the hidden flush
 export interface Reach {
   readonly get: () => boolean;
   readonly subscribe: (listener: () => void) => () => void;

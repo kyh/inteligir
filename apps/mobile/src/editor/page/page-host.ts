@@ -3,8 +3,9 @@
 // argument and answer JSON and bytes base64, the note read and saved whole among them. Native
 // speaks to the page only through its props, which the page hands the host after every render:
 // whether there is a connection, which items moved, and a leave's ask; a move naming the open note
-// reads where it stands. Expo hands the page new action functions on every native render, so the
-// host calls the ones it was handed last.
+// reads where it stands. The page going behind saves the note on its own (`item/note-save.ts`).
+// Expo hands the page new action functions on every native render, so the host calls the ones it
+// was handed last.
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
@@ -38,9 +39,8 @@ export interface MovedItems {
 
 export interface PageProps extends LibraryActions, NoteReports {
   readonly itemId: string;
-  // the cloud's origin, which the page's policy names
-  readonly cloudOrigin: string;
-  // no connection, or the app is behind, where iOS suspends the page
+  // no connection. The app going behind is not one: the page's own hidden flush must still send
+  // what is unsaved, and native hears the app go behind before the page does.
   readonly offline: boolean;
   readonly moved: MovedItems;
   // a leave's ask, a count native moves; the page answers each with `settled`

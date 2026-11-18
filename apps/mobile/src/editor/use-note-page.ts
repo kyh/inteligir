@@ -1,13 +1,11 @@
 // One note page per item screen: the actions it reaches the library through, made once per mount;
-// whether there is a connection, which the network and the app being in front decide together; the
-// items an answer of what moved names; and the page's life (note-page-life.ts), which the page's
-// report of its note, the screen's depth and a leave move, and which says whether a leave asks
-// first and whether the page is shown at all.
+// whether there is a connection, the network's alone; the items an answer of what moved names; and
+// the page's life (note-page-life.ts), which the page's report of its note, the screen's depth and
+// a leave move, and which says whether a leave asks first and whether the page is shown at all.
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { useReach } from "@/lib/app-runtime";
-import { getCloudUrl } from "@/lib/cloud-url";
+import { useOnline } from "@/lib/app-runtime";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
 import { noteActions } from "./note-actions";
@@ -37,9 +35,9 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
   const queryClient = useQueryClient();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
-  // iOS suspends the page behind the app, so the note reads as offline there and reads again the
-  // moment the app is in front
-  const offline = !useReach();
+  // React Native hears the app go behind about a quarter second before the page hears it hidden,
+  // so a note read-only behind the app would never send its hidden flush
+  const offline = !useOnline();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
   useEffect(
     () =>
@@ -65,7 +63,6 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
     leave: life.leave,
     props: {
       ...actions,
-      cloudOrigin: getCloudUrl(),
       focus,
       itemId,
       moved,

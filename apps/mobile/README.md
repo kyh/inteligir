@@ -2,8 +2,8 @@
 
 The account's library on the iPhone, online first: it reads the cloud through
 `/v1` with TanStack Query, whose cache it keeps between launches, edits a note
-live in `@repo/editor` inside an Expo DOM component, keeps a share from another
-app in its outbox until it lands, and draws the built-in agent from
+in `@repo/editor` inside an Expo DOM component and saves it whole, keeps a share
+from another app in its outbox until it lands, and draws the built-in agent from
 `@repo/client`. Expo and expo-router, styled with nativewind. Its decisions are
 this app's [`CLAUDE.md`](CLAUDE.md).
 
@@ -36,9 +36,9 @@ modules/     the native module this app carries (backup exclusion)
 ## Testing
 
 `pnpm --filter @repo/mobile test` covers the composition (restore, sign-in,
-sign-out, revocation, an outdated build) over the contract's fake cell, the
-socket's re-reads and the cache, the Keychain's accessibility over a stand-in,
-the transport, the file cache, the editor's actions, host and policies, the
+sign-out, revocation, an outdated build) over the contract's fake cell, what
+moved and the cache, the Keychain's accessibility over a stand-in, the
+transport, the file cache, the editor's actions, host and policies, the
 share outbox and the Library's query. `src/app-config.test.ts` holds the
 resolved config to what App Store Connect judges, and `src/styles.test.ts`
 compiles the sheet as Metro does. `pnpm build` runs `expo export --platform

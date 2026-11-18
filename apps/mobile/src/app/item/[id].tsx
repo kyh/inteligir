@@ -1,9 +1,9 @@
 // An item, by its id, over the account's library: its note in the editor every device draws, in a
-// web view of its own (note-page.tsx), live with the other devices while there is a connection, and
-// read-only under the words every screen says while there is none. The menu opens the page it was
-// saved from, its Info, a conversation about it with the built-in agent, and Delete, which moves it
-// to Deleted on every device. While the note is being edited, a leave waits until the note holds
-// every edit made here, or the person says to discard them.
+// web view of its own (note-page.tsx), saved whole as every device saves it while there is a
+// connection, and read-only under the words every screen says while there is none. The menu opens
+// the page it was saved from, its Info, a conversation about it with the built-in agent, and
+// Delete, which moves it to Deleted on every device. While the note is being edited, a leave waits
+// until the note holds every edit made here, or the person says to leave without them.
 
 import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
 import {
@@ -34,8 +34,7 @@ const RELEASE_DEPTH = 2;
 
 // the words the library's tab asks a leave in (apps/web/src/library/item/leave-item.ts)
 const LEAVE_TITLE = "Leave without saving?";
-const LEAVE_BODY =
-  "Some of what you typed here hasn't reached your library, since there's no connection. Leave now and it's lost.";
+const LEAVE_BODY = "Some of what you typed hasn't saved yet. Leave now and it's lost.";
 
 const depthOf = (routes: readonly { key: string }[], key: string): number => {
   const index = routes.findIndex((route) => route.key === key);
@@ -85,7 +84,7 @@ const ItemScreen = () => {
       (discard) => {
         Alert.alert(LEAVE_TITLE, LEAVE_BODY, [
           { style: "cancel", text: "Stay" },
-          { onPress: discard, style: "destructive", text: "Discard edits" },
+          { onPress: discard, style: "destructive", text: "Leave anyway" },
         ]);
       },
     );

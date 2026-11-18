@@ -85,6 +85,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A note saves a second after you stop typing**, and every 5 seconds through a long stretch of it; what another device saved shows when you come back to the window, or within 15 seconds.
 - **Two devices no longer type into one note at once**: typing on both in different paragraphs keeps both, and when a paragraph you changed was changed somewhere else too, the note stops taking your typing and offers Show the latest, or Save mine as a new note, which keeps what you typed as a note of its own.
 - **While the agent edits the note you have open, the note waits for it**: "The agent is editing this note" shows above it, and it takes your typing again, showing what the agent wrote, once the agent is done.
+- **On your iPhone, a note saves as you switch to another app**, so what you typed reaches your other devices while you're away; leaving a note whose typing couldn't save asks the same Leave without saving? as your browser, with Stay or Leave anyway.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
 - **A callout written `[!note]`, or with words on its marker's line, is saved as `[!NOTE]` on a line of its own**; what it says is unchanged.

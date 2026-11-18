@@ -329,10 +329,20 @@ The unpacked store build, against production, with no dev build loaded.
 - **The editor's edges** on the oldest supported iPhone and on iOS 16.4: a cold
   open under a second, Inter and KaTeX faces, no zoom, the caret above the
   keyboard, Mermaid in dark mode.
-- **Live**: phone and Mac typing in one note at once, a Mac edit arriving at
-  once, a reconnect after a lock or airplane mode, Back and the edge swipe
-  leaving a note not typed in at once, and Leave without saving with unsent
-  typing.
+- **A note saved whole**: type into a note, switch to another app at once,
+  come back and see the text, then open the note on the Mac and see it there
+  too; type again, switch away and remove the app from the app switcher, and
+  the text is there when it opens again. A Mac edit shows within 15 seconds
+  while the note is open and not typed in, Back and the edge swipe leave a note
+  not typed in at once, and Leave without saving asks over typing made in
+  airplane mode.
+- **The agent edits an open note**: with a note open on the phone, ask the
+  agent on the Mac to add a line to it; the line shows on the phone within 15
+  seconds, and a paragraph typed on the phone meanwhile is kept beside it.
+- **A 1 MB note saves**: paste text in a few goes until the note is just under
+  1 MB, type at its end and switch apps; the Mac shows the typing. Past 1 MB
+  the note says it is longer than a note can be, and a single paste over half
+  that is refused with why.
 - **A save as the app goes behind**: on a physical iPhone, iOS 26, on cellular
   or with Network Link Conditioner on 3G, type into a 1 MiB note and switch apps
   within 1 s, 20 times; 18 or more saves must land, or take the fallback in
