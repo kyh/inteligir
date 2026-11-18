@@ -194,6 +194,11 @@ DOM (`oxlint.config.ts`).
   reading is never asked by a write that rolled back nor lost by one that
   landed, a save calls no model, and the built-in agent reads the web itself, so
   its turn holds nothing back. `packages/service/src/library/library-fills.ts`.
+- **A landing writes an item's tag rows only when its derived tags move, and
+  its search row only when its body or its derived search text does.** The
+  vector's rebuild is most of a pin, a move or a delete by id, and comparing
+  what the fields derive, never a list of fields, misses no field the text
+  gains. `packages/service/src/library/library-landing.ts`.
 - **Items one write makes land together, a statement a table, and a sweep or
   an import is set statements under the one lock.** One item's landing costs
   25–30 round trips from the function's region, so a landing per item holds
@@ -460,3 +465,7 @@ DOM (`oxlint.config.ts`).
 - **A hit's passage is cut in JS from its text, not by `ts_headline`.**
   `ts_headline` reparses with Postgres's parser and marks words our tokenizer
   never matched. `packages/service/src/search/search-excerpt.ts`.
+- **A hit's body is read for its passage only when the vector holds a term at
+  the body's weight.** Stemming the opening of a body its title alone matched
+  costs milliseconds a hit and finds nothing.
+  `packages/service/src/search/search-sql.ts`.
