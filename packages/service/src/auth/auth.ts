@@ -13,7 +13,6 @@ import { bearer } from "better-auth/plugins/bearer";
 import { APP_URL } from "../app-url";
 import { startBackground } from "../background";
 import { env } from "../env";
-import { purgeFiles } from "../files/purge-files";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
 import { CLIENT_IP } from "./client-ip";
 import { revokeAllAssistants } from "./connected-assistants";
@@ -125,10 +124,9 @@ const createAuth = (disableSignUp: boolean) =>
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
-        // retry. Its rows go with the user's by cascade; its files are the store's, let go first;
-        // the invite it was made with only names it.
+        // retry. Its rows go with the user's by cascade, its files with housekeeping's next runs
+        // (`../files/deleted-account-files`); the invite it was made with only names it.
         beforeDelete: async (user) => {
-          await purgeFiles(user.id);
           await forgetInviteRedeemer(user.email);
         },
         enabled: true,

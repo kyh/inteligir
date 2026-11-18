@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of November 12, 2026.
+Effective as of November 18, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -556,10 +556,12 @@ close your account by writing to kai@kyh.io from the account's email address.
 Deleting the account first closes your library, so nothing that arrives
 meanwhile can write to it. It then deletes your conversations with the built-in
 agent, stopping any still running, everything in your library (every item, its
-text and what Undo keeps) and your files, revokes every assistant's access with
-its tokens, and removes your email from the invite you redeemed, which stays
-used. Last, it deletes your sessions, your password hash, your account and the
-records of assistants you disconnected. If any step fails, the account stays
+text and what Undo keeps), revokes every assistant's access with its tokens,
+and removes your email from the invite you redeemed, which stays used. Last, it
+deletes your sessions, your password hash, your account and the records of
+assistants you disconnected. Your files go from our file store within a day
+after, a batch at a time, and nothing can read them once the account is gone.
+If any step fails, the account stays
 and you can delete it again, which picks up where it stopped. What remains is a
 marker saying when your library was deleted, and nothing else, so a request
 already on its way finds it closed. Each of your devices erases its copy the

@@ -25,7 +25,10 @@ import { openUpload, sealUpload } from "./upload-seal";
 // when it starts, so a large file on a slow link needs the hour (sp-presigned-put)
 const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
 
-export const accountFilesPrefix = (accountId: string): string => `files/${accountId}/`;
+// the folder every account's files sit in, each under a folder of its own
+export const FILES_ROOT = "files/";
+
+export const accountFilesPrefix = (accountId: string): string => `${FILES_ROOT}${accountId}/`;
 
 const filePathname = (accountId: string, sha: string, nonce: string): string =>
   `${accountFilesPrefix(accountId)}${sha}/${nonce}`;

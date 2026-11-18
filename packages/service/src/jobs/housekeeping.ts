@@ -1,22 +1,27 @@
 // Housekeeping, hourly by Vercel Cron (apps/web/vercel.json): change sets past Undo's reach, op
 // answers past a resend's, then files nothing has named for a day, each in a transaction of its own
-// so no account's lock is held past its own statements. Each passes over an account a write holds,
-// which waits for the next run.
+// so no account's lock is held past its own statements, and each passing over an account a write
+// holds, which waits for the next run. Last, deleted accounts' files are emptied from the store for
+// what is left of the run.
 
 import { db } from "@repo/db/drizzle-client";
 
 import { serveCron } from "../cron";
 import { env } from "../env";
+import { emptyDeletedAccounts } from "../files/deleted-account-files";
 import { releaseUnnamedFiles } from "../files/file-release";
 import { pruneChangeSets, pruneOpAnswers } from "../library/library-change-sets";
 
+// how long a run spends emptying deleted accounts' files, inside its route's 300 s
+const STORE_SWEEP_MS = 240_000;
+
 const runHousekeeping = async () => {
   const now = Date.now();
-  return {
-    changeSets: await db.transaction(async (tx) => await pruneChangeSets(tx, now)),
-    files: await db.transaction(async (tx) => await releaseUnnamedFiles(tx, now)),
-    opAnswers: await db.transaction(async (tx) => await pruneOpAnswers(tx, now)),
-  };
+  const changeSets = await db.transaction(async (tx) => await pruneChangeSets(tx, now));
+  const files = await db.transaction(async (tx) => await releaseUnnamedFiles(tx, now));
+  const opAnswers = await db.transaction(async (tx) => await pruneOpAnswers(tx, now));
+  const deletedAccounts = await emptyDeletedAccounts(now + STORE_SWEEP_MS);
+  return { changeSets, deletedAccounts, files, opAnswers };
 };
 
 export const serveHousekeeping = async (request: Request): Promise<Response> =>

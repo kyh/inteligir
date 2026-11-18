@@ -39,6 +39,10 @@ export interface UploadTicket {
   readonly headers: Readonly<Record<string, string>>;
 }
 
+// what a prefix's removal came to by its deadline: every object under it gone, or some left for a
+// later try, the deadline past or the store asking to slow down
+type PrefixRemoval = "emptied" | "unfinished";
+
 export interface FileStore {
   readonly uploadTicket: (ask: UploadAsk) => Promise<UploadTicket>;
   // bytes the cloud holds itself, written as an upload is: expiring, and never over another
@@ -48,7 +52,10 @@ export interface FileStore {
   // no longer expires
   readonly keep: (pathname: string) => Promise<void>;
   readonly remove: (pathname: string) => Promise<void>;
-  readonly removePrefix: (prefix: string) => Promise<void>;
+  // the folders directly under `prefix`, each as a prefix of its own
+  readonly folders: (prefix: string) => Promise<string[]>;
+  // every object under `prefix`, at the store's own pace, until `deadline` (unix ms)
+  readonly removePrefix: (prefix: string, deadline: number) => Promise<PrefixRemoval>;
 }
 
 // how long an upload's object waits to be kept before it goes by itself

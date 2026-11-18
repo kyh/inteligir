@@ -45,8 +45,9 @@ src/files/file-read-route.ts /v1/blobs/<sha>: HEAD, preconditions and ranges fro
 src/jobs/job-queue.ts        the job table: ask, lease under skip locked, finish, retry by backoff
 src/jobs/job-kinds.ts        what each kind of job runs, its payload's schema and its tries
 src/jobs/drain-jobs.ts       the drain: a kick after a write's response, /api/cron/jobs every minute
-src/jobs/housekeeping.ts     /api/cron/housekeeping hourly: the prunes, then the files let go
+src/jobs/housekeeping.ts     /api/cron/housekeeping hourly: the prunes, the files let go, deleted accounts' files
 src/files/file-release.ts    a file unnamed a day: its row deleted, its object removed by a job
+src/files/deleted-account-files.ts the store's folders of accounts that are gone, emptied at the store's pace
 src/fill/fill-run.ts         the fill job: a saved link's page read, its files kept, its reading landed
 src/fill/read-page.ts        a page fetched and read by @repo/page-reader into a landing
 src/fill/page-fetch.ts       the guarded read: each hop's address judged, redirects, caps, a deadline

@@ -1,6 +1,6 @@
 // What every file store keeps to (`./file-store`): an object written once and never over, read
-// whole or by range, expiring until it is kept, and let go one at a time or by a prefix past one
-// page of the store's listing. The folder on disk keeps to it on every run; private Vercel Blob
+// whole or by range, expiring until it is kept, its folders named, and let go one at a time or by a
+// prefix past a page of the store's listing. The folder on disk keeps to it on every run; private Vercel Blob
 // does too on a run given the store's key, which CI never is, so the real store is proven without a
 // secret in CI.
 
@@ -19,11 +19,13 @@ import type { FileStore } from "./file-store";
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const TEN = new TextEncoder().encode("0123456789");
-// a listing's page is 1,000 objects, Blob's own, so this many cross one
+// a listing's page is 1,000 objects, Blob's own, so this many cross one, and ten of a removal's
+// batches
 const PAST_A_PAGE = 1001;
 // objects written at once, well under Blob's 75 writes a second on Pro
 const AT_ONCE = 5;
-// one test writes PAST_A_PAGE objects, which at AT_ONCE takes Blob about a minute
+// one test writes PAST_A_PAGE objects, which at AT_ONCE takes Blob about a minute, and removes them
+// at Blob's pace, which takes another
 const PAGE_TEST_MS = 300_000;
 
 // every object a run writes sits under a root of its own, which goes as the run ends: a real store
@@ -63,7 +65,7 @@ const twoChunks = async function* twoChunks() {
 const storeContract = (name: string, storeOf: () => FileStore, { skip = false } = {}) => {
   describe.skipIf(skip)(name, () => {
     afterAll(async () => {
-      await storeOf().removePrefix(RUN);
+      await storeOf().removePrefix(RUN, Date.now() + PAGE_TEST_MS);
     });
 
     it("writes an object once, reads it whole or by range, and never writes over it", async () => {
@@ -105,7 +107,7 @@ const storeContract = (name: string, storeOf: () => FileStore, { skip = false } 
         await store.remove(first ?? "");
         await expect(store.head(first ?? "")).resolves.toBeNull();
         await store.remove(first ?? "");
-        await store.removePrefix(mine);
+        await expect(store.removePrefix(mine, Date.now() + PAGE_TEST_MS)).resolves.toBe("emptied");
         for (const pathname of [second, pathnames[PAST_A_PAGE - 2], pathnames.at(-1)]) {
           await expect(store.head(pathname ?? "")).resolves.toBeNull();
         }
@@ -113,6 +115,16 @@ const storeContract = (name: string, storeOf: () => FileStore, { skip = false } 
       },
       PAGE_TEST_MS,
     );
+
+    it("names the folders directly under a prefix, each as a prefix of its own", async () => {
+      const store = storeOf();
+      const root = `${RUN}tree-${randomUUID()}/`;
+      await store.put(`${root}a/one`, TEN, "image/png");
+      await store.put(`${root}b/c/two`, TEN, "image/png");
+      const folders = await store.folders(root);
+      expect(folders.toSorted()).toStrictEqual([`${root}a/`, `${root}b/`]);
+      await expect(store.folders(`${RUN}none-${randomUUID()}/`)).resolves.toStrictEqual([]);
+    });
 
     it("answers no object at a pathname it never held", async () => {
       const store = storeOf();

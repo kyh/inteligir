@@ -4,7 +4,7 @@
 // sidecar is written last, so bytes half written are no object, and an object past its time reads
 // as gone. Nothing sweeps what expired: a folder of development's files is the developer's to clear.
 
-import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { z } from "zod";
@@ -146,6 +146,19 @@ export const diskFileStore = (dir: string): DiskFileStore => {
   };
 
   return {
+    folders: async (prefix) => {
+      try {
+        const entries = await readdir(fileAt(prefix), { withFileTypes: true });
+        return entries
+          .filter((entry) => entry.isDirectory())
+          .map(({ name }) => `${prefix}${name}/`);
+      } catch (error) {
+        if (failedWith(error, "ENOENT")) {
+          return [];
+        }
+        throw error;
+      }
+    },
     head,
     keep: async (pathname) => {
       const at = fileAt(pathname);
@@ -177,6 +190,7 @@ export const diskFileStore = (dir: string): DiskFileStore => {
     },
     removePrefix: async (prefix) => {
       await rm(fileAt(prefix), { force: true, recursive: true });
+      return "emptied";
     },
     uploadTicket: async (ask) =>
       await Promise.resolve({ headers: { "content-type": ask.mime }, url: devUploadUrl(ask) }),

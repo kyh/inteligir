@@ -282,9 +282,11 @@ DOM (`oxlint.config.ts`).
 - **A write for an account whose user row is gone is refused `GONE` by the
   lock.** A settle arriving after a delete would otherwise make a library for
   nobody. `packages/service/src/library/library-store.ts`.
-- **A deleted account's files are removed in `beforeDelete`, before its user
-  row.** A failed removal leaves an account to delete again, and once the row
-  is gone nothing names the prefix. `packages/service/src/files/purge-files.ts`.
+- **A deleted account's files are emptied by hourly housekeeping, from every
+  store folder whose account has no user row, at the store's own pace.** A
+  removal inside the delete can be refused partway by Blob's rate limit, and an
+  upload landing as the account goes is kept after it; the store's folders
+  catch both. `packages/service/src/files/deleted-account-files.ts`.
 - **`/v1/blobs/<sha>` answers HEAD, preconditions and ranges from the file's
   row, and reads the store only for a body.** A media loader's probes and a
   device's revalidations then cost no store read.

@@ -36,6 +36,7 @@ const NO_STORE =
 const refused = async (): Promise<never> => await Promise.reject(new Error(NO_STORE));
 
 const OFF: FileStore = {
+  folders: refused,
   head: refused,
   keep: refused,
   put: refused,
