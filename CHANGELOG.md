@@ -180,6 +180,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **The cursor stays where you just put it when the agent's edit or a save from another device lands in the note you have open**, where pressing End a moment before it landed could leave what you typed next where the cursor had been.
 - **A list inside a list item stays nested after a paragraph of that item** when the note saves, in a quote, a toggle, a tab or a column too, where it moved out to the outer list and took the items after it along.
 - **A tag you take out and put back in another spelling shows where it stood the moment you change it**, as your library keeps it, instead of at the end of the item's tags until your library answers.
 - **A picture inside a link, such as a badge, comes in as the picture** in an imported note, a paste or what an assistant writes, where it came in as an empty link; a link that held only pictures is those pictures, without the link.

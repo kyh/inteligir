@@ -25,6 +25,7 @@ import { NoteSaver, takesNoEdit } from "./note-save";
 import type { NoteNotice } from "./note-save";
 import { Notice } from "./notice";
 import { PasteCapPlugin } from "./paste-cap";
+import { readCaret } from "./read-caret";
 
 const CHUNK_BLOCKS = 100;
 
@@ -214,7 +215,11 @@ const SavedSurface = ({ itemId, note, blocks, notice }: SavedSurfaceProps) => {
   useLayoutEffect(
     () =>
       note.saver.bind({
-        lay: (next) => layBody(editor, next),
+        lay: (next) => {
+          readCaret(editor);
+
+          return layBody(editor, next);
+        },
         mine: () => blocksOfValue(editor.children),
       }),
     [editor, note],

@@ -430,14 +430,7 @@ export const typeAfter = async (
   typed: string,
   { delay = 0 }: { readonly delay?: number } = {},
 ) => {
-  const drawn = page.locator(EDITOR).getByText(line, { exact: true });
-  const box = await drawn.boundingBox();
-
-  if (box === null) {
-    throw new Error(`"${line}" is not drawn`);
-  }
-
-  await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
+  await page.locator(EDITOR).getByText(line, { exact: true }).click();
   await page.keyboard.press("End");
   await page.keyboard.type(typed, { delay });
 };
