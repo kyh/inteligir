@@ -2,7 +2,6 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { HTMLAttributes, RefAttributes } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { animate, motion, useMotionValue } from "motion/react";
 
@@ -10,11 +9,12 @@ import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/cn";
 
-interface SwitchProps extends HTMLAttributes<HTMLElement> {
+interface SwitchProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }
 
 const m = {
@@ -29,16 +29,18 @@ const m = {
 const THUMB_OFFSET = 2;
 const DRAG_DEAD_ZONE = 2;
 
+// the side a drag asked its owner for, by identity, so a later drag's ask is not taken for it
+interface DragAsk {
+  readonly on: boolean;
+}
+
 const Switch = ({
   checked,
   onCheckedChange,
   label,
   disabled = false,
-  className,
   "aria-label": ariaLabel,
-  ref,
-  ...props
-}: SwitchProps & RefAttributes<HTMLElement>) => {
+}: SwitchProps) => {
   const labelId = useId();
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -54,6 +56,11 @@ const Switch = ({
   } | null>(null);
 
   const motionX = useMotionValue(checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET);
+  // a drag let go on the far side asks the owner, whose answer can move `checked` a frame later
+  // (TanStack notifies on a timer): the thumb stays where it was dropped until `checked` takes that
+  // side, and springs back to the side `checked` names once the answer is overdue
+  const [asked, setAsked] = useState<DragAsk | null>(null);
+  const awaitingAnswer = asked !== null && asked.on !== checked;
 
   const checkedBackground = hovered
     ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
@@ -70,11 +77,11 @@ const Switch = ({
   const thumbX = checked ? THUMB_OFFSET + thumbTravel - extraWidth : THUMB_OFFSET;
 
   useEffect(() => {
-    if (dragging.current) {
+    if (dragging.current || awaitingAnswer) {
       return;
     }
     animate(motionX, thumbX, spring.moderate);
-  }, [thumbX, motionX]);
+  }, [thumbX, motionX, awaitingAnswer]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (disabled) {
@@ -135,7 +142,15 @@ const Switch = ({
         const snapTarget = checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET;
         animate(motionX, snapTarget, spring.moderate);
       } else {
+        const ask: DragAsk = { on: shouldBeOn };
+        setAsked(ask);
         onCheckedChange(shouldBeOn);
+        // overdue after two frames: the next frame's callbacks can run before the owner's timer
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setAsked((current) => (current === ask ? null : current));
+          });
+        });
       }
 
       requestAnimationFrame(() => {
@@ -163,7 +178,6 @@ const Switch = ({
 
   return (
     <SwitchPrimitive.Root
-      ref={ref}
       checked={checked}
       onCheckedChange={onCheckedChange}
       disabled={disabled}
@@ -173,7 +187,6 @@ const Switch = ({
       className={cn(
         "group/switch relative z-10 flex items-center gap-1 px-2.5 py-1 cursor-pointer select-none touch-none outline-none",
         disabled && "opacity-50 pointer-events-none",
-        className,
       )}
       onPointerEnter={(e) => {
         if (e.pointerType === "mouse") {
@@ -192,7 +205,6 @@ const Switch = ({
           e.preventBaseUIHandler();
         }
       }}
-      {...props}
     >
       <span
         className={cn(

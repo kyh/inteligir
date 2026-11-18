@@ -33,7 +33,6 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   sendsEmpty?: boolean;
   minRows?: number;
   maxRows?: number;
-  clickToFocus?: boolean;
   sendLabel?: string;
   // the forwarded ref is the container's; this one reaches the textarea
   textareaRef?: Ref<HTMLTextAreaElement>;
@@ -68,7 +67,6 @@ const InputMessage = ({
   sendsEmpty,
   minRows = 1,
   maxRows = 8,
-  clickToFocus = true,
   sendLabel = "Send",
   textareaRef: consumerTextareaRef,
   textareaProps,
@@ -157,7 +155,7 @@ const InputMessage = ({
   };
 
   const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!clickToFocus || disabled) {
+    if (disabled) {
       return;
     }
     const target = e.target instanceof HTMLElement ? e.target : null;
@@ -181,7 +179,7 @@ const InputMessage = ({
         surfaceClasses(2, 2),
         FOCUS_EDGE,
         radius.container,
-        clickToFocus && !disabled && `cursor-text ${HOVER_EDGE}`,
+        !disabled && `cursor-text ${HOVER_EDGE}`,
         disabled && "opacity-50 pointer-events-none",
         className,
       )}

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Switch } from "./switch";
@@ -48,5 +49,84 @@ describe("the switch", () => {
     const { chosen, control } = mountSwitch();
     press(control, 0, 3);
     expect(chosen()).toStrictEqual([]);
+  });
+});
+
+// where the thumb stands now, in px from the track's left edge
+const thumbX = (control: HTMLElement): number => {
+  const thumb = control.querySelector<HTMLElement>("[data-unchecked], [data-checked]");
+  const moved = /translateX\((?<x>[\d.-]+)px\)/u.exec(thumb?.style.transform ?? "");
+  return Number(moved?.groups?.x);
+};
+
+// the thumb's place at each of the next `frames` frames
+const thumbPath = async (control: HTMLElement, frames: number): Promise<number[]> => {
+  const path: number[] = [];
+  const watch = (): void => {
+    path.push(thumbX(control));
+    if (path.length < frames) {
+      requestAnimationFrame(watch);
+    }
+  };
+  requestAnimationFrame(watch);
+  await waitFor(
+    () => {
+      expect(path).toHaveLength(frames);
+    },
+    { timeout: 5000 },
+  );
+  return path;
+};
+
+const OFF_X = 2;
+const ON_X = 14;
+const SETTLED_FRAMES = 60;
+
+// an owner that takes the side asked or keeps its own, answering after a frame has drawn, as a
+// mutation's notice on a timer can
+const Owner = ({ takes }: { takes: boolean }) => {
+  const [checked, setChecked] = useState(false);
+  return (
+    <Switch
+      label="Pinned"
+      checked={checked}
+      onCheckedChange={(next) => {
+        requestAnimationFrame(() => {
+          if (takes) {
+            setChecked(next);
+          }
+        });
+      }}
+    />
+  );
+};
+
+// a drag from the off side to past the middle, let go there
+const dragAcross = async (takes: boolean): Promise<HTMLElement> => {
+  render(<Owner takes={takes} />);
+  const control = screen.getByRole("switch", { name: "Pinned" });
+  await thumbPath(control, 2);
+  fireEvent.pointerDown(control, { clientX: 0, pointerId: 1 });
+  fireEvent.pointerMove(control, { clientX: 20, pointerId: 1 });
+  await thumbPath(control, 1);
+  expect(thumbX(control)).toBeGreaterThan((OFF_X + ON_X) / 2);
+  fireEvent.pointerUp(control, { clientX: 20, pointerId: 1 });
+  fireEvent.click(control);
+  return control;
+};
+
+describe("the thumb after a drag", () => {
+  it("springs back to the off side when the owner keeps it off", async () => {
+    const control = await dragAcross(false);
+    const path = await thumbPath(control, SETTLED_FRAMES);
+    expect(path.at(-1)).toBeCloseTo(OFF_X, 1);
+  });
+
+  it("goes on to the on side, never back first, when the owner takes it a frame later", async () => {
+    const control = await dragAcross(true);
+    const dropped = thumbX(control);
+    const path = await thumbPath(control, SETTLED_FRAMES);
+    expect(Math.min(...path)).toBeGreaterThanOrEqual(dropped);
+    expect(path.at(-1)).toBeCloseTo(ON_X, 1);
   });
 });

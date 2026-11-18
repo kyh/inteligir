@@ -153,6 +153,9 @@ const AgentRow = () => {
       },
     }),
   );
+  // the side asked for while its call is on its way and the status is read again, so a drag the
+  // call takes stays where it was let go
+  const asked = setEnabled.isPending ? setEnabled.variables.enabled : null;
   return (
     <Row label="Built-in agent">
       <CellAnswer query={status} failed="The built-in agent's state couldn't be read.">
@@ -160,7 +163,7 @@ const AgentRow = () => {
           <div className="flex flex-col gap-1">
             <Switch
               aria-label="Built-in agent"
-              checked={data.enabled}
+              checked={asked ?? data.enabled}
               disabled={setEnabled.isPending}
               onCheckedChange={(enabled) => {
                 setEnabled.mutate({ enabled });

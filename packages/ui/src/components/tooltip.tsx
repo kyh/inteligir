@@ -13,7 +13,7 @@ import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
 import { spring } from "@repo/ui/lib/springs";
 
-const DEFAULT_DELAY = 200;
+const OPEN_DELAY = 200;
 const SKIP_DELAY_TIMEOUT = 300;
 
 // groups the tooltips under it, so one opens at once after its neighbour; each trigger carries
@@ -29,8 +29,6 @@ interface TooltipProps {
   children: React.ReactElement;
   side?: TooltipSide;
   sideOffset?: number;
-  delay?: number;
-  className?: string;
   disabled?: boolean;
   followCursor?: "x" | "y";
 }
@@ -47,8 +45,6 @@ const Tooltip = ({
   children,
   side = "top",
   sideOffset = 8,
-  delay = DEFAULT_DELAY,
-  className,
   disabled = false,
   followCursor,
 }: TooltipProps) => {
@@ -74,7 +70,7 @@ const Tooltip = ({
     <TooltipPrimitive.Root open={open} onOpenChange={setOpen} disabled={disabled}>
       <TooltipPrimitive.Trigger
         render={children}
-        delay={delay}
+        delay={OPEN_DELAY}
         onPointerMove={followCursor ? handleFollowMove : undefined}
       />
       <PopupOpen open={open && !disabled}>
@@ -106,7 +102,6 @@ const Tooltip = ({
                           "bg-foreground text-background text-body px-2 py-1",
                           "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
                           radius.bg,
-                          className,
                         )}
                         style={motionStyle(
                           { fontVariationSettings: fontWeights.medium },
