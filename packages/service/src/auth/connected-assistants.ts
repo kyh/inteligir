@@ -1,6 +1,7 @@
 // The assistants a person let into their library, as Settings › Account lists them, and the one way
 // to let one go: its consent and every token minted under it go in one transaction, so its next call
-// is refused and its refresh token is dead. A reset password lets every one go.
+// is refused and its refresh token is dead. A reset password lets every one go, and housekeeping
+// forgets what an assistant registered once nothing of anyone's names it.
 
 import {
   oauthAccessToken,
@@ -10,7 +11,7 @@ import {
 } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { Tx } from "@repo/db/drizzle-client";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, notExists } from "drizzle-orm";
 
 import { assistantIdentity, libraryScopesOf } from "./oauth-auth";
 
@@ -68,4 +69,35 @@ export const revokeAllAssistants = async (userId: string): Promise<void> => {
   await db.transaction(async (tx) => {
     await revokeGrants(tx, userId);
   });
+};
+
+// a day outlasts any sign-in and consent between an assistant registering and its first grant
+const UNNAMED_REGISTRATION_MS = 24 * 60 * 60 * 1000;
+
+const unnamedBy = (
+  table: typeof oauthConsent | typeof oauthAccessToken | typeof oauthRefreshToken,
+) =>
+  notExists(
+    db
+      .select({ clientId: table.clientId })
+      .from(table)
+      .where(eq(table.clientId, oauthClient.clientId)),
+  );
+
+// Housekeeping's: a registration no consent or token names, a day after it registered or its
+// metadata document was last read, deleted. It is filed under no account, so neither a disconnect
+// nor an account's delete reaches it. Answers how many went
+export const pruneUnnamedRegistrations = async (now: number): Promise<number> => {
+  const pruned = await db
+    .delete(oauthClient)
+    .where(
+      and(
+        lt(oauthClient.updatedAt, new Date(now - UNNAMED_REGISTRATION_MS)),
+        unnamedBy(oauthConsent),
+        unnamedBy(oauthAccessToken),
+        unnamedBy(oauthRefreshToken),
+      ),
+    )
+    .returning({ clientId: oauthClient.clientId });
+  return pruned.length;
 };

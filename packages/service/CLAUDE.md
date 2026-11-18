@@ -85,6 +85,11 @@ DOM (`oxlint.config.ts`).
   password reset disconnects every one.** Settings lists consents, never tokens,
   and a reset is the person taking the account back.
   `packages/service/src/auth/connected-assistants.ts`.
+- **Housekeeping deletes a registration no consent or token names once it is a
+  day old, counted from its last metadata read.** It is filed under no account,
+  so no disconnect or account delete reaches it, and anyone may register; a day
+  outlasts any sign-in and consent before an assistant's first grant.
+  `packages/service/src/auth/connected-assistants.ts`.
 - **The tools are oRPC's `McpRegistrar` over the routed library, filtered to
   the rows tagged a tool and, for a read-only grant, to the reads.** A tool is
   added by tagging its row, and a grant is never offered a tool its row would
