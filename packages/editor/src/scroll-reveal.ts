@@ -11,6 +11,9 @@ const SCROLLER = "[data-editor-scroller]";
 // a screen and a half: the runs that close are already drawn, since a run renders on approach
 const NEAR_SCREENS = 1.5;
 
+// a glide is travel, which the app drops for a person who asked for reduced motion (MotionPolicy)
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
 const isNearInScroller = (el: Element, scroller: Element): boolean => {
   const offset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
   return Math.abs(offset) <= scroller.clientHeight * NEAR_SCREENS;
@@ -25,7 +28,7 @@ export const reveal = (el: Element, at: "center" | { readonly top: number }): vo
   }
   const scroller = el.closest(SCROLLER);
   const near = scroller === null || isNearInScroller(el, scroller);
-  const behavior = near ? "smooth" : "auto";
+  const behavior = near && !window.matchMedia(REDUCED_MOTION).matches ? "smooth" : "auto";
   if (at === "center" || scroller === null) {
     el.scrollIntoView({ behavior, block: "center" });
   } else {

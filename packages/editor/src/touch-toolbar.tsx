@@ -231,7 +231,13 @@ const TouchToolbar = () => {
     }
   };
 
+  // a note that turned read-only draws no toolbar and ends the field, lest it come back with the
+  // edits; ended while rendering, as the selection toolbar's mode is
   if (readOnly) {
+    if (prompt !== null) {
+      prompt.unref();
+      setPrompt(null);
+    }
     return null;
   }
   return (

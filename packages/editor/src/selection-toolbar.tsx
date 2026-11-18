@@ -151,13 +151,15 @@ const MarkButton = ({ nodeType, children }: { nodeType: string; children: ReactN
 };
 
 const LinkInput = ({
+  initialValue,
   onSubmit,
   onCancel,
 }: {
+  initialValue: string;
   onSubmit: (url: string) => void;
   onCancel: () => void;
 }) => {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialValue);
   return (
     <form
       onSubmit={(e) => {
@@ -210,6 +212,8 @@ const SelectionToolbar = () => {
   const readOnly = useEditorReadOnly();
 
   const [mode, setMode] = useState<BarMode>(BAR);
+  // what the link field held when its text went away under it, offered again when it next opens
+  const [draft, setDraft] = useState<string | null>(null);
   const enter = (next: BarMode): void => {
     if (mode.kind !== "bar") {
       mode.at.unref();
@@ -260,10 +264,18 @@ const SelectionToolbar = () => {
   const entry = effectiveBlockEntry(editor, selection ?? heldRange() ?? undefined);
   const typeLabel = entry ? turnIntoOptionFor(entry[0]).label : "Text";
 
+  // A note that turned read-only takes no edit the bar would make, so it draws none and its mode
+  // ends, lest a field open then come back with the edits. Ended while rendering: an effect's
+  // cleanup would let go of the text a StrictMode remount still holds, and unref twice is a no-op.
+  if (readOnly) {
+    if (mode.kind !== "bar") {
+      enter(BAR);
+    }
+    return null;
+  }
   // base ui portals escape clickOutsideRef, so the hook hides the bar (blur, a collapsed
-  // selection) while a menu or the link field holds focus; a mode keeps it, and a note that turned
-  // read-only draws none, since it takes no edit the bar would make
-  if (readOnly || (hidden && mode.kind === "bar")) {
+  // selection) while a menu or the link field holds focus; a mode keeps it
+  if (hidden && mode.kind === "bar") {
     return null;
   }
 
@@ -282,11 +294,13 @@ const SelectionToolbar = () => {
       >
         {mode.kind === "link" ? (
           <LinkInput
-            onCancel={backToNote}
+            initialValue={draft ?? ""}
+            onCancel={() => {
+              setDraft(null);
+              backToNote();
+            }}
             onSubmit={(url) => {
-              if (url !== "") {
-                applyLink(editor, mode.at, url);
-              }
+              setDraft(url !== "" && applyLink(editor, mode.at, url) === "moved" ? url : null);
               backToNote();
             }}
           />

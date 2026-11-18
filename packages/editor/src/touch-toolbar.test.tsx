@@ -41,22 +41,32 @@ const parsedValue = (markdown: string): Value => {
   return parsed.value;
 };
 
-const mount = (markdown: string, host: FakeEditorHostOptions = {}): PlateEditor => {
+interface Mounted {
+  readonly editor: PlateEditor;
+  // the note taking no edit, as the item editor draws one offline or held for the agent, and back
+  readonly turnReadOnly: (readOnly: boolean) => void;
+}
+
+// under StrictMode, which the site's dev build runs
+const mount = (markdown: string, host: FakeEditorHostOptions = {}): Mounted => {
   installFakeEditorHost(host);
   const ref = createRef<PlateEditor>();
-  render(
-    <EditorHarness
-      ref={ref}
-      profile="touch"
-
-      value={parsedValue(markdown)}
-    />,
-  );
+  const value = parsedValue(markdown);
+  const { rerender } = render(<EditorHarness ref={ref} profile="touch" value={value} />, {
+    reactStrictMode: true,
+  });
   const editor = ref.current;
   if (editor === null) {
     throw new Error("the harness did not hand over its editor");
   }
-  return editor;
+  return {
+    editor,
+    turnReadOnly: (readOnly) => {
+      act(() => {
+        rerender(<EditorHarness ref={ref} profile="touch" value={value} readOnly={readOnly} />);
+      });
+    },
+  };
 };
 
 const toolbarButtons = (): HTMLElement[] =>
@@ -110,7 +120,7 @@ describe("the touch toolbar", () => {
   });
 
   it("runs the row it names: a mark and a turn-into", () => {
-    const editor = mount("one two\n");
+    const { editor } = mount("one two\n");
     act(() => {
       editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 3, path: [0, 0] } });
     });
@@ -123,7 +133,7 @@ describe("the touch toolbar", () => {
   });
 
   it("indents and outdents the blocks Tab and Shift+Tab would", () => {
-    const editor = mount("- one\n- two\n");
+    const { editor } = mount("- one\n- two\n");
     act(() => {
       editor.tf.select({ offset: 3, path: [1, 0] });
     });
@@ -165,7 +175,7 @@ const writeAddress = async (text: string, submit: string): Promise<void> => {
 
 describe("a link from the touch toolbar", () => {
   it("links the selection the field was opened over", async () => {
-    const editor = mount("one two\n");
+    const { editor } = mount("one two\n");
     await selectOne(editor);
     press(TOUCH_ACTIONS.link.label);
     await writeAddress("  https://example.com/  ", "Apply");
@@ -174,7 +184,7 @@ describe("a link from the touch toolbar", () => {
   });
 
   it("lands nothing when the note is re-seeded under the open field, and keeps the address for the next one", async () => {
-    const editor = mount("one two\n");
+    const { editor } = mount("one two\n");
     await selectOne(editor);
     press(TOUCH_ACTIONS.link.label);
     act(() => {
@@ -194,8 +204,20 @@ describe("a link from the touch toolbar", () => {
     );
   });
 
+  it("closes the field as the note turns read-only, letting go of its words, so edits return to the row of buttons", async () => {
+    const { editor, turnReadOnly } = mount("one two\n");
+    await selectOne(editor);
+    press(TOUCH_ACTIONS.link.label);
+    turnReadOnly(true);
+    turnReadOnly(false);
+
+    expect(screen.queryByRole("textbox", { name: "Link address" })).toBeNull();
+    expect(screen.getByRole("button", { name: TOUCH_ACTIONS.link.label })).toBeDefined();
+    expect(editor.api.rangeRefs().size).toBe(0);
+  });
+
   it("writes nothing when cancelled", async () => {
-    const editor = mount("one two\n");
+    const { editor } = mount("one two\n");
     await selectOne(editor);
     press(TOUCH_ACTIONS.link.label);
     await writeAddress("https://example.com/", "Cancel");

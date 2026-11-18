@@ -217,3 +217,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A delete that stops partway still offers Undo**, which brings back the items that went to Deleted.
 - **A dialog opened over another opens empty**: New folder, Rename folder, Save a link, Tag and Move to no longer carry what was typed in the first, and only one shows at a time.
 - **The panel opens in a window narrower than 768px**: ⌘K, `]` and the open item's Info button open it as a sheet.
+- **A heading picked in a note's outline, or a find match, comes into view at once when your system asks for reduced motion**, instead of gliding there.
+- **A link field or Turn into menu open as a note stops taking edits closes**, offline or while the agent works in it, instead of coming back when the note takes edits again.
+- **A link whose words changed under the open field keeps the address you typed** on your Mac and in your browser, as on your iPhone: select the words again and choose Link to apply it.
