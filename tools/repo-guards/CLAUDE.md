@@ -52,8 +52,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   deploys, and `verify:affected` lints and knips a change in any workspace,
   which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
-  fails without it.** Why: a bump fails the install until the patch is re-cut
-  or dropped. `patches/` (micromark:
+  fails without it; the release it keys is pinned exactly**, a catalog row or,
+  for one no manifest names, an override. Why: a bump fails the install until
+  the patch is re-cut or dropped, and a caret would let a resolution without the
+  lockfile take the next release and fail on the unused patch. `patches/` (micromark:
   `packages/editor/src/headless/markdown/parse-cost.test.ts`;
   @platejs/core: `packages/editor/src/typing-budget.test.tsx`; react-dom:
   `packages/editor/src/commit-selection-walk.test.tsx`; next, its react-dom:

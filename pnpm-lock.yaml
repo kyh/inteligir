@@ -303,13 +303,13 @@ catalogs:
       specifier: 5.0.0-rc.0
       version: 5.0.0-rc.0
     next:
-      specifier: ^16.4.6
+      specifier: 16.4.6
       version: 16.4.6
     oxlint-tsgolint:
       specifier: ^7.0.2005
       version: 7.0.2005
     platejs:
-      specifier: ^53.5.2
+      specifier: 53.5.2
       version: 53.5.2
     postcss:
       specifier: ^8.5.29
@@ -408,6 +408,9 @@ overrides:
   '@expo/metro-config>lightningcss': 1.30.1
   react-native-css>lightningcss: 1.30.1
   '@types/react': 19.2.17
+  '@platejs/core': 53.5.2
+  micromark: 4.0.3
+  slate-react: 0.145.1
   drizzle-kit: 1.0.0-rc.5
   drizzle-orm: 1.0.0-rc.5
   vite: ^8.3.5
