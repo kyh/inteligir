@@ -3,22 +3,12 @@
 // or dropped moves its file's `touched_at`, so a file is let go a day after its last name went by
 // asking the naming rows alone, never a count kept beside them.
 
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { changeSetFile, file, item, itemFile } from "@repo/db/library-schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 
 import { anyOf, chunksOf } from "../library/set-sql";
-
-const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): string[] =>
-  [originalSha, coverSha].filter((sha) => sha !== null);
-
-// every file an item names: its original and cover by field, and each image, video or file its
-// body embeds, as its digest last read the body
-export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]): string[] => [
-  ...new Set([...fieldFilesOf(fields), ...bodyFiles]),
-];
 
 const touch = async (
   tx: DbExecutor,

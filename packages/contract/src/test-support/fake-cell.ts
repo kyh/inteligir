@@ -6,8 +6,8 @@
 // answers it can lose after the cell acted. It keeps the rules a client leans on: a property op
 // lands only on the base it names (`@repo/contract/library/field-ops`) and answers CONFLICT where
 // one moved, a verb of the cell's lands the fields the cell's own rules compute, an op id is
-// answered once, a file must be uploaded before a write names it, every write takes the library's
-// next sequence, and a read answers through the cell's own derivation and listing
+// answered once, a file must be uploaded before a landing names it anew, every write takes the
+// library's next sequence, and a read answers through the cell's own derivation and listing
 // (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). The cases in
 // `./cell-conformance` hold it to the real cell, which runs them too. A suite seeds it without a
 // call, and reads an item back as a listing or `items.get` answers it.
@@ -42,7 +42,7 @@ import {
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
 import { canonicalJson, utf8ByteLength } from "../library/canonical-json";
-import { folderOpLanding, folderOpRefusal, organized } from "../library/cell-rules";
+import { folderOpLanding, folderOpRefusal, itemFilesOf, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
 import { takesRead, withPage, withReading } from "../library/item-reading";
@@ -112,7 +112,7 @@ export interface FakeCell {
   // rows put in place without a call, each landing as a write lands, under a fresh id
   readonly seed: {
     // a note filed nowhere, unless `fields` says otherwise, holding `blocks`; never a live one at
-    // an address a live item holds
+    // an address a live item holds, nor one naming a file whose bytes never came up
     readonly item: (fields?: Partial<LibraryItemFields>, blocks?: readonly BodyBlock[]) => string;
     // a folder at the top, after the live ones there
     readonly folder: (name: string) => string;
@@ -153,10 +153,9 @@ const derivedOf = (item: CellItem) => {
   return { ...deriveItem(item.fields, body.digest), text: body.text };
 };
 
-// every sha the blocks a write carries name their bytes by
-const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
-const shasIn = (json: string): Set<string> =>
-  new Set([...json.matchAll(SHA_KEY_RE)].flatMap((match) => match.groups?.sha ?? []));
+// every file an item names, by its fields and its body
+const filesOf = (fields: LibraryItemFields, blocks: readonly BodyBlock[]): string[] =>
+  itemFilesOf(fields, deriveBody(blocks).digest.files);
 
 export const createFakeCell = (): FakeCell => {
   let head = 0;
@@ -246,14 +245,25 @@ export const createFakeCell = (): FakeCell => {
     };
   };
 
+  // of `shas`, those whose bytes never came up refuse the write, named in sha order as the cell's
+  const needsBlobs = (shas: readonly string[]): void => {
+    const [first, ...rest] = [...new Set(shas)].filter((sha) => !blobs.has(sha)).toSorted();
+    if (first !== undefined) {
+      throw new BlobMissingError({ data: { shas: [first, ...rest] } });
+    }
+  };
+
   // a landing that keeps the body hands its own blocks back, which leaves its version; fields past
-  // their caps land nowhere, as the cell checks every landing's
+  // their caps land nowhere, nor a file the item named nowhere before whose bytes never came up, as
+  // the cell checks every landing's
   const land = (id: string, fields: LibraryItemFields, blocks: readonly BodyBlock[]) => {
     if (!libraryItemFieldsSchema.validate(fields)) {
       throw new PayloadTooLargeError();
     }
-    head += 1;
     const prior = items.get(id);
+    const named = prior === undefined ? [] : filesOf(prior.fields, prior.blocks);
+    needsBlobs(filesOf(fields, blocks).filter((sha) => !named.includes(sha)));
+    head += 1;
     const bodyVersion =
       prior === undefined ? 1 : prior.bodyVersion + (prior.blocks === blocks ? 0 : 1);
     const item: CellItem = { blocks, bodyVersion, fields, seq: head, updatedAt: NOW + head };
@@ -272,14 +282,6 @@ export const createFakeCell = (): FakeCell => {
       answers.set(opId, answer);
     }
     return answer;
-  };
-
-  const needsBlobs = (shas: Iterable<string>): void => {
-    const missing = [...shas].filter((sha) => !blobs.has(sha));
-    const [first, ...rest] = missing;
-    if (first !== undefined) {
-      throw new BlobMissingError({ data: { shas: [first, ...rest] } });
-    }
   };
 
   // the live item at an address, which a save of it answers
@@ -338,7 +340,6 @@ export const createFakeCell = (): FakeCell => {
         ? { kind: "saved", seq: item.seq, version: item.bodyVersion }
         : { kind: "stale", version: item.bodyVersion };
     }
-    needsBlobs(shasIn(JSON.stringify(input.blocks)));
     land(input.id, item.fields, input.blocks);
     return { kind: "saved", seq: head, version: input.baseVersion + 1 };
   };
@@ -382,8 +383,10 @@ export const createFakeCell = (): FakeCell => {
 
   // To Deleted, or back: an item already where it is asked to be counts as changed and lands
   // nothing, an id naming no item is missing, and an item whose address another live item holds
-  // now stays in Deleted
+  // now stays in Deleted. Every item a call moves to Deleted goes at one time, the next landing's,
+  // as a write of the cell's takes one
   const setDeleted = (ids: readonly string[], deleted: boolean) => {
+    const at = NOW + head + 1;
     const changed: string[] = [];
     const missing: string[] = [];
     const addressHeld: string[] = [];
@@ -396,7 +399,7 @@ export const createFakeCell = (): FakeCell => {
       } else if (!deleted && item.fields.url !== null && holderOf(item.fields.url) !== null) {
         addressHeld.push(id);
       } else {
-        land(id, { ...item.fields, deletedAt: deleted ? NOW : null }, item.blocks);
+        land(id, { ...item.fields, deletedAt: deleted ? at : null }, item.blocks);
         changed.push(id);
       }
     }
@@ -404,16 +407,18 @@ export const createFakeCell = (): FakeCell => {
   };
 
   // tags, folder, pin and title for each item, as the cell's own organize leaves them
-  // (`organizeItems` in `@repo/service`); an id naming no item refuses them all
+  // (`organizeItems` in `@repo/service`), in one write: an id naming no item, or an item the
+  // organize would carry past its caps, refuses them all, whichever comes first
   const organize = (input: OrganizeInput): LiveRow[] => {
     const folderId = folderIdOf(input.folder);
-    const ids = [...new Set(input.ids)];
-    if (ids.some((id) => !items.has(id))) {
-      throw new NotFoundError();
-    }
-    return ids.map(
-      (itemId) => landFields(itemId, organized(holding(itemId).fields, input, folderId, NOW)).item,
-    );
+    const next = [...new Set(input.ids)].map((itemId) => {
+      const fields = organized(holding(itemId).fields, input, folderId, NOW);
+      if (!libraryItemFieldsSchema.validate(fields)) {
+        throw new PayloadTooLargeError();
+      }
+      return { fields, itemId };
+    });
+    return next.map(({ fields, itemId }) => landFields(itemId, fields).item);
   };
 
   // a sweep's organize, as the cell's own lands one: every item to its folder and pin, and its
@@ -431,6 +436,21 @@ export const createFakeCell = (): FakeCell => {
       return !fits;
     });
     return refused.toSorted();
+  };
+
+  // A sweep's restore, as the cell's own lands one (`restoreDeleted` in `@repo/service`): each item
+  // in Deleted comes back but one whose address a live item holds, and of several at one address
+  // only the one deleted last, the lowest id among those deleted at once; it answers those left,
+  // in id order
+  const restoreSwept = (ids: readonly string[]): string[] => {
+    const inDeleted = ids.flatMap((id) => {
+      const { deletedAt } = holding(id).fields;
+      return deletedAt === null ? [] : [{ deletedAt, id }];
+    });
+    const deletedLast = inDeleted
+      .toSorted((a, b) => b.deletedAt - a.deletedAt || compareText(a.id, b.id))
+      .map(({ id }) => id);
+    return setDeleted(deletedLast, false).addressHeld.toSorted();
   };
 
   // emptying Deleted: an item there goes for good, its id kept at the one sequence the purge
@@ -584,7 +604,6 @@ export const createFakeCell = (): FakeCell => {
         create: os.library.items.create.handler(({ input }) =>
           once(input.opId, landedSchema, () => {
             made(input.id);
-            needsBlobs(shasIn(JSON.stringify(input.blocks)));
             return land(input.id, noteFields(input), input.blocks);
           }),
         ),
@@ -631,9 +650,8 @@ export const createFakeCell = (): FakeCell => {
         saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
-            // checked only where the save lands, as the cell checks a landing's files: a held item
-            // answered as it stands names no new one
-            const cover = input.coverSha === null ? [] : [input.coverSha];
+            // its files checked only where the save lands, as the cell checks a landing's: a held
+            // item answered as it stands names no new one
             const article = input.article.map((block): BodyBlock => ({
               block,
               section: "article",
@@ -644,11 +662,9 @@ export const createFakeCell = (): FakeCell => {
               if (!takesRead(item.fields.reading, deriveBody(item.blocks).digest.article, input)) {
                 return answerHeld(holder);
               }
-              needsBlobs(cover);
               return { created: false, ...landRead(holder, item, input, article) };
             }
             made(input.id);
-            needsBlobs(cover);
             return {
               created: true,
               ...land(input.id, pageFields(input, NOW), [
@@ -691,10 +707,12 @@ export const createFakeCell = (): FakeCell => {
             case "organize": {
               return { items: ids.length, refused: sweepOrganize(ids, verb) };
             }
-            case "delete":
+            case "delete": {
+              setDeleted(ids, true);
+              return { items: ids.length, refused: [] };
+            }
             case "restore": {
-              const { addressHeld } = setDeleted(ids, verb.kind === "delete");
-              return { items: ids.length, refused: addressHeld };
+              return { items: ids.length, refused: restoreSwept(ids) };
             }
             case "purge": {
               purge(ids);

@@ -1,8 +1,8 @@
-// The rules a folder write and an organize meet, pure over a reader of the library's folders, so the
-// cell and the fake cell refuse and land alike. A folder is guarded like a block by what its writer
-// read (its name, its parent), no two live siblings share a name, since an agent files by the path
-// of names from the top, and deleting a folder deletes the folders under it. An op already true
-// lands nothing and refuses nothing.
+// The rules a folder write and an organize meet, pure over a reader of the library's folders, and
+// the files a landing names, so the cell and the fake cell refuse and land alike. A folder is
+// guarded like a block by what its writer read (its name, its parent), no two live siblings share a
+// name, since an agent files by the path of names from the top, and deleting a folder deletes the
+// folders under it. An op already true lands nothing and refuses nothing.
 
 import type { z } from "zod";
 
@@ -201,3 +201,10 @@ export const organized = (
   tags: tagsAfter(fields.tags, input),
   title: input.title ?? fields.title,
 });
+
+// every file an item names: its original and cover by field, and each file its body embeds, as its
+// digest read the body; a landing may name only a file the library holds, which is checked for the
+// files the item named nowhere before it
+export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]): string[] => [
+  ...new Set([fields.originalSha, fields.coverSha, ...bodyFiles].filter((sha) => sha !== null)),
+];

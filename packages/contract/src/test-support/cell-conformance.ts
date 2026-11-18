@@ -45,9 +45,15 @@ const TAGS_AT_CAP = Array.from(
 const bytesOf = (text: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(new TextEncoder().encode(text));
 
-// a picture block naming its bytes by `sha`
+// a picture naming its bytes by `sha`, and one in a note
+const pictureBlock = (id: string, sha: string): LibraryBlock => ({
+  children: [{ text: "" }],
+  id,
+  sha,
+  type: "img",
+});
 const pictureOf = (id: string, sha: string): BodyBlock => ({
-  block: { children: [{ text: "" }], id, sha, type: "img" },
+  block: pictureBlock(id, sha),
   section: "note",
 });
 
@@ -390,6 +396,29 @@ export const cellConformance = (withHost: WithHost): void => {
       });
     });
 
+    it("saves a page whose article shows a picture once the picture's bytes are up, new or on a held link, and refuses it before", async () => {
+      await withLaptop(async ({ library, page, upload }) => {
+        const url = "https://example.com/pictured";
+        const unsent = [paragraph("p1", "The fox jumps."), pictureBlock("p2", SHA)];
+        const missing = { code: "BLOB_MISSING", data: { shas: [SHA] } };
+        await expect(refusalOf(library.items.save(page(url, unsent)))).resolves.toStrictEqual(
+          missing,
+        );
+        const stub = await library.items.saveLink({ url });
+        await expect(refusalOf(library.items.save(page(url, unsent)))).resolves.toStrictEqual(
+          missing,
+        );
+        await expect(library.items.row({ id: stub.item.id })).resolves.toMatchObject(stub.item);
+
+        const sha = await upload(bytesOf("a picture on the page"), PNG);
+        await library.items.save(page(url, [pictureBlock("p2", sha)]));
+        await expect(library.items.get({ id: stub.item.id })).resolves.toMatchObject({
+          blocks: [{ block: { id: "p2", sha }, section: "article" }],
+          fields: { reading: { state: "read" } },
+        });
+      });
+    });
+
     it("lands a device's read on a held link still waiting for its page, the name the person gave kept", async () => {
       await withLaptop(async ({ library, page }) => {
         const url = "https://example.com/saved-later";
@@ -476,14 +505,46 @@ export const cellConformance = (withHost: WithHost): void => {
       });
     });
 
+    it("saves a note's body that keeps the picture it shows, and refuses one adding a picture whose bytes never came up, naming that one alone", async () => {
+      await withLaptop(async ({ library, noteOf, upload }) => {
+        const sha = await upload(bytesOf("a picture kept"), PNG);
+        const made = noteOf([]);
+        const kept = pictureOf(`${made.id}-0`, sha);
+        await library.items.create({ ...made, blocks: [kept] });
+
+        const typed: BodyBlock = {
+          block: paragraph(`${made.id}-1`, "Typed under it."),
+          section: "note",
+        };
+        await expect(
+          library.items.saveBody({ baseVersion: 1, blocks: [kept, typed], id: made.id }),
+        ).resolves.toMatchObject({ kind: "saved", version: 2 });
+        await expect(
+          refusalOf(
+            library.items.saveBody({
+              baseVersion: 2,
+              blocks: [kept, typed, pictureOf(`${made.id}-2`, SHA)],
+              id: made.id,
+            }),
+          ),
+        ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] } });
+        await expect(library.items.get({ id: made.id })).resolves.toMatchObject({
+          bodyVersion: 2,
+        });
+      });
+    });
+
     it("refuses a landing past an item's caps, by a property and by an organize, landing none of it", async () => {
       await withLaptop(async ({ library, note }) => {
+        const roomy = await note(["Room."]);
         const id = await note(["Full."], { tags: TAGS_AT_CAP });
         const before = await library.items.row({ id });
+        const roomyBefore = await library.items.row({ id: roomy });
 
         await expect(
-          codeOf(library.items.organize({ addTags: ["more"], ids: [id] })),
+          codeOf(library.items.organize({ addTags: ["more"], ids: [roomy, id] })),
         ).resolves.toBe("PAYLOAD_TOO_LARGE");
+        await expect(library.items.row({ id: roomy })).resolves.toStrictEqual(roomyBefore);
         await expect(
           codeOf(
             library.write({
@@ -585,6 +646,38 @@ export const cellConformance = (withHost: WithHost): void => {
         await runDue();
         await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0, total: 3 });
         await expect(codeOf(library.items.get({ id: first.id }))).resolves.toBe("NOT_FOUND");
+      });
+    });
+
+    it("brings back, of the items it restores at one address, only the one deleted last", async () => {
+      await withLaptop(async ({ library, newId, page, runDue }) => {
+        const url = "https://example.com/twice";
+        // the one deleted last holds the lower id, so a tie in when they went answers alike, and
+        // the other lists first, by the later time it says it was saved
+        const [later, earlier] = [newId(), newId()];
+        await library.items.save({
+          ...page(url, [paragraph("p1", "First.")]),
+          id: earlier,
+          savedAt: SAVED_AT + 1,
+        });
+        await library.items.delete({ ids: [earlier] });
+        await library.items.save({ ...page(url, [paragraph("p2", "Second.")]), id: later });
+        await library.items.delete({ ids: [later] });
+
+        await expect(
+          library.items.sweep({
+            except: [],
+            scope: { kind: "deleted" },
+            verb: { kind: "restore" },
+          }),
+        ).resolves.toStrictEqual({ items: 2, refused: [earlier] });
+        await runDue();
+        await expect(library.items.row({ id: later })).resolves.toMatchObject({
+          fields: { deletedAt: null },
+        });
+        await expect(library.items.row({ id: earlier })).resolves.toMatchObject({
+          fields: { deletedAt: expect.any(Number) },
+        });
       });
     });
   });

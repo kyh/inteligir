@@ -9,6 +9,7 @@
 
 import { urlKey } from "@repo/contract/items/item-url";
 import { sameJson } from "@repo/contract/library/canonical-json";
+import { itemFilesOf } from "@repo/contract/library/cell-rules";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type {
   BodyBlock,
@@ -24,7 +25,7 @@ import { item, itemBody, itemLink, itemSearch, itemTag, purgedItem } from "@repo
 import { settledBody } from "@repo/editor/headless/formulas/pill-nodes";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
-import { itemFilesOf, missingFiles, nameItemFiles, nameNewItemFiles } from "../files/file-names";
+import { missingFiles, nameItemFiles, nameNewItemFiles } from "../files/file-names";
 import { recordBody, recordLanding } from "./library-change-sets";
 import { holdRoomFor } from "./library-quota";
 import { refuse } from "./library-refusal";

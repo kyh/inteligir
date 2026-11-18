@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import { uploadBlob } from "../rpc/call-outcome";
+import { BlobMissingError } from "../rpc/v1-errors";
 import { cellConformance } from "./cell-conformance";
 import { createFakeCell } from "./fake-cell";
 
@@ -59,5 +61,18 @@ describe("the rows a suite seeds in the fake cell", () => {
     );
     expect([...cell.items().keys()]).toHaveLength(2);
     expect(cell.held(held).fields.deletedAt).toBeNull();
+  });
+
+  it("refuses one naming a file whose bytes never came up, as no write could land it", () => {
+    const cell = createFakeCell();
+    const sha = "a".repeat(64);
+    const picture: BodyBlock = {
+      block: { children: [{ text: "" }], id: "p", sha, type: "img" },
+      section: "note",
+    };
+
+    expect(() => cell.seed.item({}, [picture])).toThrow(BlobMissingError);
+    expect(() => cell.seed.item({ coverSha: sha })).toThrow(BlobMissingError);
+    expect(cell.items().size).toBe(0);
   });
 });
