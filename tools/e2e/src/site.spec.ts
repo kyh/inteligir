@@ -116,6 +116,29 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
+test("the home page's orb draws into the whole of its box", async ({ cloud, page }) => {
+  await page.goto(cloud.origin);
+  const orb = page.locator("canvas");
+  const box = await orb.locator("..").boundingBox();
+  await expect.poll(async () => await orb.boundingBox()).toEqual(box);
+});
+
+test.describe(() => {
+  const NO_WEBGL = /Error creating WebGL context/u;
+  test.use({ allowedErrors: NO_WEBGL });
+
+  test("the home page stands where the orb gets no WebGL", async ({ cloud, page }) => {
+    await page.addInitScript(() => {
+      HTMLCanvasElement.prototype.getContext = () => null;
+    });
+    const refused = page.waitForEvent("console", (message) => NO_WEBGL.test(message.text()));
+    await page.goto(cloud.origin);
+    await refused;
+    await expect(page.getByRole("link", { name: "Download for Mac" }).first()).toBeVisible();
+    await expect(page.locator("canvas")).toHaveCount(0);
+  });
+});
+
 test("the home page links the licences of the packages the site bundles, and what is vendored is served beside them", async ({
   cloud,
   page,

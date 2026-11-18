@@ -46,8 +46,21 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
 
 const HELIX = new HelixCurve(HELIX_LENGTH, HELIX_AMPLITUDE);
 
+// three throws where WebGL is off by policy, missing on a machine with no GPU, or out of contexts,
+// and the home page must stand without its orb
+const makeRenderer = (): THREE.WebGLRenderer | null => {
+  try {
+    return new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  } catch {
+    return null;
+  }
+};
+
 const mountOrb = (host: HTMLElement, color: string) => {
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  const renderer = makeRenderer();
+  if (renderer === null) {
+    return null;
+  }
   // the hero's two greys are chosen under this curve, which draws each darker than its hex
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.domElement.className = "block";
@@ -128,7 +141,7 @@ export const GeometricOrb = ({ baseColor = "#eeeeee" }: { baseColor?: string }) 
     }
     const mounted = mount(host.current);
     orb.current = mounted;
-    return mounted.dispose;
+    return mounted?.dispose;
   }, []);
 
   useEffect(() => {
