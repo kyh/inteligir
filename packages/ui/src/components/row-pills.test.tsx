@@ -29,16 +29,7 @@ const rowTop = (element: HTMLElement): number => {
 
 const top = (index: number): string => `${String(index * ROW_HEIGHT)}px`;
 
-/* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-class ResizeObserverStub {
-  observe = (): void => {};
-  unobserve = (): void => {};
-  disconnect = (): void => {};
-}
-/* oxlint-enable class-methods-use-this */
-
 beforeEach(() => {
-  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function offsetTop(
     this: HTMLElement,
   ) {
@@ -57,7 +48,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 

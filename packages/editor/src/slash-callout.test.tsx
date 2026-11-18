@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { PathApi } from "platejs";
 import type { PlateEditor } from "platejs/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
@@ -35,23 +35,6 @@ const calloutThenTyped = async (line: string) => {
   });
   return { editor, view };
 };
-
-// the alert's menu watches its own box, and jsdom has no ResizeObserver
-/* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-class ResizeObserverStub {
-  observe = (): void => {};
-  unobserve = (): void => {};
-  disconnect = (): void => {};
-}
-/* oxlint-enable class-methods-use-this */
-
-beforeAll(() => {
-  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
-});
-
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
 
 describe("the slash menu's Callout", () => {
   it.each([

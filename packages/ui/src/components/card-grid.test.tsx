@@ -2,27 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { ComponentProps } from "react";
 import { createPortal } from "react-dom";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CardGrid } from "./card-grid";
 import type { CardGridHandle } from "./card-grid";
 import { MediaCard, mediaCardHeight } from "./media-card";
-
-/* oxlint-disable anti-slop/no-runtime-typeof -- feature detection over host objects: jsdom has
-   no ResizeObserver, which the grid observes its box with. */
-beforeAll(() => {
-  if (typeof globalThis.ResizeObserver !== "function") {
-    /* oxlint-disable class-methods-use-this -- the observer's instance API */
-    class ResizeObserverStub {
-      observe = (): void => {};
-      unobserve = (): void => {};
-      disconnect = (): void => {};
-    }
-    /* oxlint-enable class-methods-use-this */
-    globalThis.ResizeObserver = ResizeObserverStub;
-  }
-});
-/* oxlint-enable anti-slop/no-runtime-typeof */
 
 // 800 wide less 16 either side is 768: four columns of 180 with three gaps of 16
 const RECT = { height: 600, width: 800 };

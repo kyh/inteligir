@@ -98,15 +98,6 @@ const typeInto = (itemId: string, text: string): void => {
 };
 
 beforeAll(() => {
-  // jsdom lays nothing out, and a run of blocks measures its box as it draws
-  /* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-  class ResizeObserverStub {
-    observe = (): void => {};
-    unobserve = (): void => {};
-    disconnect = (): void => {};
-  }
-  /* oxlint-enable class-methods-use-this */
-  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   // jsdom has no isContentEditable, without which slate hands no paste on
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
     configurable: true,
@@ -122,7 +113,6 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  vi.unstubAllGlobals();
   Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
 });
 

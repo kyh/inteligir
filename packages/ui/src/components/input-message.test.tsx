@@ -1,23 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InputMessage } from "./input-message";
-
-/* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-class ResizeObserverStub {
-  observe = (): void => {};
-  unobserve = (): void => {};
-  disconnect = (): void => {};
-}
-/* oxlint-enable class-methods-use-this */
-
-beforeEach(() => {
-  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 const renderField = () => {
   const onSend = vi.fn<(value: string) => void>();

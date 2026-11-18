@@ -5,7 +5,7 @@
 
 import { KEYS } from "platejs";
 import { createPlateEditor, NavigationFeedbackPlugin } from "platejs/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
@@ -15,19 +15,7 @@ const notes = memoryNotes();
 
 describe("the per-block store work a keystroke would pay", () => {
   beforeAll(() => {
-    /* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-    class ResizeObserverStub {
-      observe = (): void => {};
-      unobserve = (): void => {};
-      disconnect = (): void => {};
-    }
-    /* oxlint-enable class-methods-use-this */
-    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     installFakeEditorHost({ notes });
-  });
-
-  afterAll(() => {
-    vi.unstubAllGlobals();
   });
 
   it("is off in the editor the app mounts: no navigation flash, no flat-model toggle hider", async () => {

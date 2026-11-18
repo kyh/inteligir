@@ -34,7 +34,7 @@ export default defineConfig({
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
           name: "ui-dom",
-          setupFiles: ["src/test-support/dom-cleanup.ts"],
+          setupFiles: ["src/test-support/dom-cleanup.ts", "src/test-support/jsdom-stubs.ts"],
         },
       },
     ],

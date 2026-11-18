@@ -2,7 +2,7 @@
 // while off screen (EditorChunk, editor-chrome.tsx), and every block stays mounted: a run is never
 // unmounted, so find, a selection and a link far down the item reach real dom.
 
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
@@ -28,19 +28,7 @@ const runs = (editable: HTMLElement): HTMLElement[] =>
 
 describe("a long item's top level", () => {
   beforeAll(() => {
-    /* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-    class ResizeObserverStub {
-      observe = (): void => {};
-      unobserve = (): void => {};
-      disconnect = (): void => {};
-    }
-    /* oxlint-enable class-methods-use-this */
-    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     installFakeEditorHost({ notes: host.notes });
-  });
-
-  afterAll(() => {
-    vi.unstubAllGlobals();
   });
 
   // 250 real Plate blocks, on purpose: three runs are the claim

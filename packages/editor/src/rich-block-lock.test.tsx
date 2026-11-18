@@ -1,6 +1,6 @@
 import { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
 import type { Operation, Path, Value } from "platejs";
 import { createPlateEditor, pipeHandler } from "platejs/react";
@@ -245,20 +245,6 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 
 const pillEditors = (): number => screen.queryAllByRole("textbox", { name: "Edit formula" }).length;
 
-// the alert's menu watches its own box, and jsdom has no ResizeObserver
-class InertResizeObserver implements ResizeObserver {
-  readonly #watched = new Set<Element>();
-  observe(target: Element): void {
-    this.#watched.add(target);
-  }
-  unobserve(target: Element): void {
-    this.#watched.delete(target);
-  }
-  disconnect(): void {
-    this.#watched.clear();
-  }
-}
-
 const CALLOUTS = [
   "> [!TIP]",
   "> outside",
@@ -279,10 +265,6 @@ const CALLOUTS = [
 describe("a locked block's controls", () => {
   beforeEach(() => {
     installFakeEditorHost();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   it("switching tabs is not an edit: it applies no operation", () => {
@@ -402,7 +384,6 @@ describe("a locked block's controls", () => {
   ] as const)(
     "the %s kit draws a callout's %s label, and opens its menu: %s",
     async (profile, label, opens) => {
-      vi.stubGlobal("ResizeObserver", InertResizeObserver);
       render(<EditorHarness profile={profile} value={valueOf(CALLOUTS)} />);
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: label }));

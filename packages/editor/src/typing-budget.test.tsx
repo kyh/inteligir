@@ -362,14 +362,6 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
 
   // Everything is collected here: the DOM suite unmounts every tree after each case.
   beforeAll(async () => {
-    /* oxlint-disable class-methods-use-this -- the observer's instance API: `new ResizeObserver()` reaches these on the instance, never as statics */
-    class ResizeObserverStub {
-      observe = (): void => {};
-      unobserve = (): void => {};
-      disconnect = (): void => {};
-    }
-    /* oxlint-enable class-methods-use-this */
-    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     installFakeEditorHost({ notes });
     const small = await openNote("short", SHORT_LINES);
@@ -384,7 +376,6 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
 
   afterAll(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
   it("walks the note on a keystroke only through its budget", () => {

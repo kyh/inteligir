@@ -5,7 +5,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 const TYPING_BUDGET = "src/typing-budget.test.tsx";
 
-const DOM_CLEANUP = "src/test-support/dom-cleanup.ts";
+const DOM_SETUP = ["src/test-support/dom-cleanup.ts", "src/test-support/jsdom-stubs.ts"];
 
 // The React Compiler, so a component it memoizes wrongly fails a DOM suite rather than only the
 // built app. Test files stay uncompiled: a fixture hook minted inside a factory is hoisted to
@@ -52,7 +52,7 @@ export default defineConfig({
           exclude: [...configDefaults.exclude, TYPING_BUDGET],
           include: ["src/**/*.test.tsx"],
           name: "editor-dom",
-          setupFiles: [DOM_CLEANUP],
+          setupFiles: DOM_SETUP,
           // real Plate trees mount beside every suite turbo starts in a full run; 5s is a coin-flip
           // there.
           testTimeout: 20_000,
@@ -68,7 +68,7 @@ export default defineConfig({
           execArgv: ["--max-old-space-size=4096"],
           include: [TYPING_BUDGET],
           name: "editor-budget",
-          setupFiles: [DOM_CLEANUP],
+          setupFiles: DOM_SETUP,
           // unmounting a 10k-line tree outlasts the 10s default on a slow runner
           hookTimeout: 120_000,
           testTimeout: 120_000,

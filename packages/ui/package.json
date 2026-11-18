@@ -15,7 +15,8 @@
     "./lib/popup-presence": "./src/lib/popup-presence.tsx",
     "./lib/surface-context": "./src/lib/surface-context.tsx",
     "./lib/theme": "./src/lib/theme.tsx",
-    "./postcss.config": "./postcss.config.mjs"
+    "./postcss.config": "./postcss.config.mjs",
+    "./test-support/inert-resize-observer": "./src/test-support/inert-resize-observer.ts"
   },
   "scripts": {
     "test": "vitest run",
