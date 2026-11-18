@@ -209,13 +209,14 @@ describe("an open note's saves", () => {
     expect(saver.unsaved()).toBe(false);
   });
 
-  it("saves now as the agent edits the note, and holds it read-only, what it saves laid in, until its edit ends", async () => {
+  it("saves now as the agent edits the note, what it saves laid in while nothing is typed, until its edit ends", async () => {
     const { editor, notes, saver, type } = await open();
     type("a2", "two, mine");
     saver.agentEditing("call-1");
     expect(notes.sent).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(0);
     expect(openView(saver).notice).toBe("agent");
+    expect(takesNoEdit(openView(saver).notice)).toBe(false);
     notes.saveElsewhere(A, [p("a1", "one, the agent's"), p("a2", "two, mine")]);
     await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 2);
     expect(openView(saver).notice).toBe("agent");
@@ -225,6 +226,30 @@ describe("an open note's saves", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(openView(saver).notice).toBeNull();
     expect(textsOf(editor.blocks)).toStrictEqual(["one, the agent's", "two, mine"]);
+    expect(saver.unsaved()).toBe(false);
+  });
+
+  it("keeps every keystroke typed while the agent edits, saving none until its edit ends, then merged into it", async () => {
+    const { editor, notes, saver, type } = await open();
+    saver.agentEditing("call-1");
+    const burst = " typed while the agent wrote";
+    for (let typed = 1; typed <= burst.length; typed += 1) {
+      type("a2", `two${burst.slice(0, typed)}`);
+      await vi.advanceTimersByTimeAsync(50);
+      if (typed === 10) {
+        notes.saveElsewhere(A, [p("a1", "one, the agent's"), p("a2", "two")]);
+      }
+    }
+    await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 2);
+    expect(notes.sent).toHaveLength(0);
+    expect(saver.unsaved()).toBe(true);
+
+    saver.agentEdited("call-1");
+    await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS);
+    const both = ["one, the agent's", `two${burst}`];
+    expect(textsOf(notes.note(A)?.blocks)).toStrictEqual(both);
+    expect(textsOf(editor.blocks)).toStrictEqual(both);
+    expect(openView(saver).notice).toBeNull();
     expect(saver.unsaved()).toBe(false);
   });
 
@@ -284,6 +309,31 @@ describe("an open note's saves", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(textsOf(editor.blocks)).toStrictEqual(["one", "two", "three"]);
     expect(openView(saver).drawn).toBe(1);
+  });
+
+  it("stops saving a note naming a file the library doesn't hold, still taking edits, until the file is gone", async () => {
+    const { editor, notes, saver, type } = await open();
+    notes.loseFileOf("a3");
+    editor.blocks = [...editor.blocks, p("a3", "a file")];
+    saver.edited();
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(notes.sent).toHaveLength(1);
+    expect(openView(saver).notice).toBe("file-missing");
+    expect(takesNoEdit("file-missing")).toBe(false);
+    await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 4);
+    expect(notes.sent).toHaveLength(1);
+    expect(saver.unsaved()).toBe(true);
+
+    type("a1", "one!");
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(notes.sent).toHaveLength(2);
+    expect(openView(saver).notice).toBe("file-missing");
+    editor.blocks = editor.blocks.filter(({ block }) => block.id !== "a3");
+    saver.edited();
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(openView(saver).notice).toBeNull();
+    expect(textsOf(notes.note(A)?.blocks)).toStrictEqual(["one!", "two"]);
+    expect(saver.unsaved()).toBe(false);
   });
 
   it("stops saving past the most a note holds, still taking edits, until it is shorter", async () => {

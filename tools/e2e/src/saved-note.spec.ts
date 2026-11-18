@@ -100,3 +100,35 @@ test("the agent's edit holds the open note, then shows it beside what was typed"
     .poll(async () => await markdownOf(library, item.id))
     .toMatch(/The agent's own line\.[\s\S]*Line five\. Typed while the agent wrote\./u);
 });
+
+test("every key typed while the agent edits the open note is saved beside its edit", async ({
+  cloud,
+  library,
+  page,
+}) => {
+  const lines = ["Line one.", "Line two.", "Line three.", "Line four.", "Line five."];
+  const { item } = await library.items.createNote({
+    markdown: lines.map((line) => `${line}\n`).join("\n"),
+    title: "Plans",
+  });
+  await openLibrary(page, cloud, `?item=${item.id}`);
+  await page.getByRole("button", { name: "Info and the agent" }).click();
+  await page.getByRole("tab", { name: "Agent" }).click();
+  const edit = { edits: [{ newText: "The agent's own line.", oldText: "Line two." }], id: item.id };
+  const composer = page.getByLabel("Message the agent");
+  await composer.fill(`Rewrite it.\ncall edit_item ${JSON.stringify(edit)}`);
+  await composer.press("Enter");
+  // keys a little apart from the send on, so the agent's edit lands among them
+  const burst = " Typed key by key while the agent wrote, every one kept.";
+  await typeAfter(page, "Line five.", burst, { delay: 50 });
+
+  await expect(page.locator("[data-thread] [data-turn-ended]")).toBeVisible();
+  await expect(page.locator(EDITOR)).toContainText("The agent's own line.");
+  await expect(page.locator(EDITOR)).toContainText(`Line five.${burst}`);
+  await expect(page.getByText(CONFLICT)).toHaveCount(0);
+  await expect
+    .poll(async () => await markdownOf(library, item.id))
+    .toMatch(
+      /The agent's own line\.[\s\S]*Line five\. Typed key by key while the agent wrote, every one kept\./u,
+    );
+});

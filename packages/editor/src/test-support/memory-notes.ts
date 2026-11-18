@@ -1,6 +1,7 @@
 // The library's note bodies in memory, read and saved as the cloud answers them (`write-body.ts`
 // in @repo/service): a save over an older version is stale unless it holds the very blocks stored,
-// one past the most a note holds is full, one in Deleted is refused, and a gone item is missing.
+// one past the most a note holds is full, one in Deleted is refused, a gone item is missing, and
+// one naming a file the library doesn't hold is file-missing.
 // Every landing tells the note's followers, as the library's changes do. A case can hold the saves
 // in flight, fail them as the network would, or save as someone elsewhere.
 
@@ -37,6 +38,8 @@ export const memoryNotes = () => {
   const followers = new Map<string, Set<(standing: NoteStanding) => void>>();
   const sent: SentSave[] = [];
   const held: (() => void)[] = [];
+  // the blocks whose file the library doesn't hold, by id
+  const unheldFiles = new Set<string>();
   let gate: SaveGate = "answer";
   let reads = 0;
 
@@ -60,6 +63,9 @@ export const memoryNotes = () => {
     }
     if (utf8ByteLength(JSON.stringify(blocks)) > BODY_MAX_BYTES) {
       return { kind: "full" };
+    }
+    if (blocks.some(({ block }) => unheldFiles.has(block.id))) {
+      return { kind: "file-missing" };
     }
     if (note.version !== baseVersion) {
       return sameBody(note.blocks, blocks)
@@ -154,6 +160,10 @@ export const memoryNotes = () => {
     },
     remove: (itemId: string): void => {
       stored.delete(itemId);
+    },
+    // the file the block `blockId` names is one the library doesn't hold
+    loseFileOf: (blockId: string): void => {
+      unheldFiles.add(blockId);
     },
   };
 };

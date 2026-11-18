@@ -20,7 +20,7 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   and import say they need a connection. Why: offline copies would be most of the code.
 - **A note's body is saved whole**, a second after typing stops, over the
   version its device read; a stale save merges by block, a block changed on
-  both sides apart asks, and the agent's edit holds the open note. Why: a save
+  both sides apart asks, and the agent's edit holds the open note's saves. Why: a save
   is one request, with no live document to serve.
 - **Each account's library is its rows in Postgres, its cell**, every write one
   transaction holding the account's `library_state` row: fields, folders, tags,

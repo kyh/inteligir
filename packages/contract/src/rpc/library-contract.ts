@@ -324,8 +324,10 @@ const itemsContract = {
     .output(z.object({ seq: seqSchema })),
 
   // a note's body as a person's device holds it, whole, over the version it was opened at; a save
-  // made over an older one answers `stale`, and the device merges by block and saves again. An
-  // agent writes by passage through `edit` instead, which lands on the body as it stands
+  // made over an older one answers `stale`, and the device merges by block and saves again. One
+  // naming a file the library doesn't hold is refused BLOB_MISSING, which the device stops on until
+  // its blocks change. An agent writes by passage through `edit` instead, which lands on the body
+  // as it stands
   saveBody: signedBase
     .errors({ [BlobMissingError.code]: BlobMissingError, [NotFoundError.code]: NotFoundError })
     .input(

@@ -84,7 +84,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The agent draws diagrams** as Mermaid in the note.
 - **A note saves a second after you stop typing**, and every 5 seconds through a long stretch of it; what another device saved shows when you come back to the window, or within 15 seconds.
 - **Two devices no longer type into one note at once**: typing on both in different paragraphs keeps both, and when a paragraph you changed was changed somewhere else too, the note stops taking your typing and offers Show the latest, or Save mine as a new note, which keeps what you typed as a note of its own.
-- **While the agent edits the note you have open, the note waits for it**: "The agent is editing this note" shows above it, and it takes your typing again, showing what the agent wrote, once the agent is done.
+- **While the agent edits the note you have open, you can keep typing**: "The agent is editing this note" shows above it, and once the agent is done the note shows what it wrote with everything you typed meanwhile, unless you both changed the same paragraph, which offers Show the latest or Save mine as a new note.
 - **On your iPhone, a note saves as you switch to another app**, so what you typed reaches your other devices while you're away; leaving a note whose typing couldn't save asks the same Leave without saving? as your browser, with Stay or Leave anyway.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
@@ -127,6 +127,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A file your library won't keep says why, in the same words on every device**: a full library, a file over 100 MB, or one that changed before it was sent reads the same in your browser, on your iPhone and in the extension.
 - **What another device changed shows within 15 seconds**: a save, move, tag or delete made elsewhere appears in the window or app you have in front within 15 seconds, and at once when you come back to it or your connection returns.
 - **A connection that died without closing is noticed sooner**: your Mac, browser or iPhone connects again after 45 seconds without an answer, where it waited 90.
+- **A note naming a file your library no longer holds says so above it**, and saves again once you remove the file.
 - **A note holds about 1 MB**, where it held about 8 MB: split a longer one into several notes. A paste of more than about half that at once isn't added, and a note past its size stops saving until you shorten it.
 - **A chart that sets height, width, palette or an axis label shows its JSON**; take them out to get the chart back.
 - **A chart, canvas or HTML block edits its JSON or source from Edit payload in its header**: the chart grid's Raw JSON link is gone, and an HTML block's Edit is now Edit payload.

@@ -1,10 +1,11 @@
 // A note's body read and saved whole, as the tab and the phone each hand it the editor: read from
 // the cloud, or as this device last read it while the cloud can't be reached, and saved over the
-// version it was read at, an item gone answering as missing.
+// version it was read at, an item gone answering as missing and a file the library doesn't hold as
+// file-missing.
 
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
-import { isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
+import { BlobMissingError, isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
 import type { QueryClient } from "@tanstack/query-core";
 
 import type { V1Queries } from "./library-cache";
@@ -57,6 +58,9 @@ export const saveNote = async (client: V1Client, save: NoteSave): Promise<NoteSa
   } catch (error) {
     if (isOrpcError(error) && error.code === NotFoundError.code) {
       return { kind: "missing" };
+    }
+    if (isOrpcError(error) && error.code === BlobMissingError.code) {
+      return { kind: "file-missing" };
     }
     throw error;
   }

@@ -395,7 +395,13 @@ export const upload = async (
 };
 
 // `typed` at the end of the open note's line that reads `line`
-export const typeAfter = async (page: Page, line: string, typed: string): Promise<void> => {
+// `delay` apart, each key, when the flow types through something landing meanwhile
+export const typeAfter = async (
+  page: Page,
+  line: string,
+  typed: string,
+  { delay = 0 }: { readonly delay?: number } = {},
+): Promise<void> => {
   const drawn = page.locator(EDITOR).getByText(line, { exact: true });
   const box = await drawn.boundingBox();
   if (box === null) {
@@ -405,7 +411,7 @@ export const typeAfter = async (page: Page, line: string, typed: string): Promis
   // puts it back where the click left it
   await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
   await page.keyboard.press("End");
-  await page.keyboard.type(typed);
+  await page.keyboard.type(typed, { delay });
 };
 
 // Firefox hands a paste event a script made an empty copy of its clipboardData, so a flow that

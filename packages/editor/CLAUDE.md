@@ -109,9 +109,11 @@ arrive as `unknown` and become domain values there alone.
 - **A save small enough to outlive the page goes as a keepalive request, one at a time, its answer
   read.** A browser holds 64 KiB for all of a page's keepalive requests, so a larger unsaved note
   arms the browser's unload ask instead (`unloadLoses`). `packages/editor/src/item/note-save.ts`.
-- **The agent's edit holds the open note from its tool_use to its result.** What is typed saves
-  first and the note takes no edit until the call ends, a minute at most, since a hold whose stream
-  dropped must not keep a note for good. `packages/client/src/agent-note-holds.ts`.
+- **The agent's edit holds the open note's saves from its tool_use to its result, never its
+  typing.** What is typed saves first, and what is typed during the call merges into what the agent
+  left once it ends, a minute at most: a save mid-call would make the agent's edit stale, a
+  read-only note drops keystrokes, and a hold whose stream dropped must not keep a note for good.
+  `packages/editor/src/item/note-save.ts`, `packages/client/src/agent-note-holds.ts`.
 - **A paste of more than half of what a note holds is refused whole.** The note's next save would
   be refused as full, taking the typing around the paste with it.
   `packages/editor/src/item/paste-cap.ts`.

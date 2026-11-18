@@ -235,7 +235,7 @@ describe("an item's surface", () => {
     expect(announced.at(-1)).toBeNull();
   });
 
-  it("holds the note while the agent edits it, and takes edits again once it is done", async () => {
+  it("says the agent is editing the note while it does, and takes edits all the while", async () => {
     oneNote();
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
@@ -243,7 +243,7 @@ describe("an item's surface", () => {
       lastNote().agentEditing("call-1");
     });
     expect(screen.getByText(NOTICES.agent)).toBeDefined();
-    expect(editable()).toBeNull();
+    expect(editable()).not.toBeNull();
     act(() => {
       lastNote().agentEdited("call-1");
     });

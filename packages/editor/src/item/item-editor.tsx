@@ -40,10 +40,12 @@ export const MISSING_ITEM = "This item isn't in your library. It may have been d
 
 // what an open note says above its text, in the person's words
 export const NOTICES: Record<NoteNotice, string> = {
-  agent: "The agent is editing this note. It'll be back in a moment.",
+  agent: "The agent is editing this note. What you type saves once it's done.",
   conflict:
     "This note changed somewhere else while you were typing, and your last changes weren't saved.",
   deleted: "This item is in Deleted. Restore it to edit it.",
+  "file-missing":
+    "A file in this note isn't in your library anymore, so what you type isn't saved. Remove it to save again.",
   full: "This note is longer than a note can be, so what you type isn't saved. Shorten it, or copy what you need into a new note.",
   offline: NEEDS_CONNECTION,
 };

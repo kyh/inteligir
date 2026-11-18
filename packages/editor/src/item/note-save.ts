@@ -4,9 +4,10 @@
 // typed here (`mergeBlocks`), laid in place and saved again, and a block both sides changed apart
 // stops the note, read-only, until the person picks the latest or keeps theirs as a new note. A
 // newer version learned while nothing is unsaved is laid in place too. The agent editing the note
-// saves it now and holds it read-only until its edit ends, or a minute passes. With no connection
-// or in Deleted the note takes no edit; past the most a note holds it stops saving until it is
-// shorter. No React and no network: the host's ports do both.
+// saves it now and holds its saves until its edit ends, or a minute passes: what is typed meanwhile
+// is merged into what the agent left, as a stale save is. With no connection or in Deleted the
+// note takes no edit; past the most a note holds, or naming a file the library doesn't hold, it
+// stops saving until it changes. No React and no network: the host's ports do both.
 
 import { deferred } from "@repo/contract/deferred";
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
@@ -35,12 +36,15 @@ export interface NoteBody {
 }
 
 // Why an open note says something above its text: a block changed here and elsewhere apart, in
-// Deleted, held by the agent, no connection, or past the most a note holds. Every one but the last
-// takes no edit.
-export type NoteNotice = "conflict" | "deleted" | "agent" | "offline" | "full";
+// Deleted, no connection, held by the agent, past the most a note holds, or naming a file the
+// library doesn't hold. The last three still take edits: nothing typed is dropped, and a person
+// can shorten the note or take the file out.
+export type NoteNotice = "conflict" | "deleted" | "agent" | "offline" | "full" | "file-missing";
+
+const TAKES_EDITS: ReadonlySet<NoteNotice> = new Set(["agent", "full", "file-missing"]);
 
 export const takesNoEdit = (notice: NoteNotice | null): boolean =>
-  notice !== null && notice !== "full";
+  notice !== null && !TAKES_EDITS.has(notice);
 
 export type NoteView =
   | { readonly kind: "opening"; readonly stalled: boolean }
@@ -104,6 +108,9 @@ export class NoteSaver {
   private requests = 0;
   private deleted = false;
   private full = false;
+  // the blocks a save was refused for naming a file the library doesn't hold, sent again only
+  // once they change
+  private fileMissing: readonly BodyBlock[] | null = null;
   private offline = false;
   // the agent's calls editing this note, which its host lets go even when one never ends
   private readonly agentCalls = new Set<string>();
@@ -236,18 +243,18 @@ export class NoteSaver {
     return mine === null || bytesOf(mine) > KEEPALIVE_MAX_BYTES;
   };
 
-  // the agent began editing this note in the call `callId`: what is typed is saved now, and the
-  // note takes no edit until the call ends
+  // the agent began editing this note in the call `callId`: what is typed is saved now, before the
+  // hold, so the agent edits over it, and what is typed after waits for the call to end
   readonly agentEditing = (callId: string): void => {
     if (this.closed || this.agentCalls.has(callId)) {
       return;
     }
-    this.agentCalls.add(callId);
     this.flush();
+    this.agentCalls.add(callId);
     this.emit();
   };
 
-  // the agent's call ended, and the note shows what it left
+  // the agent's call ended: the note shows what it left, with what was typed meanwhile merged in
   readonly agentEdited = (callId: string): void => {
     if (!this.agentCalls.delete(callId)) {
       return;
@@ -327,12 +334,17 @@ export class NoteSaver {
     if (this.offline) {
       return "offline";
     }
-    return this.full ? "full" : null;
+    if (this.full) {
+      return "full";
+    }
+    return this.fileMissing === null ? null : "file-missing";
   }
 
-  // whether a save can't go now; the agent's hold lets one go, so the agent edits over it
+  // whether a save can't go now: one made while the agent edits would leave its edit stale
   private blocked(): boolean {
-    return this.phase.kind === "conflict" || this.deleted || this.offline;
+    return (
+      this.phase.kind === "conflict" || this.deleted || this.offline || this.agentCalls.size > 0
+    );
   }
 
   private awaitsSave(): boolean {
@@ -384,7 +396,8 @@ export class NoteSaver {
     const bytes = bytesOf(blocks);
     this.full = bytes > BODY_MAX_BYTES;
     const outlives = bytes <= KEEPALIVE_MAX_BYTES;
-    if (this.full || (leaving && !outlives)) {
+    const refused = this.fileMissing !== null && sameBody(blocks, this.fileMissing);
+    if (this.full || refused || (leaving && !outlives)) {
       this.emit();
       return;
     }
@@ -414,13 +427,16 @@ export class NoteSaver {
     }
     const { phase } = this;
     if (phase.kind === "saving" && phase.request === request) {
-      this.answered(answer);
+      this.answered(answer, save.blocks);
     }
   }
 
-  private answered(answer: NoteSaved | null): void {
+  private answered(answer: NoteSaved | null, sent: readonly BodyBlock[]): void {
     const unsent = this.sentSince;
     this.sentSince = null;
+    if (answer !== null && answer.kind !== "stale") {
+      this.fileMissing = answer.kind === "file-missing" ? sent : null;
+    }
     if (answer?.kind === "saved") {
       this.phase = IDLE;
       if (this.behind) {
@@ -446,6 +462,9 @@ export class NoteSaver {
       }
       case "deleted": {
         this.deleted = true;
+        break;
+      }
+      case "file-missing": {
         break;
       }
       case "missing": {

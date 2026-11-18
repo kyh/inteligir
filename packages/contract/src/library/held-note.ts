@@ -19,10 +19,12 @@ export interface NoteSave {
 }
 
 // `saved` at its new version; `stale`, someone saved since its base; `full`, past the most a note
-// holds; `deleted`, in Deleted; `missing`, the item gone
+// holds; `deleted`, in Deleted; `missing`, the item gone; `file-missing`, a file its blocks name
+// that the library doesn't hold, which no resend of those blocks changes
 export type NoteSaved =
   | { readonly kind: "saved"; readonly version: number }
   | { readonly kind: "stale" }
   | { readonly kind: "full" }
   | { readonly kind: "deleted" }
-  | { readonly kind: "missing" };
+  | { readonly kind: "missing" }
+  | { readonly kind: "file-missing" };

@@ -139,6 +139,20 @@ describe("the note page's actions, as the page receives them", () => {
     await expect(overTheWire(actions.readNote(OTHER))).resolves.toBeNull();
   });
 
+  it("answers a save naming a file the library doesn't hold as file-missing, which no resend changes", async () => {
+    const cell = createFakeCell();
+    await noteFiled(cell, null);
+    const { actions } = await pageOver(cell);
+    const picture: BodyBlock = {
+      block: { children: [{ text: "" }], id: "i1", sha: "a".repeat(64), type: "img" },
+      section: "note",
+    };
+
+    await expect(
+      overTheWire(actions.saveNote({ baseVersion: 1, blocks: [picture], id: NOTE })),
+    ).resolves.toStrictEqual({ kind: "file-missing" });
+  });
+
   it("names every item a link can, by its id and the title it goes by", async () => {
     const cell = createFakeCell();
     await noteFiled(cell, null);
