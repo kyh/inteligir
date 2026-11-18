@@ -53,8 +53,7 @@ export const leasedRun =
     return await run(read.data, { ...job, final: attempts === tries.max });
   };
 
-// null for a kind no run here takes, whose rows wait in the table untouched
-export type JobRuns = { readonly [K in JobKind]: LeasedRun | null };
+export type JobRuns = { readonly [K in JobKind]: LeasedRun };
 
 export const JOB_RUNS: JobRuns = {
   "file-release": leasedRun(RELEASE_RUN),

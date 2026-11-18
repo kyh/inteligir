@@ -5,7 +5,6 @@
 // a payload its kind no longer reads is dropped.
 
 import { db } from "@repo/db/drizzle-client";
-import { jobKind } from "@repo/db/library-schema";
 
 import { scheduleBackground } from "../background";
 import { serveCron } from "../cron";
@@ -34,12 +33,8 @@ interface Drained {
 const logLease = (lease: Lease) => ({ attempts: lease.attempts, id: lease.id, kind: lease.kind });
 
 const runLeased = async (runs: JobRuns, lease: Lease): Promise<keyof Drained> => {
-  const run = runs[lease.kind];
-  if (run === null) {
-    throw new Error(`a ${lease.kind} job was leased, a kind no run takes`);
-  }
   try {
-    const outcome = await run(lease);
+    const outcome = await runs[lease.kind](lease);
     switch (outcome) {
       case "done": {
         await finishJob(db, lease);
@@ -69,10 +64,9 @@ export const drainJobs = async ({
   runs = JOB_RUNS,
 }: Drain): Promise<Drained> => {
   const until = Date.now() + budgetMs;
-  const kinds = jobKind.enumValues.filter((kind) => runs[kind] !== null);
   const drained: Drained = { dropped: 0, failed: 0, ran: 0 };
   while (Date.now() < until) {
-    const [lease] = await leaseJobs(db, { accountId, kinds, limit: 1, now: Date.now() });
+    const [lease] = await leaseJobs(db, { accountId, limit: 1, now: Date.now() });
     if (lease === undefined) {
       break;
     }

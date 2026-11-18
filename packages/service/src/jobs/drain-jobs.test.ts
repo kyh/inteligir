@@ -1,6 +1,6 @@
 // The drain over Postgres, with runs of the suite's own: each due job run once and ended, a failure
-// put off, an unreadable payload dropped, a job past its tries handed to `exhausted` once, a kind
-// with no run left alone, and every account's due jobs taken by the cron's drain.
+// put off, an unreadable payload dropped, a job past its tries handed to `exhausted` once, and every
+// account's due jobs taken by the cron's drain.
 
 import { db } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { makeAccount } from "../test-support/library-fixture";
 import { drainJobs } from "./drain-jobs";
-import { leasedRun } from "./job-kinds";
+import { JOB_RUNS, leasedRun } from "./job-kinds";
 import type { JobRun, JobRuns } from "./job-kinds";
 import { askJobs } from "./job-queue";
 
@@ -39,7 +39,7 @@ const sweepsBy = (
     },
     tries,
   };
-  const runs: JobRuns = { "file-release": null, fill: null, sweep: leasedRun(run) };
+  const runs: JobRuns = { ...JOB_RUNS, sweep: leasedRun(run) };
   return { runs, seen };
 };
 
@@ -153,22 +153,6 @@ dbSuite("the drain", () => {
     expect(exhausted).toHaveBeenCalledOnce();
     expect(exhausted).toHaveBeenCalledWith({ ids: ["stuck"] }, { accountId, attempts: 3 });
     await expect(rowsOf(accountId)).resolves.toStrictEqual([]);
-  });
-
-  it("leaves a job of a kind no run takes as it was asked", async () => {
-    const accountId = await makeAccount();
-    await askJobs(
-      db,
-      [{ accountId, id: "fill:x", kind: "fill", payload: { itemId: "x" } }],
-      Date.now(),
-    );
-    const { runs } = sweepsBy(() => "done");
-    await expect(drainJobs({ accountId, budgetMs: BUDGET_MS, runs })).resolves.toStrictEqual({
-      dropped: 0,
-      failed: 0,
-      ran: 0,
-    });
-    await expect(rowsOf(accountId)).resolves.toMatchObject([{ attempts: 0, id: "fill:x" }]);
   });
 
   it("leases nothing once its budget is spent", async () => {

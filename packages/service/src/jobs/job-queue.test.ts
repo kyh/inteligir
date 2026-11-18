@@ -26,7 +26,7 @@ const lotOf = (accountId: string, n: number): JobAsk[] =>
   Array.from({ length: n }, (_, at) => sweepAsk(accountId, at));
 
 const leaseSweeps = async (accountId: string, now: number, limit = 1): Promise<Lease[]> =>
-  await leaseJobs(db, { accountId, kinds: ["sweep"], limit, now });
+  await leaseJobs(db, { accountId, limit, now });
 
 const leaseNext = async (accountId: string, now: number): Promise<Lease> => {
   const [lease] = await leaseSweeps(accountId, now);
@@ -50,7 +50,7 @@ dbSuite("the job table", () => {
     const holding = deferred();
     const held = deferred<readonly string[]>();
     const first = db.transaction(async (tx) => {
-      const taken = await leaseJobs(tx, { accountId, kinds: ["sweep"], limit: 3, now: START });
+      const taken = await leaseJobs(tx, { accountId, limit: 3, now: START });
       held.resolve(taken.map(({ id }) => id));
       await holding.promise;
     });
@@ -70,27 +70,16 @@ dbSuite("the job table", () => {
     await expect(leaseSweeps(accountId, START + 300 * SECOND, 10)).resolves.toHaveLength(5);
   });
 
-  it("leases only the account it is asked for, and only the kinds it runs", async () => {
+  it("leases only the account it is asked for", async () => {
     const mine = await makeAccount();
     const theirs = await makeAccount();
-    await askJobs(
-      db,
-      [
-        sweepAsk(mine, 0),
-        sweepAsk(theirs, 0),
-        { accountId: mine, id: "fill:x", kind: "fill", payload: { itemId: "x" } },
-      ],
-      START,
-    );
+    await askJobs(db, [sweepAsk(mine, 0), sweepAsk(theirs, 0)], START);
     const leased = await leaseSweeps(mine, START, 10);
     expect(leased.map(({ accountId, id }) => ({ accountId, id }))).toStrictEqual([
       { accountId: mine, id: "sweep:test:0" },
     ]);
     await expect(rowsOf(theirs)).resolves.toMatchObject([{ attempts: 0 }]);
-    await expect(rowsOf(mine)).resolves.toMatchObject([
-      { attempts: 0, id: "fill:x" },
-      { attempts: 1, id: "sweep:test:0" },
-    ]);
+    await expect(rowsOf(mine)).resolves.toMatchObject([{ attempts: 1, id: "sweep:test:0" }]);
   });
 
   it("waits 30 s after a first failure, then 60 s, doubling to an hour at most", async () => {

@@ -10,7 +10,7 @@
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
 import type { jobKind } from "@repo/db/library-schema";
-import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 
 import { chunksOf } from "../library/set-sql";
 
@@ -59,30 +59,20 @@ export const askJobs = async (
 interface LeaseAsk {
   readonly now: number;
   readonly limit: number;
-  readonly kinds: readonly JobKind[];
   // one account's jobs, or every account's when null
   readonly accountId: string | null;
 }
 
-// The due jobs of these kinds, the longest waiting first, each taken: its run counted and its row
-// held for the lease. A row another drain holds is passed over, not waited on
+// The due jobs, the longest waiting first, each taken: its run counted and its row held for the
+// lease. A row another drain holds is passed over, not waited on
 export const leaseJobs = async (
   tx: DbExecutor,
-  { accountId, kinds, limit, now }: LeaseAsk,
+  { accountId, limit, now }: LeaseAsk,
 ): Promise<Lease[]> => {
-  if (kinds.length === 0) {
-    return [];
-  }
   const due = tx
     .select({ accountId: job.accountId, id: job.id })
     .from(job)
-    .where(
-      and(
-        lte(job.runAt, now),
-        inArray(job.kind, [...kinds]),
-        accountId === null ? undefined : eq(job.accountId, accountId),
-      ),
-    )
+    .where(and(lte(job.runAt, now), accountId === null ? undefined : eq(job.accountId, accountId)))
     .orderBy(asc(job.runAt))
     .limit(limit)
     .for("update", { skipLocked: true });
