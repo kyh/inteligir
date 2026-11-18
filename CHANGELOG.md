@@ -21,6 +21,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The extension says a refusal in your library's words** ("Your library is full."), the same sentence your iPhone shows, in the popup and on the toolbar button.
 - **Pictures and files in a note**: paste or drop one up to 100 MB into a note's text, shown in it on every device.
 - **Any file up to 100 MB is an item of its own**, and PDFs, videos and sounds open in the window.
+- **A file goes straight to your library's storage**, so a picture, PDF or video up to 100 MB lands from the browser, the iPhone and the extension alike, and a file already in your library is never sent twice.
 - **An item opens full size**: a file in its viewer, a saved page as its article under Open original, and what you type into a saved page stays your note when it's read again.
 - **Info** shows what an item is and where it came from, and moves, tags and pins one or many.
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.

@@ -21,7 +21,7 @@ verified **principal** or by what the cell itself gave out. It holds the
 items' fields, a **seed** for each body no note holds yet, folders, tags,
 links, threads and change sets, and every `/v1` library
 call and every **connector** call reaches it; a note's body is its **note
-object**'s. R2 holds the bytes it names by hash, and D1 only the accounts. Not
+object**'s. The **file store** holds the bytes it names by hash, and D1 only the accounts. Not
 what a device shows: a device keeps at most a cache of what it last read.
 
 **door** — where a request enters the cloud: a Start server route hands it to
@@ -258,10 +258,18 @@ which every writer moves by one function
 (`@repo/contract/library/item-reading`). Not the **fill**: the fill is one
 reader that moves it, the extension's read and an import others.
 
-**cover** — an item's picture: the hash of a file the library keeps in R2,
+**cover** — an item's picture: the hash of a file the library keeps in the
+**file store**,
 which a fill sets from the page it read and an import reads from
 `assets/covers/`. Not an image item: a cover is part of its item, never a card
 of its own.
+
+**file store** — where a file's bytes live, at `files/<account>/<sha>/<nonce>`:
+Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, a folder (`FILE_STORE_DIR`)
+otherwise (`packages/service/src/files/file-store-of.ts`). A device sends the
+bytes straight to it between `library.files.reserve` and `settle`, and an
+object no settle kept expires a day on. Not the library's record of a file:
+the `file` row names the one object kept for its sha.
 
 **url key** — the one key two spellings of one link share
 (`urlKey` in `@repo/contract/items/item-url`): a save of a url whose key a live

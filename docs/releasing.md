@@ -254,7 +254,9 @@ In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
   namespace is its own.
 - **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
   as its dead-letter queue, and a link a connected assistant saves is read.
-- **Files**: a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
+- **Files**: the project's Blob store is private and `BLOB_READ_WRITE_TOKEN` is
+  set for Production; a `library.files.reserve`, a PUT of bytes hashing to
+  another sha, then `settle` answers 400 and leaves nothing in the store.
 
 ### The Mac app
 
@@ -302,6 +304,8 @@ The unpacked store build, against production, with no dev build loaded.
   the cloud can't reach saves as the extension read it.
 - **A waiting save**: one made offline or across a browser restart lands later
   with no click, and one made signed out lands as you sign in on the site.
+- **A large picture**: right-click Save on a picture over 4.5 MB, on a slow
+  link with DevTools closed, lands as its item.
 - **A refused save**: one a full library refuses says so in the library's
   words and stays in the popup under Didn't reach your library, where Try again
   lands it once there is room and Let it go drops it.
@@ -378,6 +382,8 @@ The unpacked store build, against production, with no dev build loaded.
   link, its assets and a 404; a write on another device showing within 20 s; a new cell
   schema starts the cell over; and the output says which deleted class may leave the
   `exports` map in `apps/web/cloudflare.config.ts`.
+- **A video item** plays and seeks before it has all loaded, in Safari on a Mac
+  and on an iPhone.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
   prompt with unsent typing on Back and on closing the tab, Settings opened,
   closed, and opened again by Back over a grid still where it was, popups

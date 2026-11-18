@@ -98,9 +98,9 @@ decisions port with its code from the tag `cloudflare-last`.
   guarantee one object per account gave: writes of one account land in turn,
   its sequence has no gaps, and other accounts never wait.
   `packages/service/src/library/library-store.ts`.
-- **Nothing inside a library write awaits anything but its transaction.** A
-  lock held across a fetch, a file store or a model stalls every write of the
-  account; that work runs after the commit.
+- **Nothing inside a library write awaits anything but its transaction, but a
+  file's keep.** A lock held across a fetch, a file store or a model stalls
+  every write of the account; that work runs after the commit (§ Files).
   `packages/service/src/library/library-store.ts`.
 - **A write waits 5 s for the account's lock, set inside its transaction, and
   is refused as busy past it.** Waiters hold pooled connections, so one
@@ -211,6 +211,38 @@ decisions port with its code from the tag `cloudflare-last`.
 - **A body holds 1 MiB of blocks' JSON.** Every save writes the whole body and
   derives its search row again, which past it holds a save over a second on a
   Vercel function. `packages/contract/src/library/library-wire.ts`.
+
+## Files
+
+- **A file's bytes go from the device straight to the file store, between
+  `library.files.reserve` and `library.files.settle`.** A function's body caps
+  at 4.5 MB, and the store takes one PUT up to the 100 MB a file may be.
+  `packages/service/src/files/file-landing.ts`.
+- **The store is a port: Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, a
+  folder at `FILE_STORE_DIR` otherwise, and none on Vercel without the token.**
+  Development and the suites need no cloud account, and a deployment never
+  writes to a function's disk. `packages/service/src/files/file-store-of.ts`.
+- **An upload is named by a sealed id, its sha, size, type and nonce under an
+  HMAC, with no expiry of its own.** Settle trusts nothing a device sends back,
+  and an object no settle kept expires in the store a day on, which bounds the
+  id. `packages/service/src/files/upload-seal.ts`.
+- **Settle hashes what the store holds before it keeps it, and removes every
+  object it does not keep.** A device's sha is a claim, and a copy left behind
+  is bytes nobody's quota counts. `packages/service/src/files/file-landing.ts`.
+- **A file's keep runs inside the write that lands its row, the one store call
+  under the lock.** Kept after the commit, a failed keep leaves a row naming
+  bytes the store then lets expire; a keep is one call on the object's metadata.
+  `packages/service/src/files/file-landing.ts`.
+- **A write for an account whose user row is gone is refused `GONE` by the
+  lock.** A settle arriving after a delete would otherwise make a library for
+  nobody. `packages/service/src/library/library-store.ts`.
+- **A deleted account's files are removed in `beforeDelete`, before its user
+  row.** A failed removal leaves an account to delete again, and once the row
+  is gone nothing names the prefix. `packages/service/src/files/purge-files.ts`.
+- **`/v1/blobs/<sha>` answers HEAD, preconditions and ranges from the file's
+  row, and reads the store only for a body.** A media loader's probes and a
+  device's revalidations then cost no store read.
+  `packages/service/src/files/file-read-route.ts`.
 
 ## Search
 
