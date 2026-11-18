@@ -11,6 +11,7 @@
 // whole run went.
 
 import type { InferClientInputs, InferClientOutputs } from "@orpc/client";
+import { inLibraryQueue, LIBRARY_WRITES } from "@repo/client/library-cache";
 import type { V1Queries } from "@repo/client/library-cache";
 import { keptFileType } from "@repo/contract/items/item-kind";
 import { organized } from "@repo/contract/library/cell-rules";
@@ -24,7 +25,6 @@ import { toast } from "@repo/ui/components/sonner";
 import { mutationOptions, notifyManager } from "@tanstack/react-query";
 import type {
   InfiniteData,
-  Mutation,
   MutationFunctionContext,
   MutationOptions,
   QueryClient,
@@ -45,12 +45,6 @@ type ScopesAnswer = Outputs["listing"]["scopes"];
 type OrganizeInput = Inputs["items"]["organize"];
 type FolderOp = Inputs["folders"]["write"]["ops"][number];
 type Folder = ScopesAnswer["folders"][number];
-
-// one queue for every write to the library's items and folders
-const LIBRARY_WRITES = { id: "library" };
-
-const inLibraryQueue = (mutation: Mutation<unknown, unknown>): boolean =>
-  mutation.options.scope?.id === LIBRARY_WRITES.id;
 
 interface Overlay {
   // a listed row as the write leaves it; null when the write takes it out of every listing

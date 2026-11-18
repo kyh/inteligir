@@ -11,6 +11,10 @@ say one thing of one library.
   focus and reconnect are TanStack's own, so the host drives one focus and one online manager; the
   cloud holds no socket, and refetching every screen instead reads the whole library each time and
   never tells an open note its item moved. `packages/client/src/library-changes.ts`.
+- **What a write waiting in the library's queue is laid over is read again once the queue is
+  empty.** An answer of what moved reads an item's body and the threads at once, and the listings
+  and rows only after every write that waits has landed and read again, since a read while one
+  waits takes it off the screen until it lands. `packages/client/src/library-cache.ts`.
 - **One module says what an answer of what moved reads again, for the tab and the phone alike.** An
   item's read goes again only when the copy held is older than the answer's sequence, and a
   thread's by its key, since a copy per device drifts. `packages/client/src/library-cache.ts`.

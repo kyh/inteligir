@@ -1,12 +1,13 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryClient } from "@tanstack/query-core";
+import { MutationObserver, QueryClient } from "@tanstack/query-core";
 import type { QueryKey } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
+import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 
-import { invalidateMoved, retryUnlessRefused } from "./library-cache";
+import { invalidateMoved, LIBRARY_WRITES, retryUnlessRefused } from "./library-cache";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
 
@@ -45,6 +46,7 @@ const heldReads = () => {
       invalidateMoved(queries, queryClient, moved),
     note,
     other,
+    queryClient,
     staleOf: () =>
       Object.entries(keys)
         .filter(([, key]) => queryClient.getQueryState(key)?.isInvalidated === true)
@@ -86,6 +88,31 @@ describe("what an answer of what moved reads again", () => {
       "titles",
       "undoable",
     ]);
+  });
+});
+
+describe("what moved, while a write waits in the library's queue", () => {
+  it("reads again what the write is laid over only once the queue is empty", async () => {
+    const { moved, note, other, queryClient, staleOf } = heldReads();
+    const answer = deferred();
+    const landing = new MutationObserver(queryClient, {
+      mutationFn: async () => {
+        await answer.promise;
+      },
+      scope: LIBRARY_WRITES,
+    }).mutate();
+    moved({
+      folders: true,
+      items: [
+        { id: note.id, seq: note.seq + 1 },
+        { id: other.id, seq: other.seq + 1 },
+      ],
+      threads: [],
+    });
+    expect(staleOf()).toStrictEqual(["other"]);
+    answer.resolve();
+    await landing;
+    expect(staleOf()).toStrictEqual(["note", "other", "page", "scopes", "titles"]);
   });
 });
 
