@@ -17,12 +17,15 @@ import { dropItemFiles, fileOf } from "../files/file-names";
 import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
+import { compareText } from "@repo/contract/library/order-key";
+
 import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
 import { landNewItems } from "./library-landing";
 import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
 import { readItem, tagsOf } from "./library-rows";
+import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
 import { anyOf } from "./set-sql";
@@ -126,6 +129,11 @@ export interface BulkAnswer {
   readonly addressHeld: string[];
 }
 
+// the order `restoreDeleted` ranks an address's items in: deleted last first, and of those deleted
+// at once the lowest id in code-point order
+const deletedLastFirst = (a: StoredItem, b: StoredItem): number =>
+  (b.fields.deletedAt ?? 0) - (a.fields.deletedAt ?? 0) || compareText(a.id, b.id);
+
 // to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
 // no item as missing. A link back from Deleted still waiting for its page asks for it again
 export const setDeleted = async (
@@ -135,11 +143,20 @@ export const setDeleted = async (
   const changed: string[] = [];
   const missing: string[] = [];
   const addressHeld: string[] = [];
+  const read: StoredItem[] = [];
   for (const itemId of new Set(input.ids)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
     if (held === null) {
       missing.push(itemId);
-    } else if ((held.fields.deletedAt !== null) === input.deleted) {
+    } else {
+      read.push(held);
+    }
+  }
+  // a restore tries the item deleted last first, so of several at one address it is the one back
+  const ordered = input.deleted ? read : read.toSorted(deletedLastFirst);
+  for (const held of ordered) {
+    const itemId = held.id;
+    if ((held.fields.deletedAt !== null) === input.deleted) {
       changed.push(itemId);
     } else {
       try {

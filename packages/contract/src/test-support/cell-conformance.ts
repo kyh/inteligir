@@ -680,5 +680,22 @@ export const cellConformance = (withHost: WithHost): void => {
         });
       });
     });
+
+    it("brings back, of the items a restore names at one address, only the one deleted last, whichever it names first", async () => {
+      await withLaptop(async ({ library, newId, page }) => {
+        const url = "https://example.com/named-twice";
+        const [later, earlier] = [newId(), newId()];
+        await library.items.save({ ...page(url, [paragraph("p1", "First.")]), id: earlier });
+        await library.items.delete({ ids: [earlier] });
+        await library.items.save({ ...page(url, [paragraph("p2", "Second.")]), id: later });
+        await library.items.delete({ ids: [later] });
+
+        await expect(library.items.restore({ ids: [earlier, later] })).resolves.toStrictEqual({
+          addressHeld: [earlier],
+          missing: [],
+          restored: [later],
+        });
+      });
+    });
   });
 };

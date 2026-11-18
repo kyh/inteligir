@@ -385,16 +385,23 @@ export const createFakeCell = (): FakeCell => {
   // nothing, an id naming no item is missing, and an item whose address another live item holds
   // now stays in Deleted. Every item a call moves to Deleted goes at one time, the next landing's,
   // as a write of the cell's takes one
+  const deletedAtOf = (id: string): number => items.get(id)?.fields.deletedAt ?? 0;
+
   const setDeleted = (ids: readonly string[], deleted: boolean) => {
     const at = NOW + head + 1;
     const changed: string[] = [];
-    const missing: string[] = [];
     const addressHeld: string[] = [];
-    for (const id of new Set(ids)) {
-      const item = items.get(id);
-      if (item === undefined) {
-        missing.push(id);
-      } else if ((item.fields.deletedAt !== null) === deleted) {
+    const unique = [...new Set(ids)];
+    const missing = unique.filter((id) => !items.has(id));
+    // a restore tries the item deleted last first, as the cell's does, so of several at one
+    // address it is the one back
+    const present = unique.filter((id) => items.has(id));
+    const ordered = deleted
+      ? present
+      : present.toSorted((a, b) => deletedAtOf(b) - deletedAtOf(a) || compareText(a, b));
+    for (const id of ordered) {
+      const item = holding(id);
+      if ((item.fields.deletedAt !== null) === deleted) {
         changed.push(id);
       } else if (!deleted && item.fields.url !== null && holderOf(item.fields.url) !== null) {
         addressHeld.push(id);
@@ -442,16 +449,11 @@ export const createFakeCell = (): FakeCell => {
   // in Deleted comes back but one whose address a live item holds, and of several at one address
   // only the one deleted last, the lowest id among those deleted at once; it answers those left,
   // in id order
-  const restoreSwept = (ids: readonly string[]): string[] => {
-    const inDeleted = ids.flatMap((id) => {
-      const { deletedAt } = holding(id).fields;
-      return deletedAt === null ? [] : [{ deletedAt, id }];
-    });
-    const deletedLast = inDeleted
-      .toSorted((a, b) => b.deletedAt - a.deletedAt || compareText(a.id, b.id))
-      .map(({ id }) => id);
-    return setDeleted(deletedLast, false).addressHeld.toSorted();
-  };
+  const restoreSwept = (ids: readonly string[]): string[] =>
+    setDeleted(
+      ids.filter((id) => holding(id).fields.deletedAt !== null),
+      false,
+    ).addressHeld.toSorted();
 
   // emptying Deleted: an item there goes for good, its id kept at the one sequence the purge
   // takes, and any other id is missing
