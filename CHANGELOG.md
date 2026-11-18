@@ -133,6 +133,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A formula reads the other formulas in its note by name**: type `{{price=5}}` and `{{qty=3}}`, then `{{price*qty}}`, or name the result with `{{total=price*qty}}`; one that only names another shows what it shows, so `{{time=9am}}` repeats as `{{time}}`.
 - **A formula's number is never out of date**: it follows what it reads as you edit, in one undo step, and cards, search and the agent read the number the note shows; the dotted "stale" underline is gone.
 - **Picking a name from `{{` inserts a formula that reads it**, in place of a linked copy, and renaming a formula in its editor renames it in every formula that reads it.
+- **The `{{` picker shows how to name a formula** (`price=5`) beside a plain one (`2+2`), and a formula's editor says when one earlier in the note has the name it holds, since formulas read only the first.
 - **`{{source|display}}` typed with bars stays the text you typed**, as does a lone word no formula is named: what a formula shows always comes from its source.
 - **The agent and connected assistants write a formula as `:formula[display]{name="…" source="…"}`**: what they put in the brackets is replaced by what the source gives, and one written the earlier way, with `meta=` or `@(…)`, stays text until it is written again.
 - **New note on the Mac starts with no title**, following your first line until you type one.

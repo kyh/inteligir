@@ -72,6 +72,13 @@ describe("the {{ picker", () => {
     );
   });
 
+  it("hints a formula and a named one while no name matches", async () => {
+    openPicker();
+    await expect(
+      screen.findByText("Type a formula (2+2) or name one (price=5), then }}"),
+    ).resolves.toBeDefined();
+  });
+
   it("typing a word no pill is named stays the text it is", () => {
     const { markdown } = openPicker();
     typeQuery("draft}}");

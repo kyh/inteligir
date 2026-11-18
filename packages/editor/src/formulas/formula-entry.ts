@@ -8,22 +8,32 @@ import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { isPillName, namesIn, parseExpression } from "@repo/editor/headless/formulas/expression";
 import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 
-// The pill an entry spells, or null for one that spells none and stays the text it is. A bare
-// formula is one only when a pill holds every name it reads, since any word is a name; a named
-// pill takes any source, so it can be written ahead of what it reads.
-export const pillFromEntry = (entry: string, names: ReadonlySet<string>): Pill | null => {
-  const typed = entry.trim().replace(/^=/u, "");
+const typedOf = (entry: string): string => entry.trim().replace(/^=/u, "");
+
+// a named pill takes any source, so it can be written ahead of what it reads
+const namedPill = (typed: string): Pill | null => {
   const equals = typed.indexOf("=");
   const name = typed.slice(0, Math.max(equals, 0)).trim();
   const source = typed.slice(equals + 1).trim();
-  if (isPillName(name) && source !== "") {
-    return { name, source };
+  return isPillName(name) && source !== "" ? { name, source } : null;
+};
+
+// The pill an entry spells, or null for one that spells none and stays the text it is. A bare
+// formula is one only when a pill holds every name it reads, since any word is a name.
+export const pillFromEntry = (entry: string, names: ReadonlySet<string>): Pill | null => {
+  const typed = typedOf(entry);
+  const named = namedPill(typed);
+  if (named !== null) {
+    return named;
   }
   const expression = parseExpression(typed);
   return expression !== null && namesIn(expression).every((read) => names.has(read))
     ? { source: typed }
     : null;
 };
+
+// the name an entry gives its pill, read from the entry alone
+export const entryName = (entry: string): string | undefined => namedPill(typedOf(entry))?.name;
 
 export const entryTextOf = ({ name, source }: Pill): string =>
   name === undefined ? source : `${name}=${source}`;

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
 import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { renameIn } from "@repo/editor/headless/formulas/expression";
-import { entryTextOf, pillFromEntryIn } from "@repo/editor/formulas/formula-entry";
+import { entryName, entryTextOf, pillFromEntryIn } from "@repo/editor/formulas/formula-entry";
 import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 import type { PillEntry } from "@repo/editor/headless/formulas/pill-nodes";
 
@@ -55,9 +55,27 @@ export const convertFormulaToText = (editor: SlateEditor, element: TElement): vo
   });
 };
 
+// the names the pills before `element` hold, each read from the first pill to hold it
+const namesBefore = (editor: SlateEditor, element: TElement): ReadonlySet<string> => {
+  const at = editor.api.findPath(element);
+  return new Set(
+    at === undefined
+      ? []
+      : pillEntries(editor.children)
+          .filter((pill) => PathApi.isBefore(pill.at, at))
+          .flatMap(({ node }) => pillOf(node).name ?? []),
+  );
+};
+
 export const FormulaEditForm = ({ element, onDone }: { element: TElement; onDone: () => void }) => {
   const editor = useEditorRef();
   const [entry, setEntry] = useState(() => entryTextOf(pillOf(element)));
+  // read as the editor opens: the compiler would key it on the entry too, a walk of the note per
+  // keystroke
+  const heldBefore = useMemo(() => namesBefore(editor, element), [editor, element]);
+  const name = entryName(entry);
+  const readElsewhere = name !== undefined && heldBefore.has(name) ? name : null;
+  const noticeId = useId();
   return (
     <form
       onSubmit={(event) => {
@@ -71,6 +89,7 @@ export const FormulaEditForm = ({ element, onDone }: { element: TElement; onDone
     >
       <input
         aria-label="Edit formula"
+        aria-describedby={readElsewhere === null ? undefined : noticeId}
         className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-body outline-none"
         value={entry}
         onChange={(event) => {
@@ -80,6 +99,11 @@ export const FormulaEditForm = ({ element, onDone }: { element: TElement; onDone
           event.currentTarget.select();
         }}
       />
+      {readElsewhere === null ? null : (
+        <p id={noticeId} className="w-48 px-1.5 pb-0.5 text-caption text-muted-foreground">
+          A formula earlier in the note is named {readElsewhere}, so {readElsewhere} reads that one.
+        </p>
+      )}
     </form>
   );
 };

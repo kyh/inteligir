@@ -18,8 +18,8 @@ const NOTE = [
 ].join("\n");
 
 // the note drawn, read back as the markdown of each of its blocks
-const mounted = (): (() => string[]) => {
-  const parsed = parseMarkdown(NOTE);
+const mounted = (note = NOTE): (() => string[]) => {
+  const parsed = parseMarkdown(note);
   if (!parsed.ok) {
     throw new Error("the note must parse");
   }
@@ -33,11 +33,15 @@ const mounted = (): (() => string[]) => {
   };
 };
 
-// the editor of the pill showing `pill`, submitted with `entry` in place of what it held
-const enter = (pill: string, entry: string): void => {
+const openEditor = (pill: string): void => {
   act(() => {
     fireEvent.click(screen.getByRole("button", { name: pill }));
   });
+};
+
+// the editor of the pill showing `pill`, submitted with `entry` in place of what it held
+const enter = (pill: string, entry: string): void => {
+  openEditor(pill);
   const input = screen.getByRole("textbox", { name: "Edit formula" });
   if (!(input instanceof HTMLInputElement) || input.form === null) {
     throw new Error("the pill opened no editor");
@@ -89,5 +93,51 @@ describe("a pill's editor", () => {
     const markdown = mounted();
     enter("10", "price+tax");
     expect(markdown().at(-1)).toContain(':formula[10]{source="price+price"}');
+  });
+});
+
+const READ_FROM_EARLIER = "A formula earlier in the note is named rate, so rate reads that one.";
+
+const noticed = (): boolean =>
+  screen.queryAllByRole("textbox", { description: READ_FROM_EARLIER, name: "Edit formula" })
+    .length > 0;
+
+describe("a name two pills hold", () => {
+  beforeEach(() => {
+    installFakeEditorHost();
+  });
+
+  const TWICE = [
+    'first :formula[2]{name="rate" source="2"}',
+    "",
+    'again :formula[3]{name="rate" source="3"} and :formula[4]{source="4"}',
+    "",
+  ].join("\n");
+
+  it.each([
+    ["the later holder's", "3", true],
+    ["the first holder's", "2", false],
+  ])("is told in %s editor: %s", (_holder, pill, told) => {
+    mounted(TWICE);
+    openEditor(pill);
+    expect(noticed()).toBe(told);
+  });
+
+  it("is told as it is typed into a later pill's editor, and stays allowed", () => {
+    const markdown = mounted(TWICE);
+    openEditor("4");
+    expect(noticed()).toBe(false);
+    const input = screen.getByRole("textbox", { name: "Edit formula" });
+    act(() => {
+      fireEvent.change(input, { target: { value: "rate=4" } });
+    });
+    expect(noticed()).toBe(true);
+
+    act(() => {
+      fireEvent.submit(input);
+    });
+    expect(markdown().at(-1)).toBe(
+      'again :formula[3]{name="rate" source="3"} and :formula[4]{name="rate" source="4"}',
+    );
   });
 });

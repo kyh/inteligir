@@ -61,7 +61,7 @@ const FormulaInputElement = (props: PlateElementProps) => {
           words: (body) => body,
         }}
         element={element}
-        empty="Type an expression, then }}"
+        empty="Type a formula (2+2) or name one (price=5), then }}"
         filter={variableMatches}
         groups={[{ items: variables }]}
         trigger="{"
