@@ -3,9 +3,17 @@ import { randomUUID } from "node:crypto";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { db } from "@repo/db/drizzle-client";
+import { itemSearch } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
+import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
+import { mintLibraryId } from "../library/library-ids";
+import { landItem } from "../library/library-landing";
+import { readItem } from "../library/library-rows";
+import { writeLibrary } from "../library/library-store";
 import { makeAccount, personalLibrary, seedItem } from "../test-support/library-fixture";
 import { planSearchQuery } from "./search-query";
 import { isPrintableAscii, likeLiteral, tsqueryOf } from "./search-sql";
@@ -178,6 +186,61 @@ dbSuite("a search in Postgres", () => {
       cursor = page.cursor ?? undefined;
     } while (cursor !== undefined);
     expect(named.size).toBe(200);
+  });
+
+  it("keeps an item's search row through a pin, a move and Deleted and back, and writes it again for a new name, tag, alias or note", async () => {
+    const { accountId, library } = await personalLibrary();
+    const id = await note(accountId, ["Quarterly planning."], { title: "Roadmap" });
+    const found = async (query: string) => {
+      const { hits } = await library.search({ query });
+      return hits.map((hit) => [hit.id, hit.snippet]);
+    };
+    // the row's version: Postgres gives an updated row a new one
+    const rowVersion = async () => {
+      const [row] = await db
+        .select({ version: sql<string>`xmin::text` })
+        .from(itemSearch)
+        .where(and(eq(itemSearch.accountId, accountId), eq(itemSearch.itemId, id)));
+      return row?.version;
+    };
+    const written = await rowVersion();
+    const folderId = mintLibraryId(Date.now());
+    await library.folders.write({
+      ops: [{ id: folderId, name: "Plans", op: "create", parentId: null, sort: "a0" }],
+    });
+    await library.items.organize({ ids: [id], pinned: true });
+    await library.items.organize({ folder: { id: folderId }, ids: [id] });
+    await library.items.delete({ ids: [id] });
+    await expect(found("planning")).resolves.toStrictEqual([]);
+    await library.items.restore({ ids: [id] });
+    await expect(found("planning")).resolves.toStrictEqual([[id, "Quarterly planning."]]);
+    await expect(rowVersion()).resolves.toBe(written);
+
+    await library.items.organize({ ids: [id], title: "Strategy" });
+    await expect(found("strategy")).resolves.toStrictEqual([[id, "Strategy"]]);
+    await expect(found("roadmap")).resolves.toStrictEqual([]);
+    await library.items.organize({ addTags: ["okr"], ids: [id] });
+    await expect(found("okr")).resolves.toStrictEqual([[id, "okr"]]);
+    await writeLibrary(
+      { accountId, actor: { kind: "person" } },
+      { answer: z.unknown(), opId: undefined },
+      async (scope) => {
+        const before = await readItem(scope.tx, accountId, id);
+        if (before === null) {
+          throw new Error("the item is gone");
+        }
+        const fields = { ...before.fields, aliases: ["Northstar"] };
+        return await landItem(scope, { before, body: null, fields, itemId: id });
+      },
+    );
+    await expect(found("northstar")).resolves.toStrictEqual([[id, "Strategy"]]);
+    await library.items.edit({
+      edits: [{ newText: "Annual budget.", oldText: "Quarterly planning." }],
+      id,
+    });
+    await expect(found("budget")).resolves.toStrictEqual([[id, "Annual budget."]]);
+    await expect(found("planning")).resolves.toStrictEqual([]);
+    await expect(rowVersion()).resolves.not.toBe(written);
   });
 
   it("answers no other account's items", async () => {

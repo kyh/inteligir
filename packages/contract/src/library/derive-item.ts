@@ -82,7 +82,8 @@ export const itemCardSchema = z.object({
   words: z.number().int().nonnegative(),
 }) satisfies z.ZodType<ItemCard>;
 
-// the four literal columns the ranked index reads (`@repo/service/search/search-index`)
+// the four fields an item's search vector weights (`@repo/service/search/search-vector`), the
+// body's text also the one the exact-text tier reads (`@repo/service/search/search-sql`)
 interface ItemSearchText {
   readonly title: string;
   readonly headings: string;

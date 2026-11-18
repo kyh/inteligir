@@ -3,12 +3,12 @@
 // only within the library's room), then its rows, stamped with the write's one sequence number,
 // and its turn's change set told when the built-in agent wrote it (`./library-change-sets`). An
 // existing item's change writes only what changed: the body and its links when the write brings
-// one, the tags and the search row when the body or the fields moved, the item's files when it
-// names others. Items a write makes land together, a statement a table, so an import's batch is a
+// one, the tags when they moved, the search row when the body or the text it derives moved, the
+// item's files when it names others. Items a write makes land together, a statement a table, so an import's batch is a
 // handful of statements.
 
 import { urlKey } from "@repo/contract/items/item-url";
-import { canonicalJson } from "@repo/contract/library/canonical-json";
+import { sameJson } from "@repo/contract/library/canonical-json";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type {
   BodyBlock,
@@ -72,12 +72,12 @@ interface WrittenBody {
 }
 
 // the body a change leaves: its digest and version, what it writes, null when it stays, and the
-// files the body it replaces names
+// digest of the body it replaces
 interface LandedBody {
   readonly digest: BodyDigest;
   readonly version: number;
   readonly written: WrittenBody | null;
-  readonly priorFiles: readonly string[];
+  readonly priorDigest: BodyDigest;
 }
 
 const itemIs = (accountId: string, itemId: string) =>
@@ -108,13 +108,13 @@ const landedBody = async (scope: WriteScope, landing: Landing): Promise<LandedBo
   if (held === null) {
     throw new Error(`the item ${itemId} has no body row`);
   }
-  const priorFiles = held.digest.files;
+  const priorDigest = held.digest;
   if (body === null) {
-    return { digest: held.digest, priorFiles, version: held.version, written: null };
+    return { digest: priorDigest, priorDigest, version: held.version, written: null };
   }
   const version = held.version + 1;
   const written = bodyAt(scope.accountId, itemId, body, version) ?? refuse({ kind: "too-large" });
-  return { digest: written.derived.digest, priorFiles, version, written };
+  return { digest: written.derived.digest, priorDigest, version, written };
 };
 
 const urlHeldByAnother = async (
@@ -152,7 +152,7 @@ const checkLanding = async (scope: WriteScope, landing: Landing) => {
   ) {
     refuse({ kind: "url-held" });
   }
-  const priorFiles = itemFilesOf(before.fields, landed.priorFiles);
+  const priorFiles = itemFilesOf(before.fields, landed.priorDigest.files);
   const files = itemFilesOf(fields, landed.digest.files);
   const missing = await missingFiles(
     scope.tx,
@@ -194,19 +194,28 @@ const heldText = async (scope: WriteScope, itemId: string): Promise<string> => {
   return row?.text ?? "";
 };
 
-// what the item's fields and body give search and the rail: its tags and its search row
-const replaceDerived = async (
-  scope: WriteScope,
-  itemId: string,
-  derived: DerivedItem,
-  text: string,
-): Promise<void> => {
+// the tag rows' own columns, as JSON compares them
+const tagColumns = (tags: DerivedItem["tags"]): string[][] =>
+  tags.map(({ origin, tag }) => [origin, tag]);
+
+// the tags the item's fields and body give the rail, in place of the ones it held
+const replaceTags = async (scope: WriteScope, itemId: string, derived: DerivedItem) => {
   const { accountId, tx } = scope;
   await tx.delete(itemTag).where(and(eq(itemTag.accountId, accountId), eq(itemTag.itemId, itemId)));
   const tags = tagRowsOf(accountId, itemId, derived.tags);
   if (tags.length > 0) {
     await tx.insert(itemTag).values(tags).onConflictDoNothing();
   }
+};
+
+// the search row the item's fields and body give, in place of the one it held
+const replaceSearch = async (
+  scope: WriteScope,
+  itemId: string,
+  derived: DerivedItem,
+  text: string,
+): Promise<void> => {
+  const { accountId, tx } = scope;
   const search = searchRowOf(accountId, itemId, { ...derived.search, body: text });
   await tx
     .insert(itemSearch)
@@ -240,9 +249,15 @@ export const landItem = async (scope: WriteScope, landing: Landing): Promise<Liv
   if (written !== null) {
     await replaceBody(scope, itemId, written);
   }
-  if (written !== null || canonicalJson(before.fields) !== canonicalJson(fields)) {
+  // what the item gave search and the rail before: a pin, a move or Deleted changes neither, and
+  // rewriting the search row is most of such a landing
+  const prior = deriveItem(before.fields, landed.priorDigest);
+  if (!sameJson(tagColumns(prior.tags), tagColumns(derived.tags))) {
+    await replaceTags(scope, itemId, derived);
+  }
+  if (written !== null || !sameJson(prior.search, derived.search)) {
     const text = written === null ? await heldText(scope, itemId) : written.derived.text;
-    await replaceDerived(scope, itemId, derived, text);
+    await replaceSearch(scope, itemId, derived, text);
   }
   if (!sameShas(priorFiles, files)) {
     await nameItemFiles(tx, accountId, itemId, files, now);
@@ -251,7 +266,7 @@ export const landItem = async (scope: WriteScope, landing: Landing): Promise<Liv
     await recordLanding(scope, setId, {
       after: fields,
       before: before.fields,
-      bodyFiles: written === null ? [] : landed.priorFiles,
+      bodyFiles: written === null ? [] : landed.priorDigest.files,
       itemId,
     });
   }
