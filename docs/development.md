@@ -81,8 +81,10 @@ yet. `pnpm build` then
 
 `pnpm smoke` (`scripts/smoke.ts`) checks a running app as a deployment must
 pass: `/api/health`, the home page's static policy, `/privacy`, `/library`'s
-307 to sign in, a 426 below the build floor, and a signed-in call through the
-extension's door and the phone's. Locally it signs in as the seeded login; with
+307 to sign in, a 426 below the build floor, a signed-in call through the
+extension's door and the phone's, and a file of its own each run sent by
+reserve, PUT and settle to whichever store the app keeps, then read back whole
+and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login; with
 `SMOKE_URL` it checks that deployment, signed in only with `SMOKE_EMAIL` and
 `SMOKE_PASSWORD`, and `VERCEL_AUTOMATION_BYPASS_SECRET` carries it past the
 deployment's protection. A leg whose route has not landed prints what it waits

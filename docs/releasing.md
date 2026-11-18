@@ -254,9 +254,14 @@ In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
   namespace is its own.
 - **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
   as its dead-letter queue, and a link a connected assistant saves is read.
-- **Files**: the project's Blob store is private and `BLOB_READ_WRITE_TOKEN` is
-  set for Production; a `library.files.reserve`, a PUT of bytes hashing to
-  another sha, then `settle` answers 400 and leaves nothing in the store.
+- **Files**: the project's Blob store, `inteligir-files`, is private and
+  connected to Production, Preview and Development, each holding its
+  `BLOB_READ_WRITE_TOKEN`; the store's contract passes given that key
+  (`packages/service/README.md` § Testing); on a preview, `pnpm smoke` with
+  `SMOKE_URL`, a login and `VERCEL_AUTOMATION_BYPASS_SECRET` passes its file
+  leg, and a PDF dropped into `/library` draws in its frame; a
+  `library.files.reserve`, a PUT of bytes hashing to another sha, then
+  `settle` answers 400 and leaves nothing in the store.
 
 ### The Mac app
 

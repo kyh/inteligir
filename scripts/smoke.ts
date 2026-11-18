@@ -1,7 +1,8 @@
 /**
  * The runtime gate against a running app, a deployment's or `next start`'s: its health, the site's
- * policy, the sign-in gate, the build floor and a signed-in call through two doors. Calls go through
- * the contract's own client, so a changed procedure shape breaks this at typecheck.
+ * policy, the sign-in gate, the build floor, and a signed-in call through two doors and a file
+ * through the store. Calls go through the contract's own client, so a changed procedure shape
+ * breaks this at typecheck.
  *
  *   pnpm smoke                        # against http://localhost:5174, signed in as the seeded login
  *   SMOKE_URL=https://... pnpm smoke  # against a deployment, signed in with SMOKE_EMAIL and
@@ -9,13 +10,17 @@
  *
  * With VERCEL_AUTOMATION_BYPASS_SECRET set, every request carries it past a deployment's protection.
  */
+import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { styleText } from "node:util";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { clientBuildHeaders } from "@repo/contract/client-build";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { uploadBlob } from "@repo/contract/rpc/call-outcome";
+import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
@@ -166,25 +171,83 @@ const signOut = async (cookie: string, door: HeaderMap) => {
   await expectStatus(response, 200, "sign-out");
 };
 
+// a file of its own every run, so its bytes go to the store each time rather than meeting the last
+// run's file held
+const SMOKE_FILE_BYTES = 4096;
+
+const sha256Of = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
+
+const expectBytes = async (response: Response, expected: Uint8Array, what: string) => {
+  const body = Buffer.from(await response.arrayBuffer());
+  if (!body.equals(expected)) {
+    fail(`${what} answered ${String(body.byteLength)} bytes that are not the file's`);
+  }
+};
+
+/** A file's bytes up through `door` as every app sends them, by reserve, a PUT to the store reserve
+ * names, and settle, then read back whole and by two ranges, as a media loader reads one. */
+const fileRoundTrip = async (door: HeaderMap) => {
+  const signed = { ...BUILD, ...door };
+  const transport: V1Transport = {
+    fetch: async (outgoing) => {
+      const headers = new Headers(outgoing.headers);
+      for (const [name, value] of Object.entries({ ...BYPASS, ...signed })) {
+        headers.set(name, value);
+      }
+      return await fetch(new Request(outgoing, { headers, signal: deadline() }));
+    },
+    origin: BASE_URL,
+  };
+  const bytes = crypto.getRandomValues(new Uint8Array(SMOKE_FILE_BYTES));
+  const sha = sha256Of(bytes);
+  await uploadBlob(transport, { bytes, mime: "application/octet-stream", sha });
+
+  const readAt = async (range: string | null): Promise<Response> =>
+    await request(`${V1_BLOBS_PATH}/${sha}`, {
+      headers: range === null ? signed : { ...signed, range },
+    });
+  const whole = await readAt(null);
+  await expectStatus(whole, 200, "the whole file");
+  await expectBytes(whole, bytes, "the whole file");
+  const last = SMOKE_FILE_BYTES - 1;
+  const parts = [
+    { end: 9, range: "bytes=0-9", start: 0 },
+    { end: last, range: "bytes=-1", start: last },
+  ];
+  for (const { end, range, start } of parts) {
+    const part = await readAt(range);
+    await expectStatus(part, 206, range);
+    const spelled = `bytes ${String(start)}-${String(end)}/${String(SMOKE_FILE_BYTES)}`;
+    const contentRange = part.headers.get("content-range");
+    if (contentRange !== spelled) {
+      fail(`${range} answered content-range ${contentRange ?? "none"}, not ${spelled}`);
+    }
+    await expectBytes(part, bytes.subarray(start, end + 1), range);
+  }
+};
+
 /** The extension's door (the browser's signed session as a bearer), then the phone's (its cookie
- * under its scheme), each listing the account's library, which may be empty; both sessions end
- * after. */
+ * under its scheme), each listing the account's library, which may be empty, and a file through
+ * the extension's; both sessions end after. One sign-in a door, under the sign-in's 3 in 10 s. */
 const signedInCalls = async (login: Login) => {
   const site = { origin: BASE_URL };
   const browser = await signIn(login, site);
-  const asExtension = v1Client({ authorization: `Bearer ${sessionToken(browser)}` });
+  const extensionDoor = { authorization: `Bearer ${sessionToken(browser)}` };
+  const asExtension = v1Client(extensionDoor);
   const phoneDoor = { "expo-origin": PHONE_ORIGIN };
   const phone = await signIn(login, phoneDoor);
   const asPhone = v1Client({ ...phoneDoor, cookie: phone });
   for (const client of [asExtension, asPhone]) {
     await client.library.items.list({ limit: 1 });
   }
+  await fileRoundTrip(extensionDoor);
   await signOut(phone, phoneDoor);
   await signOut(browser, site);
 };
 
 const signedInLeg = (login: Login | null): Leg => {
-  const label = "a signed-in call answers through the extension's door and the phone's";
+  const label =
+    "a signed-in call answers through the extension's door and the phone's, and a file goes up and reads back by range";
   return login === null
     ? { label, skip: "set SMOKE_EMAIL and SMOKE_PASSWORD" }
     : {
