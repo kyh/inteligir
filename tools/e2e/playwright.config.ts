@@ -4,7 +4,7 @@ const ci = process.env.CI !== undefined;
 
 // The flows the app on Next does not run yet, each leaving as its area lands: a file whole, or a
 // test by its title.
-const PENDING_FILES = ["saving.spec.ts"];
+const PENDING_FILES: string[] = [];
 const PENDING_TESTS = [
   // each lands in the library tab
   "the site's sign-up spends its invite, and a signed-out tab signs in and comes back",

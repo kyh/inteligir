@@ -4,3 +4,9 @@ declare module "*.md?raw" {
   const text: string;
   export default text;
 }
+
+// a page of the reader's corpus, which the fill's suites serve
+declare module "*.html?raw" {
+  const html: string;
+  export default html;
+}

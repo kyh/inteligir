@@ -6,6 +6,7 @@
 import type { z } from "zod";
 
 import { RELEASE_RUN } from "../files/file-release";
+import { FILL_RUN } from "../fill/fill-run";
 import { SWEEP_RUN } from "../library/library-sweeps";
 import type { JobKind, Lease } from "./job-queue";
 
@@ -57,7 +58,6 @@ export type JobRuns = { readonly [K in JobKind]: LeasedRun | null };
 
 export const JOB_RUNS: JobRuns = {
   "file-release": leasedRun(RELEASE_RUN),
-  // a link's reading, which no run here takes yet
-  fill: null,
+  fill: leasedRun(FILL_RUN),
   sweep: leasedRun(SWEEP_RUN),
 };

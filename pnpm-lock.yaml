@@ -383,6 +383,9 @@ catalogs:
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
+    undici:
+      specifier: ^8.12.4
+      version: 8.12.4
     unified:
       specifier: ^11.0.5
       version: 11.0.5
@@ -1225,6 +1228,9 @@ importers:
       '@repo/editor':
         specifier: workspace:*
         version: link:../editor
+      '@repo/page-reader':
+        specifier: workspace:*
+        version: link:../page-reader
       '@vercel/blob':
         specifier: 'catalog:'
         version: 2.9.0
@@ -1252,6 +1258,9 @@ importers:
       stemmer:
         specifier: 'catalog:'
         version: 2.0.1
+      undici:
+        specifier: 'catalog:'
+        version: 8.12.4
       zod:
         specifier: 'catalog:'
         version: 4.6.7

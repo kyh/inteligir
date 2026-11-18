@@ -157,6 +157,9 @@ catalog:
   # stripping refuses
   tsx: ^4.23.15
   typescript: ^7.0.2
+  # the fill's fetch on Node: its own `fetch`, matched to the Agent whose lookup refuses private
+  # addresses, where Node's global fetch runs an older undici beside it
+  undici: ^8.12.4
   unified: ^11.0.5
   vite: ^8.3.5
   vitest: ^4.1.12

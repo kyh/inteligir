@@ -227,9 +227,9 @@ library files and tags by them. An import reads an `AGENTS.md` as a note, never
 as filing rules. Not the repo's `AGENTS.md`.
 
 **fill** — the cloud's reading of a link the library holds unread (a save, a
-**Refresh**, an import's): the cell asks the fill queue, and the Worker's
-consumer reads the page with `@repo/page-reader` and lands only its `article`
-blocks and the fields a fill owns; it calls no model and never writes the url
+**Refresh**, an import's): the write asks a `fill` **job**, whose run reads the
+page with `@repo/page-reader` and lands only its `article` blocks and the
+fields a fill owns; it calls no model and never writes the url
 (`packages/service/src/fill/`). A page the extension read is saved read and
 never filled (`@repo/contract/items/link-fill`).
 

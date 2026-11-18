@@ -41,6 +41,11 @@ src/jobs/job-kinds.ts        what each kind of job runs, its payload's schema an
 src/jobs/drain-jobs.ts       the drain: a kick after a write's response, /api/cron/jobs every minute
 src/jobs/housekeeping.ts     /api/cron/housekeeping hourly: the prunes, then the files let go
 src/files/file-release.ts    a file unnamed a day: its row deleted, its object removed by a job
+src/fill/fill-run.ts         the fill job: a saved link's page read, its files kept, its reading landed
+src/fill/read-page.ts        a page fetched and read by @repo/page-reader into a landing
+src/fill/page-fetch.ts       the guarded read: each hop's address judged, redirects, caps, a deadline
+src/fill/public-dispatcher.ts the Agent whose lookup refuses a name that resolves into private space
+src/fill/fill-landing.ts     a reading landed on an item still waiting for it
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
 ```

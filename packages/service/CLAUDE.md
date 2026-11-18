@@ -95,9 +95,10 @@ decisions port with its code from the tag `cloudflare-last`.
 - **The registration hour is Better Auth's longest window, so its prune of
   `rate_limit` waits an hour.** The app's own windows stay within 60 s, pruned
   only after they lapse. `packages/service/src/auth/oauth.ts`.
-- **An assistant's metadata document is fetched through `PAGE_FETCH_RELAY_URL`
-  when it is set off Vercel.** cimd's transport refuses every host a test can
-  serve. `packages/service/src/auth/oauth.ts`.
+- **An assistant's metadata document and a fill's every hop are fetched
+  through `PAGE_FETCH_RELAY_URL` when it is set off Vercel.** cimd's transport
+  and the fill's dispatcher refuse every host a test can serve.
+  `packages/service/src/fill/relayed-page-fetch.ts`.
 - **The app reaches its agent at `EVE_BASE_URL` when it is set off Vercel, and
   through its own `/eve/v1` otherwise.** `next build` writes the agent's one
   port into the rewrite, so parallel e2e workers on one build each name their
@@ -318,6 +319,32 @@ decisions port with its code from the tag `cloudflare-last`.
   committed while it waited keeps its file, and the store's removal waits on
   the network after the commit, never under the lock.
   `packages/service/src/files/file-release.ts`.
+
+## Fills
+
+- **A fill's every hop is judged twice: by how its address is spelled before
+  it is asked, and by every address its name resolves to as the connection
+  opens, through one undici Agent whose lookup refuses the name if any is
+  private.** The socket connects to the address the lookup passed, so a name
+  that resolves inside a moment later is never reached; Node's global `fetch`
+  runs an older undici, so the fill asks undici's own.
+  `packages/service/src/fill/public-dispatcher.ts`.
+- **A fill takes four tries, the last landing the page's own failure, and one
+  that threw past them lands the page unreached; a busy library is a try
+  again, and an article past the body's cap the text not saved.** The item
+  then never waits on a page for good, and landItem's caps are the one measure
+  of a body. `packages/service/src/fill/fill-run.ts`.
+- **A reading lands only the article and the facts a fill owns, on an item
+  still waiting for it, in a write of its own after the page was read.** A
+  page's seconds on the network never hold the account's lock, and a save
+  meanwhile wins. `packages/service/src/fill/fill-landing.ts`.
+- **A reading of a link an agent's turn made folds into what that turn's set
+  made.** A reading is no person's change, and Undo would keep the link as
+  changed since the turn. `packages/service/src/library/library-change-sets.ts`.
+- **The cloud keeps a page's cover as the site served it, a library file kept
+  before its item names it, and each device decodes it at the size it draws.**
+  A cover whose item stopped waiting goes with housekeeping a day on, like any
+  file no row names. `packages/service/src/fill/fill-run.ts`.
 
 ## The built-in agent
 

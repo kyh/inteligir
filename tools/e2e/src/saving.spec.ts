@@ -27,7 +27,7 @@ const coverShaOf = async (library: V1Client["library"], id: string): Promise<str
   return fields.coverSha ?? "";
 };
 
-test("a link pasted on the grid is read by the Worker's own fill, and saved again is the same item", async ({
+test("a link pasted on the grid is read by the cloud's own fill, and saved again is the same item", async ({
   account,
   cloud,
   library,

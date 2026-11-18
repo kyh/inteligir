@@ -23,6 +23,7 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/editor": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@vercel/blob": "catalog:",
     "ai": "catalog:",
     "better-auth": "catalog:",
@@ -32,6 +33,7 @@
     "platejs": "catalog:",
     "resend": "catalog:",
     "stemmer": "catalog:",
+    "undici": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

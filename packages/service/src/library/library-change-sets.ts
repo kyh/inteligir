@@ -195,6 +195,52 @@ export const recordBody = async (
     .onConflictDoUpdate(keep);
 };
 
+// A page's reading of an item a turn made, folded into what its set made while the item stood as
+// the set left it, fields and body, so the turn's Undo still takes back the item it made: a reading
+// is no person's change. An item a turn only changed keeps its entry, since its way back touches
+// only what the turn did
+export const foldReading = async (
+  scope: WriteScope,
+  reading: {
+    readonly itemId: string;
+    readonly before: LibraryItemFields;
+    readonly after: LibraryItemFields;
+    readonly versionBefore: number;
+    readonly versionAfter: number;
+  },
+): Promise<void> => {
+  const { accountId, tx } = scope;
+  const { after, before, itemId, versionAfter, versionBefore } = reading;
+  const folded = await tx
+    .update(changeSetItem)
+    .set({ made: after })
+    .where(
+      and(
+        eq(changeSetItem.accountId, accountId),
+        eq(changeSetItem.itemId, itemId),
+        eq(changeSetItem.made, before),
+      ),
+    )
+    .returning({ changeSetId: changeSetItem.changeSetId });
+  if (folded.length === 0 || versionAfter === versionBefore) {
+    return;
+  }
+  await tx
+    .update(changeSetBody)
+    .set({ versionAfter })
+    .where(
+      and(
+        eq(changeSetBody.accountId, accountId),
+        eq(changeSetBody.itemId, itemId),
+        eq(changeSetBody.versionAfter, versionBefore),
+        anyOf(
+          changeSetBody.changeSetId,
+          folded.map(({ changeSetId }) => changeSetId),
+        ),
+      ),
+    );
+};
+
 // entries an Undo settled, gone with the bodies they kept and their hold on the files they named
 export const dropEntries = async (
   scope: WriteScope,

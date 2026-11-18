@@ -7,11 +7,10 @@
 import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { oauthProvider } from "@better-auth/oauth-provider";
-import type { ClientMetadataResourceFetch } from "@better-auth/oauth-provider";
 import { CONNECTOR_CONSENT_PATH } from "@repo/contract/connector";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 
-import { env } from "../env";
+import { RELAYED_FETCH } from "../fill/relayed-page-fetch";
 import {
   CONNECTOR_RESOURCE,
   CONNECTOR_SCOPES,
@@ -23,22 +22,6 @@ const DAY_SECONDS = 86_400;
 
 // Better Auth's longest window, so the one its prune of rate_limit waits out (../rate-limit.ts)
 export const OAUTH_REGISTER_WINDOW_SECONDS = 3600;
-
-// The e2e's stand-in for the web, which a deployment never takes: the transport refuses every host
-// a test can serve, so the relay answers the test's own metadata document in its place.
-const relayedFetch =
-  (relay: string): ClientMetadataResourceFetch =>
-  async (input, init) => {
-    const asked = new Request(input, init);
-    const url = new URL(relay);
-    url.searchParams.set("url", asked.url);
-    return await fetch(url, { headers: asked.headers, signal: asked.signal });
-  };
-
-const metadataFetch = (): ClientMetadataResourceFetch =>
-  env.PAGE_FETCH_RELAY_URL !== undefined && process.env.VERCEL !== "1"
-    ? relayedFetch(env.PAGE_FETCH_RELAY_URL)
-    : fetchClientMetadataResource;
 
 // Made per auth instance: the provider keeps the extensions registered with it, so one list shared
 // by two instances would register cimd twice.
@@ -69,5 +52,6 @@ export const oauthPlugins = () =>
       scopes: [...CONNECTOR_SCOPES],
       storeTokens: { hash: (token) => hashOAuthToken(token) },
     }),
-    cimd({ fetchClientMetadataResource: metadataFetch() }),
+    // cimd's own transport refuses every host a test can serve, so the e2e's relay stands in
+    cimd({ fetchClientMetadataResource: RELAYED_FETCH ?? fetchClientMetadataResource }),
   ] as const;
