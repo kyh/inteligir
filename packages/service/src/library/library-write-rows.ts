@@ -11,6 +11,7 @@ import {
 } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
+import { editBody } from "../body/edit-body";
 import { writeBody } from "../body/write-body";
 import { answer, writing } from "./library-access";
 import { writeFolders } from "./library-folders";
@@ -109,6 +110,10 @@ export const libraryWriteRows = {
           async (scope) => ({ item: await createNote(scope, input) }),
         ),
       ),
+    ),
+    // an agent's edit by passages, made before its write and made again over a save since
+    edit: writing.items.edit.handler(async ({ context, input }) =>
+      answer(await editBody(context.library, input)),
     ),
     delete: writing.items.delete.handler(async ({ context, input }) => {
       const { changed, missing } = answer(

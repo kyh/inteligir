@@ -24,6 +24,7 @@
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "next": "catalog:",
+    "platejs": "catalog:",
     "resend": "catalog:",
     "stemmer": "catalog:",
     "zod": "catalog:"

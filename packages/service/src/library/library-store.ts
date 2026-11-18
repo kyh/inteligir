@@ -8,7 +8,7 @@
 // whole or not at all while the write goes on.
 
 import { db } from "@repo/db/drizzle-client";
-import type { Tx } from "@repo/db/drizzle-client";
+import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
 import { libraryState, opAnswer } from "@repo/db/library-schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -139,14 +139,15 @@ const scopeOf = (tx: Tx, writer: LibraryWriter, now: number, taken: Taken): Writ
   tx,
 });
 
-// what the op answered when it landed, or null while it has not
-const priorAnswer = async <S extends z.ZodType>(
-  tx: Tx,
+// what the op answered when it landed, or null while it has not; a writer that works before its
+// write, as an agent's edit does, asks it first, so a resend is answered before that work
+export const priorAnswer = async <S extends z.ZodType>(
+  reader: DbExecutor,
   accountId: string,
   opId: string,
   answer: S,
 ): Promise<{ readonly value: z.output<S> } | null> => {
-  const [row] = await tx
+  const [row] = await reader
     .select({ answer: opAnswer.answer })
     .from(opAnswer)
     .where(and(eq(opAnswer.accountId, accountId), eq(opAnswer.opId, opId)));

@@ -1,5 +1,6 @@
 // The markdown codec's ports over the library's rows, read in one round inside the write that
-// uses them (`@repo/editor/headless/codec/one-round-lookup`): a `[[Title]]` names the one live
+// uses them, or before it for an agent's edit (`@repo/editor/headless/codec/one-round-lookup`),
+// which is made outside any write (`../body/edit-body`): a `[[Title]]` names the one live
 // item filed under that title or an alias, a page link an item by its id, its card's title the
 // words a link shows, and `assets/<sha>` the library's own file under that sha, its kind read off
 // the type it was uploaded as.
@@ -9,7 +10,9 @@ import { randomUUID } from "node:crypto";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
-import { file, item } from "@repo/db/library-schema";
+import { file, item, itemLink } from "@repo/db/library-schema";
+import { editItemView } from "@repo/editor/headless/codec/item-edit";
+import type { EditOutcome, ViewEdit } from "@repo/editor/headless/codec/item-edit";
 import { libraryLinks } from "@repo/editor/headless/codec/library-links";
 import { readInOneRound } from "@repo/editor/headless/codec/one-round-lookup";
 import type { LookupAnswers, LookupAsks } from "@repo/editor/headless/codec/one-round-lookup";
@@ -77,6 +80,21 @@ const titlesOf = async (
   return new Map(ids.map((id) => [id, held.get(id) ?? null]));
 };
 
+// the card title of each item a body links to by id, in Deleted or not, as its link rows name them:
+// the words its view wrote each link under when an agent read it
+const linkedTitlesOf = async (
+  db: DbExecutor,
+  accountId: string,
+  sourceId: string,
+): Promise<LookupAnswers["titles"]> => {
+  const rows = await db
+    .select({ card: item.card, id: item.id })
+    .from(itemLink)
+    .innerJoin(item, and(eq(item.accountId, itemLink.accountId), eq(item.id, itemLink.targetId)))
+    .where(and(eq(itemLink.accountId, accountId), eq(itemLink.sourceId, sourceId)));
+  return new Map(rows.map((row) => [row.id, row.card.title]));
+};
+
 const fileKindsOf = async (
   db: DbExecutor,
   accountId: string,
@@ -135,4 +153,32 @@ export const noteBlocksOf = async (
     return refuse({ kind: "too-large" });
   }
   return read.blocks.map((block) => ({ block, section: "note" }));
+};
+
+// An agent's edits of an item's note over its blocks: the titles its links show are read first, so
+// the text an edit matches is the view the agent read, and what the new text names in one round
+export const editOutcomeOf = async (
+  db: DbExecutor,
+  accountId: string,
+  edit: {
+    readonly itemId: string;
+    readonly blocks: readonly BodyBlock[];
+    readonly edits: readonly ViewEdit[];
+  },
+): Promise<EditOutcome> => {
+  const known: LookupAnswers = {
+    fileKinds: new Map(),
+    titled: new Map(),
+    titles: await linkedTitlesOf(db, accountId, edit.itemId),
+  };
+  const { unanswered, value } = await readInOneRound(
+    (lookup) => editItemView(edit.blocks, edit.edits, { ...lookup, newBlockId: randomUUID }),
+    answerOf(db, accountId),
+    known,
+  );
+  logUnanswered(unanswered);
+  if (value.kind === "failed") {
+    console.error({ event: "markdown-read-failed", ...errorFields(value.error) });
+  }
+  return value;
 };

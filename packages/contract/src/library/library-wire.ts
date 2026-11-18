@@ -196,13 +196,11 @@ export const folderOpSchema = z.discriminatedUnion("op", [
 const editIndex = z.number().int().nonnegative();
 
 // why an agent's edit cannot land, `edit` its index in the request: an `old_text` that stands
-// nowhere in the note or more than once, one that reaches the article, new text that nests deeper
-// than the editor reads or that no block can store, or blocks someone changed while the edit was
-// made twice over, `blocks` naming them as they now are
+// nowhere in the note or more than once, one that reaches the article, or new text that nests
+// deeper than the editor reads or that no block can store
 export const editRefusalSchema = z.discriminatedUnion("kind", [
   z.object({ edit: editIndex, kind: z.enum(["missing", "section", "too-deep", "unstorable"]) }),
   z.object({ count: z.number().int().positive(), edit: editIndex, kind: z.literal("ambiguous") }),
-  z.object({ blocks: z.array(bodyBlockSchema), kind: z.literal("moved") }),
 ]);
 
 // ---- what the apps list ----
