@@ -86,7 +86,7 @@ export const libraryWriteRows = {
     land: writing.imports.land.handler(async ({ context, input }) =>
       answer(
         await writeLibrary(
-          { accountId: context.library.accountId, actor: IMPORT_ACTOR },
+          { ...context.library, actor: IMPORT_ACTOR },
           { answer: importLandedSchema, opId: input.opId },
           async (scope) => await landImported(scope, input.items),
         ),

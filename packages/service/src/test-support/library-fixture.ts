@@ -22,6 +22,7 @@ import {
 import { createRouterClient } from "@orpc/server";
 
 import type { LibraryPrincipal } from "../library/library-principal";
+import type { JobKick } from "../library/library-store";
 import { bodyRowOf, itemRowOf, linkRowsOf, searchRowOf, tagRowsOf } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
 import { libraryRouter } from "../rpc/library-router";
@@ -103,8 +104,9 @@ export const sessionPrincipal = (accountId: string): LibraryPrincipal => ({
   actor: { door: "page", kind: "session", sessionId: randomUUID() },
 });
 
-export const libraryAs = (principal: LibraryPrincipal) =>
-  createRouterClient(libraryRouter, { context: { principal } });
+// `kickJobs` the drain a write's jobs ask after it, which no suite starts unless it passes one
+export const libraryAs = (principal: LibraryPrincipal, kickJobs?: JobKick) =>
+  createRouterClient(libraryRouter, { context: { kickJobs, principal } });
 
 // a fresh account, and the person's own calls on its library
 export const personalLibrary = async () => {

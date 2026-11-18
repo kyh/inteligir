@@ -9,15 +9,21 @@ import { blankItemFields, importedFields } from "@repo/contract/library/item-mak
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { db } from "@repo/db/drizzle-client";
-import { changeSet, folder, item, itemLink } from "@repo/db/library-schema";
+import { changeSet, folder, item, itemLink, job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { importPlannedDoc, openPlan, planImport } from "@repo/editor/headless/codec/import-plan";
 import type { ImportEntry } from "@repo/editor/headless/codec/import-plan";
 import { and, asc, count, eq, isNull } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { env } from "../env";
-import { personalLibrary, seedFile } from "../test-support/library-fixture";
+import {
+  libraryAs,
+  makeAccount,
+  personalLibrary,
+  seedFile,
+  sessionPrincipal,
+} from "../test-support/library-fixture";
 import { mintLibraryId } from "./library-ids";
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
@@ -110,6 +116,33 @@ dbSuite("an import", () => {
         .where(eq(folder.accountId, accountId))
         .orderBy(asc(folder.name));
       expect(folders.map((row) => row.name)).toStrictEqual(["Projects", "Specs"]);
+    });
+
+    it("asks for the page of each link it lands unread, and kicks the drain that reads it", async () => {
+      const accountId = await makeAccount();
+      const kickJobs = vi.fn<(kicked: string) => void>();
+      const library = libraryAs(sessionPrincipal(accountId), kickJobs);
+      const link = {
+        ...note("A page"),
+        cover: "https://a.example/cover.png",
+        fields: {
+          ...fieldsOf("A page", "https://a.example/page"),
+          reading: { at: null, state: "pending" as const },
+        },
+      };
+      await land(library, [link, note("A note")]);
+      expect(kickJobs.mock.calls).toStrictEqual([[accountId]]);
+      await expect(
+        db
+          .select({ id: job.id, payload: job.payload })
+          .from(job)
+          .where(eq(job.accountId, accountId)),
+      ).resolves.toStrictEqual([
+        {
+          id: `fill:${link.id}`,
+          payload: { coverHint: link.cover, itemId: link.id, url: "https://a.example/page" },
+        },
+      ]);
     });
 
     it("counts an item it holds by id or address, and brings one back from Deleted", async () => {
