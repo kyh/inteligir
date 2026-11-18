@@ -1,3 +1,4 @@
+import { deferred } from "@repo/contract/deferred";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
@@ -12,6 +13,7 @@ import { z } from "zod";
 
 import { forgetAccountStorage } from "./cloud/account-storage";
 import { windowLayout } from "./prefs";
+import { layOutCardGrids } from "./test-support/card-grid-layout";
 import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
@@ -29,7 +31,7 @@ const NOTE = "Field notes";
 const pageAt = async (
   entry: string,
   cell: FakeCell,
-  answer?: (call: CellCall) => object | undefined,
+  answer?: (call: CellCall) => object | undefined | Promise<object | undefined>,
 ) => {
   forgetAccountStorage();
   const { calls, library } = fakePageLibrary({ answer, cell });
@@ -135,6 +137,33 @@ describe("Save a link", () => {
       expect(failed.mock.lastCall?.[0]).toBe(
         "That link couldn't be saved. The library didn't answer.",
       );
+    });
+  });
+});
+
+describe("a card in the grid", () => {
+  it("pins from its menu, the pin drawn on the card before the cell lands it", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: NOTE });
+    const landing = deferred();
+    await pageAt("/library", cell, async (call) => {
+      if (call.path === "library.items.organize") {
+        await landing.promise;
+      }
+    });
+
+    const card = await screen.findByRole("gridcell", { name: NOTE });
+    expect(within(card).queryByLabelText("Pinned")).toBeNull();
+    fireEvent.contextMenu(card);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+    await within(card).findByLabelText("Pinned");
+    expect(card.getAttribute("aria-selected")).toBe("true");
+    expect(cell.item(id)?.fields.pinnedAt).toBeNull();
+    landing.resolve();
+    await vi.waitFor(() => {
+      expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
     });
   });
 });

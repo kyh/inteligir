@@ -180,6 +180,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **A tag you take out and put back in another spelling shows where it stood the moment you change it**, as your library keeps it, instead of at the end of the item's tags until your library answers.
 - **A picture inside a link, such as a badge, comes in as the picture** in an imported note, a paste or what an assistant writes, where it came in as an empty link; a link that held only pictures is those pictures, without the link.
 - **Editing a property in Info keeps its row where it was**, a text property of several lines is edited as its lines instead of being saved back on one, and an empty List property says Empty, not Add tag.
 - **Add property closes as Info moves to another item**, so what you typed in it can't land on the wrong one, and its name stops at 1,000 characters as you type.

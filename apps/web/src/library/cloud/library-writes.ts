@@ -13,6 +13,7 @@
 import type { InferClientInputs, InferClientOutputs } from "@orpc/client";
 import type { V1Queries } from "@repo/client/library-cache";
 import { keptFileType } from "@repo/contract/items/item-kind";
+import { organized } from "@repo/contract/library/cell-rules";
 import { applyPropertyOps, mergeListField } from "@repo/contract/library/field-ops";
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
@@ -195,23 +196,17 @@ const putBack = (queryClient: QueryClient, laid: Laid | undefined): void => {
   });
 };
 
-const folderIdAfter = (folder: OrganizeInput["folder"], held: string | null): string | null => {
-  if (folder === undefined) {
-    return held;
+// the folder an organize files into as the screen can know it before the cell answers: a path's
+// folder may be one the call makes, so the item stays where it is until the read after it lands
+const knownFolderId = (folder: OrganizeInput["folder"]): string | null | undefined => {
+  if (folder === undefined || folder === null) {
+    return folder;
   }
-  if (folder === null) {
-    return null;
-  }
-  return "id" in folder ? folder.id : held;
+  return "id" in folder ? folder.id : undefined;
 };
 
-const pinnedAtAfter = (pinned: boolean | undefined, held: number | null): number | null => {
-  if (pinned === undefined) {
-    return held;
-  }
-  return pinned ? (held ?? Date.now()) : null;
-};
-
+// an organize's fields by the cell's own rule; a row's tags, which add its body's to its field's,
+// merge by their own
 export const organizedOverlay = (input: OrganizeInput): Overlay => {
   const removed = new Set((input.removeTags ?? []).map((tag) => tag.toLowerCase()));
   const retagged = (tags: readonly string[]): string[] =>
@@ -221,13 +216,10 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
       [],
       input.addTags ?? [],
     );
-  const fields = (held: LibraryItemFields): LibraryItemFields => ({
-    ...held,
-    folderId: folderIdAfter(input.folder, held.folderId),
-    pinnedAt: pinnedAtAfter(input.pinned, held.pinnedAt),
-    tags: retagged(held.tags),
-    title: input.title ?? held.title,
-  });
+  const folderId = knownFolderId(input.folder);
+  const now = Date.now();
+  const fields = (held: LibraryItemFields): LibraryItemFields =>
+    organized(held, input, folderId, now);
   const retitled = <C extends { readonly title: string }>(card: C): C =>
     input.title === undefined ? card : { ...card, title: input.title };
   return {

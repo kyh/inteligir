@@ -38,6 +38,29 @@ describe(organizedOverlay, () => {
     expect(laid.card.title).toBe("Trip");
   });
 
+  it("lays an item's fields as the fake cell lands them, a tag taken out and put back respelled where it stood", async () => {
+    const cell = createFakeCell();
+    const folderId = cell.seed.folder("Trips");
+    const id = cell.seed.item({ tags: ["Spring", "trips", "work"], title: "Plans" });
+    const input = {
+      addTags: ["Trips", "plans"],
+      folder: { id: folderId },
+      ids: [id],
+      pinned: true,
+      removeTags: ["trips"],
+      title: "Trip",
+    };
+
+    const laid = organizedOverlay(input).item(cell.held(id));
+    await cell.device("laptop").client.library.items.organize(input);
+
+    expect(laid.fields.tags).toStrictEqual(["Spring", "Trips", "work", "plans"]);
+    expect(laid.fields).toStrictEqual({
+      ...cell.held(id).fields,
+      pinnedAt: expect.any(Number),
+    });
+  });
+
   it("keeps what the write leaves alone, and an unpinned item's pin goes", () => {
     const cell = createFakeCell();
     const id = cell.seed.item({ folderId: cell.seed.folder("Trips"), pinnedAt: 5, title: "Plans" });
