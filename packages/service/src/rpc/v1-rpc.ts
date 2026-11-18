@@ -8,6 +8,7 @@ import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 
+import { FUNCTION_MAX_BODY_BYTES } from "../function-limits";
 import { logUnhandled } from "../log";
 import { accountRouter } from "./account-router";
 import { admit } from "./admit";
@@ -18,10 +19,6 @@ import { rpcFault, rpcRefusal } from "./rpc-refusal";
 // every contract row this serves; ./unrouted.test.ts names the rest
 export const v1Router = { account: accountRouter, library: libraryRouter };
 
-// the most a Vercel function takes in a request (vercel.com/docs/functions/limitations), which
-// holds the largest call routed, a body of BODY_MAX_BYTES and the call around it
-const V1_RPC_MAX_BODY_BYTES = 4_500_000;
-
 const handler = new RPCHandler(v1Router, {
   errorStatusMap: V1_ERROR_STATUS_MAP,
   interceptors: [
@@ -29,7 +26,8 @@ const handler = new RPCHandler(v1Router, {
       logRpcFailure("v1-rpc-failed", path, cause);
     }),
   ],
-  plugins: [new RequestLimitHandlerPlugin({ maxBodySize: V1_RPC_MAX_BODY_BYTES })],
+  // holds the largest call routed, a body of BODY_MAX_BYTES and the call around it
+  plugins: [new RequestLimitHandlerPlugin({ maxBodySize: FUNCTION_MAX_BODY_BYTES })],
 });
 
 export const handleV1Rpc = async (request: Request): Promise<Response> => {

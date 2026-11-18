@@ -1,0 +1,244 @@
+// `/connector` as an assistant meets it: the challenge it signs in from, the tools its grant lists,
+// a call made as it through the library's row, and a disconnect or a reset password that ends it.
+
+import { oauthAccessToken } from "@repo/db/auth-schema";
+import { db } from "@repo/db/drizzle-client";
+import { dbSuite } from "@repo/db/test-database";
+import { walkProcedureContractsSync } from "@orpc/server";
+import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+
+import { listAssistants, revokeAssistant } from "../auth/connected-assistants";
+import {
+  CONNECTOR_RESOURCE_METADATA_URL,
+  hashOAuthToken,
+  OAUTH_TOKEN_PREFIX,
+} from "../auth/oauth-auth";
+import { TAGGED_ROWS } from "../library/library-tools";
+import { libraryRouter } from "../rpc/library-router";
+import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-requests";
+import {
+  connectAssistant,
+  connectorFetch,
+  refreshTokens,
+  rpc,
+  tokensOf,
+} from "../test-support/connector-grants";
+import { issueToken } from "../test-support/password-reset";
+
+const FULL = "library:read library offline_access";
+const READ_ONLY = "library:read offline_access";
+
+const errorSchema = z.object({ error: z.object({ message: z.string() }) });
+const listedSchema = z.object({
+  result: z.object({
+    tools: z.array(
+      z.object({
+        // the tag's hints, as ../library/library-tools.test.ts holds them
+        annotations: z.object({ openWorldHint: z.boolean(), title: z.string() }),
+        inputSchema: z.object({ type: z.literal("object") }),
+        name: z.string(),
+      }),
+    ),
+  }),
+});
+const calledSchema = z.object({
+  result: z.object({
+    content: z.array(z.object({ text: z.string(), type: z.literal("text") })),
+    isError: z.boolean().optional(),
+    structuredContent: z.json().optional(),
+  }),
+});
+
+// every row routed so far that is tagged a tool, and whether it only reads
+const ROUTED_TOOLS = (() => {
+  const routed = new Set<string>();
+  walkProcedureContractsSync(libraryRouter, (_row, path) => {
+    routed.add(path.join("."));
+  });
+  return TAGGED_ROWS.flatMap(({ path, tool }) =>
+    routed.has(path.join(".")) && tool.name !== undefined
+      ? [{ name: tool.name, reads: tool.annotations?.readOnlyHint === true }]
+      : [],
+  );
+})();
+
+const signedUp = async (email: string) => {
+  const { cookie } = await signUpUser(email);
+  return { cookie, userId: await userIdOf(cookie) };
+};
+
+const listTools = async (bearer: string): Promise<string[]> => {
+  const response = await connectorFetch({ bearer, body: rpc("tools/list") });
+  expect(response.status).toBe(200);
+  return listedSchema.parse(await response.json()).result.tools.map(({ name }) => name);
+};
+
+const callTool = async (bearer: string, name: string, args: Record<string, string> = {}) => {
+  const response = await connectorFetch({
+    bearer,
+    body: rpc("tools/call", { arguments: args, name }),
+  });
+  expect(response.status).toBe(200);
+  return calledSchema.parse(await response.json()).result;
+};
+
+dbSuite("the connector", () => {
+  describe("before a token", () => {
+    it("refuses a page of another site before it reads anything", async () => {
+      const response = await connectorFetch({
+        body: rpc("tools/list"),
+        headers: { origin: "https://evil.example" },
+      });
+      expect(response.status).toBe(403);
+    });
+
+    it("challenges a call with no token, naming its metadata and every scope", async () => {
+      const response = await connectorFetch({ body: rpc("initialize") });
+      expect(response.status).toBe(401);
+      const challenge = response.headers.get("www-authenticate") ?? "";
+      expect(challenge).toMatch(/^Bearer /u);
+      expect(challenge).toContain(`resource_metadata="${CONNECTOR_RESOURCE_METADATA_URL}"`);
+      expect(challenge).toContain('scope="library:read library offline_access"');
+      expect(challenge).not.toContain("error=");
+      errorSchema.parse(await response.json());
+    });
+
+    it("challenges a token it never minted as invalid", async () => {
+      for (const bearer of ["not-a-token", `${OAUTH_TOKEN_PREFIX}forged`]) {
+        const response = await connectorFetch({ bearer, body: rpc("tools/list") });
+        expect(response.status).toBe(401);
+        expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+      }
+    });
+
+    it("takes no session of the person's own", async () => {
+      const { cookie } = await signedUp("connector-session@example.com");
+      const response = await connectorFetch({ body: rpc("tools/list"), headers: { cookie } });
+      expect(response.status).toBe(401);
+    });
+  });
+
+  it("lists every tool to a grant that changes the library and calls one as the assistant", async () => {
+    const { cookie, userId } = await signedUp("connector-full@example.com");
+    const { tokens } = await connectAssistant("Claude", { allowed: FULL, cookie, scope: FULL });
+    expect(tokens.access_token.startsWith(OAUTH_TOKEN_PREFIX)).toBe(true);
+    expect(tokens.scope.split(" ").toSorted()).toStrictEqual(FULL.split(" ").toSorted());
+
+    const names = await listTools(tokens.access_token);
+    expect(names.toSorted()).toStrictEqual(ROUTED_TOOLS.map(({ name }) => name).toSorted());
+    expect(names).toContain("read_guide");
+
+    const guide = await callTool(tokens.access_token, "read_guide");
+    expect(guide.structuredContent).toMatchObject({
+      markdown: expect.stringContaining("::::tabs"),
+    });
+
+    const created = await callTool(tokens.access_token, "create_note", {
+      markdown: "The quick brown fox.",
+      title: "Fox notes",
+    });
+    expect(created.isError).not.toBe(true);
+    const { item } = z
+      .object({ item: z.object({ id: z.string() }) })
+      .parse(created.structuredContent);
+    const found = await callTool(tokens.access_token, "search_library", { query: "quick fox" });
+    expect(found.structuredContent).toMatchObject({ hits: [{ id: item.id }] });
+
+    const refused = await callTool(tokens.access_token, "read_item", { id: "not-an-id" });
+    expect(refused.isError).toBe(true);
+
+    expect(await listAssistants(userId)).toMatchObject([
+      { clientName: "Claude", scopes: ["library:read", "library"] },
+    ]);
+  });
+
+  it("lists a grant that only reads the reads alone, and lets it change nothing", async () => {
+    const { cookie } = await signedUp("connector-read@example.com");
+    const { tokens } = await connectAssistant("ChatGPT", {
+      allowed: READ_ONLY,
+      cookie,
+      scope: FULL,
+    });
+    const names = await listTools(tokens.access_token);
+    expect(names.toSorted()).toStrictEqual(
+      ROUTED_TOOLS.filter(({ reads }) => reads)
+        .map(({ name }) => name)
+        .toSorted(),
+    );
+    // a tool the grant does not reach is no tool to it
+    const write = await connectorFetch({
+      bearer: tokens.access_token,
+      body: rpc("tools/call", { arguments: { markdown: "Nope." }, name: "create_note" }),
+    });
+    expect(errorSchema.parse(await write.json()).error.message).toContain("create_note");
+  });
+
+  it("answers in its own protocol: one message a POST, no session to open or end", async () => {
+    const { cookie } = await signedUp("connector-protocol@example.com");
+    const { tokens } = await connectAssistant("Cursor", { allowed: FULL, cookie, scope: FULL });
+    const bearer = tokens.access_token;
+    for (const method of ["GET", "DELETE"] as const) {
+      const response = await connectorFetch({ bearer, method });
+      expect(response.status).toBe(405);
+      expect(response.headers.get("allow")).toBe("POST");
+    }
+    const batch = await connectorFetch({ bearer, body: [rpc("tools/list"), rpc("tools/list")] });
+    expect(batch.status).toBe(400);
+    const text = await connectorFetch({
+      bearer,
+      body: "x",
+      headers: { "content-type": "text/plain" },
+    });
+    expect(text.status).toBe(415);
+  });
+
+  it("refreshes past an access token's expiry, and a disconnect ends both tokens at once", async () => {
+    const { cookie, userId } = await signedUp("connector-revoke@example.com");
+    const { clientId, tokens } = await connectAssistant("Gemini", {
+      allowed: FULL,
+      cookie,
+      scope: FULL,
+    });
+    await db
+      .update(oauthAccessToken)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(
+        eq(
+          oauthAccessToken.token,
+          hashOAuthToken(tokens.access_token.slice(OAUTH_TOKEN_PREFIX.length)),
+        ),
+      );
+    const expired = await connectorFetch({ bearer: tokens.access_token, body: rpc("tools/list") });
+    expect(expired.status).toBe(401);
+
+    const refreshed = await refreshTokens(clientId, tokens.refresh_token);
+    expect(refreshed.status).toBe(200);
+    const fresh = await tokensOf(refreshed);
+    expect(await listTools(fresh.access_token)).toContain("search_library");
+
+    const [grant] = await listAssistants(userId);
+    expect(await revokeAssistant(userId, grant?.grantId ?? "")).toBe(true);
+    const revoked = await connectorFetch({ bearer: fresh.access_token, body: rpc("tools/list") });
+    expect(revoked.status).toBe(401);
+    const dead = await refreshTokens(clientId, fresh.refresh_token);
+    expect(dead.status).not.toBe(200);
+    expect(await revokeAssistant(userId, grant?.grantId ?? "")).toBe(false);
+  });
+
+  it("disconnects every assistant when the password is reset", async () => {
+    const email = "connector-reset@example.com";
+    const { cookie, userId } = await signedUp(email);
+    const { tokens } = await connectAssistant("Claude", { allowed: FULL, cookie, scope: FULL });
+    const reset = await authPost(
+      "/reset-password",
+      { origin: ORIGIN },
+      { newPassword: "a-new-password-5678", token: await issueToken(email) },
+    );
+    expect(reset.status).toBe(200);
+    const after = await connectorFetch({ bearer: tokens.access_token, body: rpc("tools/list") });
+    expect(after.status).toBe(401);
+    expect(await listAssistants(userId)).toStrictEqual([]);
+  });
+});
