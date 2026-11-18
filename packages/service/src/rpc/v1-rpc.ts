@@ -9,6 +9,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import type { RPCHandlerOptions } from "@orpc/server/fetch";
 import {
   RequestLimitHandlerPlugin,
+  ResponseHeadersHandlerPlugin,
   SignalSyncHandlerPlugin,
   TimeoutHandlerPlugin,
 } from "@orpc/server/plugins";
@@ -22,7 +23,7 @@ import { libraryRouter } from "./library-router";
 import { os } from "./orpc";
 import type { RpcContext } from "./orpc";
 import { logRpcFailure } from "./rpc-log";
-import { rpcFault, rpcRefusal } from "./rpc-refusal";
+import { retryAfterOf, rpcFault, rpcRefusal } from "./rpc-refusal";
 
 // every row the contract declares, which `os.router` refuses to build short of one
 const v1Router = os.router({ account: accountRouter, library: libraryRouter });
@@ -30,16 +31,29 @@ const v1Router = os.router({ account: accountRouter, library: libraryRouter });
 type HandlerPlugins = NonNullable<RPCHandlerOptions<RpcContext>["plugins"]>;
 
 // every handler's plugins first hold the largest call routed, a body of BODY_MAX_BYTES and the
-// call around it
+// call around it, and a row's refusal that names its wait answers it as `retry-after`, as a
+// refusal before any row does (`./rpc-refusal`)
 const handlerOf = (plugins: HandlerPlugins) =>
   new RPCHandler(v1Router, {
+    clientInterceptors: [
+      onError((cause, { context }) => {
+        const retryAfter = retryAfterOf(cause);
+        if (retryAfter !== null) {
+          context.resHeaders?.set("retry-after", String(retryAfter));
+        }
+      }),
+    ],
     errorStatusMap: V1_ERROR_STATUS_MAP,
     interceptors: [
       onError((cause, { path }) => {
         logRpcFailure("v1-rpc-failed", path, cause);
       }),
     ],
-    plugins: [new RequestLimitHandlerPlugin({ maxBodySize: FUNCTION_MAX_BODY_BYTES }), ...plugins],
+    plugins: [
+      new RequestLimitHandlerPlugin({ maxBodySize: FUNCTION_MAX_BODY_BYTES }),
+      new ResponseHeadersHandlerPlugin(),
+      ...plugins,
+    ],
   });
 
 // a stream ends this long after it starts, inside its route's 300 s `maxDuration`, as a dropped

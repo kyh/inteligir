@@ -1,11 +1,15 @@
 // `/v1/rpc` past admission: a path no row serves, a call over the body cap, a credential no CORS
-// header hands another page, and a throw answered in the wire's own protocol.
+// header hands another page, a row's refusal that names its wait, and a throw answered in the
+// wire's own protocol.
 
+import { rateLimit } from "@repo/db/auth-schema";
+import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { getAuth } from "../auth/auth";
-import { signInPhone, signUpUser } from "../test-support/auth-requests";
+import { holderRateKey, RATE_WINDOWS } from "../rate-limit";
+import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests";
 import { buildHeaders, phoneHeaders, v1Link, v1Post } from "../test-support/v1-link";
 
 afterEach(() => {
@@ -35,6 +39,30 @@ dbSuite("the wire past admission", () => {
       expect(answer.status).toBe(200);
       expect(answer.headers.get("access-control-allow-origin"), origin).toBeNull();
     }
+  });
+
+  it("answers a row's refusal that names its wait with that wait as `retry-after`", async () => {
+    await signUpUser("wire-wait@example.test");
+    const cookie = await signInPhone("wire-wait@example.test");
+    await db.insert(rateLimit).values({
+      count: RATE_WINDOWS.fileReserve.max,
+      id: crypto.randomUUID(),
+      key: holderRateKey("fileReserve", await userIdOf(cookie)),
+      lastRequest: Date.now(),
+    });
+    const reserve = { bytes: 3, mime: "text/plain", sha: "a".repeat(64) };
+    const refused = await v1Post(
+      "library/files/reserve",
+      phoneHeaders(cookie),
+      JSON.stringify({ json: reserve }),
+    );
+    expect(refused.status).toBe(429);
+    const retryAfter = Number(refused.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThanOrEqual(59);
+    expect(retryAfter).toBeLessThanOrEqual(61);
+    await expect(refused.json()).resolves.toMatchObject({
+      json: { code: "TOO_MANY_REQUESTS", data: { retryAfterSeconds: retryAfter }, defined: true },
+    });
   });
 
   it("answers a throw as the protocol's fault, never Next's own 500, and logs it", async () => {

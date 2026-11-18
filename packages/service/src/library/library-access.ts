@@ -97,9 +97,11 @@ const refusalError = (refusal: LibraryRefusal): Error => {
     case "turn-ended": {
       return new ORPCError("FORBIDDEN", { message: "This turn has ended." });
     }
-    // every row declares it, and a client waits it out as it does the request budget
+    // every row declares it, and a client's link waits out the second it names as it does the
+    // request budget, past the write ahead of it
     case "busy": {
       return new TooManyRequestsError({
+        data: { retryAfterSeconds: 1 },
         message: "Your library is busy with another change. Try again.",
       });
     }

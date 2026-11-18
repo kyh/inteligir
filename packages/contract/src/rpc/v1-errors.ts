@@ -22,7 +22,12 @@ export const ClientOutdatedError = error("CLIENT_OUTDATED", {
   message: "This version of the app is too old. Update it to keep going.",
 });
 
+// `retryAfterSeconds`: when a later try can land, which `/v1` answers as `retry-after` for a
+// client's link to wait out (`./call-outcome`); none where only a person should try again
+export const retryAfterSchema = z.object({ retryAfterSeconds: z.number().int().positive() });
+
 export const TooManyRequestsError = error("TOO_MANY_REQUESTS", {
+  data: retryAfterSchema.optional(),
   message: "Too many requests. Try again in a minute.",
 });
 

@@ -131,6 +131,11 @@ DOM (`oxlint.config.ts`).
   row is answered in its protocol.** REST beside RPC is two serializers and two
   error vocabularies, and Next's own 500 is a body no link reads.
   `packages/service/src/rpc/rpc-refusal.ts`.
+- **A refusal to wait out names its seconds in its data, and the wire answers
+  them as `retry-after`, a row's and admission's alike.** A client's link waits
+  out only the header, and a header each row sets is one a new refusal forgets;
+  a busy library names a second, and a day's agent allowance none, since no
+  link waits a day. `packages/service/src/rpc/rpc-refusal.ts`.
 - **`/v1` answers no CORS: every page that calls it is the site's own.** The
   extension reaches the site under its host permission, and an origin allowed
   to send `expo-origin` would hold the phone's door.
