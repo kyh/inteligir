@@ -105,11 +105,11 @@ const constructsOf = (value: readonly TElement[]): Set<string> => {
   return found;
 };
 
-// a construct's spelling a read left in words: a directive the dialect did not read, a page link
+// a construct's spelling a read left in words: a directive the dialect did not read, an item link
 // by title nothing resolved, or a colon block's marker line
 const CONSTRUCT_AS_WORDS = /:(?:date|formula)[[{]|\]\(mention:|\[\[|^:{3,}/mu;
 
-// what the writer escapes so that words stay words: a colon before a dialect name, a page link by
+// what the writer escapes so that words stay words: a colon before a dialect name, an item link by
 // title, and a quote's marker that is no alert
 const ESCAPED_CONSTRUCT = /\\:|\\\[\\\[|\\\[!/u;
 

@@ -20,7 +20,7 @@ const MentionElement = (props: PlateElementProps) => {
   );
 };
 
-// A page link opens on `[[`: the second `[` opens Plate's mention input, the first stays typed
+// An item link opens on `[[`: the second `[` opens Plate's mention input, the first stays typed
 // until a pick takes it, and an `@` stays the character typed.
 export const MentionKit = [
   MentionPlugin.configure({

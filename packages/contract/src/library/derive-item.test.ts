@@ -31,7 +31,7 @@ const linked: LibraryBlock = {
 };
 
 describe(deriveBody, () => {
-  it("reads a page link by its item's id and a url by its key, and a `[[…]]` the text it is", () => {
+  it("reads an item link by its item's id and a url by its key, and a `[[…]]` the text it is", () => {
     const derived = derive(noteFixture(), bodyOf([linked]));
     expect(derived.body.links).toStrictEqual([
       { targetId: "item-2", targetKey: null },
@@ -39,7 +39,7 @@ describe(deriveBody, () => {
     ]);
   });
 
-  it("reads a page link as its title's words", () => {
+  it("reads an item link as its title's words", () => {
     const mentioned: LibraryBlock = {
       children: [
         { text: "See " },

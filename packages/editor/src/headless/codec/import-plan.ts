@@ -2,7 +2,7 @@
 // two passes, so no doc is held whole longer than its own reading. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
 // doc at a time against the whole plan, resolving a `[[…]]` by the resolver's tiers (path, name,
-// alias, `./link-resolve.ts`) and a page link by the `id:` its target's file carries. Last, every
+// alias, `./link-resolve.ts`) and an item link by the `id:` its target's file carries. Last, every
 // file no item names becomes an item of its own, so a bare file is a card of its own. A zip's paths
 // reach all this with the folder an earlier version's notes were zipped under taken off
 // (`unwrapExport`). Obsidian's settings (`.obsidian/`), every other dot-folder and what an
@@ -109,7 +109,7 @@ export interface PlannedDoc {
   readonly path: string;
   readonly itemId: string;
   readonly title: string;
-  // the `id:` its frontmatter carries, which other docs' page links key by
+  // the `id:` its frontmatter carries, which other docs' item links key by
   readonly fileId: string | null;
   readonly aliases: readonly string[];
   // the address its frontmatter names, by which the cell folds two saves of one page into one item
@@ -264,10 +264,10 @@ export const importPlannedDoc = (
     const file = path === null || !embed ? null : fileAt(path);
     return file === null ? null : { kind: "file", url: mdLinkUrl(file.path) };
   };
-  // an anchor alone names a place in this note, which a page link cannot
+  // an anchor alone names a place in this note, which an item link cannot
   const wiki = (link: WikiTarget, embed: boolean): WikiReach =>
     link.target === "" ? null : reachedAt(reader.resolver.resolveWiki(link.target), embed);
-  // a page link names a planned item by its id: one a `[[…]]` resolved to, or the one an earlier
+  // an item link names a planned item by its id: one a `[[…]]` resolved to, or the one an earlier
   // version wrote, which its file carries
   const item = (key: string): LinkedItem | null => {
     const target = reader.byId.get(key) ?? reader.byId.get(key.toLowerCase());

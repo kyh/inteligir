@@ -19,7 +19,7 @@ const hover = (chip: HTMLElement): void => {
   fireEvent.mouseMove(chip);
 };
 
-describe("a page link's chip", () => {
+describe("an item link's chip", () => {
   it("shows the name the item goes by now, not the one it was written with", () => {
     const id = "0190a000-0000-7000-8000-000000000001";
     installFakeEditorHost({ titles: [{ id, title: "Renamed" }] });

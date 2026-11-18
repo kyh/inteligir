@@ -19,7 +19,7 @@ import { readBlocks } from "./read-blocks";
 import type { ReadPorts } from "./read-blocks";
 
 export interface BodyPorts {
-  // what a page link and an image's address name in the library
+  // what an item link and an image's address name in the library
   readonly links: ReadPorts;
   readonly newBlockId: () => string;
   // what a `[[…]]` names, for text that may hold one

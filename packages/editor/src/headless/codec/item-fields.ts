@@ -27,7 +27,7 @@ import { parseItemTime } from "@repo/editor/headless/items/item-time";
 type KeyValues = ReadonlyMap<string, PropertyValue>;
 
 export interface FileFacts {
-  // the `id:` the file carries, which a page link an earlier version wrote keys by
+  // the `id:` the file carries, which an item link an earlier version wrote keys by
   readonly id: string | null;
   // null where the file's own name is the title
   readonly title: string | null;

@@ -7,7 +7,7 @@ import type { LibraryTitles } from "@repo/editor/host-io";
 
 export const useLibraryTitles = (): LibraryTitles => useStore(libraryTitles);
 
-// the name an item goes by now, so a page link that names it by id shows it as it is; null for an
+// the name an item goes by now, so an item link that names it by id shows it as it is; null for an
 // item the library's titles do not list
 export const useTitleOf = (itemId: string): string | null =>
   useStore(libraryTitles, (state) => state.byId.get(itemId) ?? null);

@@ -1,11 +1,11 @@
 // Obsidian's `[[Target]]`, `[[Target#Heading]]`, `[[Target|alias]]` and `![[…]]`, read only where
 // markdown comes into the library from outside it: an import and the agent's text. A live paste
-// never reads one. The resolver the caller hands in decides each: a page it names is a page link
-// (the stock `[Title](mention:<id>)` link, which the `a` rule reads as a mention; the anchor and the
-// alias go, since a mention names a page), a file an embed names is an image of that file, and
-// anything it answers nothing for stays the text it was. Read from the parsed text, so code and
-// math hold their brackets; a `\[\[` the writer escaped stays text, which is how the agent's view
-// spells a person's own brackets.
+// never reads one. The resolver the caller hands in decides each: an item it names is an item
+// link (the stock `[Title](mention:<id>)` link, which the `a` rule reads as a mention; the anchor
+// and the alias go, since a mention names an item), a file an embed names is an image of that
+// file, and anything it answers nothing for stays the text it was. Read from the parsed text, so
+// code and math hold their brackets; a `\[\[` the writer escaped stays text, which is how the
+// agent's view spells a person's own brackets.
 
 import type { Image, Nodes, PhrasingContent, Root, Text } from "mdast";
 import type { Plugin, Transformer } from "unified";

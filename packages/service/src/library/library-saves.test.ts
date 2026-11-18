@@ -75,13 +75,13 @@ const headOf = async (accountId: string): Promise<number> => {
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
-// each block's section and words, a page link or a file by what it names
+// each block's section and words, an item link or a file by what it names
 const bodyOf = async (library: Library, id: string) => {
   const { blocks } = await library.items.get({ id });
   return blocks.map(({ block, section }) => ({ children: block.children, section }));
 };
 
-// a page link as a body holds it, its words the item's title
+// an item link as a body holds it, its words the item's title
 const mention = (itemId: string, value: string) => ({
   children: [{ text: "" }],
   key: itemId,

@@ -115,7 +115,7 @@ const PAGE = "0190a000-0000-7000-8000-000000000001";
 
 // The picker opens only on a single typed `[`, so these bulk-insert the body, as a paste or a
 // cancelled picker does, and type the closers.
-describe("a page link typed outside the picker", () => {
+describe("an item link typed outside the picker", () => {
   it("stays the text it is, which a save keeps as text", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
@@ -149,7 +149,7 @@ describe("a page link typed outside the picker", () => {
     expect(editor.api.string([0])).toBe("x [TODO]");
   });
 
-  it("never leaks zero-width spaces around page links", () => {
+  it("never leaks zero-width spaces around item links", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     editor.tf.insertText(" ");

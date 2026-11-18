@@ -1,5 +1,5 @@
 // The dialect's value, already the library's vocabulary as the rule table writes it
-// (`md-rules.ts`), with its names checked against the library: a page link's key to the item it
+// (`md-rules.ts`), with its names checked against the library: an item link's key to the item it
 // names, or its words where no item answers, and a file the library holds by its bytes to its sha.
 // A `#tag` is the text it is. Every block leaves through the vocabulary's own parse, so a prop it
 // does not name is dropped here and never stored.
@@ -27,14 +27,14 @@ export interface LibraryFile {
   readonly path: string;
 }
 
-// the item a page link names, by its id, with its title
+// the item an item link names, by its id, with its title
 export interface LinkedItem {
   readonly itemId: string;
   readonly title: string;
 }
 
 export interface ReadPorts {
-  // the item a page link's key names, `shown` the title it was written with; null for a key no
+  // the item an item link's key names, `shown` the title it was written with; null for a key no
   // item holds, whose link is its words
   readonly item: (key: string, shown: string) => LinkedItem | null;
   // the bytes a markdown image's address names; null keeps the address
@@ -115,7 +115,7 @@ const mediaOf = (file: LibraryFile, look: ImageLook): TElement => {
   }
 };
 
-// a page link reaches the item its key names, under that item's title; a key no item holds leaves
+// an item link reaches the item its key names, under that item's title; a key no item holds leaves
 // the words it showed
 const readMention = (node: TElement, ports: ReadPorts): Descendant => {
   const shown = stringProp(node, "value") ?? "";
@@ -160,7 +160,7 @@ const readImage = (node: TElement, ports: ReadPorts): TElement => {
   return file === null ? imageOf({ url }, look) : mediaOf(file, look);
 };
 
-// a node whose written name resolves: a page link to its item, an image to the bytes it names
+// a node whose written name resolves: an item link to its item, an image to the bytes it names
 const readVoid = (node: TElement, ports: ReadPorts): Descendant | null => {
   switch (node.type) {
     case "mention": {

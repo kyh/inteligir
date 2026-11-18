@@ -18,7 +18,7 @@ const ITEM_SCOPES = [
 
 export const itemScopeSchema = z.discriminatedUnion("kind", ITEM_SCOPES);
 
-// a scope the library's page shows: every item scope, and Deleted
+// a scope the library tab shows: every item scope, and Deleted
 export const libraryScopeSchema = z.discriminatedUnion("kind", [
   ...ITEM_SCOPES,
   z.object({ kind: z.literal("deleted") }),

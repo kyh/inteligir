@@ -335,7 +335,7 @@ const htmlBlock = z.strictObject({
   value: z.string(),
 });
 
-// a page link: Plate's mention, keyed by the item's id, with the title the writer saw; the live
+// an item link: Plate's mention, keyed by the item's id, with the title the writer saw; the live
 // title is the item's, read where the link is drawn or written
 const mention = z.strictObject({
   children: voidChildren,

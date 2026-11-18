@@ -484,8 +484,8 @@ const picturesFirst = (link: TElement): TElement | Descendant[] => {
   return words.every(isBlankText) ? pictures : [...pictures, { ...link, children: words }];
 };
 
-// a page link is `[Title](mention:<id>)`, the spelling Plate's mention writes; read here rather than
-// by remarkMention, which also reads every `@word` as one
+// an item link is `[Title](mention:<id>)`, the spelling Plate's mention writes; read here rather
+// than by remarkMention, which also reads every `@word` as one
 const readLink = (
   node: Link,
   deco: MdDecoration,

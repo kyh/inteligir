@@ -375,7 +375,7 @@ export const phoneSession = async (cloud: Cloud, account: Account): Promise<V1Cl
   return v1Client(cloud, { cookie, "expo-origin": PHONE_ORIGIN });
 };
 
-// the library's page at `query`, once its rail has drawn
+// the library tab at `query`, once its rail has drawn
 export const openLibrary = async (page: Page, cloud: Cloud, query = ""): Promise<void> => {
   await page.goto(`${cloud.origin}${LIBRARY_PAGE_PATH}${query}`);
   await expect(page.getByRole("list", { name: "Library" })).toBeVisible();

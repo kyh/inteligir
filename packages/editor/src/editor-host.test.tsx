@@ -13,7 +13,7 @@ const mountChip = (itemId: string, title: string, options?: FakeEditorHostOption
   return calls;
 };
 
-describe("a page link's chip over a controlled host", () => {
+describe("an item link's chip over a controlled host", () => {
   it("opens the item it names by its id, under the name the item goes by now", () => {
     const calls = mountChip(ROADMAP, "Old name", {
       titles: [{ id: ROADMAP, title: "Roadmap" }],

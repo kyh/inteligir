@@ -1,4 +1,4 @@
-// One conversation with the built-in agent, drawn natively over the same logic the library's page
+// One conversation with the built-in agent, drawn natively over the same logic the library tab
 // draws its panel with (`@repo/client`): the thread's events as they happen, held as the phone
 // last read them so it reads offline, the reply as it is written, each turn's ending in the
 // person's words, and the composer, whose message carries the item it was asked from. It opens on

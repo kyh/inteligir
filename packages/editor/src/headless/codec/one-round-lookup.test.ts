@@ -181,7 +181,7 @@ const offBy = async (
   return isDeepStrictEqual(value, expected) ? null : "read otherwise";
 };
 
-// the library as it stood before each item was renamed, so a body's page links hold words the
+// the library as it stood before each item was renamed, so a body's item links hold words the
 // view no longer writes
 const beforeRenames = (library: Library): LibraryLookup => ({
   ...atOnce(library),

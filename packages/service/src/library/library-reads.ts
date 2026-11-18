@@ -65,7 +65,7 @@ const shownLinks = (linked: readonly Linked[], self: string) =>
     .slice(0, READ_LINKS_MAX)
     .map(({ id, title }) => ({ id, title }));
 
-// every item the body links to by id, in Deleted or not, which its rows name: a page link in the
+// every item the body links to by id, in Deleted or not, which its rows name: an item link in the
 // view is written under its item's title as it stands
 const linkedFrom = async (db: DbExecutor, accountId: string, sourceId: string) =>
   await db

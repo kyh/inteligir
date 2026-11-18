@@ -22,7 +22,7 @@ const openItem = (itemId: string): void => {
   getEditorHostIo().openItem(itemId);
 };
 
-// a page link names its item by id, and shows the name the item goes by now; an item the
+// an item link names its item by id, and shows the name the item goes by now; an item the
 // library's titles do not list (gone, or not yet listed) draws the title the link was written
 // with, and opens nothing
 export const MentionChip = ({ itemId, title }: { itemId: string; title: string }) => {

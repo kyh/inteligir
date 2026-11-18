@@ -1,6 +1,6 @@
 // The persisted vocabulary spelled for the rule table (`md-rules.ts`), which already writes the
 // vocabulary's own nodes, so an item leaves in the editor's own spelling. What this pass
-// spells is what the library holds by id and markdown names by words: a page link under its item's
+// spells is what the library holds by id and markdown names by words: an item link under its item's
 // live title (the rule table writes `[Title](mention:<id>)`), and a file the library holds by its
 // bytes at the path the caller gives it.
 
@@ -40,7 +40,7 @@ const indentOf = (node: { indent?: number | undefined }): { indent?: number } =>
 
 type Element<T extends string> = Extract<LibraryNode, { type: T }>;
 
-// a page link under its item's live title; a link to an item gone keeps the title it saw
+// an item link under its item's live title; a link to an item gone keeps the title it saw
 const spellMention = (node: Element<"mention">, ports: WritePorts): TElement => ({
   children: voidLeaf(node),
   key: node.key,

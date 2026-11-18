@@ -6,8 +6,8 @@ import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { libraryTitles } from "@repo/editor/host-io";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-// A node's words as the editor draws them: a page link by the name its item goes by now (the one its
-// chip shows), else the title it was written with, and a date and a formula as they show.
+// A node's words as the editor draws them: an item link by the name its item goes by now (the one
+// its chip shows), else the title it was written with, and a date and a formula as they show.
 export const shownText = (node: Descendant): string => {
   if (TextApi.isText(node)) {
     return node.text;

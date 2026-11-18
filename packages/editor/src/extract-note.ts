@@ -57,7 +57,7 @@ const storedBlocks = (elements: readonly TElement[]): LibraryBlock[] | null => {
   return blocks;
 };
 
-// the page link Plate's mention insert writes: the note by its id, under the title it was made with
+// the item link Plate's mention insert writes: the note by its id, under the title it was made with
 const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
   children: [
     { text: "" },

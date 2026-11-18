@@ -10,7 +10,7 @@ import type { LinkTarget } from "@repo/editor/host-io";
 // Plate's own pick: the mention lands at the caret, and the caret moves past it
 const selectMention = getMentionOnSelectItem();
 
-// a page link names the item by its id, with the title it goes by now, so no rename breaks it
+// an item link names the item by its id, with the title it goes by now, so no rename breaks it
 const linkTo = (editor: SlateEditor, target: LinkTarget): void => {
   selectMention(editor, { key: target.id, text: target.title });
 };
@@ -32,7 +32,7 @@ const createLinkedNote = async (title: string): Promise<string | null> => {
   }
 };
 
-// the note made first, since a page link names an item by its id; one not made leaves the words
+// the note made first, since an item link names an item by its id; one not made leaves the words
 // typed, as text
 export const createAndLink = async (editor: SlateEditor, title: string): Promise<void> => {
   consumeTriggerLead(editor, "[");

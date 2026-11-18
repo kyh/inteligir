@@ -1,8 +1,8 @@
-// The library's page, above the workspace and Settings alike, so Settings and back keeps one theme,
-// one toaster, one confirm host, one host of a command's asks, one notice of writes waiting for a
-// connection, one of the Mac app's update and the browser's ask as the tab closes on an import
-// (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and the
-// library the tab opened once (`library-tab.ts`). Settings draws in a full-window layer over a
+// The library tab's layout, above the workspace and Settings alike, so Settings and back keeps one
+// theme, one toaster, one confirm host, one host of a command's asks, one notice of writes waiting
+// for a connection, one of the Mac app's update and the browser's ask as the tab closes on an
+// import (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and
+// the library the tab opened once (`library-tab.ts`). Settings draws in a full-window layer over a
 // workspace it leaves mounted and inert (CLAUDE.md § Where the tab is rides the URL, and Settings
 // covers a workspace that stays mounted).
 

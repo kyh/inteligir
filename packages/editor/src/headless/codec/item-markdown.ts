@@ -35,7 +35,7 @@ export interface FoundFile extends LibraryFile {
 export interface ImportPorts {
   // what an Obsidian `[[…]]` or `![[…]]` names: an item, a file the import holds, or nothing
   readonly wiki: WikiResolve;
-  // the item a page link's key names, with its title; null for a key no item holds
+  // the item an item link's key names, with its title; null for a key no item holds
   readonly item: (key: string) => LinkedItem | null;
   // the file a markdown image's or link's address names, from this file
   readonly file: (url: string) => FoundFile | null;

@@ -17,7 +17,7 @@ const SAVED_AT = Date.UTC(2026, 9, 1);
 const lines = (...texts: string[]): BodyBlock[] =>
   texts.map((text, at) => ({ block: paragraph(`p${String(at)}`, text), section: "note" }));
 
-// a paragraph naming an item by a page link, under the title the link was written with
+// a paragraph naming an item by an item link, under the title the link was written with
 const linkTo = (id: string, title: string, key: string): BodyBlock => {
   const block: LibraryBlock = {
     children: [
@@ -165,7 +165,7 @@ dbSuite("what the library answers a read of one item", () => {
     });
   });
 
-  it("writes a page link under its item's title as it stands, and names the items linking in and out", async () => {
+  it("writes an item link under its item's title as it stands, and names the items linking in and out", async () => {
     const { accountId, library } = await personalLibrary();
     const renamed = await seedItem(accountId, { fields: noteFixture({ title: "New name" }) });
     const gone = await seedItem(accountId, {

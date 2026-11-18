@@ -1,6 +1,6 @@
 // What text written into the library from outside the editor names in it, for the agent and a
 // save's note: `[[Title]]` the one live item filed under that title, `![[path]]` and an image's
-// address a file the view wrote under that path, and a page link's id an item the library holds.
+// address a file the view wrote under that path, and an item link's id an item the library holds.
 // Anything else names nothing, so it stays the text it was.
 
 import type { FileKind } from "@repo/contract/items/item-kind";

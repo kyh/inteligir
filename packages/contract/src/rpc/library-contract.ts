@@ -217,7 +217,7 @@ const itemsContract = {
     )
     .output(landed),
 
-  // a note from markdown, as an agent writes one: a page link `[Title](mention:<id>)`, or
+  // a note from markdown, as an agent writes one: an item link `[Title](mention:<id>)`, or
   // `[[Title]]` for the one item so titled; its title and tags are the request's alone, so a `---`
   // block opening the markdown is a code block
   createNote: signedBase

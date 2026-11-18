@@ -1,4 +1,4 @@
-// The library's page at an address, for a screen's suite: the layout the page draws, opened by what
+// The library tab at an address, for a screen's suite: the layout the tab draws, opened by what
 // the suite hands in place of the tab's open, so a screen runs under the address, the QueryClient
 // and the library it runs under in the tab.
 

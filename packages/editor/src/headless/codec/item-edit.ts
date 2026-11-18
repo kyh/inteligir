@@ -141,7 +141,7 @@ const appended = (pieces: readonly Piece[], text: string, edit: number): Piece[]
   { blocks: [], edit, kind: "edited", text },
 ];
 
-// what a page link the agent kept or wrote names: an item a replaced block linked (its title
+// what an item link the agent kept or wrote names: an item a replaced block linked (its title
 // live, or the one it showed when the item is gone), or one the library holds
 const readPortsFor = (
   replaced: readonly LibraryBlock[],

@@ -40,7 +40,7 @@ export const sameBody = (a: readonly BodyBlock[], b: readonly BodyBlock[]): bool
     return other !== undefined && one.section === other.section && sameJson(one.block, other.block);
   });
 
-// an item a page link names, or a url's key, so an item saved from that address finds the
+// the item an item link names, or a url's key, so an item saved from that address finds the
 // notes that linked it
 type DerivedLink =
   | { readonly targetId: string; readonly targetKey: null }

@@ -13,7 +13,7 @@ import type { FoldedTitle } from "@repo/editor/mention/rank-titles";
 // provider would put a type edge back across the package boundary. Everything is the library's own
 // key: an item by its id, a file by its bytes' sha.
 
-// an item a page link can name, as the library's titles list it: its id and the title it goes by now
+// an item as an item link names it, from the library's titles: its id and the title it goes by now
 export interface LinkTarget {
   readonly id: string;
   readonly title: string;
@@ -30,7 +30,7 @@ export interface LibraryTitles {
 }
 
 // Beside the host rather than in it: the titles move with the library while the host never
-// changes, so only a page link and the picker re-render, and the titles outlive a host installed
+// changes, so only an item link and the picker re-render, and the titles outlive a host installed
 // again. Each keystroke in the picker reads them, so every key and fold is made once per listing.
 const titles = createStore<LibraryTitles>()(() => ({
   byId: new Map(),

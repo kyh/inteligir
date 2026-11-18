@@ -1,7 +1,7 @@
 // What a page that draws an item may load: its own origin's files and bytes its host handed it,
 // never a web address. An image or a video a note names would otherwise be fetched the moment a
 // device opens it, a request no person made, and the agent writes notes a saved page may steer.
-// The library's page and the phone's note page spread these into their content policies.
+// The library tab and the phone's note page spread these into their content policies.
 export const DRAWING_DIRECTIVES = [
   "default-src 'self'",
   // React's style attributes and the editor's runtime <style> are not nonceable

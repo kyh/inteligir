@@ -1,5 +1,5 @@
-//! The Inteligir Mac app: one window on the library's page the site serves, the macOS menu, and
-//! the update flow the page drives through three commands.
+//! The Inteligir Mac app: one window on the site's library tab, the macOS menu, and the
+//! update flow the tab drives through three commands.
 
 mod menu;
 mod navigation;

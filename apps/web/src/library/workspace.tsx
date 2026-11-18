@@ -1,4 +1,4 @@
-// The library's page as a layout: the rail of scopes, the grid of the scope or the item open in its
+// The library tab as a layout: the rail of scopes, the grid of the scope or the item open in its
 // place, and the right panel (Info, the agent), over the account's library cell. It draws where
 // the tab is, which rides the url, and keeps what only it holds: the grid's listing and selection,
 // the window's chords and the save of a paste or a drop no field took. What a press does is a

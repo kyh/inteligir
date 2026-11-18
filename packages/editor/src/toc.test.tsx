@@ -75,7 +75,7 @@ describe("outline targets", () => {
     expect(rows()).toStrictEqual(["1 Top", "2.0 Quoted", "3 Tails"]);
   });
 
-  it("names a heading by its words, a page link, a date and a formula among them", () => {
+  it("names a heading by its words, an item link, a date and a formula among them", () => {
     const editor = mountValue([
       {
         children: [

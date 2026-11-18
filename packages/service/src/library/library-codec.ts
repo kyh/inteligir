@@ -1,7 +1,7 @@
 // The markdown codec's ports over the library's rows, read in one round inside the write that
 // uses them, or before it for an agent's edit (`@repo/editor/headless/codec/one-round-lookup`),
 // which is made outside any write (`../body/edit-body`): a `[[Title]]` names the one live
-// item whose card shows that title or which an alias files under it, a page link an item by its
+// item whose card shows that title or which an alias files under it, an item link an item by its
 // id, its card's title the words a link shows, and `assets/<sha>` the library's own file under that
 // sha, its kind read off the type it was uploaded as.
 

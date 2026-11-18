@@ -39,7 +39,7 @@ const WORDS = [
 
 const WIKI_TARGETS = ["Alpha Note", "Some Note", "Other", "Project X", "Hub"];
 
-// a page link as the editor writes one, to an item by its id
+// an item link as the editor writes one, to an item by its id
 const pageLink = (rng: Rng): string => {
   const at = int(rng, WIKI_TARGETS.length);
   return `[${WIKI_TARGETS[at] ?? ""}](mention:0190a000-0000-7000-8000-00000000000${String(at)})`;
@@ -56,7 +56,7 @@ const wikiLinkPlain = (rng: Rng): string => {
   return chance(rng, 0.2) ? `![[${target}]]` : pageLink(rng);
 };
 
-// a page link as the editor writes it, or one of Obsidian's spellings an import reads as one
+// an item link as the editor writes it, or one of Obsidian's spellings an import reads as one
 const wikiLink = (rng: Rng): string => {
   const target = pick(rng, WIKI_TARGETS);
   switch (int(rng, 4)) {

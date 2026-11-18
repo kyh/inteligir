@@ -1,5 +1,5 @@
-// The library's tab, in a browser or the Mac app's window alike, opened once a document whatever
-// library page it opens on: it reads the session the site's sign-in left and makes the wire, what
+// The library tab, in a browser or the Mac app's window alike, opened once a document whatever
+// address it opens on: it reads the session the site's sign-in left and makes the wire, what
 // asks what moved, the shell's store and the QueryClient the workspace and Settings share, and with
 // no session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
 // run: there is nothing to choose before it. Where the tab's session stands after that is one
