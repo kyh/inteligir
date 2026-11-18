@@ -4,19 +4,11 @@ const ci = process.env.CI !== undefined;
 
 // The flows the app on Next does not run yet, each leaving as its area lands: a file whole, or a
 // test by its title.
-const PENDING_FILES = ["editor.spec.ts", "note-links.spec.ts", "saving.spec.ts"];
+const PENDING_FILES = ["saving.spec.ts"];
 const PENDING_TESTS = [
   // each lands in the library tab
   "the site's sign-up spends its invite, and a signed-out tab signs in and comes back",
   "Settings waits offline, ends another device, turns the agent off, signs out and deletes",
-  // each opens a file or a note
-  "the grid opens, narrows, previews, tags, deletes, files and follows the cell",
-  "Back and the tab's close ask before they lose typing no connection carried",
-  "a PDF item draws in the browser's own viewer",
-  "the palette finds exactly the items holding the words, a word typed a moment ago included",
-  // each waits on notes saved, not live
-  "a message from an open item names the item",
-  "Undo this turn takes the agent's line back and keeps what was typed, in the cell and both tabs",
   // each waits on the filing rules' rows (packages/service/src/rpc/unrouted.test.ts)
   "the filing rules start from the starter's and save, and Tidy my library files from Unsorted",
 ];

@@ -398,8 +398,8 @@ export const typeAfter = async (page: Page, line: string, typed: string): Promis
   if (box === null) {
     throw new Error(`"${line}" is not drawn`);
   }
-  // clicked at its end, not its middle: a live edit landing before the editor reads the caret End
-  // moved puts it back where the click left it
+  // clicked at its end, not its middle: a body laid in before the editor reads the caret End moved
+  // puts it back where the click left it
   await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
   await page.keyboard.press("End");
   await page.keyboard.type(typed);

@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
-import type { Page, WebSocketRoute } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
-import { V1_NOTES_PATH } from "@repo/contract/library/note-socket";
+import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { EDITOR, newId, openLibrary, test, typeAfter, upload } from "./fixtures";
 
 const PIXEL = Buffer.from(
@@ -248,55 +248,46 @@ test("a write from another device appears", async ({ cloud, library, page }) => 
   await expect(cardOf(page, "Written elsewhere")).toBeVisible({ timeout: 20_000 });
 });
 
-// the note's socket is cut while the browser still says it is online, so what is typed before the
-// editor goes read-only is typing no connection carried
-test("Back and the tab's close ask before they lose typing no connection carried", async ({
-  cloud,
-  library,
-  page,
-}) => {
-  const line = "A line the note holds.";
-  const { item } = await library.items.createNote({
-    markdown: `# Plans\n\n${line}\n`,
-    title: "Plans",
+test.describe(() => {
+  test.use({ allowedErrors: /net::ERR_FAILED \(\S+\/library\/items\/saveBody\)/u });
+
+  // every save of the note is dropped on its way while the browser still says it is online, so what is
+  // typed is typing no save carried
+  test("Back and the tab's close ask before they lose typing no save carried", async ({
+    cloud,
+    library,
+    page,
+  }) => {
+    const line = "A line the note holds.";
+    const { item } = await library.items.createNote({
+      markdown: `# Plans\n\n${line}\n`,
+      title: "Plans",
+    });
+    await page.route(`**${V1_RPC_PATH}/library/items/saveBody`, async (route) => {
+      await route.abort();
+    });
+    await openLibrary(page, cloud);
+    await cardOf(page, "Plans").dblclick();
+    await expect(page.locator(EDITOR)).toContainText(line);
+    await typeAfter(page, line, " Typed with no save.");
+
+    const ask = page.getByRole("alertdialog", { name: "Leave without saving?" });
+    await page.goBack();
+    await ask.getByRole("button", { name: "Stay" }).click();
+    await expect(page).toHaveURL(itemParam(item.id));
+    await expect(page.locator(EDITOR)).toContainText("Typed with no save.");
+
+    const closing = page.waitForEvent("dialog");
+    await page.close({ runBeforeUnload: true });
+    const unload = await closing;
+    expect(unload.type()).toBe("beforeunload");
+    await unload.dismiss();
+
+    await page.goBack();
+    await ask.getByRole("button", { name: "Leave anyway" }).click();
+    await expect(page.getByRole("grid", { name: "Library" })).toBeVisible();
+    await expect(page).toHaveURL(itemParam(null));
   });
-  const sockets: WebSocketRoute[] = [];
-  let cut = false;
-  await page.routeWebSocket(new RegExp(`${V1_NOTES_PATH}/`, "u"), async (socket) => {
-    if (cut) {
-      await socket.close();
-      return;
-    }
-    sockets.push(socket);
-    socket.connectToServer();
-  });
-  await openLibrary(page, cloud);
-  await cardOf(page, "Plans").dblclick();
-  await expect(page.locator(EDITOR)).toContainText(line);
-
-  cut = true;
-  for (const socket of sockets) {
-    await socket.close();
-  }
-  await typeAfter(page, line, " Typed with no connection.");
-  await expect(page.locator(EDITOR)).toHaveAttribute("contenteditable", "false");
-
-  const ask = page.getByRole("alertdialog", { name: "Leave without saving?" });
-  await page.goBack();
-  await ask.getByRole("button", { name: "Stay" }).click();
-  await expect(page).toHaveURL(itemParam(item.id));
-  await expect(page.locator(EDITOR)).toContainText("Typed with no connection.");
-
-  const closing = page.waitForEvent("dialog");
-  await page.close({ runBeforeUnload: true });
-  const unload = await closing;
-  expect(unload.type()).toBe("beforeunload");
-  await unload.dismiss();
-
-  await page.goBack();
-  await ask.getByRole("button", { name: "Discard edits" }).click();
-  await expect(page.getByRole("grid", { name: "Library" })).toBeVisible();
-  await expect(page).toHaveURL(itemParam(null));
 });
 
 // Chromium frames the PDF viewer, so a page policy that refuses the frame is a console error the
