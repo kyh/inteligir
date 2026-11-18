@@ -6,7 +6,7 @@
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 
-import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
+import { tagSpansIn } from "@repo/contract/library/derive-item";
 
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 
@@ -34,7 +34,7 @@ const TagChipPlugin = createSlatePlugin({
       }
     }
     const ranges: DecoratedRange[] = [];
-    for (const span of inlineTagSpans(node.text)) {
+    for (const span of tagSpansIn(node.text)) {
       const range: DecoratedRange & { tagChip: true } = {
         anchor: { offset: span.start, path },
         focus: { offset: span.end, path },

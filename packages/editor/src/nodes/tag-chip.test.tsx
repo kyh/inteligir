@@ -11,6 +11,7 @@ import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 
 const showTag = vi.fn<(tag: string) => void>();
 beforeEach(() => {
@@ -60,6 +61,12 @@ describe("tag chip rendering", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha and #beta" }])]);
     expect(chips(container)).toStrictEqual(["#alpha", "#beta"]);
     expect(container.textContent).toBe("todo #alpha and #beta");
+  });
+
+  it("chips no tag longer than a line, which the index reads as text", () => {
+    const long = "t".repeat(ITEM_FIELD_CAPS.line + 1);
+    const { container } = renderValue([paragraph([{ text: `#alpha and #${long}` }])]);
+    expect(chips(container)).toStrictEqual(["#alpha"]);
   });
 
   it("clicking a chip asks the rail for that tag's notes", () => {

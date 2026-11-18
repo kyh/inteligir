@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { deriveBody, deriveItem } from "./derive-item";
 import type { BodyBlock } from "./derive-item";
+import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
 import { noteFixture, paragraph } from "../test-support/library-items";
@@ -108,6 +109,15 @@ describe(deriveBody, () => {
       { origin: "inline", tag: "kept" },
     ]);
     expect(derive(noteFixture(), bodyOf([literal, fenced], "article")).tags).toStrictEqual([]);
+  });
+
+  it("reads a #tag up to a line long, as a field's tag is held, and a longer one as text", () => {
+    const atLine = "t".repeat(ITEM_FIELD_CAPS.line);
+    const derived = derive(
+      noteFixture(),
+      bodyOf([paragraph("p", `#${atLine} and #${atLine}s, not a tag`)]),
+    );
+    expect(derived.tags).toStrictEqual([{ origin: "inline", tag: atLine }]);
   });
 
   it("reads a body's text, its files and whether it holds a page", () => {

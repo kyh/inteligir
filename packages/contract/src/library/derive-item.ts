@@ -10,8 +10,10 @@ import { z } from "zod";
 import { itemNameFromUrl } from "../items/item-name";
 import { urlKey, urlSearchText } from "../items/item-url";
 import { inlineTagSpans } from "../knowledge/tag-grammar";
+import type { InlineTagSpan } from "../knowledge/tag-grammar";
 import { clipSnippet } from "../text/clip-text";
 import { sameJson, utf8ByteLength } from "./canonical-json";
+import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import { collectFileShas } from "./library-nodes";
 import type { LibraryBlock, LibraryElement, LibraryNode, LibrarySection } from "./library-nodes";
@@ -231,6 +233,12 @@ const visitElements = (nodes: readonly LibraryNode[], visit: (node: LibraryEleme
   }
 };
 
+// the `#tags` a run of text names as the library files them: the grammar's, each held to a line as
+// a field's tag is, since the rail and a scope take none longer; the editor draws its chips by
+// these (`packages/editor/src/kits/tag-chip-kit.tsx`)
+export const tagSpansIn = (text: string): InlineTagSpan[] =>
+  inlineTagSpans(text).filter(({ tag }) => tag.length <= ITEM_FIELD_CAPS.line);
+
 // where a `#name` is the text it is and never a tag: code and a link's label, as the editor reads it
 // (`packages/editor/src/kits/tag-chip-kit.tsx`)
 const LITERAL_TYPES = new Set<string>(["a", "code_block", "code_line"]);
@@ -240,7 +248,7 @@ const LITERAL_TYPES = new Set<string>(["a", "code_block", "code_line"]);
 const textTags = (node: LibraryNode, literal: boolean, into: DerivedTag[]): void => {
   if (isText(node)) {
     if (!literal && node.code !== true) {
-      for (const span of inlineTagSpans(node.text)) {
+      for (const span of tagSpansIn(node.text)) {
         into.push({ origin: "inline", tag: span.tag });
       }
     }
