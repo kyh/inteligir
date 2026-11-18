@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { V1_BLOBS_NAME_PARAM, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import { EDITOR, newId, openLibrary, skipScriptedPaste, test, typeAfter, upload } from "./fixtures";
 
@@ -294,8 +294,9 @@ test.describe(() => {
 
 // Chromium frames the PDF viewer, so a page policy that refuses the frame is a console error the
 // watch fails on, and the frame never appears; headless WebKit frames no viewer at all, and
-// Firefox's frame tells Playwright no address
-test("a PDF item draws in the browser's own viewer", async ({
+// Firefox's frame tells Playwright no address. The viewer is titled by the name the file came
+// with, which its download saves it as too
+test("a PDF item draws in the browser's own viewer, under its own name", async ({
   account,
   browserName,
   cloud,
@@ -304,10 +305,11 @@ test("a PDF item draws in the browser's own viewer", async ({
 }) => {
   test.skip(browserName !== "chromium", "only Chromium frames its PDF viewer");
   const sha = await upload(cloud, account, PDF, "application/pdf");
+  const name = "Lecture notes é.pdf";
   const lecture = await library.items.createFile({
     folderId: null,
     id: newId(),
-    name: "Lecture.pdf",
+    name,
     savedAt: Date.now(),
     sha,
     tags: [],
@@ -316,7 +318,14 @@ test("a PDF item draws in the browser's own viewer", async ({
   await openLibrary(page, cloud);
   await cardOf(page, "Lecture").dblclick();
   await expect(page).toHaveURL(itemParam(lecture.item.id));
+  const asked = new URLSearchParams({ [V1_BLOBS_NAME_PARAM]: name });
   await expect
     .poll(() => page.frames().map((frame) => frame.url()))
-    .toContain(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`);
+    .toContain(`${cloud.origin}${V1_BLOBS_PATH}/${sha}?${asked.toString()}`);
+  await expect
+    .poll(
+      async () =>
+        await Promise.all(page.frames().map(async (frame) => await frame.title().catch(() => ""))),
+    )
+    .toContain(name);
 });

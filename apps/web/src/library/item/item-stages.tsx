@@ -44,7 +44,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
   if (sha === null) {
     return null;
   }
-  const url = fileUrl(sha);
+  const url = fileUrl(sha, fields.originalName);
   switch (fields.kind) {
     case "image": {
       return (

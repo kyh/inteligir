@@ -433,6 +433,8 @@ note under the editor's content policy; what it cannot run is below.
   20 s.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
+- **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
+  with, and its download saves it under that name.
 - **Safari, Chrome and Firefox**: a note saving a second after typing stops, the
   offline notice, the leave prompt over typing that couldn't save on Back and on
   closing the tab, Settings opened,

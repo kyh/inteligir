@@ -2,7 +2,7 @@
 // cookie, which the browser keeps as long as the cloud says a file under its sha never changes, and
 // sent up there by their SHA-256 before anything names them.
 
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { V1_BLOBS_NAME_PARAM, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { uploadBlob } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
 import { fileSha } from "@repo/contract/library/file-sha";
@@ -13,7 +13,12 @@ export interface FileCloud extends V1Transport {
   readonly onSessionEnd: (end: SessionEnd) => void;
 }
 
-export const fileUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
+// an item's original asks for the name it was saved under, which the browser's viewer titles it by
+// and its download saves it as
+export const fileUrl = (sha: string, name: string | null = null): string =>
+  name === null
+    ? `${V1_BLOBS_PATH}/${sha}`
+    : `${V1_BLOBS_PATH}/${sha}?${new URLSearchParams({ [V1_BLOBS_NAME_PARAM]: name }).toString()}`;
 
 // a file's bytes whole, as a Download saves one
 export const readFile = async (cloud: V1Transport, sha: string): Promise<Blob> => {

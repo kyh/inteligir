@@ -3,8 +3,9 @@
 // a precondition and a range past the end, so the store is asked only to stream; the route spells
 // the status, since a store may answer a range as a whole file. A stranger's html file is served
 // under a script-less sandbox, any other file under a sandbox too, but a PDF, whose viewer a
-// sandbox blanks.
+// sandbox blanks. A file an item holds as its original is served under that item's name.
 
+import { V1_BLOBS_NAME_PARAM } from "@repo/contract/library/library-blobs";
 import { SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { db } from "@repo/db/drizzle-client";
 
@@ -12,7 +13,7 @@ import { logUnhandled } from "../log";
 import { admit } from "../rpc/admit";
 import type { SessionDoor } from "../rpc/admit";
 import { rpcFault, rpcRefusal } from "../rpc/rpc-refusal";
-import { fileOf } from "./file-names";
+import { fileOf, servedNameOf } from "./file-names";
 import type { HeldFile } from "./file-names";
 import { FILE_STORE } from "./file-store-of";
 import { plainText } from "./plain-text";
@@ -46,6 +47,23 @@ const serveUnder = (headers: Headers, mime: string): void => {
     return;
   }
   headers.set("content-security-policy", SANDBOX_POLICY);
+};
+
+// RFC 8187's ext-value, which spells any name in ASCII: encodeURIComponent leaves `'`, `(`, `)` and
+// `*` bare, which its grammar reserves
+const extValueOf = (name: string): string =>
+  encodeURIComponent(name)
+    .replaceAll("'", "%27")
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29")
+    .replaceAll("*", "%2A");
+
+// the name a viewer titles the file by and a download saves it as; inline, so the file still opens
+// where the page draws it
+const nameUnder = (headers: Headers, name: string | null): void => {
+  if (name !== null) {
+    headers.set("content-disposition", `inline; filename*=UTF-8''${extValueOf(name)}`);
+  }
 };
 
 // a file never changes under its sha, so a tab's browser keeps it as long as it likes, and no
@@ -151,8 +169,14 @@ const readHeld = async (
   {
     door,
     held,
+    name,
     sha,
-  }: { readonly door: SessionDoor; readonly held: HeldFile; readonly sha: string },
+  }: {
+    readonly door: SessionDoor;
+    readonly held: HeldFile;
+    readonly name: string | null;
+    readonly sha: string;
+  },
 ): Promise<Response> => {
   const etag = `"${sha}"`;
   const headers = new Headers(READ_HEADERS);
@@ -163,6 +187,7 @@ const readHeld = async (
   headers.set("etag", etag);
   headers.set("last-modified", new Date(held.createdAt).toUTCString());
   serveUnder(headers, held.mime);
+  nameUnder(headers, name);
   const precondition = preconditionStatus(request, held, etag);
   if (precondition !== null) {
     return new Response(null, { headers, status: precondition });
@@ -184,7 +209,8 @@ const readHeld = async (
 };
 
 export const fileReadRoute = async (request: Request): Promise<Response> => {
-  const sha = BLOB_PATH.exec(new URL(request.url).pathname)?.groups?.sha ?? "";
+  const url = new URL(request.url);
+  const sha = BLOB_PATH.exec(url.pathname)?.groups?.sha ?? "";
   if (!SHA256_HEX_RE.test(sha)) {
     return plainText(404, "A file is named by its SHA-256.");
   }
@@ -198,12 +224,15 @@ export const fileReadRoute = async (request: Request): Promise<Response> => {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return plainText(405, "A file is read here.", { allow: "GET, HEAD" });
     }
-    const { principal } = admission;
-    const held = await fileOf(db, principal.accountId, sha);
+    const { accountId, actor } = admission.principal;
+    const [held, name] = await Promise.all([
+      fileOf(db, accountId, sha),
+      servedNameOf(db, accountId, sha, url.searchParams.get(V1_BLOBS_NAME_PARAM)),
+    ]);
     if (held === null) {
       return plainText(404, "That file isn't in the library.");
     }
-    return await readHeld(request, { door: principal.actor.door, held, sha });
+    return await readHeld(request, { door: actor.door, held, name, sha });
   } catch (error) {
     logUnhandled(request, error);
     return rpcFault();

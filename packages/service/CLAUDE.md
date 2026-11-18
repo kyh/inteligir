@@ -298,6 +298,11 @@ DOM (`oxlint.config.ts`).
   row, and reads the store only for a body.** A media loader's probes and a
   device's revalidations then cost no store read.
   `packages/service/src/files/file-read-route.ts`.
+- **`/v1/blobs/<sha>` names a file only by a name an item holds it under as
+  its original: the `?name=` asked when one does, the first saved's
+  otherwise.** A browser's viewer titles a file and a download saves it by its
+  `content-disposition`, and a name nothing gave it would let a link pass a
+  file off as anything. `packages/service/src/files/file-names.ts`.
 
 ## Background work
 

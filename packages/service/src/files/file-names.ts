@@ -5,8 +5,8 @@
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
-import { changeSetFile, file, itemFile } from "@repo/db/library-schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { changeSetFile, file, item, itemFile } from "@repo/db/library-schema";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 
 import { anyOf, chunksOf } from "../library/set-sql";
@@ -76,6 +76,27 @@ export const fileOf = async (
     .from(file)
     .where(and(eq(file.accountId, accountId), eq(file.sha256, sha)));
   return row ?? null;
+};
+
+// The name a file is served under: one an item holds it by as its original, `asked` when an item
+// holds it by that, else the first saved's; null when no item names it so. Asked through
+// `item_file`, whose index finds the file's items without reading the library's
+export const servedNameOf = async (
+  tx: DbExecutor,
+  accountId: string,
+  sha: string,
+  asked: string | null,
+): Promise<string | null> => {
+  const rows = await tx
+    .select({ name: item.originalName })
+    .from(itemFile)
+    .innerJoin(item, and(eq(item.accountId, itemFile.accountId), eq(item.id, itemFile.itemId)))
+    .where(
+      and(eq(itemFile.accountId, accountId), eq(itemFile.sha256, sha), eq(item.originalSha, sha)),
+    )
+    .orderBy(asc(item.savedAt), asc(item.id));
+  const names = rows.map((row) => row.name).filter((name) => name !== null);
+  return asked !== null && names.includes(asked) ? asked : (names[0] ?? null);
 };
 
 // the files an item names now, in place of those it named; each file whose name came or went is

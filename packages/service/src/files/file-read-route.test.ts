@@ -1,8 +1,9 @@
 // `/v1/blobs/<sha>` end to end: a file uploaded at the sha its bytes hash to, read back whole, by
-// range and by revalidation, under the policy its kind is served with, and out of every other
-// account's reach.
+// range and by revalidation, under the policy its kind is served with and the name an item holds
+// it by, and out of every other account's reach.
 
 import { CLIENT_BUILD_HEADER } from "@repo/contract/client-build";
+import { V1_BLOBS_NAME_PARAM } from "@repo/contract/library/library-blobs";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
@@ -15,7 +16,9 @@ import {
   FLOOR_VERSION,
   pageHeaders,
   phoneHeaders,
+  v1Link,
 } from "../test-support/v1-link";
+import { mintLibraryId } from "../library/library-ids";
 import { fileReadRoute } from "./file-read-route";
 
 const TEN = "0123456789";
@@ -32,6 +35,17 @@ const read = async (
   headers: Record<string, string>,
   method = "GET",
 ): Promise<Response> => await fileReadRoute(new Request(blobUrlOf(sha), { headers, method }));
+
+// a read that asks for the file under `name`, as the tab's viewer does
+const readNamed = async (
+  sha: string,
+  name: string,
+  headers: Record<string, string>,
+): Promise<Response> => {
+  const url = new URL(blobUrlOf(sha));
+  url.searchParams.set(V1_BLOBS_NAME_PARAM, name);
+  return await fileReadRoute(new Request(url, { headers }));
+};
 
 // an answer whose body was read to the end, so nothing of it is held open
 const drained = async (answer: Promise<Response>): Promise<Response> => {
@@ -173,6 +187,61 @@ dbSuite("a file's read", () => {
     const viewer = await drained(read(pdf, auth));
     expect(viewer.headers.get("content-security-policy")).not.toContain("sandbox");
     expect(viewer.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
+  });
+
+  it("is named by the name an item holds it under, the one asked for if an item holds it so, and never by another", async () => {
+    const { auth, cookie } = await signedIn("blob-named@example.test");
+    const { library } = v1Link(auth);
+    const pdf = await uploaded(auth, "%PDF-1.7 named", "application/pdf");
+    const nameOf = async (answer: Promise<Response>) => {
+      const response = await drained(answer);
+      return response.headers.get("content-disposition");
+    };
+    const saved = async (name: string, savedAt: number) =>
+      await library.items.createFile({
+        folderId: null,
+        id: mintLibraryId(savedAt),
+        name,
+        savedAt,
+        sha: pdf,
+        tags: [],
+      });
+
+    await expect(nameOf(read(pdf, auth))).resolves.toBeNull();
+    await expect(nameOf(readNamed(pdf, "invoice.html", auth))).resolves.toBeNull();
+
+    const first = "Résumé 2026 (final) 'v2'*.pdf";
+    await saved(first, 1_700_000_000_000);
+    const named = await drained(read(pdf, pageHeaders(cookie)));
+    const disposition = named.headers.get("content-disposition") ?? "";
+    expect(disposition).toBe(
+      "inline; filename*=UTF-8''R%C3%A9sum%C3%A9%202026%20%28final%29%20%27v2%27%2A.pdf",
+    );
+    expect(decodeURIComponent(disposition.split("''")[1] ?? "")).toBe(first);
+
+    const second = "講義 notes.pdf";
+    await saved(second, 1_700_000_000_001);
+    await expect(nameOf(read(pdf, auth))).resolves.toBe(disposition);
+    await expect(nameOf(readNamed(pdf, second, auth))).resolves.toBe(
+      "inline; filename*=UTF-8''%E8%AC%9B%E7%BE%A9%20notes.pdf",
+    );
+    await expect(nameOf(readNamed(pdf, "invoice.html", auth))).resolves.toBe(disposition);
+    await expect(nameOf(read(pdf, { ...auth, range: "bytes=0-1" }, "HEAD"))).resolves.toBe(
+      disposition,
+    );
+
+    // the name leaves the bytes' own headers as an unnamed read answers them
+    const unnamed = await drained(
+      read(await uploaded(auth, "%PDF-1.7 other", "application/pdf"), pageHeaders(cookie)),
+    );
+    for (const header of [
+      "cache-control",
+      "content-security-policy",
+      "content-type",
+      "x-content-type-options",
+    ]) {
+      expect(named.headers.get(header), header).toBe(unnamed.headers.get(header));
+    }
   });
 
   it("reads from the site's own tab, and out of every other account's reach", async () => {
