@@ -580,8 +580,9 @@ const agentContract = {
     .input(z.strictObject({ threadId: idSchema }))
     .output(eventIterator(threadStreamEventSchema)),
 
-  // the thread, its events and its turns, gone from the library at once, and the agent's session of
-  // it ended, which keeps a record that its runs happened but not what was said
+  // the thread read by nothing from now on; its agent session is ended, keeping a record that its
+  // runs happened but not what was said, then its row, events and turns go. What its turns spent
+  // stays in the day's ledger, and what Undo keeps of them until its seven days lapse
   delete: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ opId, threadId: idSchema }))

@@ -46,13 +46,14 @@ refer to as "**Europe**", and "**European**" should be understood accordingly).
 ## Personal information we collect
 
 Your library, the notes you write and the links, pages and files you save, is
-your account's, kept by our cloud: the part of the Service we run on
-Cloudflare, at inteligir.com. An account is required. Each device you sign in
-on reads your library from our cloud and sends what you change there, and our
-cloud tells your other devices when one has changed it. Your conversations with
-the built-in agent are kept with your library, so every device you sign in on
-shows them; what the agent reads to answer you goes to Anthropic, which runs the
-model for us (see [How we share your personal
+your account's, kept by our cloud: the part of the Service we run at
+inteligir.com, on Vercel, with its database on Supabase. An account is
+required. Each device you sign in on reads your library from our cloud, sends
+what you change there and asks our cloud what your other devices changed. Your
+conversations with the built-in agent are kept with your library, so every
+device you sign in on shows them; what the agent reads to answer you goes to
+Anthropic, which runs the model for us, and the agent searches the web and
+reads web pages without asking you first (see [How we share your personal
 information](#how-we-share-your-personal-information)).
 
 **Information you provide to us.** Personal information you may provide to us
@@ -68,7 +69,7 @@ through the Service or otherwise includes:
     the sign-in software our cloud runs. Your password is sent over HTTPS only
     when you create the account (in the app or on our website; from the phone,
     that also signs the phone in) or sign a device in, and no device keeps it.
-    A password reset emails you a link through Cloudflare's email sending.
+    A password reset emails you a link through Resend.
   - **Sessions**: one per device you sign in, browser, Mac app and iPhone alike,
     holding a random token our cloud keeps to recognize that device, the IP
     address and user agent it signed in from (by which Settings › Account names
@@ -88,20 +89,22 @@ through the Service or otherwise includes:
   can add or can have added to their content, such as keywords, geographical or
   location information, and other similar data. Specifically:
   - Every change a device of yours makes to items, files, folders and tags goes
-    to your library in our cloud. What you type in a note goes there as you type
-    it and on to every device that has the note open, as do the built-in agent's
-    edits. Nobody learns who else has a note open or where their cursor is.
+    to your library in our cloud. A note saves a second after you stop typing
+    in it, and every 5 seconds while you keep typing, as the whole note; your
+    other devices show it when they next ask, within 15 seconds while in front.
+    Nobody learns who else has a note open or where their cursor is.
   - For seven days after a turn of the built-in agent ends, so Undo can take it
     back, your library keeps what that turn changed in each item's fields, the
-    reading of a link it saved included, named for its conversation and turn,
+    text of each note it edited as it stood before the turn's first edit there,
+    and the reading of a link it saved, named for its conversation and turn,
     until you undo it. What you, an assistant or an import change is not kept
-    for Undo, nor is what you type in a note.
+    for Undo.
   - Your library is reachable only with a sign-in to your own account and holds
-    about 1 GB, each note's text and what Undo keeps included. A full library
-    still opens, downloads and lets you edit what it holds, but takes no new
-    items or files, and says so. A note holds about 8 MB; a full one takes no
-    more typing, and says so. A file over 100 MB is never kept. We can read
-    your library (see [Security](#security)).
+    about 1 GB of files and notes' text. A full library still opens, downloads
+    and lets you edit what it holds, but takes no new items or files, and says
+    so. A note holds about 1 MB; past that it stops saving until you shorten
+    it, and says so. A file over 100 MB is never kept. We can read your library
+    (see [Security](#security)).
 - **Other data** not specifically listed here, which we will use as described in
   this Privacy Policy or as otherwise disclosed at the time of collection.
 
@@ -129,11 +132,11 @@ as:
     first 64 bits) to create an account, redeem an invite, sign in or use any
     other sign-in page but the session check, and for an assistant to register
     itself to connect. Each count holds the address, what it counts, a number
-    and a time. Once you are signed in, attempts to delete the account are
-    counted the same way under the session, never an address; your devices'
-    reads and writes of your library are counted per session, and an
-    assistant's calls per the access you gave it, by Cloudflare's own rate
-    limiter over a minute, with no record in our database.
+    and a time. Once you are signed in, counts are kept the same way under what
+    the request carries, never an address: attempts to delete the account, and
+    your devices' calls and file reads, under the session; the files your
+    library takes in, under your account; and an assistant's calls, under the
+    access you gave it.
   - **The app's version.** The phone app and the browser extension name
     themselves and their version on each request, so our cloud can refuse a
     version too old to work with it rather than answer it wrongly. Our cloud
@@ -150,15 +153,15 @@ as:
     app's build and a random id the app keeps for that install, nothing about
     your library or your account.
 - **Online activity data**, limited to **a log of each request, kept by
-  Cloudflare.** Cloudflare logs each request our cloud answers, the pages of our
-  website included (the address asked for, less anything after a `?` in it, the
-  answer's status and the time), and keeps it for up to seven days, for us to
-  diagnose failures with; about one request in a hundred is traced in more
-  detail. An address never holds a file's name or anything you wrote, which the
-  apps send in a request's body; a file's address holds a fingerprint of its
-  contents, which identifies that exact file. Our cloud's error lines give that
-  address or the name of what failed, with the opening of the error's message,
-  which can quote what it was given.
+  Vercel.** Vercel logs each request our cloud answers, the pages of our website
+  included, such as the address asked for, the answer's status and the time, for
+  us to diagnose failures with. An address holds no file's name, and nothing you
+  wrote but what you put into your library's address yourself, such as a tag or
+  the words after `find=`, since the apps send what you write in a request's
+  body; a file's address holds a fingerprint of its contents, which identifies
+  that exact file. Our cloud's error lines give that address or the name of what
+  failed, with the opening of the error's message, which can quote what it was
+  given.
 
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
@@ -177,14 +180,11 @@ facilitated by cookies and other technologies. The Service uses only these:
   cookie, when you sign in or create an account there. It keeps you signed in
   for 60 days, renewed each day you use it, and signs in your library in a
   browser tab and the Mac app's window, which keeps it in the app's own web
-  storage on your Mac. When an assistant you are connecting sends you to our
-  consent page, the page sets one more, for at most ten minutes and cleared once
-  you answer, to tie your answer to the browser you were asked in. The iPhone
-  app keeps a session cookie of its own in the iPhone's Keychain, for that
-  iPhone alone and only while it is unlocked, and sends it only to our cloud.
-  The browser extension keeps no cookie of its own: with the `cookies`
-  permission for inteligir.com alone, it reads your browser's inteligir.com
-  session cookie and sends it with each save.
+  storage on your Mac. The iPhone app keeps a session cookie of its own in the
+  iPhone's Keychain, for that iPhone alone and only while it is unlocked, and
+  sends it only to our cloud. The browser extension keeps no cookie of its own:
+  with the `cookies` permission for inteligir.com alone, it reads your
+  browser's inteligir.com session cookie and sends it with each save.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's local storage and never sends it to us; your
   library in a browser tab keeps its settings and layout there too, and the
@@ -203,21 +203,20 @@ The apps also hold to these:
   when you follow it.
 - **Saving a link: from our cloud, to that site.** A link that reaches your
   library without its page (pasted or saved on the Mac, in a browser tab or on
-  the phone, saved by an assistant you connected or by the built-in agent once
-  you allowed it, seeing the whole address, imported, refreshed, or sent by the
-  browser extension as an address) is fetched once by our cloud, from
-  Cloudflare's network, for its title, site, description, readable text and the
-  cover image it names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud
-  our cloud asks that site's own oEmbed address (with X's `dnt=true`), for any
-  other page the oEmbed address the page names, and fetches the picture that
-  answer names; for a YouTube video it may fetch the video's still picture from
-  YouTube; for a link imported from Raindrop, the cover Raindrop recorded. Each
-  request carries no cookies, sign-in or referrer, names inteligir in a
-  Safari-compatible user agent with English as its language, and shows the site
-  Cloudflare's address, never yours. Our cloud fetches only web addresses on
-  their standard ports, by name: never an address written as numbers, and never
-  a name that points into a private network, whether you saved it or a page
-  redirected there.
+  the phone, saved by an assistant you connected or by the built-in agent,
+  imported, refreshed, or sent by the browser extension as an address) is
+  fetched once by our cloud, from Vercel's servers, for its title, site,
+  description, readable text and the cover image it names. For YouTube, Vimeo,
+  X, TikTok, Spotify and SoundCloud our cloud asks that site's own oEmbed
+  address (with X's `dnt=true`), for any other page the oEmbed address the page
+  names, and fetches the picture that answer names; for a YouTube video it may
+  fetch the video's still picture from YouTube; for a link imported from
+  Raindrop, the cover Raindrop recorded. Each request carries no cookies,
+  sign-in or referrer, names inteligir in a Safari-compatible user agent with
+  English as its language, and shows the site our cloud's address, never yours.
+  Our cloud fetches only web addresses on their standard ports, by name: never
+  an address written as numbers, and never a name that points into a private
+  network, whether you saved it or a page redirected there.
   The page's text and pictures land in your library; the page itself is not
   kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
@@ -282,9 +281,20 @@ assistant you connect yourself, such as Claude or ChatGPT. Specifically:
 - **The built-in agent runs in our cloud, on our account with Anthropic, not
   yours**: no device of yours talks to Anthropic, and you sign nothing in. What
   you ask it, the items you were looking at or selected, and what it reads of
-  your library to answer go to Anthropic through Cloudflare's AI Gateway (see
-  [How we share your personal
+  your library and the web to answer go to Anthropic through Vercel's AI
+  Gateway (see [How we share your personal
   information](#how-we-share-your-personal-information)).
+- **The built-in agent searches the web and reads web pages without asking you
+  first**, when what you ask reaches past your library. The words it searches
+  for go to Anthropic, which runs the search and hands back what it found. A
+  page it reads is fetched by our cloud, from Vercel's servers: only an
+  `https://` address on the public internet, never one inside a private
+  network, whether the agent named it or a page redirected there, with no
+  cookies, sign-in or referrer, showing the site our cloud's address, never
+  yours, and the whole address the agent wrote. Each search and page read shows
+  among the conversation's steps, with the opening of what it found. The agent
+  writes those words and addresses itself, so what it reads can steer them (see
+  [Security](#security)).
 - **An assistant you connect** on our consent page reads and changes your
   library through our cloud, and what it reads goes to its provider under the
   provider's own terms with you, as part of your conversation there.
@@ -361,28 +371,37 @@ Specifically, in our cloud:
 
 - **Items** stay until deleted for good or the account is deleted. Deleting an
   item moves it to Deleted; Delete forever removes its text and what Undo kept
-  of it at once, and each of its files once no other item, and nothing Undo can
-  still bring back, names it. Emptying Deleted, or Delete forever over more
-  items than the window has shown, does the same a batch at a time, which your
-  library finishes on its own within minutes, even if you close the window.
-- **What Undo keeps** of a turn of the built-in agent stays seven days after
-  the turn ends, or until you undo it, which deletes it at once, and is deleted
-  within about a day after that. For each turn of the built-in agent that
-  edited a note, the note's own store keeps the note as it stood at the turn's
-  first edit there and every change through its last, so Undo this turn can
-  take it back, for the same time.
-- **A conversation with the built-in agent**, its own record and its messages in
-  your library alike, is kept until you delete it or the account, which deletes
-  both.
+  of it at once, and each of its files a day after no other item, and nothing
+  Undo can still bring back, names it. Emptying Deleted, or Delete forever over
+  more items than the window has shown, does the same in one request.
+- **What Undo keeps** of a turn of the built-in agent, a note's earlier text
+  included, stays seven days after the turn ends, or until you undo it, which
+  deletes it at once, and is deleted within about a day after that.
+- **A conversation with the built-in agent**, its messages and its steps, is
+  kept in our database until you delete it or the account.
+- **The built-in agent's session of a conversation**, on Vercel, holds what the
+  conversation carries (your messages, what the agent read, searched for and
+  wrote, and any summary of its earlier part) while it lasts: until you delete
+  the conversation, until seven days pass without a turn, or until your first
+  message once the session is seven days old, which the conversation takes up
+  in a new session. As a session ends, the agent asks Vercel to delete what it
+  carried; Vercel keeps a record of each of its runs (their ids, times,
+  statuses, step names and attributes), without what was said, for the time
+  Vercel sets. Deleting the account does not end a session: each ends on its
+  own, as above.
+- **What the built-in agent spent**, each turn, model call and web search with
+  its cost, the conversation's id and the time, is kept 35 days, to hold your
+  account to its daily allowance; deleting a conversation leaves it, and
+  deleting the account deletes it.
 - **A session** is deleted when that device signs out, when another device signs
   it out from Settings › Account, when a password reset or the 20-session limit
   ends it, and, once it has lapsed 60 days after its last use, the next time it
   is presented; the rest go with the account.
-- **Throttling counts** are keyed on an address, a session or an assistant's
-  access, never an account, so deleting the account, ending a session or
-  removing an assistant does not find them. A count over a minute old is deleted
-  the next time a request to our sign-in service, from anyone, starts a fresh
-  count; nothing clears them on a timer.
+- **Throttling counts** are keyed on an address, a session, an account or an
+  assistant's access and filed under none of them, so deleting the account,
+  ending a session or removing an assistant does not find them. A count over an
+  hour old is deleted the next time a request to our sign-in service, from
+  anyone, starts a fresh count; nothing clears them on a timer.
 - **A password-reset link** is deleted when used. An unused one stops working
   after an hour and is deleted the next time anyone opens a reset link; deleting
   the account does not look for it, and once the account is gone it opens
@@ -391,13 +410,13 @@ Specifically, in our cloud:
   Settings › Account › Connected assistants, which ends it at once, or until 30
   days after it last renewed it, which it does while it keeps using it: removing
   the connector in the assistant stops its requests, and its access lapses at
-  those 30 days. Deleting the account ends every assistant's access within about
-  a minute. A record of each assistant you disconnected (its access's id and
-  your account) stays until the account is deleted, so one renewing its access
-  at that moment stays out. What an assistant registered (its name and
+  those 30 days. Resetting your password or deleting the account ends every
+  assistant's access at once. What an assistant registered (its name and
   addresses, never yours) is filed under no account, so deleting the account
-  leaves it until it is deleted 90 days after the assistant last used it.
-- **Cloudflare's request log** keeps each entry for up to seven days.
+  leaves it, and nothing deletes it on a timer.
+- **Vercel's request log**, and its AI Gateway's record of each request the
+  built-in agent makes, keep each entry for the time Vercel sets for our
+  account.
 
 **Your phone.** Signed in, the phone keeps what it last read of your library, so
 that still shows with no connection: the items, lists, folders and
@@ -432,37 +451,34 @@ the time of collection).
 us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
-- **Cloudflare** runs our cloud and our website:
-  - its D1 database holds your account, sessions, the invite you redeemed, an
-    unused password-reset link, the record of each assistant you disconnected
-    and the throttling counts;
-  - its KV storage holds each assistant you connected: what it registered (its
-    name and the addresses it gave), its access, filed under your account with
-    its name and what you let it do, and its tokens, kept only as hashes;
-  - Durable Objects of your own hold your library, your devices' live
-    connections and each conversation with the built-in agent;
-  - its R2 storage holds your files, under your account's own prefix;
-  - its Queues hold each link waiting for our cloud to read it (your account's
-    id, the item's, its address and the address of any cover the save knew of)
-    until it is read or recorded as unreadable;
+- **Vercel** runs our cloud and our website, its code in Vercel's region in the
+  eastern United States:
+  - its servers answer every request, read the links and pages described above
+    and keep the request log described above;
+  - its Blob storage holds your files, under your account's own prefix, and
+    takes each file's bytes straight from your device;
+  - its Workflow service runs the built-in agent's session of each
+    conversation, as [Retention](#retention) says;
   - its AI Gateway passes each request the built-in agent makes to Anthropic,
-    asked to keep only its metadata (the model, how many tokens, its status,
-    how long it took and your account's id, by which it holds each account to a
-    daily limit of what the agent may spend), never what it carries;
-  - its email sending delivers your password-reset emails, and it keeps the
-    request log described above.
+    and keeps a record of each: the model, its tokens and searches, what it
+    cost, and the id of the agent's session it came from.
+- **Supabase** runs our database, in the eastern United States: your account,
+  sessions, the invite you redeemed, an unused password-reset link, the
+  throttling counts, each assistant you connected (what it registered, with its
+  name and the addresses it gave; its access, filed under your account with
+  what you let it do; and its tokens, kept only as hashes), your library and
+  what Undo keeps, each link waiting for our cloud to read it, your
+  conversations with the built-in agent and what the agent spent.
+- **Resend** delivers your password-reset emails.
 - **Anthropic** answers the built-in agent for us, on our account, not yours.
-  What you ask it, what you were looking at, and everything it reads of your
-  library to answer you (items, their text, folders and tags) go to Anthropic
-  in each request it makes, through Cloudflare's AI Gateway, under Anthropic's
-  terms with us. When a conversation grows long, Anthropic's API also writes a
-  summary of its earlier part and hands it back with the answer; our cloud keeps
-  it with the conversation and sends it in place of what it summarizes.
-  Anthropic's API keeps none of those requests, summaries or answers once it has
-  answered, past the parts it caches for at most an hour to answer the next
-  request of the same conversation sooner. The conversation itself is kept by
-  our cloud alone, so deleting it or the account leaves nothing to delete at
-  Anthropic.
+  What you ask it, what you were looking at, everything it reads of your
+  library to answer you (items, their text, folders and tags), and the pages
+  and search results it reads go to Anthropic in each request it makes, through
+  Vercel's AI Gateway, under Anthropic's terms with us, each with a fingerprint
+  of your account's id, not the id itself. Anthropic also runs the agent's web
+  searches. When a conversation grows long, the agent asks Anthropic to
+  summarize its earlier part, and sends the summary in place of what it
+  summarizes.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
 - **Expo** answers the iPhone app's update check.
@@ -519,6 +535,9 @@ contact us.
 
 **Privacy settings.** Signing a device out of your account (Settings › Account)
 ends its access, and on the phone deletes what it kept of your library.
+Turning off Settings › Account › Built-in agent stops its running turns and
+starts no more, so nothing more of your library goes to Anthropic or the web
+through it until you turn it on again.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If
@@ -542,8 +561,9 @@ Service needs an account: your library is your account's.
 content through your account: deleting an item moves it to Deleted, and emptying
 Deleted or Delete forever removes it, with what Undo kept of it (see
 [Retention](#retention)). Deleting a conversation with the built-in agent
-deletes it from our cloud and every device, stopping it first if it is still
-running.
+deletes it from our database and every device and ends the agent's session of
+it, stopping it if it is still running; what its turns spent and what Undo
+keeps of them lapse as [Retention](#retention) says.
 
 To delete everything our cloud holds for you, delete your account: Settings ›
 Account › Delete account…, on any Mac or browser tab signed in to it. It asks
@@ -553,20 +573,17 @@ on any other and delete from there. The device you delete from is signed out,
 and every other device is refused at its next request. You can also ask us to
 close your account by writing to kai@kyh.io from the account's email address.
 
-Deleting the account first closes your library, so nothing that arrives
-meanwhile can write to it. It then deletes your conversations with the built-in
-agent, stopping any still running, everything in your library (every item, its
-text and what Undo keeps), revokes every assistant's access with its tokens,
-and removes your email from the invite you redeemed, which stays used. Last, it
-deletes your sessions, your password hash, your account and the records of
-assistants you disconnected. Your files go from our file store within a day
-after, a batch at a time, and nothing can read them once the account is gone.
-If any step fails, the account stays
-and you can delete it again, which picks up where it stopped. What remains is a
-marker saying when your library was deleted, and nothing else, so a request
-already on its way finds it closed. Each of your devices erases its copy the
-next time our cloud refuses it. The throttling counts, an unused reset link and
-Cloudflare's request log lapse as [Retention](#retention) says.
+Deleting the account first removes your email from the invite you redeemed,
+which stays used. It then deletes, at once, your account, your password hash,
+your sessions, everything in your library (every item, its text and what Undo
+keeps), your conversations with the built-in agent and what it spent, and every
+assistant's access with its tokens. If any step fails, the account stays and you
+can delete it again. Your files go from our file store within a day after, a
+batch at a time, and nothing can read them once the account is gone. Each of
+your devices erases its copy the next time our cloud refuses it. The agent's
+sessions of your conversations, the throttling counts, an unused reset link,
+what an assistant registered and Vercel's request log lapse as
+[Retention](#retention) says.
 
 ## Other sites and services
 
@@ -586,23 +603,23 @@ the personal information we collect. However, security risk is inherent in all
 internet and information technologies and we cannot guarantee the security of
 your personal information.
 
-Your library and your conversations with the built-in agent live in Durable
-Objects of your own. The rest of what our cloud keeps for your account is filed
-under your account in storage every account shares: database rows that name
-your account, your files under your account's own prefix, and each assistant's
-access and tokens under your account. A few things are not filed that way: the
-throttling counts, an unused reset link, what an assistant registered, a link
-waiting for our cloud to read it (with your account's id beside it), and
-Cloudflare's own logs of each request and of each call the built-in agent makes.
-Your password is kept only as a hash; each session is a random token our cloud
-keeps as it is, to recognize that device; and the apps talk to our cloud over
-HTTPS.
+What our cloud keeps for your account is filed under your account in storage
+every account shares: database rows that name your account, your files under
+your account's own prefix, and the agent's session of each conversation. A few
+things are not filed that way: the throttling counts, an unused reset link,
+what an assistant registered, and Vercel's records of each request, of each
+call the built-in agent makes and of each run of its sessions. Your password is
+kept only as a hash; each session is a random token our cloud keeps as it is,
+to recognize that device; and the apps talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** Cloudflare encrypts its storage at
-  rest, but there is no end-to-end encryption. Don't keep in your library what
-  you wouldn't store in a hosted notes app.
+- **We can read what our cloud holds.** There is no end-to-end encryption.
+  Don't keep in your library what you wouldn't store in a hosted notes app.
+- **What the built-in agent reads can steer it.** It searches and reads the web
+  without asking you first, so a saved page, a search result or a page it reads
+  can tell it to fetch an address that carries words from your library to
+  whoever runs that site.
 - **A lost phone holds what it last read of your library**, behind its
   passcode. Signing it out from Settings › Account erases that the next time it
   goes online; a phone that never does keeps it.
@@ -612,9 +629,9 @@ These are the edges of that protection, stated plainly:
 - **An image or file you paste, drop or save is kept as the file it was**, on
   every device, with any location or camera details it carries; only a photo the
   phone's photo button adds is saved again without them.
-- **A device signed out from Settings › Account stops at its next request**, and
-  its live connection is closed, but signing it out cannot reach a response
-  already on its way.
+- **A device signed out from Settings › Account stops at its next request**, but
+  signing it out cannot reach a response already on its way, such as a
+  conversation it is following, for up to five minutes.
 - **Signing out on a device ends its session only if our cloud hears it.** A
   browser tab or the Mac waits for a connection to sign out; the phone goes on
   without one. A session no sign-out reached stays listed, and works for
@@ -1007,29 +1024,34 @@ personal information is transferred by contacting us at kai@kyh.io.
 
 Every call the Mac app, the phone, the browser extension, your library in a
 browser tab and our website's account pages make goes to one origin,
-`https://inteligir.com`, over HTTPS, and is one of these:
+`https://inteligir.com`, over HTTPS, but for a file's bytes on their way in,
+and is one of these:
 
 - **Signing in and out, sessions and password resets**, which Better Auth
   answers, and **creating an account**, which an invite code admits.
 - **Reading and changing your library and your account** (your devices, your
-  connected assistants, deleting the account), each one request, its contents
-  in its body and never its address, made with your device's session.
-- **Your files**, each sent once and read back by a fingerprint of its
-  contents, never its name; a file whose contents do not match its fingerprint
-  is not kept.
-- **Two live connections**, each opened on a one-minute pass your signed-in
-  device asks for, its sign-in checked again: one says your library or a
-  conversation with the built-in agent changed and how far it has come, and
-  carries the agent's reply as it is written; the other carries each change to
-  an open note's text to and from every device that has it open, and opens a
-  note in Deleted read-only.
+  connected assistants, the built-in agent, deleting the account), each one
+  request, its contents in its body and never its address, made with your
+  device's session. A window or app in front asks what changed every 15
+  seconds, and when you come back to it.
+- **A conversation with the built-in agent, followed** as one response that
+  carries the agent's work as it happens and ends within five minutes, when the
+  device asks again from where it left off.
+- **Your files**, each read back by a fingerprint of its contents, never its
+  name, and sent once: our cloud names an upload address at Vercel's Blob
+  storage (`https://vercel.com/api/blob/`), good for an hour and for that
+  file's size and type alone, holding your account's id and the file's
+  fingerprint; the device sends the bytes there with no cookie or sign-in, and
+  a file whose contents do not match its fingerprint is not kept.
 
 The apps call nothing else there. Everything else the app reaches is someone
-else's: **GitHub's release feed** and **Expo's update service**, for the update
-checks described above, and **the sites you save**, from our cloud for a link
-your library holds unread (with the covers they name, the cover a Raindrop
-import recorded, and the oEmbed addresses above) and from the browser the
-extension runs in for the cover picture of a page it saves.
+else's: **Vercel's Blob storage** for a file's bytes, as above, **GitHub's
+release feed** and **Expo's update service**, for the update checks described
+above, and **the sites you save**, from our cloud for a link your library holds
+unread (with the covers they name, the cover a Raindrop import recorded, and
+the oEmbed addresses above) and from the browser the extension runs in for the
+cover picture of a page it saves. From our cloud, too, the built-in agent's
+searches go to Anthropic and its page reads to the sites it reads.
 
 ---
 

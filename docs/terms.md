@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 1.2 Last revised:** November 6, 2026
+**Version 1.3 Last revised:** November 18, 2026
 
 The website located at inteligir.com, together with your library in a
 browser tab at inteligir.com/library, the Inteligir app for Mac, the Inteligir
@@ -85,7 +85,9 @@ your account in our cloud, and each device you sign in on keeps a copy of it
 until you sign that device out. You grant us a limited, non-exclusive,
 worldwide, royalty-free license to host, store, copy and transmit Your Content,
 to apply to it the changes you, the agent and the assistants you connect make,
-and to send it to Anthropic as the agent's requests (Section 2.9), solely to
+to send it to Anthropic as the agent's requests, and to send what the agent
+writes into its searches and page reads to whoever runs that search or site
+(Section 2.9), solely to
 store it, serve it to your own devices and the assistants you connect, and run
 the agent for you, for as long as it is in our cloud. You are responsible for Your Content, and you represent and
 warrant that you have the rights you need to store and sync it through the Site
@@ -98,7 +100,7 @@ afford to lose (Section 6).
 extension, it reads the page you are looking at when it can. Any other link
 you save, and one the extension could not read, is fetched once by our
 cloud. Either way your library keeps its title, a picture and its
-readable text. What you save from someone else's site stays theirs: saving it gives you no rights in it beyond
+readable text. The agent also reads pages on the web on its own (Section 2.9). What you save from someone else's site stays theirs: saving it gives you no rights in it beyond
 what its owner and the law allow, and how you use it is your responsibility. The
 Privacy Policy says exactly what these fetches send and to whom.
 
@@ -107,21 +109,24 @@ Claude, on our account with Anthropic, not yours: you need no plan of your own
 and we never ask for an API key. Each account may use it within a free
 allowance we set, which we may change as described in Section 2.3; when the
 day's allowance is used, it answers again the next day. The agent reads and
-changes your library when you ask it to, asks you before it deletes anything,
-and Undo under each answer takes its changes back for seven days, but what it
-produces may be inaccurate, incomplete or inappropriate, so review what it
-changes before you rely on it. You can also let an AI assistant of your own, such as Claude or
+changes your library when you ask it to, deleting or saving what you ask
+without asking again, and searches the web and reads web pages without asking
+you first; what it reads there can steer what it does, including what it
+sends to other sites. Undo under each answer takes its changes back for seven
+days, but what it produces may be inaccurate, incomplete or inappropriate, so
+review what it changes before you rely on it. You can turn it off in
+Settings › Account. You can also let an AI assistant of your own, such as Claude or
 ChatGPT, read and change your library through the connector, on the consent
 page we show you; what that assistant does with your library is governed by
 your own agreement with its provider, and the assistant is a Third-Party
 Service (Section 5.1).
 
 2.10 **Your Library's Room.** Your library is free and holds about 1 GB per
-account, counting its files and what Undo keeps. It never takes a file over
-100 MB. When it is full it takes no new
-changes: the device that made one says so, and the change is not saved until
-you send it again once there is room. We may change these limits as described
-in Section 2.3.
+account, counting its files and the text of its notes. It never takes a file
+over 100 MB, and a note holds about 1 MB. When the library is full it takes no
+new items or files: the device that added one says so, and it is not saved
+until you add it again once there is room. We may change these limits as
+described in Section 2.3.
 
 2.11 **Acceptable Use.** You may not: (i) use the Site to store, sync or share
 content that is unlawful, or that infringes or misappropriates anyone else's
@@ -175,8 +180,9 @@ claim we become aware of.
 
 5.1 **Third-Party Services.** The Site may include links to or integrations with
 third-party websites or services (collectively, "**Third-Party Services**"),
-such as an AI assistant you connect to your library and the services that
-deliver the apps and their updates. We
+such as an AI assistant you connect to your library, the services that
+deliver the apps and their updates, and the sites the agent searches and
+reads. We
 do not control, endorse, or take responsibility for any Third-Party Services.
 You use all Third-Party Services at your own risk, and you acknowledge and agree
 that the applicable third party's own terms and privacy practices will apply to
