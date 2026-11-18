@@ -26,12 +26,15 @@ const ThemeToggle = () => {
   const mounted = useHydrated();
 
   const isDark = resolved === "dark";
-  // invisible before mount: the icon depends on localStorage, which the server render cannot see
+  // invisible before mount: the icon depends on localStorage, which the server render cannot see.
+  // Disabled until then, so a click waits for its handler; undimmed, since the hidden icon already
+  // says so and a dimmed fill would flash at hydration
   return (
     <Button
       variant="secondary"
       size="icon"
-      className="rounded-full"
+      className="rounded-full disabled:opacity-100"
+      disabled={!mounted}
       onClick={() => {
         setTheme(isDark ? "light" : "dark");
       }}

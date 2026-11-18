@@ -155,6 +155,7 @@ test("a chosen theme is drawn before any of the page's code runs", async ({ clou
   });
   await page.reload();
   await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toBeDisabled();
 });
 
 test("a signed-in page asked for with no session cookie goes to sign in and back, and a cookie whose session ended is no sign-in", async ({
