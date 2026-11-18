@@ -12,7 +12,7 @@ import { withEventMeta } from "@orpc/server";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { z } from "zod";
 
-import type { ThreadEventRow, ThreadRow } from "./agent-threads";
+import type { KeptTurn, ThreadEventRow, ThreadRow, TurnAt } from "./agent-threads";
 import { threadHistory, threadOf, turnOf } from "./agent-threads";
 import type { AgentPlatform, AgentStreamEvent } from "./platform";
 import { isSessionEnded } from "./platform";
@@ -38,6 +38,10 @@ const RECONNECT_MS = 1000;
 // the kept events read at once while catching up
 const HISTORY_PAGE = 500;
 
+// how often a live turn's end asks whether its settle is kept yet, and for how long at most
+const SETTLE_POLL_MS = 100;
+const SETTLE_WAIT_MS = 10_000;
+
 interface FollowedSession {
   readonly accountId: string;
   readonly threadId: string;
@@ -45,22 +49,35 @@ interface FollowedSession {
   readonly eveSessionNumber: number;
 }
 
+// eve streams a turn's settle as its record hook keeps it, which seals what Undo takes back and
+// idles the thread at once, so its end waits for that: a device that asks again as it lands reads
+// both. Past the wait it shows as its row stands, the cron's to settle
+const keptSettle = async (at: TurnAt, stop: AbortSignal): Promise<KeptTurn | null> => {
+  const deadline = Date.now() + SETTLE_WAIT_MS;
+  let turn = await turnOf(db, at);
+  while ((turn === null || turn.settledAt === null) && Date.now() < deadline && !stop.aborted) {
+    // an abort ends the wait early with an AbortError: the loop then stops
+    await sleep(SETTLE_POLL_MS, undefined, { signal: stop }).catch(() => null);
+    turn = await turnOf(db, at);
+  }
+  return turn;
+};
+
 // what the thread shows of a fact as it happens: the record hook's event, a turn's end numbered
-// and named from its row
+// and named from its row once its settle is kept
 const relayedEvent = async (
   session: FollowedSession,
   recorded: AgentStreamEvent,
+  stop: AbortSignal,
 ): Promise<AgentEvent | null> => {
   const { accountId, eveSessionNumber, threadId } = session;
   if (recorded.type !== "turn.settled") {
     return shownEvent(recorded, eveSessionNumber);
   }
-  const turn = await turnOf(db, {
-    accountId,
-    eveSessionNumber,
-    eveTurnId: recorded.data.turnId,
-    threadId,
-  });
+  const turn = await keptSettle(
+    { accountId, eveSessionNumber, eveTurnId: recorded.data.turnId, threadId },
+    stop,
+  );
   return turn === null ? null : turnEndedEvent(recorded, turn);
 };
 
@@ -68,8 +85,9 @@ const relayedRow = async (
   session: FollowedSession,
   recorded: AgentStreamEvent,
   at: ThreadPosition,
+  stop: AbortSignal,
 ): Promise<ThreadEventRow | null> => {
-  const event = await relayedEvent(session, recorded);
+  const event = await relayedEvent(session, recorded, stop);
   return event === null
     ? null
     : {
@@ -107,7 +125,7 @@ const sessionEvents = async function* sessionEvents(
       startIndex,
     })) {
       const at = { ...recorded.meta.position, session: session.eveSessionNumber };
-      const row = await relayedRow(session, recorded, at);
+      const row = await relayedRow(session, recorded, at, stop);
       const draft = row === null ? draftOf(recorded) : null;
       if (row !== null) {
         yield { at, event: { kind: "event", row } };

@@ -174,13 +174,19 @@ export const keepTurn = async (executor: DbExecutor, at: TurnAt, now: number): P
 export interface KeptTurn {
   readonly number: number;
   readonly stopReason: TurnStop | null;
+  // when its settle was kept, null while it runs
+  readonly settledAt: number | null;
 }
 
-// the turn's number in its thread and the limit that stopped it, or null for a turn whose start
-// was never kept
+// the turn's number in its thread, the limit that stopped it and when it settled, or null for a
+// turn whose start was never kept
 export const turnOf = async (executor: DbExecutor, at: TurnAt): Promise<KeptTurn | null> => {
   const [row] = await executor
-    .select({ number: agentTurn.number, stopReason: agentTurn.stopReason })
+    .select({
+      number: agentTurn.number,
+      settledAt: agentTurn.settledAt,
+      stopReason: agentTurn.stopReason,
+    })
     .from(agentTurn)
     .where(turnIs(at));
   return row ?? null;

@@ -1,5 +1,5 @@
 // A thread followed through the relay over the fake platform: what it kept, then what happens live,
-// the reply's draft before its message, and a reconnect by the last id read that resumes with
+// the reply's draft before its message, a turn's end once its settle is kept, and a reconnect by the last id read that resumes with
 // nothing missed or repeated, wherever the stream was cut.
 
 import { dbSuite } from "@repo/db/test-database";
@@ -78,6 +78,19 @@ dbSuite("a thread followed as it happens", () => {
       idsOf(read),
     );
     expect(read.some(({ event, id }) => event.kind === "draft" && id !== undefined)).toBe(false);
+  });
+
+  it("shows a live turn's end once its settle is kept, so what Undo takes back counts it", async () => {
+    const { accountId, library } = await personalLibrary();
+    const { threadId } = await sendToAgent(runtime, accountId, {
+      text: `${CREATE_NOTE}\nlong 300`,
+    });
+
+    await follow(accountId, threadId, endsTurn(1));
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+    const { threads } = await library.agent.list({});
+    expect(threads).toMatchObject([{ id: threadId, status: "idle" }]);
+    await platform.turnsSettled();
   });
 
   it("resumes after the last id read, mid-history and mid-turn, with nothing missed or repeated", async () => {
