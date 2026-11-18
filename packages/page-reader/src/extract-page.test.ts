@@ -219,6 +219,18 @@ describe("the article", () => {
     ]);
   });
 
+  it("keeps a table's caption before the table, and reads such a page as its tree", () => {
+    const captioned = readOf(
+      articlePage(
+        `<table><caption>Departures from North Quay on weekdays, before the summer timetable starts in June</caption><tr><th>Ferry</th><th>Leaves</th></tr><tr><td>Morning</td><td>05:40</td></tr></table>`,
+      ),
+    );
+    expect(captioned.rung).toBe("rich");
+    expect(written(captioned.article.blocks)).toMatch(
+      /Departures from North Quay on weekdays, before the summer timetable starts in June\n\n\| Ferry/u,
+    );
+  });
+
   it("keeps an in-page link as its words", () => {
     expect(
       written(

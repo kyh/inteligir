@@ -1,11 +1,13 @@
 // the tree a page's readable part is read as, without the extractor in front of it: what a page
-// may write (a link and a picture by a web address, code by its own language) and where a page
-// past the article's budget is cut.
+// may write (a link and a picture by a web address, code by its own language), the blocks the
+// editor's rules read it as, and where a page past the article's budget is cut.
 
 import type { Nodes, Root } from "mdast";
 import { describe, expect, it } from "vitest";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { articleBlocks } from "@repo/editor/headless/codec/item-markdown";
 
 import { articleMdast, articleTree } from "./article-tree";
 import { HAST, wordsOf } from "./page-words";
@@ -30,6 +32,23 @@ const nodesOf = (root: Root): Nodes[] => {
   }
   return all;
 };
+
+// the blocks the editor's rules read the tree as, less their ids
+const blocksIn = (html: string): Omit<LibraryBlock, "id">[] =>
+  (articleBlocks(treeOf(html), () => "id")?.blocks ?? []).map(({ id: _id, ...block }) => block);
+
+const thumb = {
+  caption: [{ text: "A thumb" }],
+  children: [{ text: "" }],
+  type: "img",
+  url: "https://pages.example/thumb.png",
+};
+
+// a paragraph of one link to the page's post, holding the words given
+const post = (words: { text: string; bold?: true }[]) => ({
+  children: [{ children: words, type: "a", url: "https://pages.example/post" }],
+  type: "p",
+});
 
 const linksIn = (html: string): string[] =>
   nodesOf(treeOf(html)).flatMap((node) => (node.type === "link" ? [node.url] : []));
@@ -87,13 +106,18 @@ describe("what a page may write", () => {
     expect(textIn(html)).toBe("Drawn inlineNo addressAn old tag");
   });
 
-  it("a picture inside a link stands before the link's words, and alone where it has none", () => {
-    expect(kindsIn(`<p><a href="/big"><img src="/thumb.png" alt="A thumb"></a></p>`)).toStrictEqual(
-      ["root", "paragraph", "image"],
-    );
+  it("a picture anywhere inside a link stands before the link's words, and alone where it has none", () => {
     expect(
-      kindsIn(`<p><a href="/post"><img src="/thumb.png" alt="A thumb"> Read the post</a></p>`),
-    ).toStrictEqual(["root", "paragraph", "image", "link", "text"]);
+      blocksIn(`<p><a href="/big"><img src="/thumb.png" alt="A thumb"></a></p>`),
+    ).toStrictEqual([thumb]);
+    expect(
+      blocksIn(`<p><a href="/post"><img src="/thumb.png" alt="A thumb"> Read the post</a></p>`),
+    ).toStrictEqual([thumb, post([{ text: " Read the post" }])]);
+    expect(
+      blocksIn(
+        `<p><a href="/post"><strong><img src="/thumb.png" alt="A thumb"> Read</strong> the post</a></p>`,
+      ),
+    ).toStrictEqual([thumb, post([{ bold: true, text: " Read" }, { text: " the post" }])]);
   });
 
   it("a table of plain rows is headed by its first, and one with a head by that", () => {
@@ -111,6 +135,19 @@ describe("what a page may write", () => {
       ["Name", "Value"],
       ["x", "1"],
     ]);
+  });
+
+  it("a table's caption is a paragraph before the table, whether GFM spells it or not", () => {
+    const caption = "<caption>Ferries from <em>North Quay</em></caption>";
+    const rows = "<tr><td>a1</td><td>b1</td></tr><tr><td>a2</td><td>b2</td></tr>";
+    const lead = ["root", "paragraph", "text", "emphasis", "text"];
+    const plain = `<table>${caption}${rows}</table>`;
+    expect(kindsIn(plain).slice(0, 6)).toStrictEqual([...lead, "table"]);
+    const spanned = `<table>${caption}<tr><td colspan="2">Monday</td></tr>${rows}</table>`;
+    expect(kindsIn(spanned).slice(0, 6)).toStrictEqual([...lead, "paragraph"]);
+    for (const html of [plain, spanned]) {
+      expect(textIn(html).startsWith("Ferries from North Quay")).toBe(true);
+    }
   });
 
   it("code keeps its language, unless that names one of the dialect's own fenced blocks", () => {

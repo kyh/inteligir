@@ -6,8 +6,8 @@
 import type { Element, Parents, Root as HastRoot, RootContent } from "hast";
 import { fromHtml } from "hast-util-from-html";
 import { defaultHandlers, toMdast } from "hast-util-to-mdast";
-import type { Handle, NodeHandle } from "hast-util-to-mdast";
-import type { Paragraph, Root, Table } from "mdast";
+import type { Handle, NodeHandle, State } from "hast-util-to-mdast";
+import type { BlockContent, DefinitionContent, Paragraph, Root, Table } from "mdast";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 import { RICH_FENCE_LANGS } from "@repo/editor/headless/markdown/fence-langs";
@@ -126,23 +126,26 @@ const headedByFirstRow = (table: Table): Table => {
   return empty && rows.length > 0 ? { ...table, children: rows } : table;
 };
 
+// A table's caption is its blocks before the table: GFM spells none, and the stock handlers drop
+// it, though the words the article is held to count it.
+const captionOf = (state: State, table: Element): (BlockContent | DefinitionContent)[] => {
+  const caption = table.children.find(
+    (child): child is Element => child.type === "element" && child.tagName === "caption",
+  );
+  return caption === undefined ? [] : state.toFlow(state.all(caption));
+};
+
 const drop: Handle & NodeHandle = () => [];
 
 const handlersFor = (pageUrl: string) =>
   ({
     ...Object.fromEntries([...DROPPED].map((tag) => [tag, drop])),
 
-    // http and https alone, absolute against the page; an in-page or script link is its text. A
-    // link holds words, so a picture in one stands before it, where the editor's link would lose it
+    // http and https alone, absolute against the page; an in-page or script link is its text
     a: (state, node) => {
       const link = defaultHandlers.a(state, node);
       const url = resolveWebUrl(link.url, pageUrl);
-      const words = link.children.filter((child) => child.type !== "image");
-      if (url === null || words.length === 0) {
-        return link.children;
-      }
-      const pictures = link.children.filter((child) => child.type === "image");
-      return [...pictures, { ...link, children: words, url }];
+      return url === null ? link.children : { ...link, url };
     },
 
     // a page's links resolve against the address it was read at, never a `<base>` of its own, which
@@ -171,11 +174,12 @@ const handlersFor = (pageUrl: string) =>
     },
 
     table: (state, node) => {
+      const caption = captionOf(state, node);
       if (!isSimpleTable(node)) {
-        return rowParagraphs(node);
+        return [...caption, ...rowParagraphs(node)];
       }
       const table = defaultHandlers.table(state, node);
-      return table.type === "table" ? headedByFirstRow(table) : table;
+      return [...caption, table.type === "table" ? headedByFirstRow(table) : table];
     },
   }) satisfies Record<string, Handle>;
 

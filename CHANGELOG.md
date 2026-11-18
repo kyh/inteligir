@@ -72,7 +72,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **A saved link's address is kept the way a browser writes it**: a lowercase site name, `.` and `..` in its path worked out, `/` for an empty path, and an international name in its `xn--` form, which its card shows; two spellings of one international address are one item.
 - **A saved link you haven't named keeps an empty title**: its card and the title box go by its address until its page names it, and a title you type is never replaced by the page's.
 - **A link saved as a numeric address is turned down at once, with why**: `http://192.168.1.20/`, `http://93.184.216.34/` or `http://[::1]/` reads "The cloud opens pages by name, so an address written as numbers isn't read." Save the page by its name, or from the browser extension, which reads the page itself.
-- **A saved page keeps more of its page**: a picture that is itself a link stays a picture, a table's cells keep their links, bold and code, a definition list reads as a list, and a quotation reads in quotes.
+- **A saved page keeps more of its page**: a picture that is itself a link stays a picture, a table keeps its caption above it and its cells their links, bold and code, a definition list reads as a list, and a quotation reads in quotes.
 - **A web address a saved page shows as plain text stays text**, where it used to turn into a link, and highlighted or underlined words in a saved page read in italics; Read the page again re-reads a page saved before.
 - **Search looks at an item's address, site, author, description and tags**, not inside its properties.
 - **Deleting an item on your iPhone moves it to Deleted.**
