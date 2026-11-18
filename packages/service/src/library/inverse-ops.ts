@@ -79,6 +79,17 @@ export const inverseOpSchema = z.discriminatedUnion("op", [
 ]);
 export type InverseOp = z.infer<typeof inverseOpSchema>;
 
+// a field's set op: indexed by its field, a mapped type ties the values to it, in a loop over fields too
+type SetOp<F extends ScalarField> = {
+  [P in F]: { base: LibraryItemFields[P]; field: P; op: "set"; value: LibraryItemFields[P] };
+}[F];
+
+const setOp = <F extends ScalarField>(
+  field: F,
+  from: LibraryItemFields,
+  to: LibraryItemFields,
+): SetOp<F> => ({ base: from[field], field, op: "set", value: to[field] });
+
 const verdictOf = (fields: LibraryItemFields, op: InverseOp): OpVerdict => {
   switch (op.op) {
     case "set": {
@@ -153,9 +164,7 @@ const opsBetween = (from: LibraryItemFields, to: LibraryItemFields): InverseOp[]
   const ops: InverseOp[] = [];
   for (const field of SCALAR_FIELDS) {
     if (!sameJson(from[field], to[field])) {
-      // the parse ties the values to the field's own type, which TypeScript cannot follow through
-      // a loop over every field
-      ops.push(inverseOpSchema.parse({ base: from[field], field, op: "set", value: to[field] }));
+      ops.push(setOp(field, from, to));
     }
   }
   for (const op of ["tags", "aliases"] as const) {

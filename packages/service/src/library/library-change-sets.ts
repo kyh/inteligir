@@ -8,6 +8,7 @@
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { agentThread } from "@repo/db/agent-schema";
 import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
 import {
   changeSet,
@@ -236,6 +237,40 @@ export const foldReading = async (
         anyOf(
           changeSetBody.changeSetId,
           folded.map(({ changeSetId }) => changeSetId),
+        ),
+      ),
+    );
+};
+
+// The live threads whose sets hold an entry for any of `itemIds`, stamped with the write's sequence
+// ahead of the items' purge, whose cascade takes those entries: a device asks a thread's turns again
+// only once `library.changes` names it, and a turn left with nothing would keep its Undo
+export const stampEntryThreads = async (
+  scope: WriteScope,
+  itemIds: readonly string[],
+  seq: number,
+): Promise<void> => {
+  const { accountId, tx } = scope;
+  await tx
+    .update(agentThread)
+    .set({ seq })
+    .where(
+      and(
+        eq(agentThread.accountId, accountId),
+        isNull(agentThread.deletedAt),
+        inArray(
+          agentThread.id,
+          tx
+            .selectDistinct({ id: changeSet.threadId })
+            .from(changeSet)
+            .innerJoin(
+              changeSetItem,
+              and(
+                eq(changeSetItem.accountId, changeSet.accountId),
+                eq(changeSetItem.changeSetId, changeSet.id),
+              ),
+            )
+            .where(and(eq(changeSet.accountId, accountId), anyOf(changeSetItem.itemId, itemIds))),
         ),
       ),
     );

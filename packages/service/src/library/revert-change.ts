@@ -54,23 +54,22 @@ export interface ItemBack extends ItemNow {
   readonly blocks: readonly BodyBlock[] | null;
 }
 
-type ItemRevertKeepReason = "edited-since" | "purged";
-
+// `keep`: someone changed the item since, so it stays whole
 export type ItemRevert =
   | { readonly kind: "unchanged" }
   | { readonly kind: "revert"; readonly back: ItemBack }
-  | { readonly kind: "keep"; readonly reason: ItemRevertKeepReason };
+  | { readonly kind: "keep" };
 
 export interface ItemRevertInput {
   readonly entry: ItemEntry;
-  // the item as it is now, the blocks a newer set's way back left it with; null once purged
-  readonly now: ItemBack | null;
+  // the item as it is now, the blocks a newer set's way back left it with
+  readonly now: ItemBack;
   // when an item the set made is moved to Deleted
   readonly at: number;
 }
 
 const UNCHANGED: ItemRevert = { kind: "unchanged" };
-const EDITED_SINCE: ItemRevert = { kind: "keep", reason: "edited-since" };
+const EDITED_SINCE: ItemRevert = { kind: "keep" };
 
 // the set's way back for an item it changed: its fields' ops, and its body's blocks before it
 const changedBack = (
@@ -97,8 +96,8 @@ const changedBack = (
 
 // an item the set made goes to Deleted, unless a person has touched it since, in its fields or its
 // body
-const madeBack = (made: LibraryItemFields, now: ItemBack | null, at: number): ItemRevert => {
-  if (now?.fields.deletedAt !== null) {
+const madeBack = (made: LibraryItemFields, now: ItemBack, at: number): ItemRevert => {
+  if (now.fields.deletedAt !== null) {
     return UNCHANGED;
   }
   if (canonicalJson(now.fields) !== canonicalJson(made)) {
@@ -109,35 +108,35 @@ const madeBack = (made: LibraryItemFields, now: ItemBack | null, at: number): It
 
 export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
   const { entry, now } = input;
-  if (now !== null && entry.body !== null && now.bodyVersion !== entry.body.versionAfter) {
+  if (entry.body !== null && now.bodyVersion !== entry.body.versionAfter) {
     return EDITED_SINCE;
   }
-  if (entry.fields.kind === "made") {
-    return madeBack(entry.fields.fields, now, input.at);
-  }
-  return now === null
-    ? { kind: "keep", reason: "purged" }
+  return entry.fields.kind === "made"
+    ? madeBack(entry.fields.fields, now, input.at)
     : changedBack(now, entry.fields.inverse, entry.body);
 };
+
+// what a set did to an item, beside the item as it stands: an entry goes with its item
+export interface HeldEntry {
+  readonly entry: ItemEntry;
+  readonly now: ItemNow;
+}
 
 // one change set as an undo reads it: what it did to each item it touched
 interface ChangeSetEntries {
   readonly id: string;
-  readonly items: ReadonlyMap<string, ItemEntry>;
+  readonly items: ReadonlyMap<string, HeldEntry>;
 }
 
 export interface ChangeSetsRevertInput {
   // newest first: "Undo this conversation" passes every set its thread opened
   readonly sets: readonly ChangeSetEntries[];
-  // each item as it is now, null once purged
-  readonly now: ReadonlyMap<string, ItemNow | null>;
   readonly at: number;
 }
 
 interface KeptChange {
   readonly setId: string;
   readonly itemId: string;
-  readonly reason: ItemRevertKeepReason;
 }
 
 export interface ChangeSetsRevert {
@@ -155,12 +154,11 @@ export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert
   const items = new Map<string, ItemBack>();
   const kept: KeptChange[] = [];
   for (const set of input.sets) {
-    for (const [itemId, entry] of set.items) {
-      const held = input.now.get(itemId) ?? null;
-      const now = items.get(itemId) ?? (held === null ? null : { ...held, blocks: null });
-      const verdict = revertItemChange({ at: input.at, entry, now });
+    for (const [itemId, held] of set.items) {
+      const now = items.get(itemId) ?? { ...held.now, blocks: null };
+      const verdict = revertItemChange({ at: input.at, entry: held.entry, now });
       if (verdict.kind === "keep") {
-        kept.push({ itemId, reason: verdict.reason, setId: set.id });
+        kept.push({ itemId, setId: set.id });
       } else if (verdict.kind === "revert") {
         items.set(itemId, verdict.back);
       }

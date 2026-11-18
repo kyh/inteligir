@@ -7,6 +7,7 @@
 // rule refuses (its url now another live item's, a file gone), since the file or the address can
 // come back; when a rule held back all that could land, its refusal is the answer.
 
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { changeSet, changeSetBody, changeSetItem, item, itemBody } from "@repo/db/library-schema";
 import { and, asc, desc, eq, exists, isNotNull, lt } from "drizzle-orm";
@@ -19,14 +20,17 @@ import type { LiveItemRow } from "./library-landing";
 import { refuse } from "./library-refusal";
 import type { LibraryRefusal } from "./library-refusal";
 import { STORED_ITEM_COLUMNS } from "./library-rows";
+import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { revertChangeSets } from "./revert-change";
-import type { BodyEntry, ItemEntry, ItemNow } from "./revert-change";
+import type { BodyEntry, HeldEntry } from "./revert-change";
 import { anyOf } from "./set-sql";
 
-// the turns one undo takes back, which holds a call to the items that many turns wrote; a
-// conversation of more goes a lot a call
+// the most turns, and set entries, one undo takes back; a conversation of more goes a lot a call,
+// cut at a set's edge. Each entry lands its item in the one write under the account's lock, so a lot
+// holds the lock about as long as a bulk change of items does
 const UNDO_TURNS_MAX = 50;
+const UNDO_ENTRIES_MAX = BULK_ITEMS_MAX;
 
 // which of a thread's turns an undo takes back: one, or the conversation's before `before`
 type UndoTarget =
@@ -83,16 +87,30 @@ export const undoableTurns = async (
 
 interface SetEntries {
   readonly id: string;
-  readonly items: ReadonlyMap<string, ItemEntry>;
+  readonly items: ReadonlyMap<string, HeldEntry>;
 }
 
-// what each set did to each item, newest set first
-const entriesOf = async (scope: WriteScope, setIds: readonly string[]): Promise<SetEntries[]> => {
+// what each set did to each item, newest set first, beside the item as it stands, and each item's
+// row once: an entry goes with its item, so every entry read has one
+const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
   const { accountId, tx } = scope;
   const [fields, bodies] = await Promise.all([
     tx
-      .select({ ...ENTRY_COLUMNS, changeSetId: changeSetItem.changeSetId })
+      .select({
+        ...ENTRY_COLUMNS,
+        ...STORED_ITEM_COLUMNS,
+        bodyVersion: itemBody.version,
+        changeSetId: changeSetItem.changeSetId,
+      })
       .from(changeSetItem)
+      .innerJoin(
+        item,
+        and(eq(item.accountId, changeSetItem.accountId), eq(item.id, changeSetItem.itemId)),
+      )
+      .innerJoin(
+        itemBody,
+        and(eq(itemBody.accountId, changeSetItem.accountId), eq(itemBody.itemId, item.id)),
+      )
       .where(and(eq(changeSetItem.accountId, accountId), anyOf(changeSetItem.changeSetId, setIds))),
     tx
       .select({
@@ -108,39 +126,59 @@ const entriesOf = async (scope: WriteScope, setIds: readonly string[]): Promise<
   const bodyOf = new Map<string, BodyEntry>(
     bodies.map(({ changeSetId, itemId, ...body }) => [`${changeSetId}/${itemId}`, body]),
   );
-  return setIds.map((id) => ({
+  const rows = fields.map(({ bodyVersion, changeSetId, inverse, itemId, made, ...stored }) => ({
+    changeSetId,
+    held: {
+      entry: {
+        body: bodyOf.get(`${changeSetId}/${itemId}`) ?? null,
+        fields: entryOf({ inverse, made }),
+      },
+      now: { bodyVersion, fields: stored.fields },
+    },
+    stored,
+  }));
+  const sets = setIds.map((id): SetEntries => ({
     id,
     items: new Map(
-      fields
+      rows
         .filter((row) => row.changeSetId === id)
-        .map((row): [string, ItemEntry] => [
-          row.itemId,
-          { body: bodyOf.get(`${id}/${row.itemId}`) ?? null, fields: entryOf(row) },
-        ]),
+        .map(({ held, stored }): [string, HeldEntry] => [stored.id, held]),
     ),
   }));
-};
-
-// each item the sets touched as it stands, with its body's version; an item purged since is absent
-const itemsNow = async (scope: WriteScope, itemIds: readonly string[]) => {
-  const { accountId, tx } = scope;
-  const rows = await tx
-    .select({ ...STORED_ITEM_COLUMNS, bodyVersion: itemBody.version })
-    .from(item)
-    .innerJoin(itemBody, and(eq(itemBody.accountId, item.accountId), eq(itemBody.itemId, item.id)))
-    .where(and(eq(item.accountId, accountId), anyOf(item.id, itemIds)));
-  return new Map(rows.map(({ bodyVersion, ...stored }) => [stored.id, { bodyVersion, stored }]));
+  return {
+    items: new Map<string, StoredItem>(rows.map(({ stored }) => [stored.id, stored])),
+    sets,
+  };
 };
 
 // the sets an undo takes back, newest first, and where the turns it leaves start
 const pickSets = async (scope: WriteScope, target: UndoTarget) => {
-  const waiting = await scope.tx
-    .select({ id: changeSet.id, turn: changeSet.turn })
+  const { accountId, tx } = scope;
+  const waiting = await tx
+    .select({
+      entries: tx.$count(
+        changeSetItem,
+        and(
+          eq(changeSetItem.accountId, changeSet.accountId),
+          eq(changeSetItem.changeSetId, changeSet.id),
+        ),
+      ),
+      id: changeSet.id,
+      turn: changeSet.turn,
+    })
     .from(changeSet)
-    .where(and(undoable(scope.tx, scope.accountId, target.threadId), turnsOf(target)))
+    .where(and(undoable(tx, accountId, target.threadId), turnsOf(target)))
     .orderBy(desc(changeSet.turn))
     .limit(UNDO_TURNS_MAX + 1);
-  const sets = waiting.slice(0, UNDO_TURNS_MAX);
+  const sets: typeof waiting = [];
+  let entries = 0;
+  for (const set of waiting.slice(0, UNDO_TURNS_MAX)) {
+    if (sets.length > 0 && entries + set.entries > UNDO_ENTRIES_MAX) {
+      break;
+    }
+    sets.push(set);
+    entries += set.entries;
+  }
   return {
     // a lot all kept or refused stays undoable, so the next lot starts below this one, never at it
     next: waiting.length > sets.length ? (sets.at(-1)?.turn ?? null) : null,
@@ -153,17 +191,13 @@ export const undoTurns = async (
   target: UndoTarget,
 ): Promise<z.input<typeof undoneSchema>> => {
   const { next, setIds } = await pickSets(scope, target);
-  const sets = await entriesOf(scope, setIds);
-  const held = await itemsNow(scope, [...new Set(sets.flatMap((set) => [...set.items.keys()]))]);
-  const now = new Map<string, ItemNow | null>(
-    [...held].map(([id, { bodyVersion, stored }]) => [id, { bodyVersion, fields: stored.fields }]),
-  );
-  const verdict = revertChangeSets({ at: scope.now, now, sets });
+  const { items, sets } = await entriesOf(scope, setIds);
+  const verdict = revertChangeSets({ at: scope.now, sets });
   const reverted: LiveItemRow[] = [];
   const refused = new Map<string, LibraryRefusal>();
-  for (const [itemId, back] of verdict.items) {
-    const before = held.get(itemId)?.stored;
-    if (before !== undefined) {
+  for (const [itemId, before] of items) {
+    const back = verdict.items.get(itemId);
+    if (back !== undefined) {
       const landed = await scope.attempt(
         async (part) =>
           await landItem(part, { before, body: back.blocks, fields: back.fields, itemId }),

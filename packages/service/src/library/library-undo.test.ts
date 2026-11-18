@@ -4,13 +4,15 @@
 import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { libraryAs, personalLibrary } from "../test-support/library-fixture";
+import { openThread } from "../agent/agent-threads";
+import { libraryAs, personalLibrary, seedItem } from "../test-support/library-fixture";
 import { sealTurnSet } from "./library-change-sets";
 import { mintLibraryId } from "./library-ids";
 
@@ -80,6 +82,52 @@ dbSuite("Undo of the built-in agent's turns", () => {
     await expect(library.agent.undo({ threadId })).resolves.toStrictEqual(NOTHING_LEFT);
     // one turn, or the conversation from a turn down, never both
     expect(await codeOf(library.agent.undo({ before: 2, threadId, turn: 1 }))).toBe("BAD_REQUEST");
+  });
+
+  it("names the thread to every device once emptying Deleted takes its turn's last change", async () => {
+    const { accountId, library } = await personalLibrary();
+    const made = noteOf(["The person's."]);
+    await library.items.create(made);
+    const threadId = randomUUID();
+    await openThread(accountId, { id: threadId, now: Date.now(), title: "Tidy up" });
+    const turn = turnOf(accountId, threadId, 1);
+    await turn.library.items.delete({ ids: [made.id] });
+    await turn.end();
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+    const { head } = await library.changes({});
+    await library.items.purge({ ids: [made.id] });
+    const { moved } = await library.changes({ after: head });
+    expect(moved?.threads).toStrictEqual([threadId]);
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+  });
+
+  it("takes back a conversation of more changes than one undo lands a lot at a time, whole turns each", async () => {
+    const { accountId, library } = await personalLibrary();
+    const perTurn = BULK_ITEMS_MAX / 2 + 1;
+    const ids: string[] = [];
+    for (let at = 0; at < 2 * perTurn; at += 1) {
+      const seeded = await seedItem(accountId, {
+        fields: noteFixture({ title: `Note ${String(at)}` }),
+      });
+      ids.push(seeded.id);
+    }
+    const [older, newer] = [ids.slice(0, perTurn), ids.slice(perTurn)];
+    const threadId = randomUUID();
+    for (const [at, lot] of [older, newer].entries()) {
+      const turn = turnOf(accountId, threadId, at + 1);
+      await turn.library.items.delete({ ids: lot });
+      await turn.end();
+    }
+    await expect(library.agent.undo({ threadId })).resolves.toStrictEqual({
+      ...NOTHING_LEFT,
+      next: 2,
+      reverted: newer.toSorted(),
+    });
+    await expect(library.agent.undo({ before: 2, threadId })).resolves.toStrictEqual({
+      ...NOTHING_LEFT,
+      reverted: older.toSorted(),
+    });
+    await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
   });
 
   it("answers an undo another item's link holds back in words that say so", async () => {

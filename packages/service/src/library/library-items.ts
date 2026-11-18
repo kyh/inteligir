@@ -14,6 +14,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
+import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { folderOfTarget } from "./library-folders";
@@ -236,9 +237,9 @@ export const restoreDeleted = async (
 };
 
 // Deleted emptied of `ids`, in a statement a table: each item goes with every row it holds, its
-// change sets' entries included, its id kept as purged and its files touched, so each one nothing
-// else names goes a day later. It joins no set, since nothing can take it back; an id naming no
-// item in Deleted is missing
+// change sets' entries included and their threads stamped, its id kept as purged and its files
+// touched, so each one nothing else names goes a day later. It joins no set, since nothing can take
+// it back; an id naming no item in Deleted is missing
 export const purgeItems = async (scope: WriteScope, ids: readonly string[]) => {
   const { accountId, now, tx } = scope;
   const unique = [...new Set(ids)];
@@ -251,6 +252,7 @@ export const purgeItems = async (scope: WriteScope, ids: readonly string[]) => {
   const held = new Set(rows.map((row) => row.id));
   if (held.size > 0) {
     const seq = await scope.seq();
+    await stampEntryThreads(scope, [...held], seq);
     await dropItemFiles(tx, accountId, [...held], now);
     await tx.insert(purgedItem).select(
       tx
