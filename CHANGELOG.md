@@ -175,6 +175,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **A search hit in ⌘P fits its row**: its title and the passage under it sit inside the highlight instead of spilling into the next hit.
 - **A switch you drag across springs back when the change doesn't go through**, instead of resting on the wrong side, and the built-in agent's stays where you let it go while it switches.
 - **⌘A, Delete and a selected card's menu wait for the folder, tag, Deleted or kind you just chose to show its own items**, so a confirm never counts the grid you left.
 - **Empty Deleted… stays offered while the grid is narrowed to a kind Deleted holds none of.**

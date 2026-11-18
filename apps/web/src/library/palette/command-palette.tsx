@@ -51,14 +51,19 @@ const Chord = ({ action }: { action: WindowAction }) => {
   );
 };
 
+// a hit with a passage draws two lines, which the control's fixed height can't hold
+const TWO_LINE_ROW = "h-auto py-1";
+
+const twoLines = (row: PaletteRow): boolean => row.hit !== undefined && row.hit.snippet !== "";
+
 const RowContent = ({ row }: { row: PaletteRow }) => {
   if (row.hit !== undefined) {
     return (
       <span className="flex min-w-0 flex-col">
         <span className="truncate">{row.label}</span>
-        {row.hit.snippet === "" ? null : (
+        {twoLines(row) ? (
           <span className="truncate text-caption text-muted-foreground">{row.hit.snippet}</span>
-        )}
+        ) : null}
       </span>
     );
   }
@@ -195,7 +200,12 @@ export const CommandPalette = () => {
         {groups.map((group) => (
           <CommandGroup key={group.heading} heading={group.heading}>
             {group.items.map((row) => (
-              <CommandItem key={row.value} row={row} data-search-hit={row.hit?.itemId}>
+              <CommandItem
+                key={row.value}
+                row={row}
+                className={twoLines(row) ? TWO_LINE_ROW : ""}
+                data-search-hit={row.hit?.itemId}
+              >
                 <RowContent row={row} />
               </CommandItem>
             ))}
