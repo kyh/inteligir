@@ -443,6 +443,23 @@ const decodedKey = (raw: string): string => {
   }
 };
 
+const isPicture = (node: Descendant): boolean =>
+  ElementApi.isElement(node) && node.type === KEYS.img;
+
+const isBlankText = (node: Descendant): boolean => TextApi.isText(node) && node.text.trim() === "";
+
+// A picture is a block and a link holds only words, so a picture anywhere in a link's words (whose
+// marks are leaves by now) stands before the link, and a link of pictures alone is those pictures:
+// left inside, the editor drops it and the writer loses it.
+const picturesFirst = (link: TElement): TElement | Descendant[] => {
+  const pictures = link.children.filter(isPicture);
+  if (pictures.length === 0) {
+    return link;
+  }
+  const words = link.children.filter((child) => !isPicture(child));
+  return words.every(isBlankText) ? pictures : [...pictures, { ...link, children: words }];
+};
+
 // a page link is `[Title](mention:<id>)`, the spelling Plate's mention writes; read here rather than
 // by remarkMention, which also reads every `@word` as one
 const readLink = (
@@ -451,7 +468,7 @@ const readLink = (
   options: DeserializeMdOptions,
 ): TElement | Descendant[] => {
   if (!node.url.startsWith(MENTION_SCHEME)) {
-    return defaultLink(node, deco, options);
+    return picturesFirst(defaultLink(node, deco, options));
   }
   const words = convertChildrenDeserialize(node.children, deco, options);
   const key = decodedKey(node.url.slice(MENTION_SCHEME.length));
@@ -459,12 +476,14 @@ const readLink = (
     return words;
   }
   const shown = words.map((word) => NodeApi.string(word)).join("");
-  return {
+  const mention: TElement = {
     children: [{ text: "" }],
     key,
     type: KEYS.mention,
     value: shown === UNTITLED ? "" : shown,
   };
+  const pictures = words.filter(isPicture);
+  return pictures.length === 0 ? mention : [...pictures, mention];
 };
 
 // Plate's own mention spelling, `[value](mention:<key>)`, but an untitled item's link still shows a

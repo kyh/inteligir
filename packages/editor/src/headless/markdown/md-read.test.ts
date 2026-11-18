@@ -5,11 +5,18 @@ import { MarkdownPlugin } from "@platejs/markdown";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 import { meaningOf } from "../../test-support/markdown-meaning";
-import { headlessEditor } from "./markdown-doc";
+import { headlessEditor, serializeNote } from "./markdown-doc";
 import { lfOnly, readMarkdown, readMdast } from "./md-read";
 import { MD_RULES } from "./md-rules";
 
 const read = (md: string) => readMarkdown(headlessEditor(), md);
+
+const picture = {
+  caption: [{ text: "alt" }],
+  children: [{ text: "" }],
+  type: "img",
+  url: "https://e.example/a.png",
+};
 
 describe(readMarkdown, () => {
   it("reads markdown into the editor's blocks", () => {
@@ -70,6 +77,51 @@ describe(readMarkdown, () => {
       throw new Error("a read refused");
     }
     expect(meaningOf(crlf.value)).toBe(meaningOf(plain.value));
+  });
+
+  it("reads a picture inside a link as the picture, which writes back", () => {
+    const badge = read("[![alt](https://e.example/a.png)](https://e.example)\n");
+    expect(badge).toStrictEqual({ ok: true, value: [picture] });
+    if (!badge.ok) {
+      throw new Error("the badge refused");
+    }
+    expect(serializeNote(headlessEditor(), badge.value)).toBe("![alt](https://e.example/a.png)\n");
+  });
+
+  it("reads a picture anywhere in a link's words before the link, which keeps its words", () => {
+    expect(
+      read("See [**bold ![alt](https://e.example/a.png) words**](https://e.example) here.\n"),
+    ).toStrictEqual({
+      ok: true,
+      value: [
+        { children: [{ text: "See " }], type: "p" },
+        picture,
+        {
+          children: [
+            {
+              children: [
+                { bold: true, text: "bold " },
+                { bold: true, text: " words" },
+              ],
+              type: "a",
+              url: "https://e.example",
+            },
+            { text: " here." },
+          ],
+          type: "p",
+        },
+      ],
+    });
+    expect(read("[![alt](https://e.example/a.png) Hub](mention:hub-id)\n")).toStrictEqual({
+      ok: true,
+      value: [
+        picture,
+        {
+          children: [{ children: [{ text: "" }], key: "hub-id", type: "mention", value: " Hub" }],
+          type: "p",
+        },
+      ],
+    });
   });
 
   it("reads Obsidian's links only when the caller resolves them", () => {
