@@ -72,16 +72,12 @@ dbSuite("a search vector in Postgres", () => {
     expect((row?.title ?? 0) / (row?.body ?? 1)).toBeCloseTo(10);
   });
 
-  it(
-    "keeps a body far past the cap to its opening, within what Postgres stores",
-    { timeout: 30_000 },
-    async () => {
-      const words = Array.from({ length: 1_000_000 }, (_, at) => `w${String(at)}`);
-      const body = words.join(" ");
-      expect(body.length).toBeGreaterThan(6 * 1024 * 1024);
-      const vector = searchVectorOf(text({ body, title: "Long read" }));
-      expect(await matches(vector, "'long' & 'w0'")).toBe(true);
-      expect(await matches(vector, `'${words.at(-1) ?? ""}'`)).toBe(false);
-    },
-  );
+  it("keeps a body far past the cap to its opening, within what Postgres stores", async () => {
+    const words = Array.from({ length: 1_000_000 }, (_, at) => `w${String(at)}`);
+    const body = words.join(" ");
+    expect(body.length).toBeGreaterThan(6 * 1024 * 1024);
+    const vector = searchVectorOf(text({ body, title: "Long read" }));
+    expect(await matches(vector, "'long' & 'w0'")).toBe(true);
+    expect(await matches(vector, `'${words.at(-1) ?? ""}'`)).toBe(false);
+  });
 });

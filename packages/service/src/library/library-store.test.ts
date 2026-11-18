@@ -147,37 +147,33 @@ dbSuite("a library write", () => {
     }
   });
 
-  it(
-    "refuses a write as busy once another holds the account's lock past its wait",
-    { timeout: 20_000 },
-    async () => {
-      const accountId = await makeAccount();
-      const holding = deferred();
-      const held = deferred();
-      const holder = withAccountLock(accountId, async () => {
-        held.resolve();
-        await holding.promise;
-      });
-      try {
-        await held.promise;
-        let ran = false;
-        const waited = await writeLibrary(
-          { accountId, actor: PERSON },
-          { answer: z.number(), opId: NO_OP },
-          async (scope) => {
-            ran = true;
-            return await scope.seq();
-          },
-        );
-        expect(waited).toStrictEqual({ ok: false, refusal: { kind: "busy" } });
-        expect(ran).toBe(false);
-      } finally {
-        holding.resolve();
-        await holder;
-      }
-      expect(await headOf(accountId)).toBe(0);
-    },
-  );
+  it("refuses a write as busy once another holds the account's lock past its wait", async () => {
+    const accountId = await makeAccount();
+    const holding = deferred();
+    const held = deferred();
+    const holder = withAccountLock(accountId, async () => {
+      held.resolve();
+      await holding.promise;
+    });
+    try {
+      await held.promise;
+      let ran = false;
+      const waited = await writeLibrary(
+        { accountId, actor: PERSON },
+        { answer: z.number(), opId: NO_OP },
+        async (scope) => {
+          ran = true;
+          return await scope.seq();
+        },
+      );
+      expect(waited).toStrictEqual({ ok: false, refusal: { kind: "busy" } });
+      expect(ran).toBe(false);
+    } finally {
+      holding.resolve();
+      await holder;
+    }
+    expect(await headOf(accountId)).toBe(0);
+  });
 
   it("answers a resend by its op id with what landed, and writes nothing", async () => {
     const accountId = await makeAccount();

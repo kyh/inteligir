@@ -17,8 +17,7 @@ const MiB = 1024 * 1024;
 const HEAP_CAP_MB = 96;
 
 describe("a page at every limit", () => {
-  // a second of work at the budget, which a loaded machine stretches past the default timeout
-  it("reads within its heap budget", { timeout: 30_000 }, () => {
+  it("reads within its heap budget", () => {
     const article = FILL_LIMITS.articleBytes * 2;
     const page = longPage(article, FILL_LIMITS.htmlBytes - article);
     expect(page.html.length).toBeGreaterThanOrEqual(FILL_LIMITS.htmlBytes);

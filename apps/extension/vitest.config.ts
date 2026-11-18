@@ -11,6 +11,9 @@ export default defineConfig({
   plugins: [WxtVitest({ root: import.meta.dirname })],
   test: {
     maxWorkers: 2,
+    // jsdom and the compiled popup share a full run's cores with every suite turbo starts beside
+    // them, where the 5s default is a coin-flip
+    testTimeout: 20_000,
     projects: [
       {
         extends: true,

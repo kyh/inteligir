@@ -3,6 +3,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     maxWorkers: 2,
+    // a page at the reading's budget is seconds of linkedom on a runner shared with every suite
+    // turbo starts beside it, where the 5s default is a coin-flip
+    testTimeout: 30_000,
     projects: [
       {
         extends: true,

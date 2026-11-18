@@ -146,50 +146,42 @@ const namedBy = async (accountId: string, itemId: string) =>
     .where(and(eq(itemFile.accountId, accountId), eq(itemFile.itemId, itemId)));
 
 dbSuite("a saved link's reading", () => {
-  // the first reading loads the page reader's chunk, seconds of import on a busy runner
-  it(
-    "reads the page into the item: its article, its facts, a title for the address, its cover kept and named",
-    { timeout: 30_000 },
-    async () => {
-      const url = "https://pages.example/posts/item";
-      const saved = await savedLink(url);
-      const cover = pngOf(1200, 630);
-      const web = serveWeb({
-        "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
-        [url]: htmlPage(blogPost),
-      });
-      await expect(deliver(saved, web)).resolves.toBe("done");
-      const item = await itemIn(saved.accountId, saved.itemId);
-      expect(item?.fields).toMatchObject({
-        author: "Ada Lindqvist",
-        description: "A short argument for plain files over databases.",
-        lang: "en",
-        published: "2024-03-04",
-        reading: { state: "read" },
-        site: "Field Notes",
-        title: "Keep your notes in files",
-      });
-      expect(textOfSection(item, "article")).toContain("contract with the future");
-      expect(textOfSection(item, "note")).toBe("[]");
-      // the page first, then its first cover candidate, asked as a browser would
-      expect(web.asked.map((hop) => hop.url)).toStrictEqual([
-        url,
-        "https://cdn.fieldnotes.example/cover@2x.jpg",
-      ]);
-      expect(web.asked[0]?.headers.get("user-agent")).toContain("inteligir");
-      const coverSha = item?.fields.coverSha ?? "";
-      await expect(keptBytes(saved.accountId, coverSha)).resolves.toStrictEqual(cover);
-      await expect(namedBy(saved.accountId, saved.itemId)).resolves.toStrictEqual([
-        { sha: coverSha },
-      ]);
-    },
-  );
+  it("reads the page into the item: its article, its facts, a title for the address, its cover kept and named", async () => {
+    const url = "https://pages.example/posts/item";
+    const saved = await savedLink(url);
+    const cover = pngOf(1200, 630);
+    const web = serveWeb({
+      "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
+      [url]: htmlPage(blogPost),
+    });
+    await expect(deliver(saved, web)).resolves.toBe("done");
+    const item = await itemIn(saved.accountId, saved.itemId);
+    expect(item?.fields).toMatchObject({
+      author: "Ada Lindqvist",
+      description: "A short argument for plain files over databases.",
+      lang: "en",
+      published: "2024-03-04",
+      reading: { state: "read" },
+      site: "Field Notes",
+      title: "Keep your notes in files",
+    });
+    expect(textOfSection(item, "article")).toContain("contract with the future");
+    expect(textOfSection(item, "note")).toBe("[]");
+    // the page first, then its first cover candidate, asked as a browser would
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual([
+      url,
+      "https://cdn.fieldnotes.example/cover@2x.jpg",
+    ]);
+    expect(web.asked[0]?.headers.get("user-agent")).toContain("inteligir");
+    const coverSha = item?.fields.coverSha ?? "";
+    await expect(keptBytes(saved.accountId, coverSha)).resolves.toStrictEqual(cover);
+    await expect(namedBy(saved.accountId, saved.itemId)).resolves.toStrictEqual([
+      { sha: coverSha },
+    ]);
+  });
 
-  // each corpus page is a whole site's markup read through linkedom and the codec on purpose,
-  // seconds of CPU on a runner busy with other suites
   it.each(Object.entries(CORPUS))(
     "lands the corpus page %s as the reader reads it",
-    { timeout: 30_000 },
     async (name, html) => {
       const url = `https://pages.example/corpus/${name}`;
       const saved = await savedLink(url);

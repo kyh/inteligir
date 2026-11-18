@@ -12,5 +12,9 @@ export default defineConfig({
     // every suite's environment
     provide: { blobReadWriteToken: process.env.BLOB_READ_WRITE_TOKEN ?? "" },
     setupFiles: ["@repo/db/test-database-file", "./src/test-support/file-store-setup.ts"],
+    // a suite's Postgres round trips, a lock held past its 5s wait and the page reader's whole-site
+    // corpus share a full run's cores with every suite turbo starts beside them, where the 5s
+    // default is a coin-flip
+    testTimeout: 30_000,
   },
 });

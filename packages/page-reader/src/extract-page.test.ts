@@ -284,37 +284,27 @@ describe("the article", () => {
 });
 
 describe("the article's budget", () => {
-  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
-  it(
-    "keeps a long page's leading paragraphs, whole, within the budget",
-    { timeout: 30_000 },
-    () => {
-      const long = longPage(FILL_LIMITS.articleBytes * 2);
-      const article = wordsOf(readOf(long.html).article.blocks);
-      expect(article).toContain("Paragraph 0 opens with");
-      expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
-      // whole paragraphs: the last one kept ends its sentence
-      expect(article.trimEnd().endsWith("ordinary prose.")).toBe(true);
-      // the words are shorter than the markup they were read from, which the budget counts
-      expect(article.length).toBeLessThan(FILL_LIMITS.articleBytes);
-      expect(article.length).toBeGreaterThan(FILL_LIMITS.articleBytes / 3);
-    },
-  );
+  it("keeps a long page's leading paragraphs, whole, within the budget", () => {
+    const long = longPage(FILL_LIMITS.articleBytes * 2);
+    const article = wordsOf(readOf(long.html).article.blocks);
+    expect(article).toContain("Paragraph 0 opens with");
+    expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
+    // whole paragraphs: the last one kept ends its sentence
+    expect(article.trimEnd().endsWith("ordinary prose.")).toBe(true);
+    // the words are shorter than the markup they were read from, which the budget counts
+    expect(article.length).toBeLessThan(FILL_LIMITS.articleBytes);
+    expect(article.length).toBeGreaterThan(FILL_LIMITS.articleBytes / 3);
+  });
 
-  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
-  it(
-    "opens one wrapper past the budget rather than losing the whole page",
-    { timeout: 30_000 },
-    () => {
-      const long = longPage(FILL_LIMITS.articleBytes * 2);
-      const wrapped = long.html
-        .replace("<article>", "<article><div><div>")
-        .replace("</article>", "</div></div></article>");
-      const article = wordsOf(readOf(wrapped).article.blocks);
-      expect(article).toContain("Paragraph 0 opens with");
-      expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
-    },
-  );
+  it("opens one wrapper past the budget rather than losing the whole page", () => {
+    const long = longPage(FILL_LIMITS.articleBytes * 2);
+    const wrapped = long.html
+      .replace("<article>", "<article><div><div>")
+      .replace("</article>", "</div></div></article>");
+    const article = wordsOf(readOf(wrapped).article.blocks);
+    expect(article).toContain("Paragraph 0 opens with");
+    expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
+  });
 
   it("leaves a page within the budget whole", () => {
     const short = longPage(FILL_LIMITS.articleBytes / 4);
@@ -361,13 +351,12 @@ describe("a page the tree cannot hold", () => {
     expect(wordsOf(deep.article.blocks)).toBe("deep words here\nafter them\n");
   });
 
-  // the deepest the extractor hands the tree's parser: no stack runs out under it on the way,
-  // and a loaded machine reads it in seconds
+  // the deepest the extractor hands the tree's parser: no stack runs out under it on the way
   it.each([
     ["sections", "<div>", "</div>", "rich"],
     ["marks", "<em>", "</em>", "rich"],
     ["quotes", "<blockquote>", "</blockquote>", "text"],
-  ])("keeps the words under 250 nested %s", { timeout: 30_000 }, (_name, open, close, rung) => {
+  ])("keeps the words under 250 nested %s", (_name, open, close, rung) => {
     const deep = readOf(
       articlePage(`${open.repeat(250)}<p>deep words here</p>${close.repeat(250)}`),
     );
