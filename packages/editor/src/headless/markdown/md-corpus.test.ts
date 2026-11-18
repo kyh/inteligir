@@ -1,8 +1,10 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ElementApi, NodeApi } from "platejs";
+import { ElementApi, KEYS, NodeApi } from "platejs";
 import type { TElement } from "platejs";
+
+import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 
 import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning";
 import { lettersKept } from "./markdown-doc";
@@ -39,6 +41,33 @@ const KEPT_BELOW_ALL = new Map([
   ["tag-void-inline.md", 0.8378],
 ]);
 
+// the voids a file is written to hold, so its cases read and write those nodes, not text that spells
+// them; an escaped one is its text
+const VOIDS_HELD = new Map<string, readonly string[]>([
+  ["escaped-constructs.md", []],
+  ["list-soft-break-beside-void.md", [FORMULA_PILL_KEY, KEYS.mention]],
+  ["soft-break-beside-void.md", [KEYS.date, FORMULA_PILL_KEY, KEYS.img, KEYS.mention]],
+  ["tabs.md", [FORMULA_PILL_KEY, KEYS.mention]],
+]);
+
+const VOID_TYPES: ReadonlySet<string> = new Set([
+  KEYS.date,
+  FORMULA_PILL_KEY,
+  KEYS.img,
+  KEYS.mention,
+]);
+
+const voidsIn = (value: readonly TElement[]): string[] =>
+  [
+    ...new Set(
+      value
+        .flatMap((block) => [...NodeApi.nodes(block)])
+        .flatMap(([node]) =>
+          ElementApi.isElement(node) && VOID_TYPES.has(node.type) ? [node.type] : [],
+        ),
+    ),
+  ].toSorted();
+
 const LINK_TYPES = new Set(["a", "mention"]);
 const MEDIA_TYPES = new Set(["img", "video", "file", "media_embed"]);
 
@@ -73,9 +102,20 @@ describe.each(CORPUS)("$name", ({ md, name }) => {
   });
 });
 
+describe.each([...VOIDS_HELD])("%s", (name, held) => {
+  it("reads the voids it is written to hold as their nodes, and reads them back", () => {
+    const md = CORPUS.find((file) => file.name === name)?.md ?? "";
+    const first = readValue(md);
+    expect(voidsIn(first)).toStrictEqual(held.toSorted());
+    expect(voidsIn(readValue(writeValue(first)))).toStrictEqual(held.toSorted());
+  });
+});
+
 describe("the corpus", () => {
-  it("holds every file it keeps fewer letters of", () => {
+  it("holds every file it keeps fewer letters of, and every file it names a void for", () => {
     const names = new Set(CORPUS.map(({ name }) => name));
-    expect([...KEPT_BELOW_ALL.keys()].filter((name) => !names.has(name))).toStrictEqual([]);
+    expect(
+      [...KEPT_BELOW_ALL.keys(), ...VOIDS_HELD.keys()].filter((name) => !names.has(name)),
+    ).toStrictEqual([]);
   });
 });

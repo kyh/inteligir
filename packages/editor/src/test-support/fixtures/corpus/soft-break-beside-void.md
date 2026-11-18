@@ -1,26 +1,26 @@
-[[A]]
-[[B]]
+[A](mention:0190a000-0000-7000-8000-00000000000a)
+[B](mention:0190a000-0000-7000-8000-00000000000b)
 
-[[A]]
+[A](mention:0190a000-0000-7000-8000-00000000000a)
 text
 
 text
-[[A]]
+[A](mention:0190a000-0000-7000-8000-00000000000a)
 
-{{2+2|4}}
-{{3+3|6}}
+:formula[4]{source="2+2"}
+:formula[6]{source="3+3"}
 
-{{2+2|4}}
+:formula[4]{source="2+2"}
 text
 
 text
-{{2+2|4}}
+:formula[4]{source="2+2"}
 
-![[Diagram.png]]
+![Diagram](https://files.example/diagram.png)
 caption
 
 press <kbd>K</kbd>
 to open it
 
-due @2026-07-01
+due :date[2026-07-01]
 or later

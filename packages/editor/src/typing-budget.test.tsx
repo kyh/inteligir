@@ -6,10 +6,11 @@
 
 import { serializeMd } from "@platejs/markdown";
 import { act } from "@testing-library/react";
-import { createSlateEditor, TextApi } from "platejs";
+import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
@@ -36,7 +37,7 @@ const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
 const WATCHED_BLOCK =
-  "Last words: a #field tag, a [[Hub]] link, a {{1+1|2}} pill, $$x$$ and @2026-09-24.";
+  'Last words: a #field tag, a [Hub](mention:0190a000-0000-7000-8000-000000000004) link, a :formula[2]{source="1+1"} pill, $$x$$ and :date[2026-09-24].';
 // the note's end is where a range or a point lands without walking the note, so the watched block
 // is not the last one
 const CLOSING_BLOCK = "The end.";
@@ -408,6 +409,20 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
       share,
       `a keystroke in the ${String(LONG_LINES)}-line note costs ${ms(longMs)}, ${share.toFixed(3)}x the ${ms(parseMs)} parse that opened it; the ceiling is ${String(KEYSTROKE_TO_PARSE_CEILING)}x, and a store atom every block holds is 0.06x`,
     ).toBeLessThan(KEYSTROKE_TO_PARSE_CEILING);
+  });
+});
+
+describe("the watched block", () => {
+  it("holds every inline void of the dialect, as its node", () => {
+    const parsed = parseMarkdown(WATCHED_BLOCK);
+    if (!parsed.ok) {
+      throw new Error("the watched block parses");
+    }
+    expect(
+      parsed.value[0]?.children.flatMap((child) =>
+        ElementApi.isElement(child) ? [child.type] : [],
+      ),
+    ).toStrictEqual([KEYS.mention, FORMULA_PILL_KEY, KEYS.inlineEquation, KEYS.date]);
   });
 });
 
