@@ -1,8 +1,3 @@
-// the page the extension opens once installed, and the browser's Options opens again: whose library
-// this browser saves to, as the browser is signed in on the site, or the way to sign in. The
-// extension has no sign-out of its own: signing out on the site signs it out too. A status it could
-// not read says so in its own words, never a save's.
-
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useState } from "react";
 
@@ -25,6 +20,7 @@ const Account = ({ status }: { status: Status | "unreadable" | null }) => {
       </p>
     );
   }
+
   if (status === "unreadable") {
     return (
       <p className="text-subtitle text-foreground" role="alert">
@@ -32,6 +28,7 @@ const Account = ({ status }: { status: Status | "unreadable" | null }) => {
       </p>
     );
   }
+
   if (status.account === null) {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -47,6 +44,7 @@ const Account = ({ status }: { status: Status | "unreadable" | null }) => {
       </div>
     );
   }
+
   return (
     <div className="flex flex-col items-start gap-3">
       <p className="text-subtitle text-foreground">{`Saving to ${status.account.email}'s library`}</p>
@@ -68,20 +66,25 @@ export const Welcome = ({ ask }: WelcomeProps) => {
 
   useEffect(() => {
     let live = true;
+
     const look = async () => {
       const answer = (await ask.status()) ?? "unreadable";
+
       if (live) {
         setStatus(answer);
       }
     };
+
     void look();
-    // a sign-in or sign-out in another tab shows here when this one is looked at again
+
     const again = () => {
       if (document.visibilityState === "visible") {
         void look();
       }
     };
+
     document.addEventListener("visibilitychange", again);
+
     return () => {
       live = false;
       document.removeEventListener("visibilitychange", again);

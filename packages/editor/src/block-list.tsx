@@ -1,5 +1,3 @@
-// Plate models lists as indented blocks, so this wrapper draws the marker.
-
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
 import { useReadOnly } from "platejs/react";
@@ -16,8 +14,6 @@ const TodoMarker = (props: PlateElementProps) => {
   const { checkboxProps } = useTodoListElement(useTodoListElementState({ element: props.element }));
   const readOnly = useReadOnly();
 
-  // named, so the checkbox looks for no <label>: unnamed, each one asks the document for its labels
-  // on every render, a walk of the whole note per task in a long one
   return (
     <div contentEditable={false}>
       <Checkbox
@@ -31,6 +27,7 @@ const TodoMarker = (props: PlateElementProps) => {
 
 const TodoLi = (props: PlateElementProps) => {
   const checked = props.element.checked === true;
+
   return (
     <li className={cn("group relative list-none", checked && "text-muted-foreground line-through")}>
       {props.children}
@@ -54,9 +51,11 @@ const List = (props: PlateElementProps) => {
 
 export const BlockList: RenderNodeWrapper = (props) => {
   const styleType = stringProp(props.element, "listStyleType");
+
   if (styleType === undefined || styleType === "") {
     return;
   }
+
   return function ListWrapper(innerProps) {
     return <List {...innerProps} />;
   };

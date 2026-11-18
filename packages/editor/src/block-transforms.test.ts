@@ -14,17 +14,22 @@ import {
 import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
-import { meaningOf, readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
+import {
+  meaningOf,
+  readValue,
+  rewrite,
+} from "@repo/editor/test-support/markdown-meaning.test-utils";
 
 const makeEditor = (md: string) => {
   const parsed = parseMarkdown(md);
   const value = parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
+
   return createSlateEditor({ plugins: EDITOR_KIT, value });
 };
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string => serializeNote(editor);
+const out = (editor: Editor) => serializeNote(editor);
 
 describe("TURN_INTO menu (decision #8)", () => {
   it("offers exactly the locked target set, in menu order — no columns", () => {
@@ -169,6 +174,7 @@ describe("multi-block turn into", () => {
 
 describe("turn into over a code block", () => {
   const CODE_THEN_P = "```\nl1\nl2\n```\n\np\n";
+
   const acrossLinesAndP = {
     anchor: { offset: 0, path: [0, 0, 0] },
     focus: { offset: 1, path: [1, 0] },

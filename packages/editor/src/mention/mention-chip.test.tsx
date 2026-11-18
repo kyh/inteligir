@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setLibraryTitles } from "@repo/editor/host-io";
 import { MentionChip } from "@repo/editor/mention/mention-chip";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -13,7 +13,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const hover = (chip: HTMLElement): void => {
+const hover = (chip: HTMLElement) => {
   fireEvent.pointerEnter(chip, { pointerType: "mouse" });
   fireEvent.mouseEnter(chip);
   fireEvent.mouseMove(chip);
@@ -39,6 +39,7 @@ describe("a page link's chip", () => {
 
   it("previews the item's card after the hover delay and opens it by its id", async () => {
     const id = "0190a000-0000-7000-8000-000000000002";
+
     const { calls } = installFakeEditorHost({
       itemBlocks: (itemId) =>
         itemId === id
@@ -46,6 +47,7 @@ describe("a page link's chip", () => {
           : null,
       titles: [{ id, title: "Plan" }],
     });
+
     render(<MentionChip itemId={id} title="Plan" />);
     const chip = screen.getByRole("button", { name: "Plan" });
     hover(chip);

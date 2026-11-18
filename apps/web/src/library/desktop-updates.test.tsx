@@ -8,22 +8,33 @@ const AVAILABLE: DesktopUpdateState = { status: "available", version: "1.2.3" };
 
 type Ask = () => Promise<DesktopUpdateState>;
 
-const fakeBridge = (check: Ask) => {
+const DOWNLOADING: DesktopUpdateState = { downloadPercent: 0, status: "downloading" };
+
+const refused = async () => await Promise.reject(new Error("not allowed"));
+
+const fakeBridge = (check: Ask, download: Ask = async () => await Promise.resolve(DOWNLOADING)) => {
   const pushes: ((state: DesktopUpdateState) => void)[] = [];
+
   const bridge = {
-    checkForUpdates: vi.fn<Ask>(check),
-    downloadUpdate: vi.fn<Ask>(async () => ({ downloadPercent: 0, status: "downloading" })),
-    installUpdate: vi.fn<Ask>(async () => AVAILABLE),
+    checkForUpdates: check,
+    downloadUpdate: download,
+    installUpdate: async () => await Promise.resolve(AVAILABLE),
     onUpdateState: (listener: (state: DesktopUpdateState) => void) => {
       pushes.push(listener);
+
       return () => {};
     },
   } satisfies DesktopBridge;
-  const push = (state: DesktopUpdateState): void => {
+
+  vi.spyOn(bridge, "checkForUpdates");
+  vi.spyOn(bridge, "downloadUpdate");
+
+  const push = (state: DesktopUpdateState) => {
     for (const listener of pushes) {
       listener(state);
     }
   };
+
   return { bridge, push };
 };
 
@@ -61,9 +72,8 @@ describe("the updates store", () => {
   });
 
   it("names the step the shell refused: a check that failed, or an update that didn't go through", async () => {
-    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { bridge } = fakeBridge(async () => await Promise.reject(new Error("not allowed")));
-    bridge.downloadUpdate.mockRejectedValueOnce(new Error("not allowed"));
+    const warned = vi.spyOn(console, "warn");
+    const { bridge } = fakeBridge(refused, refused);
     const store = createUpdatesStore(bridge);
     const { result } = renderHook(store.use);
     await vi.waitFor(() => {

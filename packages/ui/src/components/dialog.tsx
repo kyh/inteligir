@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
@@ -18,16 +18,12 @@ import { cn } from "@repo/ui/lib/cn";
 
 const DIALOG_OFFSET = 4;
 
-// The modal skin, Dialog's and AlertDialog's alike: the two primitives share their Backdrop and
-// Popup, so a second skin would only be a second look for one kind of surface. Both fade under the
-// Portal's presence (`@repo/ui/lib/popup-presence`), each with an exit of its own.
-// The backdrop is absolute where iOS WebKit runs the page, so it covers the visual viewport under
-// the browser's chrome (base-ui.com/react/overview/quick-start; body is relative in globals.css)
 const BACKDROP_CLASSES =
   "fixed inset-0 min-h-dvh bg-black/40 supports-[-webkit-touch-callout:none]:absolute dark:bg-black/80";
 
 const renderDialogBackdrop = (backdropProps: HTMLProps<HTMLDivElement>) => {
   const { style: _style, ...rest } = motionProps(backdropProps);
+
   return (
     <motion.div
       {...rest}
@@ -40,15 +36,12 @@ const renderDialogBackdrop = (backdropProps: HTMLProps<HTMLDivElement>) => {
 };
 
 interface DialogCardProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
-  // what the primitive's render prop hands over; the card spreads it so the Popup element itself
-  // is the one that animates, which is what Base UI waits on before it unmounts
   popupProps: HTMLProps<HTMLDivElement>;
 }
 
 const DialogCard = ({ popupProps, className, style, ...props }: DialogCardProps) => {
   const { style: baseStyle, ...rest } = motionProps(popupProps);
-  // centering rides CSS translate utilities, not motion x/y, so a consumer className can
-  // override one axis
+
   return (
     <Elevated
       {...rest}
@@ -67,7 +60,6 @@ const DialogCard = ({ popupProps, className, style, ...props }: DialogCardProps)
   );
 };
 
-// controlled, as the Portal's presence reads the open it is handed
 interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -119,9 +111,6 @@ const DialogContent = ({
             {showCloseButton && (
               <DialogPrimitive.Close
                 render={
-                  // named by its text, not an aria-label: the Button would draw that as a
-                  // tooltip, which opens as the dialog's first focus lands here and takes the
-                  // first Escape for itself
                   <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
                     <XIcon />
                     <span className="sr-only">Close</span>

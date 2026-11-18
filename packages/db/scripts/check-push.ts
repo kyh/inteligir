@@ -1,6 +1,3 @@
-// CI runs this after a first push: drizzle-kit can misread what it created (a `nextval(…)` default
-// as serial) and fail halfway through the next push. Only the dry run's `no_changes` passes.
-
 import { spawnSync } from "node:child_process";
 import { z } from "zod";
 
@@ -13,11 +10,14 @@ const reportOf = (output: string) => {
     .split("\n")
     .map((text) => text.trim())
     .findLast((text) => text.startsWith("{"));
+
   if (line === undefined) {
     return null;
   }
+
   try {
     const parsed = reportSchema.safeParse(JSON.parse(line));
+
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
@@ -29,6 +29,7 @@ const run = spawnSync("drizzle-kit", ["push", "--explain", "--output", "json"], 
   encoding: "utf-8",
   stdio: ["ignore", "pipe", "inherit"],
 });
+
 const output = run.stdout.trim();
 const report = reportOf(output);
 

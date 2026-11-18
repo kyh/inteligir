@@ -10,7 +10,6 @@ describe("the phone's cloud origin", () => {
   });
 
   it("is the production origin when nothing names another", () => {
-    // oxlint-disable-next-line unicorn/no-useless-undefined -- stubEnv unsets a variable only when handed undefined
     vi.stubEnv(VARIABLE, undefined);
     expect(getCloudUrl()).toBe(PRODUCTION_CLOUD_ORIGIN);
   });

@@ -1,6 +1,3 @@
-// An item's Info: where it came from, when it was saved, what it is and where it is filed, read from
-// the item's own fields and the folders the library lists.
-
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { KIND_LABELS } from "@repo/client/library-labels";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
@@ -12,23 +9,20 @@ export interface InfoFolder {
   readonly parentId: string | null;
 }
 
-// a folder's path from the top, by the names the library lists
-const folderPath = (folders: readonly InfoFolder[], folderId: string | null): string => {
+const folderPath = (folders: readonly InfoFolder[], folderId: string | null) => {
   const names: string[] = [];
   let at = folders.find((folder) => folder.id === folderId);
+
   while (at !== undefined && names.length < folders.length) {
     names.unshift(at.name);
     const { parentId } = at;
     at = folders.find((folder) => folder.id === parentId);
   }
+
   return names.length === 0 ? "Unsorted" : names.join(" / ");
 };
 
-// what Info shows of an item, each row only when the item says it
-const rowsOf = (
-  fields: LibraryItemFields,
-  folders: readonly InfoFolder[],
-): { label: string; value: string }[] =>
+const rowsOf = (fields: LibraryItemFields, folders: readonly InfoFolder[]) =>
   [
     { label: "Link", value: fields.url },
     { label: "Site", value: fields.site },

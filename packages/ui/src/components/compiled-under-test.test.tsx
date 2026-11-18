@@ -1,7 +1,3 @@
-// a component the compiler memoizes wrongly passes every unit test and fails only in the
-// built app. a .tsx suite on purpose: only the ui-dom project runs the compiler, which skips the
-// node project's server transform.
-
 import { expect, test } from "vitest";
 
 import { Toaster } from "./sonner";

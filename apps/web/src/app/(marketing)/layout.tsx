@@ -16,9 +16,7 @@ const homeCard = {
   width: PAGES.home.image.width,
 };
 
-// the site-wide defaults, which a page's own metadata (#lib/page-metadata) replaces key by key
 export const metadata: Metadata = {
-  // the home-screen title alone; `capable` would default to true and add `mobile-web-app-capable`
   appleWebApp: { capable: false, title: siteConfig.shortName },
   manifest: "/favicon/site.webmanifest",
   openGraph: {

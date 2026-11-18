@@ -4,7 +4,7 @@ import { MarkdownPlugin } from "@platejs/markdown";
 
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
-import { meaningOf } from "../../test-support/markdown-meaning";
+import { meaningOf } from "../../test-support/markdown-meaning.test-utils";
 import { headlessEditor, serializeNote } from "./markdown-doc";
 import { lfOnly, readMarkdown, readMdast } from "./md-read";
 import { MD_RULES } from "./md-rules";
@@ -36,7 +36,6 @@ describe(readMarkdown, () => {
     });
   });
 
-  // refused by the read's own measure, so the answer is the same on a platform whose stack holds it
   it("refuses 500 quotes deep, short of where any stack runs out", () => {
     expect(read(`${"> ".repeat(500)}x\n`)).toStrictEqual({
       ok: false,
@@ -73,18 +72,22 @@ describe(readMarkdown, () => {
     const lf = "One\ntwo\n\n- a\n- b\n\n```\ncode\n```\n\n| a | b |\n| - | - |\n| 1 | 2 |\n";
     const crlf = read(lf.replaceAll("\n", "\r\n"));
     const plain = read(lf);
+
     if (!crlf.ok || !plain.ok) {
       throw new Error("a read refused");
     }
+
     expect(meaningOf(crlf.value)).toBe(meaningOf(plain.value));
   });
 
   it("reads a picture inside a link as the picture, which writes back", () => {
     const badge = read("[![alt](https://e.example/a.png)](https://e.example)\n");
     expect(badge).toStrictEqual({ ok: true, value: [picture] });
+
     if (!badge.ok) {
       throw new Error("the badge refused");
     }
+
     expect(serializeNote(headlessEditor(), badge.value)).toBe("![alt](https://e.example/a.png)\n");
   });
 
@@ -130,10 +133,12 @@ describe(readMarkdown, () => {
       ok: true,
       value: [{ children: [{ text: "See [[Plan]] and [[Gone]]." }] }],
     });
+
     const resolved = readMarkdown(headlessEditor(), md, {
       wiki: (link) =>
         link.target === "Plan" ? { itemId: "plan-id", kind: "item", title: "Plan" } : null,
     });
+
     expect(resolved).toMatchObject({
       ok: true,
       value: [
@@ -149,18 +154,21 @@ describe(readMarkdown, () => {
   });
 });
 
-const paragraph = (value: string): BlockContent => ({
-  children: [{ type: "text", value }],
-  type: "paragraph",
-});
+const paragraph: (value: string) => BlockContent = (value: string) =>
+  ({
+    children: [{ type: "text", value }],
+    type: "paragraph",
+  }) satisfies BlockContent;
 
-const tree = (...children: BlockContent[]): Root => ({ children, type: "root" });
+const tree = (...children: BlockContent[]) => ({ children, type: "root" }) satisfies Root;
 
-const quoted = (depth: number): BlockContent => {
+const quoted = (depth: number) => {
   let block = paragraph("x");
+
   for (let level = 0; level < depth; level += 1) {
     block = { children: [block], type: "blockquote" };
   }
+
   return block;
 };
 
@@ -223,6 +231,7 @@ describe(readMdast, () => {
 
   it("refuses a tree nested past what an item holds as too deep, wherever a stack would run out", () => {
     expect(readMdast(headlessEditor(), tree(quoted(8))).ok).toBe(true);
+
     for (const depth of [500, 12_000]) {
       expect(readMdast(headlessEditor(), tree(quoted(depth)))).toStrictEqual({
         ok: false,

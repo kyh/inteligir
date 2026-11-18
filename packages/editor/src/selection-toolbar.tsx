@@ -19,7 +19,7 @@ import {
   SparklesIcon,
 } from "lucide-react";
 import { KEYS, RangeApi } from "platejs";
-import type { RangeRef, TRange } from "platejs";
+import type { RangeRef } from "platejs";
 import {
   createPlatePlugin,
   useEditorReadOnly,
@@ -66,8 +66,7 @@ const BAR_CLASS = cn(
 
 const Sep = () => <Separator orientation="vertical" className="mx-0.5 h-5" />;
 
-// a press that moved focus would collapse the editor selection the button acts on
-const keepSelection = (event: ReactMouseEvent<HTMLElement>): void => {
+const keepSelection = (event: ReactMouseEvent<HTMLElement>) => {
   event.preventDefault();
 };
 
@@ -90,7 +89,6 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => (
   </>
 );
 
-// Button styles aria-expanded but not aria-pressed, so the pressed classes ride className.
 const IconButton = ({
   pressed,
   onClick,
@@ -117,8 +115,6 @@ const IconButton = ({
   </Button>
 );
 
-// must be a real Menu.Trigger: a detached controlled menu anchored to a plain button closes
-// with reason `trigger-hover` as the pointer moves into the popup, so mouse clicks on items die.
 const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
   <DropdownMenuTrigger className="flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5">
     {children}
@@ -126,18 +122,19 @@ const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
   </DropdownMenuTrigger>
 );
 
-// the tooltip is the table's label and chord, so it cannot disagree with what runs; a mark with
-// no chord still needs a name on the button
-const markTitle = (nodeType: string): string => {
+const markTitle = (nodeType: string) => {
   const row = nodeType === KEYS.code ? CODE_MARK_SHORTCUT : markShortcut(nodeType);
+
   if (row !== null) {
     return `${row.label} ${spellHotkey(row.hotkey, platformShortcutModifier())}`;
   }
+
   return nodeType === KEYS.strikethrough ? "Strikethrough" : nodeType;
 };
 
 const MarkButton = ({ nodeType, children }: { nodeType: string; children: ReactNode }) => {
   const { props } = useMarkToolbarButton(useMarkToolbarButtonState({ nodeType }));
+
   return (
     <IconButton
       pressed={props.pressed}
@@ -160,6 +157,7 @@ const LinkInput = ({
   onCancel: () => void;
 }) => {
   const [url, setUrl] = useState(initialValue);
+
   return (
     <form
       onSubmit={(e) => {
@@ -197,9 +195,6 @@ const LinkInput = ({
   );
 };
 
-// The turn-into menu and the link field each act on the text selected when they opened, held
-// (held-selection.ts) by the press that opens them, since an effect races Slate's throttled
-// selection sync.
 type BarMode =
   | { readonly kind: "bar" }
   | { readonly kind: "turn-into"; readonly at: RangeRef }
@@ -212,25 +207,30 @@ const SelectionToolbar = () => {
   const readOnly = useEditorReadOnly();
 
   const [mode, setMode] = useState<BarMode>(BAR);
-  // what the link field held when its text went away under it, offered again when it next opens
   const [draft, setDraft] = useState<string | null>(null);
-  const enter = (next: BarMode): void => {
+
+  const enter = (next: BarMode) => {
     if (mode.kind !== "bar") {
       mode.at.unref();
     }
+
     setMode(next);
   };
-  const hold = (kind: "turn-into" | "link"): void => {
+
+  const hold = (kind: "turn-into" | "link") => {
     const at = holdSelection(editor);
+
     if (at !== null) {
       enter({ at, kind });
     }
   };
-  const backToNote = (): void => {
+
+  const backToNote = () => {
     enter(BAR);
     editor.tf.focus();
   };
-  const heldRange = (): TRange | null => (mode.kind === "bar" ? null : mode.at.current);
+
+  const heldRange = () => (mode.kind === "bar" ? null : mode.at.current);
 
   const focusedEditorId = useEventEditorValue("focus");
   const isSelectingSome = Boolean(usePluginOption(BlockSelectionPlugin, "isSelectingSome"));
@@ -251,6 +251,7 @@ const SelectionToolbar = () => {
     focusedEditorId,
     hideToolbar: isSelectingSome,
   });
+
   const {
     clickOutsideRef,
     hidden,
@@ -258,30 +259,23 @@ const SelectionToolbar = () => {
     ref: floatingRef,
   } = useFloatingToolbar(floatingToolbarState);
 
-  // platejs types useEditorSelection's return as `any`
   const rawSelection: unknown = useEditorSelection();
   const selection = RangeApi.isRange(rawSelection) ? rawSelection : null;
   const entry = effectiveBlockEntry(editor, selection ?? heldRange() ?? undefined);
   const typeLabel = entry ? turnIntoOptionFor(entry[0]).label : "Text";
 
-  // A note that turned read-only takes no edit the bar would make, so it draws none and its mode
-  // ends, lest a field open then come back with the edits. Ended while rendering: an effect's
-  // cleanup would let go of the text a StrictMode remount still holds, and unref twice is a no-op.
   if (readOnly) {
     if (mode.kind !== "bar") {
       enter(BAR);
     }
+
     return null;
   }
-  // base ui portals escape clickOutsideRef, so the hook hides the bar (blur, a collapsed
-  // selection) while a menu or the link field holds focus; a mode keeps it
+
   if (hidden && mode.kind === "bar") {
     return null;
   }
 
-  // ignore-click-outside/toolbar: without it a mousedown on a portaled menu item flips the
-  // hook's open state, hides the bar, and the popup anchored to the hidden trigger jumps away
-  // before mouseup.
   return (
     <div ref={clickOutsideRef}>
       <div
@@ -330,9 +324,11 @@ const SelectionToolbar = () => {
                       key={opt.id}
                       onClick={() => {
                         const at = heldRange();
+
                         if (at !== null) {
                           turnIntoSelection(editor, opt, at);
                         }
+
                         editor.tf.focus();
                       }}
                     >
@@ -386,7 +382,6 @@ const SelectionToolbar = () => {
   );
 };
 
-// drawn from the plugin tree, inside the positioning context @platejs/floating computes against
 export const SelectionToolbarKit = [
   createPlatePlugin({
     key: "selectionToolbar",

@@ -1,12 +1,11 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import type { ReactNode } from "react";
 
 import { radius } from "@repo/ui/lib/radius";
 import { cn } from "@repo/ui/lib/cn";
 
-// text-box needs a block container, so the label gets its own span
 const Badge = ({ children }: { children: ReactNode }) => (
   <span
     className={cn(

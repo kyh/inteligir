@@ -13,50 +13,54 @@ import {
 import type { ItemActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 type NewNote = Parameters<ItemActions["createNote"]>[0];
 
-const h2 = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "h2" });
-const p = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "p" });
+const h2 = (id: string, text: string) =>
+  ({ children: [{ text }], id, type: "h2" }) satisfies TElement;
+
+const p = (id: string, text: string) =>
+  ({ children: [{ text }], id, type: "p" }) satisfies TElement;
 
 const showing = (itemId: string | null) => [
   ...EDITOR_KIT,
   OpenItemPlugin.configure({ options: { itemId } }),
 ];
 
-const pill = (name: string, source: string, display: string): TElement => ({
-  children: [{ text: "" }],
-  display,
-  name,
-  source,
-  type: "formulaPill",
-});
+const pill = (name: string, source: string, display: string) =>
+  ({
+    children: [{ text: "" }],
+    display,
+    name,
+    source,
+    type: "formulaPill",
+  }) satisfies TElement;
 
-// a paragraph of pills, a space after each
-const line = (id: string, ...pills: TElement[]): TElement => ({
-  children: [{ text: `${id} ` }, ...pills.flatMap((node) => [node, { text: " " }])],
-  id,
-  type: "p",
-});
+const line = (id: string, ...pills: TElement[]) =>
+  ({
+    children: [{ text: `${id} ` }, ...pills.flatMap((node) => [node, { text: " " }])],
+    id,
+    type: "p",
+  }) satisfies TElement;
 
-// an item's editor, answering for the item by its id as the item editor does
 const editorOver = (value: Value, itemId: string | null = "item-1") => {
   const editor = createPlateEditor({ plugins: showing(itemId), value });
+
   if (itemId !== null) {
     registerLiveEditor(itemId, editor);
   }
+
   return editor;
 };
 
 type Editor = ReturnType<typeof editorOver>;
 
-const selectAll = (editor: Editor): void => {
+const selectAll = (editor: Editor) => {
   editor.tf.select([]);
 };
 
-const texts = (editor: Editor): string[] =>
-  editor.children.map((block) => editor.api.string(block));
+const texts = (editor: Editor) => editor.children.map((block) => editor.api.string(block));
 
 const linkAt = (editor: Editor, at: number[]) =>
   editor.api.nodes<TElement>({ at, match: { type: KEYS.mention } }).next().value?.[0];
@@ -83,6 +87,7 @@ describe("the extract", () => {
     installFakeEditorHost({
       createNote: async (note) => {
         made.push(note);
+
         return await Promise.resolve("note-1");
       },
     });
@@ -109,9 +114,11 @@ describe("the extract", () => {
     installFakeEditorHost({
       createNote: async (note) => {
         made.push(note);
+
         return await Promise.resolve("note-1");
       },
     });
+
     const editor = editorOver([
       line("kept", pill("price", "5", "5"), pill("cost", "qty*2", "6")),
       line("leaves", pill("qty", "3", "3"), pill("total", "price*qty", "15")),
@@ -131,6 +138,7 @@ describe("the extract", () => {
     installFakeEditorHost({
       createNote: async (note) => {
         made.push(note);
+
         return await Promise.resolve("note-1");
       },
     });
@@ -198,6 +206,7 @@ describe("the extract", () => {
         editor.tf.removeNodes({ at: [2] });
       },
     ];
+
     for (const edit of edits) {
       const create = deferred<string>();
       installFakeEditorHost({ createNote: async () => await create.promise });
@@ -229,7 +238,6 @@ describe("the extract", () => {
     const unheld = editorOver([p("b1", "only")], null);
     selectAll(unheld);
     await expect(extractBlocksToNote(unheld, selectedTopLevelPaths(unheld))).resolves.toBeNull();
-    // a held item's editor shows the item, which another editor answers for
     const held = createPlateEditor({ plugins: showing("item-1"), value: [p("b1", "only")] });
     selectAll(held);
     await expect(extractBlocksToNote(held, selectedTopLevelPaths(held))).resolves.toBeNull();

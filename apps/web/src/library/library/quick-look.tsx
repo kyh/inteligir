@@ -1,7 +1,3 @@
-// A look at a card without leaving the grid: its cover, where it came from, its first paragraph
-// and its outline, as the cell lists them. The arrows step through the grid's order, Space or
-// Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
-
 import { KIND_LABELS } from "@repo/client/library-labels";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { Badge } from "@repo/ui/components/badge";
@@ -20,7 +16,6 @@ export interface QuickLookProps {
   readonly row: ListedItem | null;
   readonly onClose: () => void;
   readonly onOpen: (row: ListedItem) => void;
-  // -1 or +1 along the grid's order
   readonly onStep: (by: -1 | 1) => void;
 }
 
@@ -28,6 +23,7 @@ const Look = ({ row }: { row: ListedItem }) => {
   const nowMs = useNow();
   const cover = coverOf(row);
   const notice = readingNotice(row.fields.reading);
+
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {cover === null ? null : (
@@ -56,39 +52,50 @@ const Look = ({ row }: { row: ListedItem }) => {
 
 export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
   const modifier = platformShortcutModifier();
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (row === null) {
       return;
     }
+
     const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
+
     switch (shortcut?.action) {
       case "quick-look": {
         event.preventDefault();
         onClose();
+
         return;
       }
+
       case "open-item": {
         event.preventDefault();
         onOpen(row);
+
         return;
       }
+
       case "move-left":
       case "move-up": {
         event.preventDefault();
         onStep(-1);
+
         return;
       }
+
       case "move-right":
       case "move-down": {
         event.preventDefault();
         onStep(1);
         break;
       }
+
       default: {
         break;
       }
     }
   };
+
   return (
     <Dialog
       open={row !== null}

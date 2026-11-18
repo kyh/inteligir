@@ -20,7 +20,6 @@ export const MediaToolbar = () => {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const url = stringProp(element, "url") ?? "";
-  // a file the library holds is named by its bytes, which no address replaces
   const held = stringProp(element, "sha") !== undefined;
 
   useEffect(() => {
@@ -29,7 +28,6 @@ export const MediaToolbar = () => {
     }
   }, [editing]);
 
-  // decided during render so the toolbar never paints an open input on an unselected embed.
   if (editing && !selected) {
     setEditing(false);
   }
@@ -41,14 +39,17 @@ export const MediaToolbar = () => {
   const commitUrl = () => {
     const next = inputRef.current?.value.trim() ?? "";
     const at = editor.api.findPath(element);
+
     if (next && next !== url && at) {
       editor.tf.setNodes({ url: next }, { at });
     }
+
     setEditing(false);
   };
 
   const remove = () => {
     const at = editor.api.findPath(element);
+
     if (at) {
       editor.tf.removeNodes({ at });
     }
@@ -75,9 +76,11 @@ export const MediaToolbar = () => {
               if (isImeComposing(e)) {
                 return;
               }
+
               if (e.key === "Enter") {
                 commitUrl();
               }
+
               if (e.key === "Escape") {
                 setEditing(false);
               }

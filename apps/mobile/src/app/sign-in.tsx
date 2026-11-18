@@ -38,6 +38,7 @@ const SignInScreen = () => {
   const busy = signIn.kind === "signing-in";
   const creating = door === "sign-up";
   const ready = formReady(door, { email, inviteCode, name, password });
+
   const reason =
     (session.kind === "signed-out" ? session.notice : null) ??
     (creating
@@ -48,6 +49,7 @@ const SignInScreen = () => {
     if (busy || !ready) {
       return;
     }
+
     void (creating ? signUp({ email, inviteCode, name, password }) : login({ email, password }));
   };
 
@@ -58,20 +60,24 @@ const SignInScreen = () => {
       name: nameInput,
       password: passwordInput,
     };
+
     inputs[field].current?.focus();
   };
 
-  const returnProps = (field: SignInField): ReturnProps => {
+  const returnProps = (field: SignInField) => {
     const next = returnOf(door, field);
-    return next.kind === "next"
-      ? {
-          onSubmitEditing: () => {
-            focus(next.field);
-          },
-          returnKeyType: "next",
-          submitBehavior: "submit",
-        }
-      : { onSubmitEditing: send, returnKeyType: "go", submitBehavior: "blurAndSubmit" };
+
+    return (
+      next.kind === "next"
+        ? {
+            onSubmitEditing: () => {
+              focus(next.field);
+            },
+            returnKeyType: "next",
+            submitBehavior: "submit",
+          }
+        : { onSubmitEditing: send, returnKeyType: "go", submitBehavior: "blurAndSubmit" }
+    ) satisfies ReturnProps;
   };
 
   return (

@@ -1,7 +1,3 @@
-// One Library row: the title, the site and when it was saved, the tags, and the cover on the right,
-// the phone's kept file decoded at the row's size, with a placeholder holding its place while it
-// comes, and in place of a cover a row will not draw, so rows do not jump.
-
 import { Image, Pressable, Text, View } from "react-native";
 import type { z } from "zod";
 import type { listedItemSchema } from "@repo/contract/library/library-wire";
@@ -17,6 +13,7 @@ const THUMB = { height: THUMB_SIZE, width: THUMB_SIZE } as const;
 
 const Thumb = ({ cover }: { cover: string }) => {
   const uri = useFileUri(cover, true);
+
   return uri === null || uri === undefined ? (
     <View className="rounded-lg bg-muted" style={THUMB} />
   ) : (
@@ -34,6 +31,7 @@ export const LibraryCardRow = ({
   onLongPress: () => void;
 }) => {
   const caption = cardCaption(row);
+
   return (
     <Pressable
       accessibilityRole="button"

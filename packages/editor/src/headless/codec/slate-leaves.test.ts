@@ -21,6 +21,7 @@ describe("a line of Slate text as the codec holds it", () => {
       leaf("", {}),
       leaf("c", {}),
     ]);
+
     expect(joined).toStrictEqual([{ bold: true, text: "ab" }, { text: "c" }]);
     expect(tidyInlines([leaf("", {}), leaf("", { bold: true })])).toStrictEqual([{ text: "" }]);
   });

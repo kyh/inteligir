@@ -1,20 +1,24 @@
 import { deferred } from "@repo/contract/deferred";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { toast } from "@repo/ui/components/sonner";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fakePageLibrary, renderOnLibrary, spyCommands } from "../test-support/fake-page-library";
+import {
+  fakePageLibrary,
+  renderOnLibrary,
+  spyCommands,
+} from "../test-support/fake-page-library.test-utils";
 import { InfoTab } from "./info-tab";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// a cell holding a link filed in a folder and tagged
 const cellWithALink = () => {
   const cell = createFakeCell();
   const folderId = cell.seed.folder("Reading");
+
   const id = cell.seed.item({
     folderId,
     kind: "link",
@@ -23,10 +27,11 @@ const cellWithALink = () => {
     title: "An article",
     url: "https://example.com/article",
   });
+
   return { cell, id };
 };
 
-const pinned = (): HTMLElement => screen.getByRole("switch", { name: "Pinned" });
+const pinned = () => screen.getByRole("switch", { name: "Pinned" });
 
 describe("Info over an item", () => {
   it("draws the item as the cell holds it, and acts on it by its id", async () => {
@@ -55,6 +60,7 @@ describe("Info over an item", () => {
   it("pins the item at once, before the cell answers", async () => {
     const { cell, id } = cellWithALink();
     const landed = deferred();
+
     const { calls, library } = fakePageLibrary({
       answer: async (call) => {
         if (call.path === "library.items.organize") {
@@ -84,6 +90,7 @@ describe("Info over an item", () => {
 
   it("says why the cell refused a pin, and puts the switch back", async () => {
     const { cell, id } = cellWithALink();
+
     const { library } = fakePageLibrary({
       answer: (call) => {
         if (call.path === "library.items.organize") {
@@ -92,6 +99,7 @@ describe("Info over an item", () => {
       },
       cell,
     });
+
     const failed = vi.spyOn(toast, "error");
 
     renderOnLibrary(<InfoTab itemId={id} />, library);
@@ -117,6 +125,7 @@ describe("Info over an item", () => {
   it("adds a property at once, as one property op over the item, and reads none of its body", async () => {
     const { cell, id } = cellWithALink();
     const landed = deferred();
+
     const { calls, library } = fakePageLibrary({
       answer: async (call) => {
         if (call.path === "library.write") {

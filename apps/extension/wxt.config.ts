@@ -1,9 +1,3 @@
-// the extension's build: WXT over src/entrypoints (the service worker, the popup, the welcome page
-// and the capture script executeScript injects), the pages under the React Compiler, and the
-// manifest src/manifest.ts writes for the build's flavor, which is its mode. `wxt zip --mode store`
-// is the Web Store's zip, checked here before anything uploads it. Every module imports what it
-// uses (`imports: false`), so no global stands for one.
-
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,24 +12,20 @@ import product from "../../package.json" with { type: "json" };
 import { DEV_CLOUD_ORIGIN, extensionManifest, flavorOfMode } from "./src/manifest";
 import { WORKER_CONDITIONS } from "./worker-conditions";
 
-// the extension's version is the product's
 const { version } = product;
 
-// the files every build ships by name: the manifest names the worker, the popup and the welcome
-// page, the worker the capture script
 const NAMED_FILES = ["background.js", "capture.js", "manifest.json", "popup.html", "welcome.html"];
 
 const fail = (message: string): never => {
   throw new Error(`@repo/extension: ${message}`);
 };
 
-const shippedFiles = (dir: string): string[] =>
+const shippedFiles = (dir: string) =>
   readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .toSorted();
 
-// the texts of code a workspace the extension bundles vendored, which it keeps in its licenses/
 const vendoredLicences = () =>
   z
     .array(z.object({ path: z.string() }))
@@ -50,6 +40,7 @@ const vendoredLicences = () =>
     )
     .flatMap(({ path: dir }) => {
       const texts = path.join(dir, "licenses");
+
       return existsSync(texts)
         ? readdirSync(texts).map((name) => ({
             absoluteSrc: path.join(texts, name),
@@ -58,24 +49,26 @@ const vendoredLicences = () =>
         : [];
     });
 
-// what the store signs: no file naming a checkout's cloud, and the zip holding exactly the build's
-// files. Its manifest is extensionManifest("store"), held there by build:manifestGenerated, whose
-// key and host src/manifest.test.ts pins
-const checkStoreZip = (outDir: string, zipPath: string): void => {
+const checkStoreZip = (outDir: string, zipPath: string) => {
   const files = shippedFiles(outDir);
+
   for (const file of NAMED_FILES.filter((named) => !files.includes(named))) {
     fail(`the store build has no ${file}`);
   }
+
   for (const file of files) {
     if (readFileSync(path.join(outDir, file), "latin1").includes(DEV_CLOUD_ORIGIN)) {
       fail(`the store build's ${file} names ${DEV_CLOUD_ORIGIN}, a checkout's cloud`);
     }
   }
+
   const listed = spawnSync("/usr/bin/unzip", ["-Z1", zipPath], { encoding: "utf-8" });
+
   const zipped = listed.stdout
     .split("\n")
     .filter((line) => line !== "" && !line.endsWith("/"))
     .toSorted();
+
   if (listed.status !== 0 || !isDeepStrictEqual(zipped, files)) {
     fail(`${zipPath} does not hold exactly the files of ${outDir}`);
   }
@@ -83,54 +76,47 @@ const checkStoreZip = (outDir: string, zipPath: string): void => {
 
 export default defineConfig({
   hooks: {
-    // WXT sets NODE_ENV to the mode when none is set, so `--mode store` alone would ship React's
-    // development build; the zip script sets it, and a store build without it stops here
     "build:before": (wxt) => {
       if (flavorOfMode(wxt.config.mode) === "store" && process.env.NODE_ENV !== "production") {
         fail("a store build ships React's production build: run it with NODE_ENV=production");
       }
     },
-    // the licence of each package a build bundles, which the zip carries. WXT builds each group of
-    // entrypoints alone into the one folder, so one name would keep the last group's file
     "vite:build:extendConfig": (entrypoints, viteConfig) => {
       const group = entrypoints.map((entrypoint) => entrypoint.name).join("-");
       viteConfig.build = { ...viteConfig.build, license: { fileName: `licenses/${group}.md` } };
     },
-    // beside them, the licence of code a workspace it bundles vendored
     "build:publicAssets": (_wxt, files) => {
       files.push(...vendoredLicences());
     },
-    // what a build ships is the function its tests call: WXT adds the worker and the popup from
-    // the entrypoints, so a manifest that says anything else fails the build (a field WXT leaves
-    // undefined is one manifest.json never writes). `wxt` (serve) is let through, since it adds its
-    // dev server's CSP, reload command and permissions
     "build:manifestGenerated": (wxt, generated) => {
       if (wxt.config.command !== "build") {
         return;
       }
+
       const flavor = flavorOfMode(wxt.config.mode);
+
       const written = Object.fromEntries(
         Object.entries(generated).filter(([, value]) => value !== undefined),
       );
+
       if (!isDeepStrictEqual(written, extensionManifest(flavor, version))) {
         fail(
           `the ${flavor} build's manifest is not extensionManifest("${flavor}") (src/manifest.ts): ${JSON.stringify(written)}`,
         );
       }
     },
-    // a zip is the store's, checked, and beside it the unpacked store build: the same files with the
-    // committed key, so a release check loads the store build under the id the cloud trusts
     "zip:extension:done": (wxt, zipPath) => {
       try {
         if (flavorOfMode(wxt.config.mode) !== "store") {
           fail("a zip is the Web Store's: `wxt zip --mode store` (pnpm package:extension)");
         }
+
         checkStoreZip(wxt.config.outDir, zipPath);
       } catch (error) {
-        // WXT has written the zip under the release's name already, so a refused one goes with it
         rmSync(zipPath, { force: true });
         throw error;
       }
+
       const unpacked = `${wxt.config.outDir}-unpacked`;
       rmSync(unpacked, { force: true, recursive: true });
       cpSync(wxt.config.outDir, unpacked, { recursive: true });
@@ -142,20 +128,18 @@ export default defineConfig({
     },
   },
   imports: false,
-  // WXT writes manifest_version from its own manifestVersion, 3 for Chrome, and warns over one here
   manifest: ({ mode }) => {
     const { manifest_version: _written, ...manifest } = extensionManifest(
       flavorOfMode(mode),
       version,
     );
+
     return manifest;
   },
   srcDir: "src",
   vite: () => ({
     plugins: [
       viteReact(),
-      // a hook or component defined inside a function fails the build, as the site's does
-      // (apps/web/vite.config.ts)
       babel({
         presets: [
           reactCompilerPreset({
@@ -165,9 +149,7 @@ export default defineConfig({
       }),
       tailwindcss(),
     ],
-    // the worker shares its chunks with the pages, so the bundle takes each package's worker build
     resolve: { conditions: WORKER_CONDITIONS },
   }),
-  // the name docs/releasing.md uploads
   zip: { artifactTemplate: "inteligir-extension-{{version}}.zip" },
 });

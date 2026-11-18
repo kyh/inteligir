@@ -1,9 +1,3 @@
-// Every account's library, in tables keyed by `account_id` first: the items with their bodies, the
-// rows derived from them, folders, change sets, the op ledger, files and jobs. A root table's account
-// cascades from Better Auth's `user`, and every other table hangs off its parent by a composite
-// foreign key, so deleting a user empties the library and no row points into another account.
-// Times are unix milliseconds and ids text, as the library model spells them.
-
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type {
   BodyBlock,
@@ -37,15 +31,12 @@ const TAG_ORIGINS = [
   "inline",
 ] as const satisfies readonly DerivedItem["tags"][number]["origin"][];
 
-// the kinds of work a job runs after the write that asked for it; an area appends its own
 const JOB_KINDS = ["fill", "file-release", "sweep"] as const;
 
 export const itemKind = pgEnum("item_kind", ITEM_KINDS);
 export const tagOrigin = pgEnum("tag_origin", TAG_ORIGINS);
 export const jobKind = pgEnum("job_kind", JOB_KINDS);
 
-// drizzle has no tsvector builder; the service writes the vector as a literal it built
-// (`@repo/service/search/search-vector`)
 const tsvector = customType<{ data: string; driverData: string }>({
   dataType: () => "tsvector",
 });
@@ -57,7 +48,6 @@ const accountId = () =>
     .notNull()
     .references(() => user.id, { onDelete: "cascade" });
 
-// the account's one row, which every write locks first, and the sequence its last write took
 export const libraryState = pgTable.withRLS("library_state", {
   accountId: text("account_id")
     .primaryKey()
@@ -65,10 +55,6 @@ export const libraryState = pgTable.withRLS("library_state", {
   head: ms("head").default(0).notNull(),
 });
 
-// an item, in Deleted or not: its fields one column each, and what its row derives, so a listing
-// reads the row alone. `title_sort` is its card's title as the listing orders it; `title_key` and
-// `alias_keys` are its card's title and its aliases as a `[[link]]` names them, keyed in JS, since
-// Postgres's lower() folds neither Unicode form nor case as the library's key does
 export const item = pgTable.withRLS(
   "item",
   {
@@ -102,7 +88,6 @@ export const item = pgTable.withRLS(
     url: text("url"),
     urlKey: text("url_key"),
   },
-  // drizzle's desc() alone is DESC NULLS LAST, which a plain ORDER BY ... DESC cannot scan
   (table) => [
     primaryKey({ columns: [table.accountId, table.id] }),
     uniqueIndex("item_one_url")
@@ -148,8 +133,6 @@ export const item = pgTable.withRLS(
 const itemFk = (name: string, columns: [AnyPgColumn, AnyPgColumn]) =>
   foreignKey({ columns, foreignColumns: [item.accountId, item.id], name }).onDelete("cascade");
 
-// an item's body: its blocks, the version each write moves, its UTF-8 bytes, which the quota
-// counts, and the digest its card and search row are derived again from when only fields change
 export const itemBody = pgTable.withRLS(
   "item_body",
   {
@@ -166,8 +149,6 @@ export const itemBody = pgTable.withRLS(
   ],
 );
 
-// what search ranks an item by, and its body's plain text, which the literal tier matches and a
-// passage is cut from
 export const itemSearch = pgTable.withRLS(
   "item_search",
   {
@@ -179,8 +160,6 @@ export const itemSearch = pgTable.withRLS(
   (table) => [
     primaryKey({ columns: [table.accountId, table.itemId] }),
     itemFk("item_search_item_fk", [table.accountId, table.itemId]),
-    // every body save rewrites its item's row here, and a GIN pending list flushed every few
-    // saves stalls one of them for most of a second
     index("item_search_vec").using("gin", table.vec).with({ fastupdate: false }),
     index("item_search_text")
       .using("gin", sql`lower(${table.text}) gin_trgm_ops`)
@@ -188,8 +167,6 @@ export const itemSearch = pgTable.withRLS(
   ],
 );
 
-// a tag an item carries, from its tags field or a `#name` in its note; `tag_key` is the tag
-// lowercased, which a tag's family is matched by
 export const itemTag = pgTable.withRLS(
   "item_tag",
   {
@@ -206,8 +183,6 @@ export const itemTag = pgTable.withRLS(
   ],
 );
 
-// a link an item's body holds: to an item by its id, or to an address by its url key, so a link
-// saved later finds the notes that named it. No key on the target: a link outlives a purged one
 export const itemLink = pgTable.withRLS(
   "item_link",
   {
@@ -229,8 +204,6 @@ export const itemLink = pgTable.withRLS(
   ],
 );
 
-// an item emptied from Deleted: its id, kept so no id is made twice, and the sequence of the
-// write that purged it, which a device catching up reads
 export const purgedItem = pgTable.withRLS(
   "purged_item",
   {
@@ -244,7 +217,6 @@ export const purgedItem = pgTable.withRLS(
   ],
 );
 
-// `sort` is a folder's order key among its siblings
 export const folder = pgTable.withRLS(
   "folder",
   {
@@ -262,7 +234,6 @@ export const folder = pgTable.withRLS(
   ],
 );
 
-// one built-in agent turn's writes, which its Undo takes back; open until the turn seals it
 export const changeSet = pgTable.withRLS(
   "change_set",
   {
@@ -284,8 +255,6 @@ const changeSetFk = (name: string, columns: [AnyPgColumn, AnyPgColumn]) =>
     "cascade",
   );
 
-// What a set did to one item: the fields of an item it made, as it last left them, or the ops that
-// take its changes back, as the service's own schema reads them
 export const changeSetItem = pgTable.withRLS(
   "change_set_item",
   {
@@ -304,9 +273,6 @@ export const changeSetItem = pgTable.withRLS(
   ],
 );
 
-// a body a set's turn wrote: its blocks before the turn's first write and the version they stood
-// at, none at 0 for an item the turn made, and its version after the turn's last, which an Undo
-// writes back over only while the body still stands there; turns undone together chain by them
 export const changeSetBody = pgTable.withRLS(
   "change_set_body",
   {
@@ -325,8 +291,6 @@ export const changeSetBody = pgTable.withRLS(
   ],
 );
 
-// what a write answered under its op id, so a resend after a lost answer is told what landed; read
-// back through the answering row's own schema
 export const opAnswer = pgTable.withRLS(
   "op_answer",
   {
@@ -341,8 +305,6 @@ export const opAnswer = pgTable.withRLS(
   ],
 );
 
-// A file the library holds, by its sha, at the one pathname its store keeps it under. `touched_at`
-// moves at its settle and with each name added or dropped, which its release waits on
 export const file = pgTable.withRLS(
   "file",
   {
@@ -360,10 +322,6 @@ export const file = pgTable.withRLS(
   ],
 );
 
-// A file the library does not hold cannot be named, and its going takes its names along: deleting
-// an account cascades to its files and to the rows naming them in an order Postgres picks, which an
-// immediate check fails and drizzle declares no deferred one for, so a release asks after names
-// itself, under the account's lock
 const fileFk = (name: string, columns: [AnyPgColumn, AnyPgColumn]) =>
   foreignKey({ columns, foreignColumns: [file.accountId, file.sha256], name }).onDelete("cascade");
 
@@ -382,7 +340,6 @@ export const itemFile = pgTable.withRLS(
   ],
 );
 
-// the files a set's entry for an item would name again, held while the entry stands
 export const changeSetFile = pgTable.withRLS(
   "change_set_file",
   {
@@ -405,8 +362,6 @@ export const changeSetFile = pgTable.withRLS(
   ],
 );
 
-// work a write asked for, run after it commits: one row per subject, put off by each failed run;
-// its payload is read through its kind's schema
 export const job = pgTable.withRLS(
   "job",
   {

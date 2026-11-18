@@ -1,6 +1,4 @@
 "use client";
-// A row of chips where pressing one is the choice: Base UI's toggle group, so the arrows move
-// between chips and the pressed state is announced, never a row of hand-wired buttons.
 
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { ToggleGroup as ToggleGroupPrimitive } from "@base-ui/react/toggle-group";

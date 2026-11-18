@@ -1,9 +1,5 @@
-// Flat, not a nested Turn-into submenu: Base UI's SubmenuRoot inside this
-// controlled virtual-anchor menu closes the root with reason "sibling-open".
-
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FileOutputIcon, Trash2Icon } from "lucide-react";
-import type { Path } from "platejs";
 import { useEditorPlugin, usePluginOption } from "platejs/react";
 
 import {
@@ -24,11 +20,12 @@ export const BlockMenu = () => {
   const position = usePluginOption(BlockMenuPlugin, "position");
 
   const { x, y } = position;
+
   const anchor = () => ({
     getBoundingClientRect: () => DOMRect.fromRect({ height: 0, width: 0, x, y }),
   });
 
-  const selectedPaths = (): Path[] =>
+  const selectedPaths = () =>
     editor
       .getApi(BlockSelectionPlugin)
       .blockSelection.getNodes({ sort: true })
@@ -37,9 +34,9 @@ export const BlockMenu = () => {
   const blockTf = editor.getTransforms(BlockSelectionPlugin).blockSelection;
   const blockApi = editor.getApi(BlockSelectionPlugin).blockSelection;
 
-  // the selected ids name blocks that are gone once the extract lands
-  const extract = async (): Promise<void> => {
+  const extract = async () => {
     const created = await extractBlocksToNote(editor, selectedPaths());
+
     if (created !== null) {
       blockApi.clear();
     }

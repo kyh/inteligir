@@ -1,7 +1,3 @@
-// Autoformat rides each plugin's `inputRules`; @platejs/autoformat is an inert stub.
-// Underline has no GFM form, so no input rule applies it; ⌘U and the touch toolbar do, and a save
-// writes it as `<u>…</u>`.
-
 import {
   BoldRules,
   CodeRules,
@@ -22,7 +18,6 @@ import { KEYS } from "platejs";
 import { semanticLeaf } from "@repo/editor/kits/kit-utils";
 import { markPluginShortcuts } from "@repo/editor/mark-shortcuts";
 
-// chords come from MARK_SHORTCUTS, never Plate's own defaults, so a tooltip naming one is true
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],

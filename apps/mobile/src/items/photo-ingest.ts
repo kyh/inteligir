@@ -1,8 +1,3 @@
-// A photo from the camera or the library, scaled down and re-encoded, then saved as an image item
-// of its own, its bytes sent up first, which needs a connection. The re-encode writes no EXIF, so where the photo was taken never reaches the library or its history.
-// A HEIC becomes a JPEG here, since the Mac's editor and every browser take one, and a PNG stays
-// a PNG. Only a screen imports this; it loads native modules.
-
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import {
@@ -17,7 +12,7 @@ import type { PhoneSaves } from "./phone-saves";
 import { photoName, photoResize, photoType } from "./photo-plan";
 import type { PhotoType } from "./photo-plan";
 
-export type PhotoIngest =
+type PhotoIngest =
   | { kind: "picked"; itemId: string }
   | { kind: "cancelled" }
   | { kind: "refused"; message: string };
@@ -26,7 +21,6 @@ const NOT_SENT = "The photo didn't reach your library. Check your connection and
 
 type PhotoSource = "camera" | "library";
 
-// the first row is the sheet's cancel
 const CHOICES: readonly { label: string; source: PhotoSource | null }[] = [
   { label: "Cancel", source: null },
   { label: "Take Photo", source: "camera" },
@@ -41,7 +35,7 @@ const PICKER_OPTIONS: ImagePickerOptions = {
 
 const JPEG_QUALITY = 0.8;
 
-const chooseSource = async (): Promise<PhotoSource | null> =>
+const chooseSource: () => Promise<PhotoSource | null> = async () =>
   // oxlint-disable-next-line promise/avoid-new -- the sheet answers through a callback, which only a promise can hand to an await
   await new Promise((resolve) => {
     ActionSheetIOS.showActionSheetWithOptions(
@@ -58,66 +52,78 @@ interface PickedPhoto {
   uri: string;
 }
 
-const pick = async (source: PhotoSource): Promise<PhotoIngest | PickedPhoto> => {
+const pick = async (source: PhotoSource) => {
   if (source === "camera") {
     const permission = await requestCameraPermissionsAsync();
+
     if (!permission.granted) {
       return {
         kind: "refused",
         message: "To take a photo, allow camera access for Inteligir in Settings.",
-      };
+      } satisfies PhotoIngest | PickedPhoto;
     }
   }
+
   const result =
     source === "camera"
       ? await launchCameraAsync(PICKER_OPTIONS)
       : await launchImageLibraryAsync(PICKER_OPTIONS);
+
   const asset = result.canceled ? undefined : result.assets[0];
-  return asset === undefined
-    ? { kind: "cancelled" }
-    : { kind: "photo", type: photoType(asset.mimeType), uri: asset.uri };
+
+  return (
+    asset === undefined
+      ? { kind: "cancelled" }
+      : { kind: "photo", type: photoType(asset.mimeType), uri: asset.uri }
+  ) satisfies PhotoIngest | PickedPhoto;
 };
 
-const removed = (file: File): void => {
+const removed = (file: File) => {
   try {
     file.delete();
+
+    return true;
   } catch {
-    // a copy left in the cache is the OS's to purge
+    return false;
   }
 };
 
-// the size is read off the decoded image: the picker may answer 0 for one it was not told
-const reencoded = async ({ type, uri }: PickedPhoto): Promise<Uint8Array<ArrayBuffer>> => {
+const reencoded = async ({ type, uri }: PickedPhoto) => {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
   const size = photoResize(original.width, original.height);
+
   const image =
     size === null
       ? original
       : await ImageManipulator.manipulate(original).resize(size).renderAsync();
+
   const saved = await image.saveAsync(
     type === "image/png"
       ? { format: SaveFormat.PNG }
       : { compress: JPEG_QUALITY, format: SaveFormat.JPEG },
   );
+
   const file = new File(saved.uri);
   const bytes = await file.bytes();
   removed(file);
-  return new Uint8Array(bytes);
+
+  return new Uint8Array(bytes) satisfies Uint8Array<ArrayBuffer>;
 };
 
-export const ingestPhoto = async (
-  saves: Pick<PhoneSaves, "addFile">,
-  folderId: string | null,
-): Promise<PhotoIngest> => {
+export const ingestPhoto = async (saves: Pick<PhoneSaves, "addFile">, folderId: string | null) => {
   const source = await chooseSource();
+
   if (source === null) {
-    return { kind: "cancelled" };
+    return { kind: "cancelled" } satisfies PhotoIngest;
   }
+
   try {
     const picked = await pick(source);
+
     if (picked.kind !== "photo") {
       return picked;
     }
+
     const saved = await saves.addFile(
       {
         bytes: await reencoded(picked),
@@ -126,23 +132,29 @@ export const ingestPhoto = async (
       },
       { folderId },
     );
+
     switch (saved.kind) {
       case "landed": {
-        return { itemId: saved.answer.id, kind: "picked" };
+        return { itemId: saved.answer.id, kind: "picked" } satisfies PhotoIngest;
       }
+
       case "refused": {
-        return { kind: "refused", message: saved.message };
+        return { kind: "refused", message: saved.message } satisfies PhotoIngest;
       }
+
       case "wait":
       case "gone": {
-        return { kind: "refused", message: NOT_SENT };
+        return { kind: "refused", message: NOT_SENT } satisfies PhotoIngest;
       }
-      // no default
+
+      default: {
+        throw new Error(`unexpected ${String(saved satisfies never)}`);
+      }
     }
   } catch (error) {
     return {
       kind: "refused",
       message: `The photo could not be added: ${messageOf(error)}`,
-    };
+    } satisfies PhotoIngest;
   }
 };

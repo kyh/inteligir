@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "@repo/contract/deferred";
 import type { PixelSize } from "@repo/contract/items/sniff-media";
-import { memoryFolder } from "../test-support/memory-folder";
-import type { MemoryFolder } from "../test-support/memory-folder";
+import { memoryFolder } from "../test-support/memory-folder.test-utils";
+import type { MemoryFolder } from "../test-support/memory-folder.test-utils";
 import { createFileCache } from "./file-cache";
 import type { FileCachePorts, HeldFile } from "./file-cache";
 
@@ -10,40 +10,35 @@ const SHA_A = "a".repeat(64);
 const SHA_B = "b".repeat(64);
 const SHA_C = "c".repeat(64);
 
-// a PNG's signature and header, enough for the sniffer to name it a picture
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-// a PNG's signature and IHDR, which name its size whatever the rest of the file holds
-const pngHead = (width: number, height: number): Uint8Array => {
+const pngHead = (width: number, height: number) => {
   const head = new Uint8Array(24);
   head.set(PNG);
   const view = new DataView(head.buffer);
   view.setUint32(16, width);
   view.setUint32(20, height);
+
   return head;
 };
 
-// an AVIF's first box: a picture the sniffer names, and whose header says no size it can read
 const AVIF = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]);
 
-// a GIF's signature and its screen, 320 by 200
 const GIF = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x40, 0x01, 0xc8, 0x00]);
 
-const bytesOf = (size: number, head: Uint8Array = new Uint8Array()): Uint8Array<ArrayBuffer> => {
+const bytesOf = (size: number, head: Uint8Array = new Uint8Array()) => {
   const bytes = new Uint8Array(size);
   bytes.set(head);
+
   return bytes;
 };
 
-// what the cloud serves, by sha: a file's bytes, served as a picture unless the case names a type
 type Served = Map<string, Uint8Array<ArrayBuffer> | HeldFile>;
 
-const servedFile = (file: Uint8Array<ArrayBuffer> | HeldFile): HeldFile =>
-  file instanceof Uint8Array ? { bytes: file, mime: "image/png" } : file;
+const servedFile = (file: Uint8Array<ArrayBuffer> | HeldFile) =>
+  (file instanceof Uint8Array ? { bytes: file, mime: "image/png" } : file) satisfies HeldFile;
 
-// a case fails if the system is asked for a size its header names
-const unmeasured = async (): Promise<PixelSize | null> =>
-  await Promise.reject(new Error("the system was asked for a size"));
+const unmeasured = async () => await Promise.reject(new Error("the system was asked for a size"));
 
 const cacheOver = (
   more: Partial<Omit<FileCachePorts, "folder">> = {},
@@ -51,16 +46,19 @@ const cacheOver = (
 ) => {
   const asked: string[] = [];
   const served: Served = new Map();
+
   const cache = createFileCache({
     download: async (sha) => {
       asked.push(sha);
       const file = served.get(sha);
+
       return await Promise.resolve(file === undefined ? null : servedFile(file));
     },
     folder,
     measure: unmeasured,
     ...more,
   });
+
   return { asked, cache, folder, served };
 };
 
@@ -93,7 +91,6 @@ describe("the phone's copy of the library's files", () => {
 
   it("keeps each file's type: kept as it was sent, fetched and drawn again", async () => {
     const { asked, cache, served } = cacheOver();
-    // a recording's bytes, whose type no sniff of its first bytes would name
     const clip = bytesOf(6);
     await cache.keep(SHA_A, { bytes: clip, mime: "video/quicktime" });
     await expect(cache.heldFile(SHA_A)).resolves.toStrictEqual({
@@ -115,9 +112,11 @@ describe("the phone's copy of the library's files", () => {
         if (sha === SHA_B) {
           throw new TypeError("the network is down");
         }
+
         return await Promise.resolve(null);
       },
     });
+
     await expect(cache.fileUri(SHA_A)).resolves.toBeNull();
     await expect(cache.fileUri(SHA_B)).resolves.toBeNull();
   });
@@ -169,9 +168,11 @@ describe("the phone's copy of the library's files", () => {
       [`memory://${SHA_B}`, { height: 30_000, width: 30_000 }],
       [`memory://${SHA_C}`, null],
     ]);
+
     const { cache, served } = cacheOver({
       measure: async (uri) => await Promise.resolve(sizes.get(uri) ?? null),
     });
+
     served.set(SHA_A, bytesOf(100, AVIF));
     served.set(SHA_B, bytesOf(100, AVIF));
     served.set(SHA_C, bytesOf(100, AVIF));
@@ -183,10 +184,13 @@ describe("the phone's copy of the library's files", () => {
 
   it("judges a cover once: its verdict is kept beside it, for the next launch too", async () => {
     const measured: string[] = [];
-    const measure = async (uri: string): Promise<PixelSize | null> => {
+
+    const measure = async (uri: string) => {
       measured.push(uri);
+
       return await Promise.resolve({ height: 400, width: 640 });
     };
+
     const { cache, folder, served } = cacheOver({ measure });
     served.set(SHA_A, bytesOf(100, AVIF));
     served.set(SHA_B, bytesOf(100, pngHead(30_000, 30_000)));
@@ -212,15 +216,18 @@ describe("the phone's copy of the library's files", () => {
 
   it("keeps no verdict the system could not give, and asks again", async () => {
     let busy = true;
+
     const { cache, served } = cacheOver({
       measure: async () => {
         if (busy) {
           busy = false;
           throw new Error("busy");
         }
+
         return await Promise.resolve({ height: 400, width: 640 });
       },
     });
+
     served.set(SHA_A, bytesOf(100, AVIF));
 
     await expect(cache.coverUri(SHA_A)).rejects.toThrow("busy");
@@ -246,9 +253,11 @@ describe("the phone's copy of the library's files", () => {
   it("fetches a file once however many screens ask for it at once", async () => {
     const answer = deferred<HeldFile | null>();
     const asked: string[] = [];
+
     const { cache } = cacheOver({
       download: async (sha) => {
         asked.push(sha);
+
         return await answer.promise;
       },
     });

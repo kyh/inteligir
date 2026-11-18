@@ -1,12 +1,3 @@
-// Undo takes back what a thread's ended turns changed, in one write: one turn's change set, or the
-// conversation's, newest first, so many turns a call. Each set's entry for an item is landed by
-// `./revert-change` on the item as the newer sets' undo left it, its fields and its body together,
-// so an item someone changed since, in a field or its body, stays whole and is named. An entry the
-// write settled goes, so a set holds only what is left to take back and a turn undone twice has
-// nothing left. An item kept stays, since the edit since can go, and so does one whose way back a
-// rule refuses (its url now another live item's, a file gone), since the file or the address can
-// come back; when a rule held back all that could land, its refusal is the answer.
-
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { changeSet, changeSetBody, changeSetItem, item, itemBody } from "@repo/db/library-schema";
@@ -26,26 +17,20 @@ import { revertChangeSets } from "./revert-change";
 import type { BodyEntry, HeldEntry } from "./revert-change";
 import { anyOf } from "./set-sql";
 
-// the most turns, and set entries, one undo takes back; a conversation of more goes a lot a call,
-// cut at a set's edge. Each entry lands its item in the one write under the account's lock, so a lot
-// holds the lock about as long as a bulk change of items does
 const UNDO_TURNS_MAX = 50;
 const UNDO_ENTRIES_MAX = BULK_ITEMS_MAX;
 
-// which of a thread's turns an undo takes back: one, or the conversation's before `before`
 type UndoTarget =
   | { readonly threadId: string; readonly turn: number }
   | { readonly threadId: string; readonly before?: number | undefined };
 
 export const undoneSchema = z.object({
   kept: z.array(z.string()),
-  // where the conversation's turns this undo left start, null when none wait
   next: z.number().nullable(),
   refused: z.array(z.string()),
   reverted: z.array(z.string()),
 });
 
-// a set Undo takes back: its turn ended, and something of it is left
 const undoable = (db: DbExecutor, accountId: string, threadId: string) =>
   and(
     eq(changeSet.accountId, accountId),
@@ -68,20 +53,17 @@ const turnsOf = (target: UndoTarget) => {
   if ("turn" in target) {
     return eq(changeSet.turn, target.turn);
   }
+
   return target.before === undefined ? undefined : lt(changeSet.turn, target.before);
 };
 
-// the thread's turns Undo can still take back, oldest first
-export const undoableTurns = async (
-  db: DbExecutor,
-  accountId: string,
-  threadId: string,
-): Promise<number[]> => {
+export const undoableTurns = async (db: DbExecutor, accountId: string, threadId: string) => {
   const rows = await db
     .select({ turn: changeSet.turn })
     .from(changeSet)
     .where(undoable(db, accountId, threadId))
     .orderBy(asc(changeSet.turn));
+
   return rows.map(({ turn }) => turn);
 };
 
@@ -90,10 +72,9 @@ interface SetEntries {
   readonly items: ReadonlyMap<string, HeldEntry>;
 }
 
-// what each set did to each item, newest set first, beside the item as it stands, and each item's
-// row once: an entry goes with its item, so every entry read has one
 const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
   const { accountId, tx } = scope;
+
   const [fields, bodies] = await Promise.all([
     tx
       .select({
@@ -123,9 +104,11 @@ const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
       .from(changeSetBody)
       .where(and(eq(changeSetBody.accountId, accountId), anyOf(changeSetBody.changeSetId, setIds))),
   ]);
+
   const bodyOf = new Map<string, BodyEntry>(
     bodies.map(({ changeSetId, itemId, ...body }) => [`${changeSetId}/${itemId}`, body]),
   );
+
   const rows = fields.map(({ bodyVersion, changeSetId, inverse, itemId, made, ...stored }) => ({
     changeSetId,
     held: {
@@ -137,23 +120,28 @@ const entriesOf = async (scope: WriteScope, setIds: readonly string[]) => {
     },
     stored,
   }));
-  const sets = setIds.map((id): SetEntries => ({
-    id,
-    items: new Map(
-      rows
-        .filter((row) => row.changeSetId === id)
-        .map(({ held, stored }): [string, HeldEntry] => [stored.id, held]),
-    ),
-  }));
+
+  const sets = setIds.map(
+    (id) =>
+      ({
+        id,
+        items: new Map(
+          rows
+            .filter((row) => row.changeSetId === id)
+            .map(({ held, stored }) => [stored.id, held] satisfies [string, HeldEntry]),
+        ),
+      }) satisfies SetEntries,
+  );
+
   return {
     items: new Map<string, StoredItem>(rows.map(({ stored }) => [stored.id, stored])),
     sets,
   };
 };
 
-// the sets an undo takes back, newest first, and where the turns it leaves start
 const pickSets = async (scope: WriteScope, target: UndoTarget) => {
   const { accountId, tx } = scope;
+
   const waiting = await tx
     .select({
       entries: tx.$count(
@@ -170,38 +158,41 @@ const pickSets = async (scope: WriteScope, target: UndoTarget) => {
     .where(and(undoable(tx, accountId, target.threadId), turnsOf(target)))
     .orderBy(desc(changeSet.turn))
     .limit(UNDO_TURNS_MAX + 1);
+
   const sets: typeof waiting = [];
   let entries = 0;
+
   for (const set of waiting.slice(0, UNDO_TURNS_MAX)) {
     if (sets.length > 0 && entries + set.entries > UNDO_ENTRIES_MAX) {
       break;
     }
+
     sets.push(set);
     entries += set.entries;
   }
+
   return {
-    // a lot all kept or refused stays undoable, so the next lot starts below this one, never at it
     next: waiting.length > sets.length ? (sets.at(-1)?.turn ?? null) : null,
     setIds: sets.map((set) => set.id),
   };
 };
 
-export const undoTurns = async (
-  scope: WriteScope,
-  target: UndoTarget,
-): Promise<z.input<typeof undoneSchema>> => {
+export const undoTurns = async (scope: WriteScope, target: UndoTarget) => {
   const { next, setIds } = await pickSets(scope, target);
   const { items, sets } = await entriesOf(scope, setIds);
   const verdict = revertChangeSets({ at: scope.now, sets });
   const reverted: LiveItemRow[] = [];
   const refused = new Map<string, LibraryRefusal>();
+
   for (const [itemId, before] of items) {
     const back = verdict.items.get(itemId);
+
     if (back !== undefined) {
       const landed = await scope.attempt(
         async (part) =>
           await landItem(part, { before, body: back.blocks, fields: back.fields, itemId }),
       );
+
       if (landed.ok) {
         reverted.push(landed.value);
       } else {
@@ -209,12 +200,14 @@ export const undoTurns = async (
       }
     }
   }
+
   const [first] = refused.values();
+
   if (first !== undefined && reverted.length === 0) {
     refuse(first);
   }
+
   await askFills(scope, reverted);
-  // an entry kept or refused stays to undo again; every other is settled, and goes
   const keptIds = new Set(verdict.kept.map((kept) => `${kept.setId}/${kept.itemId}`));
   await dropEntries(
     scope,
@@ -225,6 +218,7 @@ export const undoTurns = async (
       ),
     })),
   );
+
   return {
     kept: [...new Set(verdict.kept.map((kept) => kept.itemId))]
       .filter((id) => !refused.has(id))
@@ -232,5 +226,5 @@ export const undoTurns = async (
     next,
     refused: [...refused.keys()].toSorted(),
     reverted: reverted.map((row) => row.id).toSorted(),
-  };
+  } satisfies z.input<typeof undoneSchema>;
 };

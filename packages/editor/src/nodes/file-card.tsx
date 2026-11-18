@@ -1,8 +1,3 @@
-// A file a note embeds that no picture or player draws (a PDF, a sound, a document, any other
-// file) is a card naming it, its glyph read from its name. Where the host can hand a file on
-// (`readFile`), its Download reads the bytes whole and saves them under that name; the page itself
-// never opens one, since a blob of its own origin is a page that could run script.
-
 import {
   FileArchiveIcon,
   FileIcon,
@@ -22,40 +17,43 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import { fileKindOf } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 
-// the glyph a file's kind is drawn with; a name of no known kind gets the plain one
 export const FileKindIcon = ({ name, ...props }: { name: string } & LucideProps) => {
   const kind: FileKind | null = fileKindOf(name);
+
   switch (kind) {
     case "audio": {
       return <MusicIcon {...props} />;
     }
+
     case "file": {
       return <FileArchiveIcon {...props} />;
     }
+
     case "image": {
       return <ImageIcon {...props} />;
     }
+
     case "pdf": {
       return <FileTextIcon {...props} />;
     }
+
     case "video": {
       return <FilmIcon {...props} />;
     }
+
     case null: {
       return <FileIcon {...props} />;
     }
+
     default: {
       const exhaustive: never = kind;
+
       return exhaustive;
     }
   }
 };
 
-const download = async (
-  readFile: (sha: string) => Promise<Blob>,
-  sha: string,
-  name: string,
-): Promise<void> => {
+const download = async (readFile: (sha: string) => Promise<Blob>, sha: string, name: string) => {
   try {
     saveBlob(await readFile(sha), name);
   } catch {
@@ -73,6 +71,7 @@ export const FileCard = ({
   selected: boolean;
 }) => {
   const { readFile } = getEditorHostIo();
+
   return (
     <div
       data-file-card=""

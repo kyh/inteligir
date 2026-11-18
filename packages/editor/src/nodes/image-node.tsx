@@ -1,6 +1,3 @@
-// A picture in an item is a block the library holds: by its bytes' sha, drawn from where the host
-// draws its files, or by a web address, which the page never loads (`RemoteContentCard`).
-
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 import { PlateElement, useSelected } from "platejs/react";
@@ -14,12 +11,13 @@ import { stringProp } from "@repo/editor/headless/node-props";
 import { useLibraryFile } from "@repo/editor/nodes/library-file";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
 
-// alt text lives in the img node's `caption` children (Plate's markdown img rule).
-const altText = (element: TElement): string => {
+const altText = (element: TElement) => {
   const { caption } = element;
+
   if (Array.isArray(caption)) {
     return caption.map((node) => (NodeApi.isNode(node) ? NodeApi.string(node) : "")).join("");
   }
+
   return "";
 };
 
@@ -45,6 +43,7 @@ const LibraryPicture = ({
   sha: string;
 }) => {
   const [file, failed] = useLibraryFile(sha);
+
   if (file.kind === "ready") {
     return (
       <img
@@ -56,24 +55,30 @@ const LibraryPicture = ({
       />
     );
   }
+
   if (file.kind === "loading") {
     return <div className="h-40 w-full max-w-sm animate-pulse rounded-md bg-muted" />;
   }
+
   return <Missing label="This picture isn't on this device yet." selected={selected} />;
 };
 
 const ImageFigure = ({ element, selected }: { element: TElement; selected: boolean }) => {
   const sha = stringProp(element, "sha") ?? null;
   const url = stringProp(element, "url") ?? "";
+
   const body = () => {
     if (sha !== null) {
       return <LibraryPicture alt={altText(element)} selected={selected} sha={sha} />;
     }
+
     if (isWebUrl(url)) {
       return <RemoteContentCard kind="image" selected={selected} url={url} />;
     }
+
     return <Missing label={`Missing image: ${url}`} selected={selected} />;
   };
+
   return (
     <figure className="group/image relative m-0 w-full" contentEditable={false}>
       {body()}
@@ -83,6 +88,7 @@ const ImageFigure = ({ element, selected }: { element: TElement; selected: boole
 
 export const ImageElement = (props: PlateElementProps) => {
   const selected = useSelected();
+
   return (
     <PlateElement {...props} className="py-2.5">
       <ImageFigure element={props.element} selected={selected} />

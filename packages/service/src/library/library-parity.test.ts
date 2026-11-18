@@ -1,9 +1,3 @@
-// The SQL listing held to the library model's (`@repo/contract/library/library-index`), which the
-// fake cell answers every client's suites from: one random library (seeded, so a failure replays)
-// read through both, every scope, sort, kind filter, page and search order, and the rail's counts
-// and titles, must answer alike. Ids and titles are drawn to tell code-point order from the
-// database's collation, tags to hold LIKE's wildcards, folders to sit under deleted ones.
-
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
@@ -13,13 +7,13 @@ import { LibraryIndex, scopeFilter } from "@repo/contract/library/library-index"
 import type { ListingPage, ListingQuery, ListingRow } from "@repo/contract/library/library-index";
 import { listingSortSchema } from "@repo/contract/library/listing-sort";
 import { compareText } from "@repo/contract/library/order-key";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
-import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
+import { mulberry32, pick } from "@repo/contract/test-support/seeded-random.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { makeAccount, seedFolder, seedItem } from "../test-support/library-fixture";
+import { makeAccount, seedFolder, seedItem } from "../test-support/library.fixture";
 import { listingItems, listingScopes, listingTitles } from "./library-listing";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
@@ -40,6 +34,7 @@ const TITLES = [
   "_under",
   "10 things",
 ];
+
 const TAGS = [
   "Work",
   "work",
@@ -54,23 +49,24 @@ const TAGS = [
   "tagx1/y",
   "tag%2",
 ];
+
 const FOLDER_NAMES = ["Projects", "Garden", "Archive", "garden", "Ünder"];
 
-const hex = (rand: () => number, length: number): string =>
+const hex = (rand: () => number, length: number) =>
   Array.from({ length }, () => Math.floor(rand() * 16).toString(16)).join("");
 
-// a uuid now and then in capitals, which ICU orders apart from code points
-const idOf = (rand: () => number): string => {
+const idOf = (rand: () => number) => {
   const id = `${hex(rand, 8)}-${hex(rand, 4)}-4${hex(rand, 3)}-a${hex(rand, 3)}-${hex(rand, 12)}`;
+
   return rand() < 0.2 ? id.toUpperCase() : id;
 };
 
-const chance = (rand: () => number, odds: number): boolean => rand() < odds;
+const chance = (rand: () => number, odds: number) => rand() < odds;
 
-// twelve folders, every fifth deleted, a parent among those made before or none
 const randomFolders = async (accountId: string, rand: () => number) => {
   const live: ListingFolder[] = [];
   const all: string[] = [];
+
   for (let n = 0; n < 12; n += 1) {
     const folder = {
       id: idOf(rand),
@@ -78,25 +74,29 @@ const randomFolders = async (accountId: string, rand: () => number) => {
       parentId: all.length === 0 || chance(rand, 0.4) ? null : pick(rand, all),
       sort: pick(rand, ["a0", "a1", "a2"]),
     };
+
     const deletedAt = n % 5 === 4 ? SAVED_AT : null;
     await seedFolder(accountId, { ...folder, deletedAt });
     all.push(folder.id);
+
     if (deletedAt === null) {
       live.push(folder);
     }
   }
+
   return { all, live };
 };
 
-const folderOf = (rand: () => number, folders: readonly string[]): string | null => {
+const folderOf = (rand: () => number, folders: readonly string[]) => {
   const roll = rand();
+
   if (roll < 0.35) {
     return null;
   }
+
   return roll < 0.95 ? pick(rand, folders) : idOf(rand);
 };
 
-// a library of `ITEMS` items in Postgres, and the index the fake cell would hold of it
 const randomLibrary = async (seed: number) => {
   const rand = mulberry32(seed);
   const accountId = await makeAccount();
@@ -104,10 +104,12 @@ const randomLibrary = async (seed: number) => {
   const index = new LibraryIndex<ListingRow>();
   index.setFolders(live);
   const ids: string[] = [];
+
   for (let n = 0; n < ITEMS; n += 1) {
     const id = idOf(rand);
     const kind = pick(rand, ITEM_KINDS);
     const savedAt = SAVED_AT + Math.floor(rand() * 60) * 1000;
+
     const blocks: BodyBlock[] = [
       {
         block: paragraph(
@@ -117,6 +119,7 @@ const randomLibrary = async (seed: number) => {
         section: "note",
       },
     ];
+
     const fields = noteFixture({
       deletedAt: chance(rand, 0.15) ? savedAt + 1 : null,
       folderId: folderOf(rand, folderIds),
@@ -127,6 +130,7 @@ const randomLibrary = async (seed: number) => {
       title: `${pick(rand, TITLES)}${chance(rand, 0.5) ? ` ${String(n % 7)}` : ""}`,
       url: kind === "link" && chance(rand, 0.5) ? `https://example.com/${String(n)}` : null,
     });
+
     const updatedAt = savedAt + Math.floor(rand() * 30) * 1000;
     await seedItem(accountId, { blocks, fields, id, updatedAt });
     const derived = deriveItem(fields, deriveBody(blocks).digest);
@@ -144,10 +148,10 @@ const randomLibrary = async (seed: number) => {
     });
     ids.push(id);
   }
+
   return { accountId, folderIds, ids, index, rand };
 };
 
-// what two pages must agree on: their rows in order, each with its tags, and what they count
 const pageFacts = (page: ListingPage<ListingRow>) => ({
   kindCounts: page.kindCounts,
   next: page.next,
@@ -155,13 +159,14 @@ const pageFacts = (page: ListingPage<ListingRow>) => ({
   total: page.total,
 });
 
-const query = (overrides: Partial<ListingQuery>): ListingQuery => ({
-  deleted: false,
-  limit: 1000,
-  offset: 0,
-  order: { by: "saved" },
-  ...overrides,
-});
+const query = (overrides: Partial<ListingQuery>) =>
+  ({
+    deleted: false,
+    limit: 1000,
+    offset: 0,
+    order: { by: "saved" },
+    ...overrides,
+  }) satisfies ListingQuery;
 
 const KIND_FILTERS = [undefined, ["note"], ["link", "pdf", "image"]] as const;
 
@@ -171,9 +176,11 @@ dbSuite("the SQL listing beside the library model's", () => {
     { timeout: 120_000 },
     async () => {
       const { accountId, folderIds, ids, index, rand } = await randomLibrary(0x11_57);
+
       const expectAlike = async (asked: ListingQuery, label: string) => {
         const facts = pageFacts(await listingItems(db, accountId, asked));
         expect(facts, label).toStrictEqual(pageFacts(index.items(asked)));
+
         return facts;
       };
 
@@ -181,15 +188,22 @@ dbSuite("the SQL listing beside the library model's", () => {
         { kind: "all" },
         { kind: "unsorted" },
         { kind: "deleted" },
-        ...[...folderIds, idOf(rand)].map((folderId): LibraryScope => ({
-          folderId,
-          kind: "folder",
-        })),
-        ...[...TAGS, "WORK", "tag_", "nope", "Inline"].map((tag): LibraryScope => ({
-          kind: "tag",
-          tag,
-        })),
+        ...[...folderIds, idOf(rand)].map(
+          (folderId) =>
+            ({
+              folderId,
+              kind: "folder",
+            }) satisfies LibraryScope,
+        ),
+        ...[...TAGS, "WORK", "tag_", "nope", "Inline"].map(
+          (tag) =>
+            ({
+              kind: "tag",
+              tag,
+            }) satisfies LibraryScope,
+        ),
       ];
+
       for (const scope of scopes) {
         for (const sort of listingSortSchema.options) {
           for (const kinds of KIND_FILTERS) {
@@ -207,6 +221,7 @@ dbSuite("the SQL listing beside the library model's", () => {
             query({ limit: 37, offset, order: { by: sort } }),
             `page at ${String(offset)} by ${sort}`,
           );
+
           if (facts.next === null) {
             break;
           }
@@ -214,6 +229,7 @@ dbSuite("the SQL listing beside the library model's", () => {
       }
 
       const [folderId] = folderIds;
+
       for (const filters of [
         { pinned: true },
         { pinned: false, tag: "work" },
@@ -227,6 +243,7 @@ dbSuite("the SQL listing beside the library model's", () => {
       const rank = new Map(
         ids.filter(() => chance(rand, 0.3)).map((id) => [id, Math.floor(rand() * 40)]),
       );
+
       for (const filters of [
         { deleted: false },
         { deleted: true },

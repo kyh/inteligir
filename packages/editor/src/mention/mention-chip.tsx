@@ -14,37 +14,37 @@ const HOVER_PREVIEW_DELAY_MS = 350;
 
 const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
+
 const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
-// shows the item a chip names
-const openItem = (itemId: string): void => {
+const openItem = (itemId: string) => {
   getEditorHostIo().openItem(itemId);
 };
 
-// a page link names its item by id, and shows the name the item goes by now; an item the
-// library's titles do not list (gone, or not yet listed) draws the title the link was written
-// with, and opens nothing
 export const MentionChip = ({ itemId, title }: { itemId: string; title: string }) => {
   const live = useTitleOf(itemId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
-  // the item the open preview was read for; a read landing after a close is dropped
   const previewFor = useRef<string | null>(null);
 
   const label = shownTitle(live ?? title);
   const resolved = live === null ? null : itemId;
 
-  const readPreview = async (target: string): Promise<void> => {
+  const readPreview = async (target: string) => {
     try {
       const blocks = await getEditorHostIo().readItemBlocks(target);
+
       if (previewFor.current !== target) {
         return;
       }
+
       if (blocks === null) {
         setPreviewOpen(false);
+
         return;
       }
+
       setPreviewText(cardPreview(blocks));
     } catch {
       if (previewFor.current === target) {
@@ -53,34 +53,37 @@ export const MentionChip = ({ itemId, title }: { itemId: string; title: string }
     }
   };
 
-  // read on every open, never cached across hovers, so an edit between them is never shown stale.
-  const onPreviewOpenChange = (open: boolean): void => {
+  const onPreviewOpenChange = (open: boolean) => {
     setPreviewOpen(open);
+
     if (!open) {
       previewFor.current = null;
       setPreviewText(null);
+
       return;
     }
+
     if (resolved === null) {
       return;
     }
+
     previewFor.current = resolved;
     void readPreview(resolved);
   };
 
-  const closePreview = (): void => {
+  const closePreview = () => {
     onPreviewOpenChange(false);
   };
 
   const onClick = (e: MouseEvent) => {
     e.preventDefault();
     closePreview();
+
     if (resolved !== null) {
       openItem(resolved);
     }
   };
 
-  // no `title` on a previewable chip: the OS tooltip would land on top of the hover card
   const chip = (
     <button
       type="button"

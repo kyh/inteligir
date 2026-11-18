@@ -7,54 +7,61 @@ import { z } from "zod";
 
 import { forgetHeadingFolds } from "@repo/editor/heading-collapse";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
 const h2 = (id: string, text: string) => ({ children: [{ text }], id, type: "h2" });
 const p = (id: string, text: string) => ({ children: [{ text }], id, type: "p" });
 
-const mountNote = (itemId: string, value: Value): PlateEditor => {
+const mountNote = (itemId: string, value: Value) => {
   const ref = createRef<PlateEditor>();
   render(<EditorHarness value={value} itemId={itemId} ref={ref} nodeIds />);
+
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }
+
   return ref.current;
 };
 
 const STORED = z.object({ state: z.record(z.string(), z.array(z.string())) });
 
-const storedFolds = (): Record<string, string[]> | null => {
+const storedFolds = () => {
   const raw = localStorage.getItem(STORAGE_KEY);
+
   return raw === null ? null : STORED.parse(JSON.parse(raw)).state;
 };
 
-const block = (text: string): Element => {
+const block = (text: string) => {
   const found = [...document.querySelectorAll('[data-slate-node="element"]')].find(
     (node) => node.textContent === text,
   );
+
   if (found === undefined) {
     throw new Error(`no block reads "${text}"`);
   }
+
   return found;
 };
 
-const hiddenBlocks = (): string[] =>
-  [...document.querySelectorAll('[data-slate-node="element"]')]
-    .filter((node) => node.closest(".hidden") !== null)
-    .map((node) => node.textContent);
+const hiddenBlocks = () =>
+  [...document.querySelectorAll('[data-slate-node="element"]')].flatMap((node) =>
+    node.closest(".hidden") === null ? [] : [node.textContent],
+  );
 
-const chevronOf = (text: string): HTMLElement => {
+const chevronOf = (text: string) => {
   const section = block(text).closest(".group\\/heading");
   const button = section?.querySelector("button");
+
   if (!(button instanceof HTMLElement)) {
     throw new TypeError(`"${text}" has no chevron`);
   }
+
   return button;
 };
 
-const chevronCount = (): number =>
+const chevronCount = () =>
   screen.queryAllByRole("button", { name: /^(?:Collapse|Expand) section$/u }).length;
 
 describe("folds over a live document", () => {

@@ -17,6 +17,7 @@ describe("the folder rows", () => {
       folder("r", "Reading", null, "a0"),
       folder("b", "Books", "r", "Zz"),
     ]);
+
     expect(rows.map((row) => [row.label, row.depth])).toStrictEqual([
       ["Reading", 0],
       ["Reading / Books", 1],

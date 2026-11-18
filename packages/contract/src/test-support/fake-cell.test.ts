@@ -1,17 +1,12 @@
-// The fake cell answers as the account's own does: the cases both are held to
-// (`./cell-conformance`), then the rows a suite seeds in it and reads back. The listing's pages, the
-// rail's counts and every title are `library-index.ts`'s, which both answer by.
-
 import { describe, expect, it } from "vitest";
 
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import { uploadBlob } from "../rpc/call-outcome";
 import { BlobMissingError } from "../rpc/v1-errors";
-import { cellConformance } from "./cell-conformance";
-import { createFakeCell } from "./fake-cell";
+import { cellConformance } from "./cell-conformance.test-utils";
+import { createFakeCell } from "./fake-cell.test-utils";
 
-// the fake lands every write, a sweep's whole too, as it is asked, so no job is ever due
 cellConformance(async (run) => {
   const { client, transport } = createFakeCell().device("laptop");
   await run({
@@ -22,6 +17,7 @@ cellConformance(async (run) => {
     upload: async (bytes, mime) => {
       const sha = fileSha(bytes);
       await uploadBlob(transport, { bytes, mime, sha });
+
       return sha;
     },
   });
@@ -66,6 +62,7 @@ describe("the rows a suite seeds in the fake cell", () => {
   it("refuses one naming a file whose bytes never came up, as no write could land it", () => {
     const cell = createFakeCell();
     const sha = "a".repeat(64);
+
     const picture: BodyBlock = {
       block: { children: [{ text: "" }], id: "p", sha, type: "img" },
       section: "note",

@@ -1,6 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Hiding is CSS via [data-toggle-collapsed], not a split of props.children: Plate hands the
-// element all its Slate children as one React child, and hidden blocks must stay mounted for Slate.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import { ChevronRightIcon } from "lucide-react";
 import { PlateElement, useElement } from "platejs/react";
@@ -16,7 +14,6 @@ import { TOGGLE_COLLAPSED_ATTR } from "@repo/editor/style-hooks";
 export const ToggleElement = (props: PlateElementProps) => {
   const element = useElement();
   const { editor } = props;
-  // under NODE_ENV=test NodeIdPlugin is off, so ids are absent and the chevron is inert.
   const id = stringProp(element, "id") ?? "";
   const state = useToggleButtonState(id);
   const { buttonProps, open } = useToggleButton(state);
@@ -24,14 +21,15 @@ export const ToggleElement = (props: PlateElementProps) => {
   const handleMouseDown = buttonProps.onMouseDown;
 
   const handleChevronClick = (e: React.MouseEvent) => {
-    // collapsing with the selection in the body strands the DOM selection in a hidden subtree.
     if (open && editor.selection && editor.api.some({ match: (n) => n === element })) {
       const path = editor.api.findPath(element);
       const point = path ? editor.api.end([...path, 0]) : undefined;
+
       if (point) {
         editor.tf.select(point);
       }
     }
+
     buttonProps.onClick(e);
   };
 

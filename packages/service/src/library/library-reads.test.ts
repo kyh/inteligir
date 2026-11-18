@@ -6,19 +6,18 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { itemReadSchema } from "@repo/contract/library/library-wire";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { personalLibrary, seedItem } from "../test-support/library-fixture";
+import { personalLibrary, seedItem } from "../test-support/library.fixture";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
 
-const lines = (...texts: string[]): BodyBlock[] =>
+const lines: (...texts: string[]) => BodyBlock[] = (...texts: string[]) =>
   texts.map((text, at) => ({ block: paragraph(`p${String(at)}`, text), section: "note" }));
 
-// a paragraph naming an item by a page link, under the title the link was written with
-const linkTo = (id: string, title: string, key: string): BodyBlock => {
+const linkTo = (id: string, title: string, key: string) => {
   const block: LibraryBlock = {
     children: [
       { text: "See " },
@@ -28,24 +27,28 @@ const linkTo = (id: string, title: string, key: string): BodyBlock => {
     id: key,
     type: "p",
   };
-  return { block, section: "note" };
+
+  return { block, section: "note" } satisfies BodyBlock;
 };
 
-const codeOf = async (call: Promise<unknown>): Promise<string> => {
+const codeOf = async (call: Promise<unknown>) => {
   try {
     await call;
   } catch (error) {
     if (isOrpcError(error)) {
       return error.code;
     }
+
     throw error;
   }
+
   throw new Error("the call answered what the test expected it to refuse");
 };
 
 dbSuite("what the library answers a read of one item", () => {
   it("reads an item back as markdown a page of blocks at a time, and none another account holds", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { id } = await seedItem(accountId, {
       blocks: lines("First line.", "Second line.", "Third line."),
       fields: noteFixture({ savedAt: SAVED_AT, tags: ["Reading"], title: "Three lines" }),
@@ -79,10 +82,12 @@ dbSuite("what the library answers a read of one item", () => {
   it("ends a page before the block that would carry it past what one read carries, one block alone its own page", async () => {
     const { accountId, library } = await personalLibrary();
     const long = "word ".repeat(1200).trim();
+
     const { id } = await seedItem(accountId, {
       blocks: lines(long, long, long, long),
       fields: noteFixture({ title: "Long" }),
     });
+
     const first = await library.items.read({ id });
     expect(first.view).toMatchObject({ from: 0, to: 2, total: 4 });
     expect(first.view.markdown).toBe(`${long}\n\n${long}\n`);
@@ -90,10 +95,12 @@ dbSuite("what the library answers a read of one item", () => {
       view: { from: 2, to: 4 },
     });
     const longest = "word ".repeat(4000).trim();
+
     const alone = await seedItem(accountId, {
       blocks: lines(longest, "After it."),
       fields: noteFixture({ title: "Longest" }),
     });
+
     await expect(library.items.read({ id: alone.id })).resolves.toMatchObject({
       view: { from: 0, markdown: `${longest}\n`, to: 1, total: 2 },
     });
@@ -101,10 +108,12 @@ dbSuite("what the library answers a read of one item", () => {
 
   it("reads an item in Deleted with when it went there", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { id } = await seedItem(accountId, {
       blocks: lines("Soon gone."),
       fields: noteFixture({ deletedAt: SAVED_AT + 1 }),
     });
+
     await expect(library.items.read({ id })).resolves.toMatchObject({
       fields: { deletedAt: new Date(SAVED_AT + 1).toISOString() },
     });
@@ -113,6 +122,7 @@ dbSuite("what the library answers a read of one item", () => {
   it("says where a link's reading stands, when it was read or tried as an instant", async () => {
     const { accountId, library } = await personalLibrary();
     const iso = new Date(SAVED_AT + 1).toISOString();
+
     const readings: [LibraryItemFields["reading"], unknown][] = [
       [{ state: "none" }, { state: "none" }],
       [
@@ -132,6 +142,7 @@ dbSuite("what the library answers a read of one item", () => {
         { at: null, error: "Timed out.", state: "failed" },
       ],
     ];
+
     for (const [reading, read] of readings) {
       const fields = stubFields({
         folderId: null,
@@ -139,6 +150,7 @@ dbSuite("what the library answers a read of one item", () => {
         tags: [],
         url: `https://example.com/${randomUUID()}`,
       });
+
       const { id } = await seedItem(accountId, { fields: { ...fields, reading } });
       const answer = await library.items.read({ id });
       expect(itemReadSchema.parse(answer).fields.reading).toStrictEqual(read);
@@ -147,10 +159,12 @@ dbSuite("what the library answers a read of one item", () => {
 
   it("answers the item's own tags, the ones an organize takes out, where its summary names its text's too", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { id } = await seedItem(accountId, {
       blocks: lines("Plant the #beans in spring."),
       fields: noteFixture({ savedAt: SAVED_AT, tags: ["garden"], title: "Beans" }),
     });
+
     await expect(library.items.read({ id })).resolves.toMatchObject({
       fields: { tags: ["garden"] },
       view: { markdown: "Plant the #beans in spring.\n" },
@@ -168,12 +182,15 @@ dbSuite("what the library answers a read of one item", () => {
   it("writes a page link under its item's title as it stands, and names the items linking in and out", async () => {
     const { accountId, library } = await personalLibrary();
     const renamed = await seedItem(accountId, { fields: noteFixture({ title: "New name" }) });
+
     const gone = await seedItem(accountId, {
       fields: noteFixture({ deletedAt: SAVED_AT, title: "Binned" }),
     });
+
     const page = await seedItem(accountId, {
       fields: noteFixture({ kind: "link", title: "", url: "https://example.com/a" }),
     });
+
     const id = randomUUID();
     const purged = randomUUID();
     await seedItem(accountId, {
@@ -186,10 +203,12 @@ dbSuite("what the library answers a read of one item", () => {
       fields: noteFixture({ title: "Hub" }),
       id,
     });
+
     const into = await seedItem(accountId, {
       blocks: [linkTo(id, "Hub", "p1")],
       fields: noteFixture({ title: "Alpha" }),
     });
+
     const byAddress = await seedItem(accountId, {
       blocks: [
         {
@@ -223,11 +242,14 @@ dbSuite("what the library answers a read of one item", () => {
   it("answers an agent's search with each hit's passage, its title when nothing else holds the words, cut short when concise", async () => {
     const { accountId, library } = await personalLibrary();
     const line = `A heron stood${" and then".repeat(40)}`;
+
     const { id } = await seedItem(accountId, {
       blocks: lines(line),
       fields: noteFixture({ savedAt: SAVED_AT, title: "Birds" }),
     });
+
     const title = `Herons ${"of the marsh ".repeat(20).trim()}`;
+
     const titled = await seedItem(accountId, {
       blocks: lines("Nothing here."),
       fields: noteFixture({ savedAt: SAVED_AT - 3 * 24 * 60 * 60 * 1000, title }),
@@ -246,11 +268,13 @@ dbSuite("what the library answers a read of one item", () => {
     ]);
     const older = await library.search({ query: "heron", savedBefore: "2026-09-30" });
     expect(older.hits).toMatchObject([{ id: titled.id, snippet: title.slice(0, 160) }]);
+
     const detailed = await library.search({
       query: "heron",
       responseFormat: "detailed",
       savedBefore: "2026-09-30",
     });
+
     expect(detailed.hits).toMatchObject([{ id: titled.id, snippet: title }]);
   });
 });

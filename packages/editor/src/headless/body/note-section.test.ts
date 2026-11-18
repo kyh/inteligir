@@ -4,31 +4,25 @@ import type { SlateEditor, TElement } from "platejs";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
-import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
 import { applyBodyChanges } from "@repo/editor/headless/body/body-change";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 
-const stored = (element: TElement & { readonly id: string }): LibraryBlock =>
-  storableBlockSchema.parse(element);
+const stored = (element: TElement & { readonly id: string }) => storableBlockSchema.parse(element);
 
-const p = (id: string, text: string): LibraryBlock =>
-  stored({ children: [{ text }], id, type: "p" });
+const p = (id: string, text: string) => stored({ children: [{ text }], id, type: "p" });
 
-// an editor holding `blocks`, its ids on as the app runs them (Plate turns them off under
-// NODE_ENV=test), with Plate's own undo
-const opened = (blocks: readonly BodyBlock[]): SlateEditor =>
+const opened = (blocks: readonly BodyBlock[]) =>
   createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: editorValueOf(blocks) });
 
-const sectionsOf = (editor: SlateEditor): [string, LibrarySection][] =>
+const sectionsOf = (editor: SlateEditor) =>
   blocksOfValue(editor.children).map(({ block, section }) => [block.id, section]);
 
-const linesOf = (editor: SlateEditor): [string, LibrarySection][] =>
+const linesOf = (editor: SlateEditor) =>
   blocksOfValue(editor.children).map(({ block, section }) => [NodeApi.string(block), section]);
 
-// a person's editor on a note whose page a fill read
-const clipped = (): SlateEditor =>
+const clipped = () =>
   opened([
     { block: p("mine", "my words"), section: "note" },
     { block: p("page", "the page"), section: "article" },
@@ -87,9 +81,11 @@ describe("a block's section as the editor makes blocks", () => {
   it("files a block inserted anywhere as the person's, one copied out of the article too", () => {
     const editor = clipped();
     const [, copied] = editor.children;
+
     if (copied === undefined) {
       throw new Error("the article's block");
     }
+
     editor.tf.insertNodes({ ...copied, id: "pasted" }, { at: [2] });
     editor.tf.insertNodes({ children: [{ text: "typed" }], id: "typed", type: "p" }, { at: [1] });
     expect(sectionsOf(editor)).toStrictEqual([
@@ -144,6 +140,7 @@ describe("a block's section as the editor makes blocks", () => {
         },
       ]),
     );
+
     expect(read.map(({ block }) => block.type)).toStrictEqual(["p", "p", "p"]);
     expect(read.map(({ section }) => section)).toStrictEqual(["note", "article", "article"]);
   });

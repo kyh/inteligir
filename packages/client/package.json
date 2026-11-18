@@ -13,7 +13,7 @@
     "./listing-view": "./src/listing-view.ts",
     "./note-bodies": "./src/note-bodies.ts",
     "./serial-lock": "./src/serial-lock.ts",
-    "./test-support/memory-kv": "./src/test-support/memory-kv.ts",
+    "./test-support/memory-kv.test-utils": "./src/test-support/memory-kv.test-utils.ts",
     "./thread-entries": "./src/thread-entries.ts",
     "./thread-queries": "./src/thread-queries.ts",
     "./waiting-saves": "./src/waiting-saves.ts"

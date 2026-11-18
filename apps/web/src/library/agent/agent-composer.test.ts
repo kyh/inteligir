@@ -8,9 +8,11 @@ const QUOTE = "> the passage\n\n";
 
 const after = (events: readonly ComposerEvent[], from: ComposerState = COMPOSER_START) => {
   let state = from;
+
   for (const event of events) {
     state = composerAfter(state, event);
   }
+
   return state;
 };
 
@@ -20,6 +22,7 @@ describe("the agent's composer", () => {
       { kind: "typed", text: "Half a thought" },
       { kind: "chose", threadId: THREAD },
     ]);
+
     expect(typed).toStrictEqual({
       quoted: 0,
       target: { kind: "asking", threadId: THREAD },
@@ -59,6 +62,7 @@ describe("the agent's composer", () => {
       { kind: "typed", text: "Compare these." },
       { kind: "asked", passage: "the passage" },
     ]);
+
     expect(asked).toStrictEqual({
       quoted: 1,
       target: { kind: "asking", threadId: THREAD },

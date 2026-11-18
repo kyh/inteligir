@@ -1,5 +1,3 @@
-// Void node: the visual <hr> sits in a non-editable sibling so the void's empty text still renders for Slate.
-
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 

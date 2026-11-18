@@ -1,6 +1,3 @@
-// The app's windows on Better Auth's rate_limit table: each spend one upsert, so concurrent ones
-// count exactly, a window that lapsed opens afresh, and RATE_LIMIT_DISABLED counts nothing.
-
 import { randomUUID } from "node:crypto";
 
 import { rateLimit } from "@repo/db/auth-schema";
@@ -13,19 +10,22 @@ import { holderRateKey, RATE_WINDOWS, spendHolderBudget } from "./rate-limit";
 
 const { max, windowMs } = RATE_WINDOWS.accountDelete;
 
-const countOf = async (key: string): Promise<number | undefined> => {
+const countOf = async (key: string) => {
   const [row] = await db
     .select({ count: rateLimit.count })
     .from(rateLimit)
     .where(eq(rateLimit.key, key));
+
   return row?.count;
 };
 
-const spendTimes = async (holderId: string, times: number): Promise<boolean[]> => {
+const spendTimes = async (holderId: string, times: number) => {
   const spent = [];
+
   for (let spend = 0; spend < times; spend += 1) {
     spent.push(await spendHolderBudget("accountDelete", holderId));
   }
+
   return spent;
 };
 
@@ -86,6 +86,7 @@ dbSuite("a window", () => {
     for (let spend = 0; spend <= max; spend += 1) {
       await expect(disabled.spendHolderBudget("accountDelete", holderId)).resolves.toBe(true);
     }
+
     await expect(countOf(holderRateKey("accountDelete", holderId))).resolves.toBeUndefined();
   });
 });

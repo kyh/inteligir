@@ -1,6 +1,3 @@
-// `/connector` as an assistant meets it: the challenge it signs in from, the tools its grant lists,
-// a call made as it through the library's row, and a disconnect or a reset password that ends it.
-
 import { oauthAccessToken } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
@@ -18,7 +15,7 @@ import {
 } from "../auth/oauth-auth";
 import { TAGGED_ROWS } from "../library/library-tools";
 import { libraryRouter } from "../rpc/library-router";
-import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-requests";
+import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import {
   connectAssistant,
   connectorFetch,
@@ -26,18 +23,18 @@ import {
   refreshTokens,
   rpc,
   tokensOf,
-} from "../test-support/connector-grants";
-import { issueToken } from "../test-support/password-reset";
+} from "../test-support/connector-grants.test-utils";
+import { issueToken } from "../test-support/password-reset.test-utils";
 
 const FULL = "library:read library offline_access";
 const READ_ONLY = "library:read offline_access";
 
 const errorSchema = z.object({ error: z.object({ message: z.string() }) });
+
 const listedSchema = z.object({
   result: z.object({
     tools: z.array(
       z.object({
-        // the tag's hints, as ../library/library-tools.test.ts holds them
         annotations: z.object({ openWorldHint: z.boolean(), title: z.string() }),
         inputSchema: z.object({ type: z.literal("object") }),
         name: z.string(),
@@ -45,6 +42,7 @@ const listedSchema = z.object({
     ),
   }),
 });
+
 const calledSchema = z.object({
   result: z.object({
     content: z.array(z.object({ text: z.string(), type: z.literal("text") })),
@@ -53,12 +51,12 @@ const calledSchema = z.object({
   }),
 });
 
-// every row routed so far that is tagged a tool, and whether it only reads
 const ROUTED_TOOLS = (() => {
   const routed = new Set<string>();
   walkProcedureContractsSync(libraryRouter, (_row, path) => {
     routed.add(path.join("."));
   });
+
   return TAGGED_ROWS.flatMap(({ path, tool }) =>
     routed.has(path.join(".")) && tool.name !== undefined
       ? [{ name: tool.name, reads: tool.annotations?.readOnlyHint === true }]
@@ -68,12 +66,14 @@ const ROUTED_TOOLS = (() => {
 
 const signedUp = async (email: string) => {
   const { cookie } = await signUpUser(email);
+
   return { cookie, userId: await userIdOf(cookie) };
 };
 
-const listTools = async (bearer: string): Promise<string[]> => {
+const listTools = async (bearer: string) => {
   const response = await connectorFetch({ bearer, body: rpc("tools/list") });
   expect(response.status).toBe(200);
+
   return listedSchema.parse(await response.json()).result.tools.map(({ name }) => name);
 };
 
@@ -82,7 +82,9 @@ const callTool = async (bearer: string, name: string, args: Record<string, strin
     bearer,
     body: rpc("tools/call", { arguments: args, name }),
   });
+
   expect(response.status).toBe(200);
+
   return calledSchema.parse(await response.json()).result;
 };
 
@@ -93,6 +95,7 @@ dbSuite("the connector", () => {
         body: rpc("tools/list"),
         headers: { origin: "https://evil.example" },
       });
+
       expect(response.status).toBe(403);
     });
 
@@ -141,10 +144,13 @@ dbSuite("the connector", () => {
       markdown: "The quick brown fox.",
       title: "Fox notes",
     });
+
     expect(created.isError).not.toBe(true);
+
     const { item } = z
       .object({ item: z.object({ id: z.string() }) })
       .parse(created.structuredContent);
+
     const found = await callTool(tokens.access_token, "search_library", { query: "quick fox" });
     expect(found.structuredContent).toMatchObject({ hits: [{ id: item.id }] });
 
@@ -158,22 +164,25 @@ dbSuite("the connector", () => {
 
   it("lists a grant that only reads the reads alone, and lets it change nothing", async () => {
     const { cookie } = await signedUp("connector-read@example.com");
+
     const { tokens } = await connectAssistant("ChatGPT", {
       allowed: READ_ONLY,
       cookie,
       scope: FULL,
     });
+
     const names = await listTools(tokens.access_token);
     expect(names.toSorted()).toStrictEqual(
       ROUTED_TOOLS.filter(({ reads }) => reads)
         .map(({ name }) => name)
         .toSorted(),
     );
-    // a tool the grant does not reach is no tool to it
+
     const write = await connectorFetch({
       bearer: tokens.access_token,
       body: rpc("tools/call", { arguments: { markdown: "Nope." }, name: "create_note" }),
     });
+
     expect(errorSchema.parse(await write.json()).error.message).toContain("create_note");
   });
 
@@ -181,39 +190,49 @@ dbSuite("the connector", () => {
     const { cookie } = await signedUp("connector-protocol@example.com");
     const { tokens } = await connectAssistant("Cursor", { allowed: FULL, cookie, scope: FULL });
     const bearer = tokens.access_token;
+
     for (const method of ["GET", "DELETE"] as const) {
       const response = await connectorFetch({ bearer, method });
       expect(response.status).toBe(405);
       expect(response.headers.get("allow")).toBe("POST");
     }
+
     const batch = await connectorFetch({ bearer, body: [rpc("tools/list"), rpc("tools/list")] });
     expect(batch.status).toBe(400);
+
     const text = await connectorFetch({
       bearer,
       body: "x",
       headers: { "content-type": "text/plain" },
     });
+
     expect(text.status).toBe(415);
   });
 
   it("takes a token bound to a key only with a fresh proof of that key, and a bearer token only as one", async () => {
     const { cookie } = await signedUp("connector-dpop@example.com");
     const key = dpopKey();
+
     const { tokens } = await connectAssistant("Claude", {
       allowed: FULL,
       cookie,
       dpop: key,
       scope: FULL,
     });
+
     expect(tokens.token_type).toBe("DPoP");
     const token = tokens.access_token;
+
     const sent = async (scheme: "Bearer" | "DPoP", proof?: string) => {
       const headers = { authorization: `${scheme} ${token}` };
+
       return await connectorFetch({ body: rpc("tools/list"), headers, proof });
     };
+
     const proof = key.proof("POST", CONNECTOR_RESOURCE, token);
     const served = await sent("DPoP", proof);
     expect(served.status).toBe(200);
+
     const refusals: [string, "Bearer" | "DPoP", string | undefined, string][] = [
       ["a replayed proof", "DPoP", proof, "invalid_dpop_proof"],
       [
@@ -233,6 +252,7 @@ dbSuite("the connector", () => {
       ["no proof", "DPoP", undefined, "invalid_dpop_proof"],
       ["as a bearer token", "Bearer", undefined, "invalid_token"],
     ];
+
     for (const [why, scheme, proofJwt, error] of refusals) {
       const response = await sent(scheme, proofJwt);
       expect(response.status, why).toBe(401);
@@ -243,21 +263,25 @@ dbSuite("the connector", () => {
 
     const plain = await connectAssistant("Cursor", { allowed: FULL, cookie, scope: FULL });
     expect(plain.tokens.token_type).toBe("Bearer");
+
     const asDpop = await connectorFetch({
       body: rpc("tools/list"),
       headers: { authorization: `DPoP ${plain.tokens.access_token}` },
       proof: key.proof("POST", CONNECTOR_RESOURCE, plain.tokens.access_token),
     });
+
     expect(asDpop.status).toBe(401);
   });
 
   it("refreshes past an access token's expiry, and a disconnect ends both tokens at once", async () => {
     const { cookie, userId } = await signedUp("connector-revoke@example.com");
+
     const { clientId, tokens } = await connectAssistant("Gemini", {
       allowed: FULL,
       cookie,
       scope: FULL,
     });
+
     await db
       .update(oauthAccessToken)
       .set({ expiresAt: new Date(Date.now() - 1000) })
@@ -288,11 +312,13 @@ dbSuite("the connector", () => {
     const email = "connector-reset@example.com";
     const { cookie, userId } = await signedUp(email);
     const { tokens } = await connectAssistant("Claude", { allowed: FULL, cookie, scope: FULL });
+
     const reset = await authPost(
       "/reset-password",
       { origin: ORIGIN },
       { newPassword: "a-new-password-5678", token: await issueToken(email) },
     );
+
     expect(reset.status).toBe(200);
     const after = await connectorFetch({ bearer: tokens.access_token, body: rpc("tools/list") });
     expect(after.status).toBe(401);

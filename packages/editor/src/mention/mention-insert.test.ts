@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
 
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/headless/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { createAndLink, insertPageLink } from "@repo/editor/mention/mention-insert";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 const makeEditor = (text: string) =>
   createSlateEditor({
@@ -16,34 +15,40 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string => serializeNote(editor);
+const out = (editor: Editor) => serializeNote(editor);
 
-const findByType = (editor: Editor, type: string): TElement | null => {
+const findByType = (editor: Editor, type: string) => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
     if (ElementApi.isElement(node)) {
       return node;
     }
   }
+
   return null;
 };
 
-const typeAtEnd = (editor: Editor, ...chars: string[]): void => {
+const typeAtEnd = (editor: Editor, ...chars: string[]) => {
   const end = editor.api.end([0]);
+
   if (!end) {
     throw new Error("no end point");
   }
+
   editor.tf.select(end);
+
   for (const char of chars) {
     editor.tf.insertText(char);
   }
 };
 
-const openPicker = (editor: Editor): TElement => {
+const openPicker = (editor: Editor) => {
   typeAtEnd(editor, "[", "[");
   const element = findByType(editor, KEYS.mentionInput);
+
   if (!element) {
     throw new Error("[[ did not open Plate's mention input");
   }
+
   return element;
 };
 

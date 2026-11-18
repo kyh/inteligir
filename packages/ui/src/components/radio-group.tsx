@@ -5,9 +5,6 @@ import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
 
 import { cn } from "@repo/ui/lib/cn";
 
-// A segmented row: each item is its own label, so there is no dot. Radio rather than a toggle
-// group because a choice among a few cannot be cleared; Base UI brings the roving focus and the
-// arrow keys that make it one tab stop.
 const RadioGroup = <Value,>({ className, ...props }: RadioGroupPrimitive.Props<Value>) => (
   <RadioGroupPrimitive data-slot="radio-group" className={cn("flex gap-1", className)} {...props} />
 );

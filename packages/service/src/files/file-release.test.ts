@@ -1,11 +1,7 @@
-// What housekeeping lets go of the files over Postgres and the folder store: a file nothing has named
-// for a day, its row at once and its object by its job, which stops after its tries; never one an
-// item or a change set names, one touched within the day, or one of an account a write holds.
-
 import { randomUUID } from "node:crypto";
 
 import { deferred } from "@repo/contract/deferred";
-import { noteFixture } from "@repo/contract/test-support/library-items";
+import { noteFixture } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import {
   changeSet,
@@ -22,8 +18,8 @@ import { expect, it, vi } from "vitest";
 
 import { drainJobs } from "../jobs/drain-jobs";
 import { withAccountLock } from "../library/library-store";
-import { fileOf } from "../test-support/file-uploads";
-import { makeAccount, seedFile, seedItem } from "../test-support/library-fixture";
+import { fileOf } from "../test-support/file-uploads.test-utils";
+import { makeAccount, seedFile, seedItem } from "../test-support/library.fixture";
 import { RELEASE_RUN, releaseUnnamedFiles } from "./file-release";
 import { FILE_STORE } from "./file-store-of";
 import { keepFile } from "./keep-file";
@@ -32,52 +28,55 @@ const HOUR_MS = 60 * 60_000;
 const NOW = Date.now();
 const OLD = NOW - 25 * HOUR_MS;
 
-// an account whose library a first write made, as every one holding a file has
-const libraryOf = async (): Promise<string> => {
+const libraryOf = async () => {
   const accountId = await makeAccount();
   await db.insert(libraryState).values({ accountId });
+
   return accountId;
 };
 
-const releaseTries = (): number => {
+const releaseTries = () => {
   const { tries } = RELEASE_RUN;
+
   if (tries.kind !== "at-most") {
     throw new Error("a release is tried until it is done");
   }
+
   return tries.max;
 };
 
-const release = async (now = NOW): Promise<number> =>
+const release = async (now = NOW) =>
   await db.transaction(async (tx) => await releaseUnnamedFiles(tx, now));
 
-const heldShas = async (accountId: string): Promise<string[]> => {
+const heldShas = async (accountId: string) => {
   const rows = await db
     .select({ sha256: file.sha256 })
     .from(file)
     .where(eq(file.accountId, accountId))
     .orderBy(asc(file.sha256));
+
   return rows.map(({ sha256 }) => sha256);
 };
 
-const pathnameOf = async (accountId: string, sha: string): Promise<string> => {
+const pathnameOf = async (accountId: string, sha: string) => {
   const [row] = await db
     .select({ pathname: file.pathname })
     .from(file)
     .where(and(eq(file.accountId, accountId), eq(file.sha256, sha)));
+
   if (row === undefined) {
     throw new Error("the account holds no such file");
   }
+
   return row.pathname;
 };
 
-// a file an item names
-const named = async (accountId: string, sha: string): Promise<void> => {
+const named = async (accountId: string, sha: string) => {
   const { id } = await seedItem(accountId, { fields: noteFixture() });
   await db.insert(itemFile).values({ accountId, itemId: id, sha256: sha });
 };
 
-// a file only a change set's entry for an item still names
-const heldBySet = async (accountId: string, sha: string): Promise<void> => {
+const heldBySet = async (accountId: string, sha: string) => {
   const { id: itemId } = await seedItem(accountId, { fields: noteFixture() });
   const changeSetId = randomUUID();
   await db
@@ -91,6 +90,7 @@ dbSuite("housekeeping's file release", () => {
   it("lets go a file unnamed past a day and asks its object's removal, keeping a named, held or recent one", async () => {
     const accountId = await libraryOf();
     const [unnamed, itemNamed, setHeld, recent] = ["a", "b", "c", "d"].map((hex) => hex.repeat(64));
+
     if (
       unnamed === undefined ||
       itemNamed === undefined ||
@@ -99,9 +99,11 @@ dbSuite("housekeeping's file release", () => {
     ) {
       throw new Error("four shas were made");
     }
+
     for (const sha of [unnamed, itemNamed, setHeld]) {
       await seedFile(accountId, sha, { touchedAt: OLD });
     }
+
     await seedFile(accountId, recent, { touchedAt: NOW - 23 * HOUR_MS });
     await named(accountId, itemNamed);
     await heldBySet(accountId, setHeld);
@@ -109,10 +111,12 @@ dbSuite("housekeeping's file release", () => {
 
     await expect(release()).resolves.toBeGreaterThanOrEqual(1);
     await expect(heldShas(accountId)).resolves.toStrictEqual([itemNamed, setHeld, recent]);
+
     const asked = await db
       .select({ id: job.id, kind: job.kind, payload: job.payload })
       .from(job)
       .where(eq(job.accountId, accountId));
+
     expect(asked).toStrictEqual([
       { id: `release:${gone}`, kind: "file-release", payload: { pathname: gone } },
     ]);
@@ -124,10 +128,12 @@ dbSuite("housekeeping's file release", () => {
     await seedFile(accountId, sha, { touchedAt: OLD });
     const holding = deferred();
     const held = deferred();
+
     const holder = withAccountLock(accountId, async () => {
       held.resolve();
       await holding.promise;
     });
+
     try {
       await held.promise;
       await release();
@@ -136,6 +142,7 @@ dbSuite("housekeeping's file release", () => {
       holding.resolve();
       await holder;
     }
+
     await release();
     await expect(heldShas(accountId)).resolves.toStrictEqual([]);
   });
@@ -171,12 +178,14 @@ dbSuite("housekeeping's file release", () => {
 
     const tries = releaseTries();
     const remove = vi.spyOn(FILE_STORE, "remove").mockRejectedValue(new Error("the store is down"));
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const logged = vi.spyOn(console, "error");
+
     try {
       for (let drain = 0; drain <= tries; drain += 1) {
         await drainJobs({ accountId, budgetMs: 10_000 });
         await db.update(job).set({ runAt: Date.now() }).where(eq(job.accountId, accountId));
       }
+
       expect(remove).toHaveBeenCalledTimes(tries);
       expect(logged.mock.calls).toStrictEqual([
         ...Array.from({ length: tries }, () => [expect.objectContaining({ event: "job-failed" })]),
@@ -186,6 +195,7 @@ dbSuite("housekeeping's file release", () => {
       remove.mockRestore();
       logged.mockRestore();
     }
+
     await expect(db.select().from(job).where(eq(job.accountId, accountId))).resolves.toStrictEqual(
       [],
     );

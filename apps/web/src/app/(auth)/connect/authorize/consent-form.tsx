@@ -12,12 +12,9 @@ import { authClient, authErrorMessage } from "#lib/auth-client";
 
 type Ask = Extract<ConsentRequest, { readonly kind: "ask" }>;
 
-// the provider words a refusal in OAuth's error body, which Better Auth's client keeps beside it
 const describedSchema = z.object({ error_description: z.string().min(1) });
 
-// what the person allowed, never more than the assistant asked: the provider refuses a scope it
-// did not
-const allowedScope = (ask: Ask, readOnly: boolean): string =>
+const allowedScope = (ask: Ask, readOnly: boolean) =>
   [
     ...(readOnly ? ["library:read"] : ask.scopes),
     ...(ask.offlineAccess ? ["offline_access"] : []),
@@ -39,20 +36,23 @@ const Publisher = ({ ask }: { ask: Ask }) =>
 
 export const ConsentForm = ({ ask, email }: { ask: Ask; email: string }) => {
   const changes = ask.scopes.includes("library");
-  // read-only is a narrower answer only when the assistant asked to read as well
   const offersReadOnly = changes && ask.scopes.includes("library:read");
   const { name } = ask.assistant;
   const readOnlyId = useId();
+
   const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const accept = fieldValue(form, "decision") === "allow";
+
     const { error: failure } = await authClient.oauth2.consent(
       accept
         ? { accept, scope: allowedScope(ask, fieldValue(form, "access") === "read") }
         : { accept },
     );
+
     if (failure === null) {
       return null;
     }
+
     return describedSchema.safeParse(failure).data?.error_description ?? authErrorMessage(failure);
   });
 

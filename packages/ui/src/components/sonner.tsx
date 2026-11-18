@@ -1,5 +1,5 @@
 "use client";
-// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
+// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 
 import { Toaster as Sonner } from "sonner";
 import type { ToasterProps } from "sonner";

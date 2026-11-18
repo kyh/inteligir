@@ -1,48 +1,48 @@
-// Every node, mark and prop the library persists, through markdown and back: a value written and
-// read again means what it meant, and is a block a store takes, but for the losses each row names.
-
 import { describe, expect, it } from "vitest";
 import type { Descendant, TElement, TText } from "platejs";
 
 import { ALERT_VARIANTS, storableBlockSchema } from "@repo/contract/library/library-nodes";
 
-import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs";
-import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning";
+import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs.test-utils";
+import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning.test-utils";
 import { parseMarkdown, parseMarkdownSections } from "./markdown-doc";
 import { ARTICLE_SECTION_KEY } from "./md-rules";
 
 type Marks = Partial<Record<"bold" | "code" | "italic" | "strikethrough" | "underline", true>>;
+
 type Props = Omit<TElement, "children" | "type">;
 
-const t = (text: string, marks: Marks = {}): TText => ({ text, ...marks });
-const el = (type: string, children: Descendant[], props: Props = {}): TElement => ({
-  children,
-  type,
-  ...props,
-});
-const p = (...children: Descendant[]): TElement =>
-  el("p", children.length > 0 ? children : [t("")]);
-const li = (text: string, props: Props): TElement => el("p", [t(text)], props);
-const voidEl = (type: string, props: Props): TElement => el(type, [t("")], props);
-const code = (lang: string | null, lines: string[]): TElement =>
+const t = (text: string, marks: Marks = {}) => ({ text, ...marks }) satisfies TText;
+
+const el = (type: string, children: Descendant[], props: Props = {}) =>
+  ({
+    children,
+    type,
+    ...props,
+  }) satisfies TElement;
+
+const p = (...children: Descendant[]) => el("p", children.length > 0 ? children : [t("")]);
+
+const li = (text: string, props: Props) => el("p", [t(text)], props);
+const voidEl = (type: string, props: Props) => el(type, [t("")], props);
+
+const code = (lang: string | null, lines: string[]) =>
   el(
     "code_block",
     lines.map((line) => el("code_line", [t(line)])),
     lang === null ? {} : { lang },
   );
-const cell = (type: "td" | "th", ...blocks: TElement[]): TElement => el(type, blocks);
-const row = (...cells: TElement[]): TElement => el("tr", cells);
-const bullet = (indent: number): Props => ({ indent, listStyleType: "disc" });
 
-// a value written and read back; `expected` is what the read answers where it differs, a
-// normalization or a loss the row names
+const cell = (type: "td" | "th", ...blocks: TElement[]) => el(type, blocks);
+const row = (...cells: TElement[]) => el("tr", cells);
+const bullet = (indent: number) => ({ indent, listStyleType: "disc" }) satisfies Props;
+
 interface ValueRow {
   readonly node: string;
   readonly value: TElement[];
   readonly expected?: TElement[];
 }
 
-// markdown read, and what it read written and read again
 interface MarkdownRow {
   readonly node: string;
   readonly md: string;
@@ -51,7 +51,7 @@ interface MarkdownRow {
 
 const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
 
-const deepList = (depth: number): TElement[] =>
+const deepList = (depth: number) =>
   Array.from({ length: depth }, (_, index) => li(`level ${String(index + 1)}`, bullet(index + 1)));
 
 const VALUE_ROWS: ValueRow[] = [
@@ -74,21 +74,25 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   {
-    // markdown has no underline, so its words are written plain
     expected: [p(t("a u b"))],
     node: "mark underline",
     value: [p(t("a "), t("u", { underline: true }), t(" b"))],
   },
-  ...HEADINGS.map((type): ValueRow => ({ node: type, value: [el(type, [t(`Heading ${type}`)])] })),
+  ...HEADINGS.map(
+    (type) => ({ node: type, value: [el(type, [t(`Heading ${type}`)])] }) satisfies ValueRow,
+  ),
   { node: "blockquote", value: [el("blockquote", [p(t("quoted"))])] },
   {
     node: "blockquote of two paragraphs",
     value: [el("blockquote", [p(t("one")), p(t("two"))])],
   },
-  ...ALERT_VARIANTS.map((alert): ValueRow => ({
-    node: `alert ${alert}`,
-    value: [el("blockquote", [p(t("first line\nsecond line"))], { alert })],
-  })),
+  ...ALERT_VARIANTS.map(
+    (alert) =>
+      ({
+        node: `alert ${alert}`,
+        value: [el("blockquote", [p(t("first line\nsecond line"))], { alert })],
+      }) satisfies ValueRow,
+  ),
   { node: "alert, empty", value: [el("blockquote", [p()], { alert: "NOTE" })] },
   {
     node: "alert opening with a list",
@@ -126,7 +130,6 @@ const VALUE_ROWS: ValueRow[] = [
     value: [el("column_group", [el("column", [p(t("a"))]), el("column", [p(t("b"))])])],
   },
   {
-    // a column has no spelling alone: it writes and reads back as a group of one
     expected: [el("column_group", [el("column", [p(t("alone"))], { width: "50%" })])],
     node: "column outside a group",
     value: [el("column", [p(t("alone"))], { width: "50%" })],
@@ -177,7 +180,6 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   {
-    // TeX's own `\|` is written `\Vert` in a row, the same double bar
     expected: [
       el("table", [
         row(cell("th", p(t("h")))),
@@ -234,13 +236,11 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   {
-    // markdown has no image width; the codec writes one into the caption, Obsidian's way
     expected: [voidEl("img", { caption: [t("w")], url: "https://example.com/w.png" })],
     node: "img width",
     value: [voidEl("img", { caption: [t("w")], url: "https://example.com/w.png", width: 320 })],
   },
   {
-    // a bare web `![](url)` is an embed
     expected: [voidEl("media_embed", { url: "https://example.com/pic.png" })],
     node: "img on the web with no caption",
     value: [voidEl("img", { url: "https://example.com/pic.png" })],
@@ -248,7 +248,6 @@ const VALUE_ROWS: ValueRow[] = [
   { node: "img at a path", value: [voidEl("img", { url: "assets/pic.png" })] },
   { node: "file url", value: [voidEl("file", { url: "https://example.com/doc.pdf" })] },
   {
-    // an embed is `![](url)`, so a web file's name has no spelling
     expected: [voidEl("file", { url: "https://example.com/doc.pdf" })],
     node: "file name",
     value: [voidEl("file", { name: "Report.pdf", url: "https://example.com/doc.pdf" })],
@@ -322,7 +321,6 @@ const VALUE_ROWS: ValueRow[] = [
     value: [p(t("area "), voidEl("inline_equation", { texExpression: "\\pi r^2" }), t(" done"))],
   },
   {
-    // markdown has no empty inline math, so it writes no bytes
     expected: [p(t("a  b"))],
     node: "inline_equation, empty",
     value: [p(t("a "), voidEl("inline_equation", { texExpression: "" }), t(" b"))],
@@ -350,7 +348,6 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   {
-    // a restart inside a run is written as one list
     expected: [
       li("a", { indent: 1, listStart: 1, listStyleType: "decimal" }),
       li("b", { indent: 1, listStart: 2, listStyleType: "decimal" }),
@@ -381,12 +378,14 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   { node: "list as deep as an item holds", value: deepList(128) },
-  ...HEADINGS.map((type): ValueRow => ({
-    // only a paragraph is a list item's line: a heading stands outside the list
-    expected: [el(type, [t("head")])],
-    node: `${type} made a list item`,
-    value: [el(type, [t("head")], bullet(1))],
-  })),
+  ...HEADINGS.map(
+    (type) =>
+      ({
+        expected: [el(type, [t("head")])],
+        node: `${type} made a list item`,
+        value: [el(type, [t("head")], bullet(1))],
+      }) satisfies ValueRow,
+  ),
   {
     node: "blocks nested under a list item",
     value: [
@@ -397,7 +396,6 @@ const VALUE_ROWS: ValueRow[] = [
     ],
   },
   {
-    // only a paragraph is a list item's line: a block with no list before it stands alone
     expected: [el("blockquote", [p(t("q"))]), el("toggle", [p(t("t"))]), code("js", ["x"])],
     node: "blocks made list items",
     value: [
@@ -453,13 +451,11 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     node: "column whose width is no share",
   },
   {
-    // table alignment is dropped
     expected: [el("table", [row(cell("th", p(t("h")))), row(cell("td", p(t("x"))))])],
     md: "| h |\n| :-: |\n| x |",
     node: "table aligned",
   },
   {
-    // a link's title is dropped
     expected: [p(el("a", [t("t")], { url: "https://example.com" }))],
     md: '[t](https://example.com "Title")',
     node: "a with a title",
@@ -485,7 +481,6 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     node: "image alone on its line",
   },
   {
-    // a picture is a block, so it splits the line it stands in
     expected: [
       p(t("see ")),
       voidEl("img", { caption: [t("a")], url: "https://example.com/a.png" }),
@@ -505,7 +500,6 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     node: "list item opened by a fence",
   },
   {
-    // raw html is the text it spells
     expected: [el("p", [t("<div>x</div>")], bullet(1)), li("next", bullet(1))],
     md: "- <div>x</div>\n- next",
     node: "list item opened by html",
@@ -527,7 +521,6 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     node: "list item opened by a table",
   },
   {
-    // a list item's line is a paragraph
     expected: [li("Title", bullet(1)), li("next", bullet(1))],
     md: "- # Title\n- next",
     node: "list item opened by a heading",
@@ -591,10 +584,10 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
   },
 ];
 
-// a value's blocks as a store takes them, each named as a top-level block is
-const unstorable = (value: readonly TElement[]): string[] =>
+const unstorable = (value: readonly TElement[]) =>
   value.flatMap((block, index) => {
     const parsed = storableBlockSchema.safeParse({ ...block, id: `b${String(index)}` });
+
     return parsed.success
       ? []
       : [`${block.type}: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`];
@@ -631,26 +624,28 @@ describe("an item's page", () => {
       el("toggle", [p(t("Summary")), el("toggle", [p(t("nested"))])]),
       el("tab_group", [el("tab_panel", [p(t("x"))], { label: "T" })]),
     ];
+
     const read = parseMarkdownSections(
       writeValue([p(t("my note")), el(ARTICLE_SECTION_KEY, page)]),
     );
+
     if (!read.ok) {
       throw new Error(read.reason.kind);
     }
+
     expect(meaningOf(read.sections.note)).toBe(meaningOf([p(t("my note"))]));
     expect(meaningOf(read.sections.article ?? [])).toBe(meaningOf(page));
   });
 });
 
-// the props a row cannot hold, each with why
 const LIST_LINE_ONLY =
   "only a paragraph is a list item's line: another block keeps its indent, never a box or a number";
+
 const NOT_IN_MATRIX = new Map([
   ...["h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "toggle", "code_block"].flatMap((type) =>
-    ["checked", "listRestart", "listRestartPolite", "listStart"].map((prop): [string, string] => [
-      `${type}.${prop}`,
-      LIST_LINE_ONLY,
-    ]),
+    ["checked", "listRestart", "listRestartPolite", "listStart"].map(
+      (prop) => [`${type}.${prop}`, LIST_LINE_ONLY] satisfies [string, string],
+    ),
   ),
   ["img.sha", "the codec writes a kept file's sha as its path, and reads the path back"],
   ["file.sha", "the codec writes a kept file's sha as its path, and reads the path back"],
@@ -660,12 +655,15 @@ const NOT_IN_MATRIX = new Map([
 describe("the matrix", () => {
   it("holds every node, mark and prop the library persists, or says why not", () => {
     const used = new Set<string>();
+
     for (const { value } of VALUE_ROWS) {
       usedPairs(value, used);
     }
+
     for (const { expected } of MARKDOWN_ROWS) {
       usedPairs(expected, used);
     }
+
     expect(
       schemaPairs().filter((pair) => !used.has(pair) && !NOT_IN_MATRIX.has(pair)),
     ).toStrictEqual([]);

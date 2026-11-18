@@ -1,12 +1,3 @@
-// The built-in agent's conversations: each a thread of ours over one eve session at a time, the
-// events its record hook keeps of what eve did, its turns, what it spent and the account's
-// preferences. eve keeps its own stream on Vercel Workflow; these rows are what a device reads, what
-// a turn's change set is keyed by and what the day's limits count. A thread's account cascades from
-// Better Auth's `user`, and every other row of a thread hangs off it by a composite foreign key, so
-// deleting a user or a thread takes the rest; what the agent spent hangs off the account alone, and
-// a deleted account's eve sessions still to end off nothing. Times are unix milliseconds and ids
-// text, as the library spells them.
-
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -26,11 +17,8 @@ import {
 
 import { user } from "./auth-schema";
 
-// a thread runs a turn or waits for the next message: a message sent mid-turn joins the turn
 const THREAD_STATUSES = ["idle", "running"] as const;
 
-// how a turn ended: it finished; the person stopped it; the day's turns or dollars ran out, or its
-// steps; it failed; or the model could not be reached
 const TURN_OUTCOMES = [
   "done",
   "cancelled",
@@ -41,10 +29,8 @@ const TURN_OUTCOMES = [
   "unavailable",
 ] as const;
 
-// which limit stopped a turn: the day's turns, the day's dollars, or the turn's steps
 const TURN_STOPS = ["allowance", "budget", "steps"] as const;
 
-// what the agent spent: a turn booked as it started, a model call's tokens, a web search
 const USAGE_KINDS = ["turn", "model", "search"] as const;
 
 export const agentThreadStatus = pgEnum("agent_thread_status", THREAD_STATUSES);
@@ -59,12 +45,6 @@ const accountId = () =>
     .notNull()
     .references(() => user.id, { onDelete: "cascade" });
 
-// The thread and the eve session it runs on now, by its number: a thread starts its next session
-// once the one it ran ended or aged, so the number counts up while the session's id is unset until
-// eve answers its create. A deleted thread keeps its row, `deleted_at` set and read by nothing, only
-// until its eve session is ended, `purge_tried_at` set each time that can't be done. Each move a
-// device lists, its status, order or deletion, stamps `seq` with the library's next sequence, as an
-// item's write does
 export const agentThread = pgTable.withRLS(
   "agent_thread",
   {
@@ -101,9 +81,6 @@ const threadFk = (name: string, columns: [AnyPgColumn, AnyPgColumn]) =>
     "cascade",
   );
 
-// What the thread shows, one of the contract's agent events as JSON, kept where eve recorded the
-// fact it maps: a position never moves, so a hook delivered twice writes one row, and positions
-// order a thread's events across its sessions as its relay reads them
 export const agentThreadEvent = pgTable.withRLS(
   "agent_thread_event",
   {
@@ -124,10 +101,6 @@ export const agentThreadEvent = pgTable.withRLS(
   ],
 );
 
-// A turn by its number in its thread, which its change set is keyed by: the hooks write it as eve
-// starts the turn, before its first model call, so every tool call finds it. eve numbers a turn
-// within its session alone. A limit that stops it stamps `stop_reason` before it cancels, since eve
-// settles a hook's cancel with no cause
 export const agentTurn = pgTable.withRLS(
   "agent_turn",
   {
@@ -155,10 +128,6 @@ export const agentTurn = pgTable.withRLS(
   ],
 );
 
-// What the agent spent, the account's ledger for the day's limits: each spend kept where eve
-// recorded it, so a hook delivered twice books or charges once, priced in millionths of a dollar.
-// It hangs off the account alone, so deleting a conversation gives back none of the day's turns or
-// dollars, and goes after a month
 export const agentUsage = pgTable.withRLS(
   "agent_usage",
   {
@@ -180,18 +149,12 @@ export const agentUsage = pgTable.withRLS(
   ],
 );
 
-// whether the person keeps the agent on, and the filing rules it follows over its own taste; an
-// account with no row has it on and keeps none
 export const agentPreference = pgTable.withRLS("agent_preference", {
   accountId: accountId().primaryKey(),
   enabled: boolean("enabled").notNull(),
   filingRules: text("filing_rules"),
 });
 
-// An eve session of an account being deleted, kept until it is ended: eve runs it on Vercel past the
-// rows the delete takes, so the delete keeps it before the account's row goes and ends it after, and
-// the agent's cron ends one that couldn't be then, those never tried first. It names its account
-// and thread only to sign the end, so it hangs off neither
 export const agentDeletedAccountSession = pgTable.withRLS(
   "agent_deleted_account_session",
   {

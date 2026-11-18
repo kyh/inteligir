@@ -1,10 +1,3 @@
-// An item, by its id, over the account's library: its note in the editor every device draws, in a
-// web view of its own (note-page.tsx), saved whole as every device saves it while there is a
-// connection, and read-only under the words every screen says while there is none. The menu opens
-// the page it was saved from, its Info, a conversation about it with the built-in agent, and
-// Delete, which moves it to Deleted on every device. While the note is being edited, a leave waits
-// until the note holds every edit made here, or the person says to leave without them.
-
 import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
 import {
   useHeaderHeight,
@@ -28,31 +21,26 @@ import { screenStyle, useTheme } from "@/lib/theme";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { online } from "@/ui/needs-connection";
 
-// past this many screens above it, an item lets its web view go once the note holds every edit
-// made here; it loads again on the way back
 const RELEASE_DEPTH = 2;
 
-// the words the library's tab asks a leave in (apps/web/src/library/item/leave-item.ts)
 const LEAVE_TITLE = "Leave without saving?";
 const LEAVE_BODY = "Some of what you typed hasn't saved yet. Leave now and it's lost.";
 
-const depthOf = (routes: readonly { key: string }[], key: string): number => {
+const depthOf = (routes: readonly { key: string }[], key: string) => {
   const index = routes.findIndex((route) => route.key === key);
+
   return index === -1 ? 0 : routes.length - 1 - index;
 };
 
-const openOutside = async (url: string): Promise<void> => {
-  try {
-    await Linking.openURL(url);
-  } catch {
-    // no app takes the link; the web view stays on the page either way
-  }
+const openOutside = async (url: string) => {
+  await Promise.allSettled([Linking.openURL(url)]);
 };
 
-const followVerdict = (verdict: LoadVerdict): boolean => {
+const followVerdict = (verdict: LoadVerdict) => {
   if (verdict.kind === "open-outside") {
     void openOutside(verdict.url);
   }
+
   return verdict.kind === "allow";
 };
 
@@ -70,10 +58,12 @@ const ItemScreen = () => {
   const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.folders ?? [];
   const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
+
   const page = useNotePage(itemId, {
     deep: depth >= RELEASE_DEPTH,
     focus: firstParam(params.focus) === FOCUS,
   });
+
   const { guarded, leave } = page;
 
   usePreventRemove(guarded, ({ data }) => {
@@ -90,11 +80,11 @@ const ItemScreen = () => {
     );
   });
 
-  // checked before the confirm too, so an offline Delete never asks for what it cannot do
-  const confirmDelete = (): void => {
+  const confirmDelete = () => {
     if (!online()) {
       return;
     }
+
     Alert.alert(
       "Move to Deleted?",
       "It leaves your library on every device, and you can restore it from Deleted.",
@@ -117,6 +107,7 @@ const ItemScreen = () => {
 
   const url = item?.fields.url ?? null;
   let body = null;
+
   if (read.kind === "missing") {
     body = (
       <Text className="px-6 py-24 text-center text-16 text-muted-foreground">

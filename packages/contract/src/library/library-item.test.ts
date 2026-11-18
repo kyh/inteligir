@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "./library-item";
-import { noteFixture } from "../test-support/library-items";
+import { noteFixture } from "../test-support/library-items.test-utils";
 
 describe("an item's fields", () => {
   it("hold a note, a saved link and a file", () => {

@@ -1,7 +1,3 @@
-// Deleting the account, the one way an account ends: the password asked again under a live
-// session, and the account's row gone with every device's session and its agent's sessions. The
-// `account.delete` call that reaches it is the /v1 router's, handing it the deployment's agent.
-
 import { agentDeletedAccountSession } from "@repo/db/agent-schema";
 import { session, user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
@@ -12,8 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runAgentCron } from "../agent/agent-cron";
 import { sendToAgent } from "../agent/agent-sessions";
 import type { AgentRuntime } from "../agent/runtime";
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
 
 import {
   cookieHeaderOf,
@@ -25,10 +24,9 @@ import {
   signUp,
   signUpUser,
   userIdOf,
-} from "../test-support/auth-requests";
+} from "../test-support/auth-requests.test-utils";
 import { deleteAccountUnderSession } from "./delete-account";
 
-// the account the cookie's session holds, deleted under it with no agent unless one is handed
 const deleteUnder = async (
   cookie: string,
   accountId: string,
@@ -43,19 +41,21 @@ const deleteUnder = async (
     password,
   });
 
-const userExists = async (userId: string): Promise<boolean> => {
+const userExists = async (userId: string) => {
   const rows = await db.select({ id: user.id }).from(user).where(eq(user.id, userId));
+
   return rows.length > 0;
 };
 
 const sessionsOf = async (userId: string) =>
   await db.select().from(session).where(eq(session.userId, userId));
 
-const keptSessionsOf = async (accountId: string): Promise<string[]> => {
+const keptSessionsOf = async (accountId: string) => {
   const rows = await db
     .select({ eveSessionId: agentDeletedAccountSession.eveSessionId })
     .from(agentDeletedAccountSession)
     .where(eq(agentDeletedAccountSession.accountId, accountId));
+
   return rows.map(({ eveSessionId }) => eveSessionId);
 };
 
@@ -70,20 +70,24 @@ dbSuite("deleting the account", () => {
     await expect(deleteUnder(laptop, userId)).resolves.toBe("deleted");
 
     await expect(userExists(userId)).resolves.toBe(false);
+
     for (const signedIn of [cookie, laptop, phone]) {
       await expect(sessionOf({ cookie: signedIn })).resolves.toBeNull();
     }
+
     await expect(sessionsOf(userId)).resolves.toStrictEqual([]);
   });
 
   it("keeps the invite spent, and forgets who spent it", async () => {
     await mintCode("INVITE-FORGOTTEN");
+
     const signedUp = await signUp({
       email: "Forgotten@Example.test",
       inviteCode: "INVITE-FORGOTTEN",
       name: "Forgotten",
       password: PASSWORD,
     });
+
     expect(signedUp.status).toBe(200);
     const cookie = cookieHeaderOf(signedUp);
 
@@ -106,7 +110,6 @@ dbSuite("deleting the account", () => {
 
     await expect(userExists(userId)).resolves.toBe(true);
     await expect(sessionOf({ cookie: phone })).resolves.not.toBeNull();
-    // the sign-up's own session, which the test holds as its cookie, and the phone's
     await expect(sessionsOf(userId)).resolves.toHaveLength(2);
   });
 
@@ -123,16 +126,18 @@ dbSuite("deleting the account", () => {
       ({ runtime } = fakeAgentRuntime(platform));
     });
 
-    // a day allows an account two turns, each starting a conversation's eve session
     const twoConversations = async (email: string) => {
       const { cookie } = await signUpUser(email);
       const accountId = await userIdOf(cookie);
       const sessions: string[] = [];
+
       for (const text of ["Hello", "Hi again"]) {
         const { threadId } = await sendToAgent(runtime, accountId, { text });
         sessions.push(platform.sessionFor(threadId, 1) ?? "");
       }
+
       await platform.turnsSettled();
+
       return { accountId, cookie, sessions };
     };
 
@@ -149,7 +154,9 @@ dbSuite("deleting the account", () => {
       const { accountId, cookie, sessions } = await twoConversations(
         "delete-agent-away@example.test",
       );
+
       const [away = "", reached = ""] = sessions;
+
       const eveAway: AgentRuntime = {
         ...runtime,
         platform: {
@@ -158,11 +165,13 @@ dbSuite("deleting the account", () => {
             if (sessionId === away) {
               throw new Error("eve is away");
             }
+
             return await platform.end(caller, sessionId);
           },
         },
       };
-      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const logged = vi.spyOn(console, "error");
 
       await expect(deleteUnder(cookie, accountId, { runtime: eveAway })).resolves.toBe("deleted");
       expect(logged).toHaveBeenCalledWith(

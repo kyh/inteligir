@@ -1,11 +1,3 @@
-// One conversation with the built-in agent, drawn natively over the same logic the library's page
-// draws its panel with (`@repo/client`): the thread's events as they happen, held as the phone
-// last read them so it reads offline, the reply as it is written, each turn's ending in the
-// person's words, and the composer, whose message carries the item it was asked from. It opens on
-// the newest message and keeps to it as the reply grows until the person scrolls up, and a send
-// goes back to it. A send and a stop go to the cloud, so each needs a connection and says so rather
-// than wait for one; the day's allowance and an agent switched off are said as the page says them.
-
 import { useMutation } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -13,7 +5,6 @@ import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } fr
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/client/agent-send";
-import type { AgentViewContext } from "@repo/client/agent-send";
 import {
   callRefusalWords,
   conversationOf,
@@ -32,8 +23,7 @@ import { useFollowEnd } from "@/ui/follow-end";
 import { online } from "@/ui/needs-connection";
 import { TextButton } from "@/ui/text-button";
 
-// the screen a message leaves from: the item it was asked about, else the whole library
-const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
+const contextOf = (fromItem: string | null) =>
   viewContextOf({
     kind: null,
     openItem: fromItem,
@@ -49,6 +39,7 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
       </Text>
     );
   }
+
   if (block.kind === "work") {
     return (
       <View className="gap-1 rounded-lg border border-border px-3 py-2">
@@ -74,7 +65,9 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
       </View>
     );
   }
+
   const { event } = block.entry;
+
   switch (event.type) {
     case "user.message": {
       return (
@@ -86,6 +79,7 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
         </Text>
       );
     }
+
     case "agent.message": {
       return (
         <Text selectable className="text-16 text-foreground leading-[22px]">
@@ -93,17 +87,22 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
         </Text>
       );
     }
+
     case "turn.ended": {
       const words = endingWords(event.reason);
+
       return words === "" ? null : <Text className="text-13 text-muted-foreground">{words}</Text>;
     }
-    // a run of work draws as a block of its own
+
     case "agent.progress":
     case "agent.tool_use":
     case "agent.tool_result": {
       return null;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(event satisfies never)}`);
+    }
   }
 };
 
@@ -114,6 +113,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const cancel = useMutation(queries.library.agent.cancel.mutationOptions());
   const state = statusWords(underWay ? "running" : "idle");
   const failure = cancel.error;
+
   return (
     <View className="gap-3">
       {blocks.map((block, index) => (
@@ -151,6 +151,7 @@ const Composer = ({
 }) => {
   const { queries } = useLibrary();
   const [text, setText] = useState("");
+
   const send = useMutation(
     queries.library.agent.send.mutationOptions({
       onSuccess: (answer) => {
@@ -159,15 +160,17 @@ const Composer = ({
       },
     }),
   );
-  const submit = (): void => {
+
+  const submit = () => {
     const input = sendInput({ text, threadId, viewContext: contextOf(fromItem) });
+
     if (input !== null && !send.isPending && online()) {
       send.mutate(input);
     }
   };
-  // the last send's refusal in the person's words, the allowance's naming when it fills again
-  // from when that send went
+
   const refused = send.error === null ? null : sendRefusalWords(send.error, send.submittedAt);
+
   return (
     <View className="gap-1 border-t border-border px-4 pt-2 pb-3">
       {refused === null ? null : <Text className="text-13 text-muted-foreground">{refused}</Text>}
@@ -203,6 +206,7 @@ const ConversationScreen = () => {
   const fromItem = firstParam(params.item);
   const title = useThreads()?.find((row) => row.id === threadId)?.title ?? "New conversation";
   const end = useFollowEnd();
+
   return (
     <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen options={{ title }} />

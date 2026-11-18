@@ -7,13 +7,14 @@ import type { ImportRun, ImportThread, ThreadEars } from "./import-run";
 const NONE = { added: 0, alreadySaved: 0, unreadable: 0 };
 const ASK: ImportAsk = { file: new Blob(["url\n"]), source: "raindrop" };
 
-// a thread the suite speaks for, and whether the store closed it
 const fakeThread = () => {
   const sent: ImportAsk[] = [];
   let ears: ThreadEars | null = null;
   let closed = 0;
-  const spawn = (heard: ThreadEars): ImportThread => {
+
+  const spawn = (heard: ThreadEars) => {
     ears = heard;
+
     return {
       close: () => {
         closed += 1;
@@ -21,11 +22,13 @@ const fakeThread = () => {
       send: (ask) => {
         sent.push(ask);
       },
-    };
+    } satisfies ImportThread;
   };
-  const tell = (news: ImportNews): void => {
+
+  const tell = (news: ImportNews) => {
     ears?.heard(news);
   };
+
   return { closed: () => closed, sent, spawn, tell };
 };
 
@@ -45,6 +48,7 @@ describe(importAfter, () => {
       { kind: "reading", source: "raindrop" },
       { kind: "heard", news: { counts: { ...NONE, added: 4 }, kind: "landing", total: 9 } },
     );
+
     expect(importAfter(landing, { kind: "stop" })).toStrictEqual({
       counts: { ...NONE, added: 4 },
       kind: "stopped",
@@ -106,7 +110,7 @@ describe(importUnloadAsks, () => {
 
   it("asks as the tab closes only while the run reads or lands", () => {
     expect(
-      runs.filter((run) => importUnloadAsks(run, { kind: "live" })).map((run) => run.kind),
+      runs.flatMap((run) => (importUnloadAsks(run, { kind: "live" }) ? [run.kind] : [])),
     ).toStrictEqual(["reading", "landing"]);
   });
 

@@ -1,9 +1,3 @@
-// A library call's access, and the one place each refusal becomes the error its row declares
-// (`@repo/contract/rpc/v1-errors`). Every row is built on `reading` or `writing`, whose middleware
-// runs before the row reads its input: it resolves the caller from the principal its door verified,
-// and refuses a write to a grant that only reads. A refusal is thrown inside a write, caught at its
-// transaction's edge as a value (`./library-store`) and thrown again here.
-
 import {
   AccountGoneError,
   BlobMismatchError,
@@ -23,18 +17,15 @@ import type { LibraryRefusal, LibraryResult } from "./library-refusal";
 import type { JobKick, LibraryWriter } from "./library-store";
 import { libraryTools } from "./library-tools";
 
-// what every door hands the library: `/v1`'s session, the connector's grant, the agent's turn; and,
-// from a door that serves a request, the kick a write's jobs get after its response
 export interface LibraryContext {
   readonly principal: LibraryPrincipal;
   readonly kickJobs?: JobKick;
 }
 
 type EditRefusal = Extract<LibraryRefusal, { kind: "edit-refused" }>["refusal"];
+
 type MarkdownFault = Extract<LibraryRefusal, { kind: "markdown-refused" }>["fault"];
 
-// what the writer of markdown no body can hold changes, a new note's or an edit's new text, said in
-// the message, since an agent is handed a refusal's message alone
 const MARKDOWN_REFUSED: Record<MarkdownFault, string> = {
   "too-deep":
     "That new text nests deeper than an item holds. Nest its lists and quotes fewer levels deep.",
@@ -42,7 +33,6 @@ const MARKDOWN_REFUSED: Record<MarkdownFault, string> = {
     "That new text holds a block the library can't keep. Split that part up or write it more plainly.",
 };
 
-// what a refused edit's writer does next
 const EDIT_REFUSED: Record<EditRefusal["kind"], string> = {
   ambiguous:
     "That old text stands more than once in the note. Quote more of the passage, so it stands once.",
@@ -53,87 +43,105 @@ const EDIT_REFUSED: Record<EditRefusal["kind"], string> = {
   ...MARKDOWN_REFUSED,
 };
 
-const refusalError = (refusal: LibraryRefusal): Error => {
+const refusalError = (refusal: LibraryRefusal) => {
   switch (refusal.kind) {
     case "not-found": {
-      return new NotFoundError();
+      return new NotFoundError() satisfies Error;
     }
+
     case "conflict": {
-      return new ConflictError();
+      return new ConflictError() satisfies Error;
     }
+
     case "url-held": {
       return new ConflictError({
         message: "Another item in your library already holds this link.",
-      });
+      }) satisfies Error;
     }
+
     case "too-large": {
-      return new PayloadTooLargeError();
+      return new PayloadTooLargeError() satisfies Error;
     }
+
     case "quota": {
-      return new QuotaError({ data: { bytesCap: refusal.bytesCap, bytesUsed: refusal.bytesUsed } });
+      return new QuotaError({
+        data: { bytesCap: refusal.bytesCap, bytesUsed: refusal.bytesUsed },
+      }) satisfies Error;
     }
+
     case "blob-missing": {
-      return new BlobMissingError({ data: { shas: [...refusal.shas] } });
+      return new BlobMissingError({ data: { shas: [...refusal.shas] } }) satisfies Error;
     }
+
     case "blob-mismatch": {
-      return new BlobMismatchError();
+      return new BlobMismatchError() satisfies Error;
     }
+
     case "blob-too-large": {
-      return new PayloadTooLargeError({ message: "This file is larger than your library keeps." });
+      return new PayloadTooLargeError({
+        message: "This file is larger than your library keeps.",
+      }) satisfies Error;
     }
+
     case "gone": {
-      return new AccountGoneError();
+      return new AccountGoneError() satisfies Error;
     }
-    // every row that takes markdown declares this code, so only its message changes with the fault
+
     case "markdown-refused": {
-      return new PayloadTooLargeError({ message: MARKDOWN_REFUSED[refusal.fault] });
+      return new PayloadTooLargeError({ message: MARKDOWN_REFUSED[refusal.fault] }) satisfies Error;
     }
+
     case "edit-refused": {
       return new EditRefusedError({
         data: refusal.refusal,
         message: EDIT_REFUSED[refusal.refusal.kind],
-      });
+      }) satisfies Error;
     }
+
     case "turn-ended": {
-      return new ORPCError("FORBIDDEN", { message: "This turn has ended." });
+      return new ORPCError("FORBIDDEN", { message: "This turn has ended." }) satisfies Error;
     }
-    // every row declares it, and a client waits it out as it does the request budget
+
     case "busy": {
       return new TooManyRequestsError({
         message: "Your library is busy with another change. Try again.",
-      });
+      }) satisfies Error;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(refusal satisfies never)}`);
+    }
   }
 };
 
-// a result's value, or its refusal thrown as the error its row declares
-export const answer = <T>(result: LibraryResult<T>): T => {
+export const answer = <T>(result: LibraryResult<T>) => {
   if (result.ok) {
     return result.value;
   }
+
   throw refusalError(result.refusal);
 };
 
 const requireLibrary = (needs: "read" | "write") =>
   os.$context<LibraryContext>().middleware(async ({ context, next }) => {
     const { principal } = context;
+
     if (needs === "write" && !changesLibrary(principal)) {
       throw new ORPCError("FORBIDDEN", {
         message: "This connection reads your library and changes nothing in it.",
       });
     }
+
     const library: LibraryWriter = {
       accountId: principal.accountId,
       actor: libraryActorOf(principal),
       kickJobs: context.kickJobs,
     };
+
     return await next({ context: { library } });
   });
 
-// the tagged contract, so each routed row carries its tool for whoever lists the tools
 const library = implement(libraryTools).$context<LibraryContext>();
 
-// on the implementer, so a caller refused learns nothing of the input
 export const reading = library.use(requireLibrary("read"));
 export const writing = library.use(requireLibrary("write"));

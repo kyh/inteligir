@@ -1,7 +1,3 @@
-// An open note's saves on the clock, over notes held in memory as the cloud answers them: the
-// editor is an array of blocks, and the page's hide and leave are events on stand-ins for its
-// document and window.
-
 import { NodeApi } from "platejs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,24 +5,24 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
 
 import type { Reach } from "../host-io";
-import { memoryNotes } from "../test-support/memory-notes";
-import type { MemoryNotes } from "../test-support/memory-notes";
+import { memoryNotes } from "../test-support/memory-notes.test-utils";
+import type { MemoryNotes } from "../test-support/memory-notes.test-utils";
 import { NoteSaver, SAVE_MAX_WAIT_MS, SAVE_PAUSE_MS, takesNoEdit } from "./note-save";
-import type { NoteBody, NoteView } from "./note-save";
+import type { NoteBody } from "./note-save";
 
 const A = "0190a000-0000-7000-8000-00000000000a";
 
-const p = (id: string, text: string): BodyBlock => ({
-  block: { children: [{ text }], id, type: "p" },
-  section: "note",
-});
+const p = (id: string, text: string) =>
+  ({
+    block: { children: [{ text }], id, type: "p" },
+    section: "note",
+  }) satisfies BodyBlock;
 
 const SEEDED = [p("a1", "one"), p("a2", "two")];
 
-const textsOf = (blocks: readonly BodyBlock[] | undefined): string[] =>
+const textsOf = (blocks: readonly BodyBlock[] | undefined) =>
   (blocks ?? []).map(({ block }) => NodeApi.string(block));
 
-// the editor: its blocks, and the bodies laid over them
 class Editor implements NoteBody {
   blocks: readonly BodyBlock[];
 
@@ -34,10 +30,11 @@ class Editor implements NoteBody {
     this.blocks = blocks;
   }
 
-  readonly mine = (): BodyBlock[] => [...this.blocks];
+  readonly mine = () => [...this.blocks] satisfies BodyBlock[];
 
-  readonly lay = (blocks: readonly BodyBlock[]): boolean => {
+  readonly lay = (blocks: readonly BodyBlock[]) => {
     this.blocks = blocks;
+
     return true;
   };
 }
@@ -45,19 +42,23 @@ class Editor implements NoteBody {
 const fakeReach = (online: boolean) => {
   const listeners = new Set<() => void>();
   let now = online;
+
   const reach: Reach = {
     get: () => now,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+
   return {
     reach,
     set: (next: boolean) => {
       now = next;
+
       for (const listener of listeners) {
         listener();
       }
@@ -69,16 +70,18 @@ const savers: NoteSaver[] = [];
 
 const page = { document: new EventTarget(), visibility: "visible", window: new EventTarget() };
 
-const goBehind = (): void => {
+const goBehind = () => {
   page.visibility = "hidden";
   page.document.dispatchEvent(new Event("visibilitychange"));
 };
 
-const openView = (saver: NoteSaver): Extract<NoteView, { kind: "open" }> => {
+const openView = (saver: NoteSaver) => {
   const view = saver.view();
+
   if (view.kind !== "open") {
     throw new Error(`the note is ${view.kind}`);
   }
+
   return view;
 };
 
@@ -90,9 +93,7 @@ interface Opened {
   readonly type: (id: string, text: string) => void;
 }
 
-const open = async (
-  options: { readonly online?: boolean; readonly deleted?: boolean } = {},
-): Promise<Opened> => {
+const open = async (options: { readonly online?: boolean; readonly deleted?: boolean } = {}) => {
   const notes = memoryNotes();
   notes.seed(A, SEEDED, { deleted: options.deleted ?? false, title: "Plans" });
   const reach = fakeReach(options.online ?? true);
@@ -102,6 +103,7 @@ const open = async (
   await vi.advanceTimersByTimeAsync(0);
   const editor = new Editor(openView(saver).blocks);
   saver.bind(editor);
+
   return {
     editor,
     notes,
@@ -111,7 +113,7 @@ const open = async (
       editor.blocks = editor.blocks.map((one) => (one.block.id === id ? p(id, text) : one));
       saver.edited();
     },
-  };
+  } satisfies Opened;
 };
 
 beforeEach(() => {
@@ -131,6 +133,7 @@ afterEach(() => {
   for (const saver of savers.splice(0)) {
     saver.close();
   }
+
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -151,10 +154,12 @@ describe("an open note's saves", () => {
 
   it("saves at most five seconds after the first unsaved edit while typing goes on", async () => {
     const { notes, type } = await open();
+
     for (let at = 0; at < SAVE_MAX_WAIT_MS; at += SAVE_PAUSE_MS / 2) {
       type("a1", `one ${String(at)}`);
       await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS / 2);
     }
+
     expect(notes.sent).toHaveLength(1);
     expect(textsOf(notes.sent[0]?.save.blocks)).toStrictEqual(["one 4500", "two"]);
   });
@@ -233,13 +238,16 @@ describe("an open note's saves", () => {
     const { editor, notes, saver, type } = await open();
     saver.agentEditing("call-1");
     const burst = " typed while the agent wrote";
+
     for (let typed = 1; typed <= burst.length; typed += 1) {
       type("a2", `two${burst.slice(0, typed)}`);
       await vi.advanceTimersByTimeAsync(50);
+
       if (typed === 10) {
         notes.saveElsewhere(A, [p("a1", "one, the agent's"), p("a2", "two")]);
       }
     }
+
     await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 2);
     expect(notes.sent).toHaveLength(0);
     expect(saver.unsaved()).toBe(true);

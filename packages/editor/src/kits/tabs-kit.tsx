@@ -1,6 +1,3 @@
-// Hidden panels stay mounted so Slate's model and pending edits survive switching; the active
-// index is React state, never a node prop, because switching is not an edit.
-
 import { createContext, useContext, useMemo, useState } from "react";
 import { ElementApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
@@ -20,11 +17,12 @@ import { tabGroupBasePlugin, tabPanelBasePlugin } from "@repo/editor/headless/ki
 
 const ActiveTabContext = createContext(0);
 
-const panelsOf = (element: TElement): { label: string; index: number }[] =>
+const panelsOf = (element: TElement) =>
   element.children.flatMap((child, index) => {
     if (!ElementApi.isElement(child) || child.type !== TAB_PANEL_KEY) {
       return [];
     }
+
     return [{ index, label: stringProp(child, "label") ?? "Tab" }];
   });
 
@@ -37,10 +35,11 @@ const TabGroupElement = (props: PlateElementProps) => {
   const [active, setActive] = useState(0);
   const shown = Math.min(active, Math.max(panels.length - 1, 0));
 
-  const addPanel = (): void => {
+  const addPanel = () => {
     if (path === undefined) {
       return;
     }
+
     editor.tf.insertNodes(
       {
         children: [{ children: [{ text: "" }], type: "p" }],
@@ -52,10 +51,11 @@ const TabGroupElement = (props: PlateElementProps) => {
     setActive(panels.length);
   };
 
-  const removePanel = (index: number): void => {
+  const removePanel = (index: number) => {
     if (path === undefined || panels.length <= 1) {
       return;
     }
+
     editor.tf.removeNodes({ at: [...path, index] });
     setActive((current) =>
       Math.max(0, current > index ? current - 1 : Math.min(current, panels.length - 2)),
@@ -137,6 +137,7 @@ const TabPanelElement = (props: PlateElementProps) => {
   const path = usePath();
   const index = path === undefined ? 0 : (path.at(-1) ?? 0);
   const label = stringProp(props.element, "label") ?? "Tab";
+
   return (
     <PlateElement
       {...props}
@@ -159,7 +160,7 @@ export const TabsKit = [
   tabPanelBasePlugin.withComponent(TabPanelElement),
 ];
 
-export const insertTabGroup = (editor: SlateEditor): void => {
+export const insertTabGroup = (editor: SlateEditor) => {
   editor.tf.insertNodes({
     children: [
       {

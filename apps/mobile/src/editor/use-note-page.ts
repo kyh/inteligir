@@ -1,8 +1,3 @@
-// One note page per item screen: the actions it reaches the library through, made once per mount;
-// whether there is a connection, the network's alone; the items an answer of what moved names; and
-// the page's life (note-page-life.ts), which the page's report of its note, the screen's depth and
-// a leave move, and which says whether a leave asks first and whether the page is shown at all.
-
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useOnline } from "@/lib/app-runtime";
@@ -13,30 +8,23 @@ import { notePageLife } from "./note-page-life";
 import type { NotePageLifeStore } from "./note-page-life";
 import type { MovedItems, PageProps } from "./page/page-host";
 
-export interface NotePage {
-  // every prop the page takes but the web view's own
+interface NotePage {
   readonly props: PageProps;
-  // an edit made here may not be held yet, or a leave is being asked, so a leave goes through
-  // `leave` rather than at once
   readonly guarded: boolean;
   readonly leave: NotePageLifeStore["leave"];
   readonly shown: boolean;
 }
 
 export interface NotePageOptions {
-  // the caret at the end of the body, the keyboard up
   readonly focus: boolean;
-  // the screen is under enough others that its web view should go once the note holds
   readonly deep: boolean;
 }
 
-export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): NotePage => {
+export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) => {
   const library = useLibrary();
   const queryClient = useQueryClient();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
-  // React Native hears the app go behind about a quarter second before the page hears it hidden,
-  // so a note read-only behind the app would never send its hidden flush
   const offline = !useOnline();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
   useEffect(
@@ -52,12 +40,12 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
   useEffect(() => {
     life.place(deep);
   }, [life, deep]);
-  // a deep page whose note did not hold asks again once an edit can reach it
   useEffect(() => {
     if (!offline) {
       life.reconnected();
     }
   }, [life, offline]);
+
   return {
     guarded: now.kind === "editing" || now.kind === "asking",
     leave: life.leave,
@@ -72,5 +60,5 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
       settled: life.answer,
     },
     shown: now.kind !== "released",
-  };
+  } satisfies NotePage;
 };

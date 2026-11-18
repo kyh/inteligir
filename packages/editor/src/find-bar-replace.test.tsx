@@ -15,7 +15,7 @@ import {
   setReplaceText,
 } from "@repo/editor/find-bar";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const VALUE: Value = [
   { children: [{ text: "alpha beta ALPHA gamma" }], type: "p" },
@@ -23,29 +23,30 @@ const VALUE: Value = [
 ];
 
 beforeAll(() => {
-  // jsdom lays nothing out; the scroll into view is a no-op there.
   window.HTMLElement.prototype.scrollIntoView = () => {};
 });
 
-const mountEditor = (value: Value = VALUE): PlateEditor => {
+const mountEditor = (value: Value = VALUE) => {
   const holder = createRef<PlateEditor>();
   render(<EditorHarness value={value} ref={holder} />);
   const editor = holder.current;
+
   if (editor === null) {
     throw new Error("the harness mounted no editor");
   }
+
   return editor;
 };
 
-const span = (path: Path, from: number, to: number): TRange => ({
-  anchor: { offset: from, path },
-  focus: { offset: to, path },
-});
+const span = (path: Path, from: number, to: number) =>
+  ({
+    anchor: { offset: from, path },
+    focus: { offset: to, path },
+  }) satisfies TRange;
 
-const activeMatch = (editor: PlateEditor): TRange | null =>
-  getFindBarState(editor).active?.current ?? null;
+const activeMatch = (editor: PlateEditor) => getFindBarState(editor).active?.current ?? null;
 
-const findAndReplace = (editor: PlateEditor, query: string, replacement: string): void => {
+const findAndReplace = (editor: PlateEditor, query: string, replacement: string) => {
   act(() => {
     openFindBar(editor);
     setFindQuery(editor, query);
@@ -74,7 +75,6 @@ describe("replace in the find bar", () => {
     expect(replaced).toBe(3);
     expect(editor.api.string([0])).toBe("o beta o gamma");
     expect(editor.api.string([1])).toBe("o again");
-    // the bar's count of the matches
     expect(screen.getByText("0/0")).toBeDefined();
     expect(activeMatch(editor)).toBeNull();
   });
@@ -139,16 +139,16 @@ describe("replace in the find bar", () => {
   });
 });
 
-// is-hotkey reads `mod` as Ctrl wherever navigator.platform names no Mac, which jsdom's does not
 const REPLACE_ALL_CHORD = { ctrlKey: true, key: "Enter", keyCode: 13 };
 
-const openReplace = (): PlateEditor => {
+const openReplace = () => {
   const editor = mountEditor();
   act(() => {
     openFindBar(editor, { replace: true });
     setFindQuery(editor, "alpha");
     setReplaceText(editor, "omega");
   });
+
   return editor;
 };
 

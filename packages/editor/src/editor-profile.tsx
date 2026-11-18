@@ -1,6 +1,3 @@
-// Which hand the editor is drawn for. A context rather than a prop: the host sets it once around
-// the column, and the surface, its chrome and the column's inset all read it. Unset is the desktop.
-
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 
@@ -16,4 +13,4 @@ export const EditorProfileProvider = ({
   profile: EditorProfile;
 }) => <EditorProfileContext value={profile}>{children}</EditorProfileContext>;
 
-export const useEditorProfile = (): EditorProfile => useContext(EditorProfileContext);
+export const useEditorProfile = () => useContext(EditorProfileContext);

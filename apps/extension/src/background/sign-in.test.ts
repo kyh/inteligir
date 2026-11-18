@@ -1,58 +1,58 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { keepConnection, readConnection } from "./connection";
 import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "./sign-in";
-import { keptAs } from "./test-support/fake-cloud";
+import { keptAs } from "./test-support/fake-cloud.test-utils";
 
-// the cloud a store build rides, and the dev build's
 const SITE = "https://inteligir.com";
 const LOCAL = "http://localhost:5174";
-const storeBuild = (): void => {
+
+const storeBuild = () => {
   vi.stubEnv("MODE", "store");
 };
+
 const COOKIE = "session-token.c2lnbmF0dXJl%3D";
 const EMAIL = "reader@example.test";
-// the account as the cloud read it under the cookie
 const KEPT = keptAs(EMAIL, COOKIE);
-// the cookie a sign-in as another account leaves in the jar
 const OTHER_COOKIE = "other-token.c2lnbmF0dXJl%3D";
 const OTHER_EMAIL = "someone-else@example.test";
 
-const cookieOf = (url: string, name: string, value: string): Browser.cookies.Cookie => ({
-  domain: new URL(url).hostname,
-  hostOnly: true,
-  httpOnly: true,
-  name,
-  path: "/",
-  sameSite: "lax",
-  secure: url.startsWith("https:"),
-  session: false,
-  storeId: "0",
-  value,
-});
+const cookieOf = (url: string, name: string, value: string) =>
+  ({
+    domain: new URL(url).hostname,
+    hostOnly: true,
+    httpOnly: true,
+    name,
+    path: "/",
+    sameSite: "lax",
+    secure: url.startsWith("https:"),
+    session: false,
+    storeId: "0",
+    value,
+  }) satisfies Browser.cookies.Cookie;
 
-// the browser's jar, holding each value under its site and cookie name; WXT's fake browser has none
-const jarHolds = (cookies: Readonly<Record<string, string>>): void => {
-  fakeBrowser.cookies.get = async (
-    details: Browser.cookies.CookieDetails,
-  ): Promise<Browser.cookies.Cookie | null> => {
+const jarHolds = (cookies: Readonly<Record<string, string>>) => {
+  fakeBrowser.cookies.get = async (details: Browser.cookies.CookieDetails) => {
     const value = cookies[`${new URL(details.url).origin} ${details.name}`];
+
     return value === undefined ? null : cookieOf(details.url, details.name, value);
   };
 };
 
-// the cloud's get-session, answering as the case says, with every request it was asked
 const cloudAnswers = (answer: () => Promise<Response>) => {
   const asked: Request[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async (input, init) => {
-      asked.push(new Request(input, init));
+  network.use(
+    http.all("*", async ({ request }) => {
+      asked.push(request.clone());
+
       return await answer();
     }),
   );
+
   return asked;
 };
 
@@ -65,8 +65,21 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+const network = setupServer();
+
+beforeAll(() => {
+  network.listen({ onUnhandledRequest: "error" });
+});
+
+afterEach(() => {
+  network.resetHandlers();
+});
+
+afterAll(() => {
+  network.close();
 });
 
 describe("the browser's sign-in, asked of the cloud", () => {
@@ -82,7 +95,6 @@ describe("the browser's sign-in, asked of the cloud", () => {
     expect(request?.url).toBe(`${SITE}/api/auth/get-session`);
     expect(request?.headers.get("authorization")).toBe(`Bearer ${COOKIE}`);
     expect(request?.credentials).toBe("include");
-    // the account and its cookie's SHA-256, never the cookie
     await expect(readConnection()).resolves.toStrictEqual(KEPT);
   });
 
@@ -118,27 +130,22 @@ describe("the browser's sign-in, asked of the cloud", () => {
   it("says nothing of the session when the cloud did not answer, or answered a fault of its own", async () => {
     storeBuild();
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: COOKIE });
-    cloudAnswers(async () => {
-      throw new TypeError("Failed to fetch");
-    });
+    cloudAnswers(async () => await Promise.resolve(HttpResponse.error()));
     await expect(cloudSignIn()).resolves.toBeNull();
-    vi.unstubAllGlobals();
+    network.resetHandlers();
     cloudAnswers(async () => new Response("down", { status: 503 }));
     await expect(cloudSignIn()).resolves.toBeNull();
     await expect(readConnection()).resolves.toBeNull();
   });
 });
 
-// whether the jar's telling of a cookie's write, or of the removal a rewrite starts with, reads as
-// a sign-in
-const told = (name: string, cause: "explicit" | "overwrite"): boolean =>
+const told = (name: string, cause: "explicit" | "overwrite") =>
   setsSession({ cause, cookie: cookieOf(SITE, name, COOKIE), removed: cause === "overwrite" });
 
 describe("a change the jar tells of", () => {
   it("is a sign-in only as a session cookie set, under either name Better Auth gives it", () => {
     expect(told("__Secure-better-auth.session_token", "explicit")).toBe(true);
     expect(told("better-auth.session_token", "explicit")).toBe(true);
-    // a rewrite is told as the removal of the cookie it replaces, then as the write
     expect(told("better-auth.session_token", "overwrite")).toBe(false);
     expect(told("better-auth.dont_remember", "explicit")).toBe(false);
   });
@@ -175,9 +182,7 @@ describe("the sign-in a save goes under", () => {
     storeBuild();
     await keepConnection(KEPT);
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: OTHER_COOKIE });
-    cloudAnswers(async () => {
-      throw new TypeError("Failed to fetch");
-    });
+    cloudAnswers(async () => await Promise.resolve(HttpResponse.error()));
     await expect(saveSignIn()).resolves.toStrictEqual({ kind: "none" });
     await expect(readConnection()).resolves.toStrictEqual(KEPT);
   });

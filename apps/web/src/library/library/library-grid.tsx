@@ -1,9 +1,3 @@
-// CLAUDE.md § The grid's selection is a store. The listing as cards: the pages the cell answered
-// so far, only the cards in view drawn, and the next page asked for as the view nears the end of
-// what is read. The grid owns the gestures (the selection, the focus, the keys of the shortcut
-// table's grid rows and the menu) and says what a verb takes of the selection; what the verb does
-// is a command's.
-
 import type { ListingView } from "@repo/client/listing-view";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import type { CardGridHandle } from "@repo/ui/components/card-grid";
@@ -41,17 +35,12 @@ const MOVES: Partial<Record<ShortcutIn<"grid">["action"], { delta: MoveDelta; ex
     "move-up": { delta: "up", extend: false },
   };
 
-// how many rows short of the end of what is read the next page is asked for
 const NEAR_END_ROWS = 60;
 
 export interface LibraryGridProps {
-  // the listing as far as it is read, and the scope and kind it is of, which a ⌘A names: none
-  // while it is still the listing of the scope the tab left, so ⌘A and the selection's verbs wait
-  // for the new scope's first page
   readonly listing: ListingView;
   readonly shown: Shown | null;
   readonly selection: LibrarySelectionStore;
-  // the view came near the end of the rows read so far
   readonly onNearEnd: () => void;
 }
 
@@ -68,10 +57,11 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
   const focusIndex = state.focus === null ? -1 : order.indexOf(state.focus);
   const modifier = platformShortcutModifier();
 
-  const selectedRows = (): ListedItem[] => selectedIn(state.selected, listing).rows;
+  const selectedRows = () => selectedIn(state.selected, listing).rows;
 
-  const press = (row: ListedItem, event: MouseEvent<HTMLDivElement>): void => {
+  const press = (row: ListedItem, event: MouseEvent<HTMLDivElement>) => {
     const toggling = modifier === "meta" ? event.metaKey : event.ctrlKey;
+
     if (event.shiftKey) {
       selection.apply({ id: row.id, kind: "range", order });
     } else if (toggling) {
@@ -81,9 +71,10 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
     }
   };
 
-  const openMenu = (row: ListedItem, anchor: HTMLElement): void => {
+  const openMenu = (row: ListedItem, anchor: HTMLElement) => {
     if (isSelected(state.selected, row.id)) {
       const target = targetOf(state.selected, listing, shown);
+
       if (target !== null) {
         setMenu({ anchor, row, subjects: selectedRows(), target });
       }
@@ -93,8 +84,9 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
     }
   };
 
-  const focusCard = (id: string): void => {
+  const focusCard = (id: string) => {
     const index = order.indexOf(id);
+
     if (index !== -1) {
       gridRef.current?.scrollToCell(index);
       requestAnimationFrame(() => {
@@ -105,59 +97,79 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
+
     if (shortcut === null) {
       return;
     }
+
     const move = MOVES[shortcut.action];
+
     if (move !== undefined) {
       event.preventDefault();
       selection.apply({ columns, delta: move.delta, extend: move.extend, kind: "move", order });
       const { focus } = selection.store.getState();
+
       if (focus !== null) {
         focusCard(focus);
       }
+
       return;
     }
+
     const focused = rows[focusIndex] ?? null;
+
     switch (shortcut.action) {
       case "open-item": {
         if (focused !== null) {
           event.preventDefault();
           commands.openItem(focused.id);
         }
+
         return;
       }
+
       case "quick-look": {
         if (focused !== null) {
           event.preventDefault();
           setLook(focused.id);
         }
+
         return;
       }
+
       case "clear-selection": {
         selection.apply({ kind: "clear" });
+
         return;
       }
+
       case "select-all": {
         event.preventDefault();
+
         if (shown !== null) {
           selection.apply({ kind: "all" });
         }
+
         return;
       }
+
       case "delete-selection": {
         const subjects = selectedRows();
+
         if (subjects.length > 0) {
           event.preventDefault();
           const target = targetOf(state.selected, listing, shown);
+
           if (target !== null && subjects.every((row) => row.fields.deletedAt === null)) {
             commands.remove(target);
           }
         }
+
         break;
       }
+
       default: {
         break;
       }
@@ -186,9 +198,11 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
         }}
         renderCell={(index) => {
           const row = rows[index];
+
           if (row === undefined) {
             return null;
           }
+
           return (
             <ItemCard
               row={row}
@@ -218,6 +232,7 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
         onClose={() => {
           const from = look;
           setLook(null);
+
           if (from !== null) {
             focusCard(from);
           }
@@ -229,6 +244,7 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
         onStep={(by) => {
           const at = look === null ? -1 : order.indexOf(look);
           const next = rows[at + by];
+
           if (next !== undefined) {
             setLook(next.id);
             selection.apply({ id: next.id, kind: "click" });

@@ -10,13 +10,13 @@ import { useState } from "react";
 import type { TypedProperty } from "./item-properties";
 
 export type PropertyKind = Exclude<TypedProperty["type"], "unsupported">;
+
 type Held<K extends PropertyKind> = Extract<TypedProperty, { type: K }>["value"];
+
 type HeldByKind = {
   readonly [K in PropertyKind]: (control: HTMLInputElement) => Held<K> | null;
 };
 
-// What each type's control holds, as that type's value: nothing is inferred from how it reads, and
-// a control holding none of its type (a number or a date left empty) answers null.
 export const HELD: HeldByKind = {
   checkbox: (control) => control.checked,
   date: (control) => (control.value === "" ? null : control.value),
@@ -32,9 +32,6 @@ export const HELD: HeldByKind = {
 const FIELD_CLASS =
   "border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
-// One line of a property, edited where it stands. Uncontrolled and keyed by the stored value, so
-// a newer one redraws it; leaving it writes what was typed, and Escape, or a control left holding
-// none of its type, shows the stored value again.
 export const LineField = <K extends "text" | "date" | "number">({
   label,
   type,
@@ -47,6 +44,7 @@ export const LineField = <K extends "text" | "date" | "number">({
   onCommit: (next: Held<K>) => void;
 }) => {
   const stored = String(value);
+
   return (
     <Input
       key={stored}
@@ -54,6 +52,7 @@ export const LineField = <K extends "text" | "date" | "number">({
       defaultValue={stored}
       onBlur={(e) => {
         const next = HELD[type](e.target);
+
         if (next === null) {
           e.target.value = stored;
         } else if (next !== value) {
@@ -64,6 +63,7 @@ export const LineField = <K extends "text" | "date" | "number">({
         if (isImeComposing(e)) {
           return;
         }
+
         if (e.key === "Enter") {
           e.preventDefault();
           e.currentTarget.blur();
@@ -80,9 +80,6 @@ export const LineField = <K extends "text" | "date" | "number">({
   );
 };
 
-// Text holding line breaks, edited as its lines, since an input shows them as none and would write
-// the value back joined. A textarea reads a stored \r\n or \r back as \n, so leaving it writes only
-// a change past that.
 const LinesField = ({
   label,
   value,
@@ -93,6 +90,7 @@ const LinesField = ({
   onCommit: (next: string) => void;
 }) => {
   const shown = value.replaceAll(/\r\n?/gu, "\n");
+
   return (
     <Textarea
       key={value}
@@ -154,13 +152,17 @@ export const TagsField = ({
   onCommit: (next: string[]) => void;
 }) => {
   const [draft, setDraft] = useState("");
+
   const commitTag = () => {
     const tag = draft.trim();
+
     if (tag !== "" && !value.includes(tag)) {
       onCommit([...value, tag]);
     }
+
     setDraft("");
   };
+
   return (
     <div className="flex min-h-7 flex-wrap items-center gap-1 px-1.5 py-0.5">
       {value.map((tag) => (
@@ -193,6 +195,7 @@ export const TagsField = ({
           if (isImeComposing(e)) {
             return;
           }
+
           if (e.key === "Enter" || e.key === ",") {
             e.preventDefault();
             commitTag();

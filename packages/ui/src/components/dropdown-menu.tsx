@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { useState } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
@@ -24,8 +24,6 @@ interface DropdownMenuProps {
   defaultOpen?: boolean;
   onOpenChange?: ((open: boolean) => void) | undefined;
   disabled?: boolean;
-  // default non-modal: Base UI's modal scroll-lock/inert steals the editor selection every menu
-  // opens over, and detaches the Positioner from its anchor.
   modal?: boolean;
 }
 
@@ -37,10 +35,9 @@ const DropdownMenu = ({
   disabled = false,
   modal = false,
 }: DropdownMenuProps) => {
-  // the Root is always controlled, by the caller's open or else this one, since the popup's
-  // presence reads the open it is handed (`@repo/ui/lib/popup-presence`)
   const [ownOpen, setOwnOpen] = useState(defaultOpen);
   const open = openProp ?? ownOpen;
+
   return (
     <Menu.Root
       open={open}
@@ -58,12 +55,10 @@ const DropdownMenu = ({
 
 const DropdownMenuTrigger = Menu.Trigger;
 
-// The lit row is the one Base UI holds highlighted, which is the row Enter acts on: the pointer
-// over a separator, a label or a disabled row lights none.
 const HIGHLIGHTED = "data-highlighted";
 const MARKS = [HIGHLIGHTED];
 
-const highlightedRow = (popup: HTMLElement, last: RowBox | null): RowBox | null =>
+const highlightedRow = (popup: HTMLElement, last: RowBox | null) =>
   rowBox(popup.querySelector<HTMLElement>(`[${HIGHLIGHTED}]`), last);
 
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
@@ -90,12 +85,9 @@ const DropdownMenuContent = ({
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
   const [popup, setPopup] = useState<HTMLDivElement | null>(null);
   const lit = useLayoutReading(popup, null, highlightedRow, MARKS);
-  // Base UI moves focus with its highlight, so the row is ringed when the keyboard moved it there
   const [ringed, setRinged] = useState(false);
   const [session, setSession] = useState(0);
 
-  // the Popup itself is the animated surface, never a wrapper: Base UI keeps a closing menu
-  // mounted only while the Popup element's own animations run
   const hidden = { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 };
 
   return (
@@ -113,6 +105,7 @@ const DropdownMenuContent = ({
             ref={composeRefs<HTMLDivElement>(setPopup, ref)}
             render={(popupProps) => {
               const { style: baseStyle, ...rest } = motionProps(popupProps);
+
               return (
                 <Elevated
                   {...rest}
@@ -176,8 +169,6 @@ const DropdownMenuSeparator = ({
 
 type MenuRowVariant = "default" | "destructive";
 
-// The pseudo-element closes the 2px gap to the next row: Base UI drops its highlight wherever the
-// pointer is over no row, so an unowned gap would blink the pill out on every crossing.
 const menuRowClass = (variant: MenuRowVariant) =>
   cn(
     `relative z-10 flex h-7 shrink-0 items-center gap-1 ${radius.item} px-1.5 text-body cursor-pointer outline-none select-none`,
@@ -220,7 +211,6 @@ interface DropdownMenuRadioItemProps extends ComponentProps<"div"> {
   closeOnClick?: boolean | undefined;
 }
 
-// the pick closes the menu like any other row's action; Base UI's radio default keeps it open
 const DropdownMenuRadioItem = ({
   className,
   value,
@@ -247,7 +237,6 @@ interface DropdownMenuGroupProps extends Omit<ComponentProps<typeof Menu.Group>,
   className?: string | undefined;
 }
 
-// display: contents keeps grouped rows direct flex children of the popup, so its gap spaces them
 const DropdownMenuGroup = ({ className, ...props }: DropdownMenuGroupProps) => (
   <Menu.Group className={cn("contents", className)} {...props} />
 );
@@ -261,8 +250,6 @@ interface DropdownMenuRadioGroupProps extends Omit<
   onValueChange: (value: string) => void;
 }
 
-// display: contents for the same reason as DropdownMenuGroup; every value Base UI hands back is a
-// DropdownMenuRadioItem's, which is a string
 const DropdownMenuRadioGroup = ({ className, ...props }: DropdownMenuRadioGroupProps) => (
   <Menu.RadioGroup className={cn("contents", className)} {...props} />
 );

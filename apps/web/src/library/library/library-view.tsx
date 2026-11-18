@@ -1,7 +1,3 @@
-// CLAUDE.md § The library is home, and an item is shown by its kind. With nothing open the page is
-// the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
-// an empty scope says why and offers a next step.
-
 import { saveFolderOf } from "@repo/client/library-labels";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
@@ -36,17 +32,12 @@ import type { LibrarySelectionStore } from "./library-selection";
 import type { ListingView } from "@repo/client/listing-view";
 import type { CellStanding } from "../cloud/needs-connection";
 
-// the scope's listing as the cell has answered it so far
 interface LibraryListing {
   readonly standing: CellStanding<ListingView>;
-  // what stands is still the listing of the scope or kind the tab left, kept on screen until the
-  // new one's first page answers
   readonly placeholder: boolean;
-  // the grid came near the end of what is read
   readonly more: () => void;
 }
 
-// what the grid draws while the listing is first read
 const SKELETON_CARDS = ["a", "b", "c", "d", "e", "f"] as const;
 
 const SORT_LABELS = {
@@ -55,8 +46,7 @@ const SORT_LABELS = {
   title: "Title",
 } satisfies Record<LibrarySort, string>;
 
-const sortNamed = (value: string): LibrarySort | null =>
-  LIBRARY_SORTS.find((sort) => sort === value) ?? null;
+const sortNamed = (value: string) => LIBRARY_SORTS.find((sort) => sort === value) ?? null;
 
 export interface LibraryViewProps {
   readonly scope: LibraryScope;
@@ -73,37 +63,53 @@ interface EmptyWords {
   readonly body: string;
 }
 
-const emptyWords = (scope: LibraryScope): EmptyWords => {
+const emptyWords = (scope: LibraryScope) => {
   switch (scope.kind) {
     case "deleted": {
-      return { body: "What you delete waits here until you empty it.", title: "Nothing deleted" };
+      return {
+        body: "What you delete waits here until you empty it.",
+        title: "Nothing deleted",
+      } satisfies EmptyWords;
     }
+
     case "unsorted": {
-      return { body: "Everything here is in a folder.", title: "Nothing unsorted" };
+      return {
+        body: "Everything here is in a folder.",
+        title: "Nothing unsorted",
+      } satisfies EmptyWords;
     }
+
     case "tag": {
-      return { body: "No item carries this tag now.", title: "Nothing tagged" };
+      return {
+        body: "No item carries this tag now.",
+        title: "Nothing tagged",
+      } satisfies EmptyWords;
     }
+
     case "folder": {
       return {
         body: "Save a link here, add a file, or write a note.",
         title: "This folder is empty",
-      };
+      } satisfies EmptyWords;
     }
+
     case "all": {
       return {
         body: "Save a link, add a file or write a note, and it appears here.",
         title: "Your library is empty",
-      };
+      } satisfies EmptyWords;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(scope satisfies never)}`);
+    }
   }
 };
 
-// what the shown scope takes: a note, a link, files through the browser's own picker, a folder
 const AddMenu = ({ scope }: { scope: LibraryScope }) => {
   const commands = useLibraryCommands();
   const picker = useRef<HTMLInputElement | null>(null);
+
   return (
     <>
       <DropdownMenu>
@@ -154,6 +160,7 @@ const AddMenu = ({ scope }: { scope: LibraryScope }) => {
         onChange={(event) => {
           const files = [...(event.currentTarget.files ?? [])];
           event.currentTarget.value = "";
+
           if (files.length > 0) {
             commands.save(filesPayload(files));
           }
@@ -182,6 +189,7 @@ const SortMenu = ({
         value={sort}
         onValueChange={(value) => {
           const picked = sortNamed(value);
+
           if (picked !== null) {
             onSortChange(picked);
           }
@@ -202,6 +210,7 @@ type LibraryBodyProps = Pick<LibraryViewProps, "scope" | "listing" | "kind" | "s
 const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
   const commands = useLibraryCommands();
   const { standing, more } = listing;
+
   switch (standing.kind) {
     case "needs-connection": {
       return (
@@ -210,6 +219,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
         </p>
       );
     }
+
     case "missing":
     case "unreachable": {
       return (
@@ -218,6 +228,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
         </p>
       );
     }
+
     case "loading": {
       return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
@@ -227,13 +238,19 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
         </div>
       );
     }
+
     case "answered": {
       break;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(standing satisfies never)}`);
+    }
   }
+
   const page = standing.data;
   const empty = emptyWords(scope);
+
   return (
     <>
       <KindChips
@@ -260,7 +277,6 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
   );
 };
 
-// the bar stands from the first frame, so the answer fills in under it and nothing above the cards moves
 export const LibraryView = ({
   scope,
   title,
@@ -272,9 +288,9 @@ export const LibraryView = ({
 }: LibraryViewProps) => {
   const commands = useLibraryCommands();
   const counts = useQuery(useLibraryQueries().scopes()).data;
-  // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
   const total = listing.standing.kind === "answered" ? listing.standing.data.total : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
       <TopBar className="px-4">

@@ -4,14 +4,11 @@ import { z } from "zod";
 
 import { ENV_KEYS, parseEnv } from "./env";
 
-/** hashed for every task: a build under an ambient `development` is a dev bundle */
 const TURBO_ONLY = ["NODE_ENV"];
-/** drizzle-kit's, read outside env.ts */
 const EXAMPLE_ONLY = ["POSTGRES_URL_NON_POOLING"];
 
 const turboSchema = z.object({ globalEnv: z.array(z.string()) });
 
-// turbo.json's comments each take a line of their own
 const withoutComments = (jsonc: string) => jsonc.replaceAll(/^\s*\/\/.*$/gmu, "");
 
 const repoFile = (name: string) =>
@@ -20,6 +17,7 @@ const repoFile = (name: string) =>
 const exampleKeys = (text: string) =>
   text.split("\n").flatMap((line) => {
     const key = /^(?:# )?(?<key>[A-Z][A-Z\d_]*)=/u.exec(line)?.groups?.key;
+
     return key === undefined ? [] : [key];
   });
 
@@ -76,6 +74,7 @@ describe("env", () => {
     expect(parseEnv({ LIBRARY_STORAGE_CAP_BYTES: "1048576" }).LIBRARY_STORAGE_CAP_BYTES).toBe(
       1_048_576,
     );
+
     for (const spelled of ["0", "-1", "1GB", "1.5", "99999999999999999999"]) {
       expect(() => parseEnv({ LIBRARY_STORAGE_CAP_BYTES: spelled })).toThrow();
     }
@@ -84,6 +83,7 @@ describe("env", () => {
   it("takes only the exact words for a flag", () => {
     expect(parseEnv({ RATE_LIMIT_DISABLED: "true" }).RATE_LIMIT_DISABLED).toBe(true);
     expect(parseEnv({ RATE_LIMIT_DISABLED: "false" }).RATE_LIMIT_DISABLED).toBe(false);
+
     for (const spelled of ["TRUE", "1", "yes"]) {
       expect(() => parseEnv({ RATE_LIMIT_DISABLED: spelled })).toThrow();
     }
@@ -102,8 +102,6 @@ describe("env", () => {
     expect(() => parseEnv({ EMAIL_MODE: "smtp" })).toThrow();
   });
 
-  // turbo passes a key set in the real environment (CI, Vercel) to a task only when globalEnv
-  // lists it, and .env.example is the one list of keys a deployer reads
   it("is held to turbo.json's globalEnv and .env.example, key for key", () => {
     const { globalEnv } = turboSchema.parse(JSON.parse(withoutComments(repoFile("turbo.json"))));
     expect(globalEnv.toSorted()).toStrictEqual([...ENV_KEYS, ...TURBO_ONLY].toSorted());

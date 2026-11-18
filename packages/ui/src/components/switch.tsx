@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
@@ -29,7 +29,6 @@ const m = {
 const THUMB_OFFSET = 2;
 const DRAG_DEAD_ZONE = 2;
 
-// the side a drag asked its owner for, by identity, so a later drag's ask is not taken for it
 interface DragAsk {
   readonly on: boolean;
 }
@@ -47,27 +46,25 @@ const Switch = ({
   const thumbTravel = m.trackWidth - m.thumbSize - THUMB_OFFSET * 2;
 
   const dragging = useRef(false);
-  // a drag chooses by where it lets go, so the click the browser sends after it is no press: set
-  // on the release, cleared the frame after
   const didDrag = useRef(false);
+
   const pointerStart = useRef<{
     clientX: number;
     originX: number;
   } | null>(null);
 
   const motionX = useMotionValue(checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET);
-  // a drag let go on the far side asks the owner, whose answer can move `checked` a frame later
-  // (TanStack notifies on a timer): the thumb stays where it was dropped until `checked` takes that
-  // side, and springs back to the side `checked` names once the answer is overdue
   const [asked, setAsked] = useState<DragAsk | null>(null);
   const awaitingAnswer = asked !== null && asked.on !== checked;
 
   const checkedBackground = hovered
     ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
     : "var(--primary)";
+
   const uncheckedBackground = hovered
     ? "color-mix(in oklab, var(--accent), rgb(var(--overlay)) 10%)"
     : "var(--accent)";
+
   const trackBackground = checked ? checkedBackground : uncheckedBackground;
   const restingWidth = hovered ? m.thumbSize + m.pillExtend : m.thumbSize;
   const thumbWidth = pressed ? m.thumbSize + m.pressExtend : restingWidth;
@@ -80,6 +77,7 @@ const Switch = ({
     if (dragging.current || awaitingAnswer) {
       return;
     }
+
     animate(motionX, thumbX, spring.moderate);
   }, [thumbX, motionX, awaitingAnswer]);
 
@@ -87,9 +85,11 @@ const Switch = ({
     if (disabled) {
       return;
     }
+
     if (e.pointerType === "mouse" && e.button !== 0) {
       return;
     }
+
     setPressed(true);
     dragging.current = false;
     didDrag.current = false;
@@ -104,12 +104,14 @@ const Switch = ({
     if (!pointerStart.current) {
       return;
     }
+
     const delta = e.clientX - pointerStart.current.clientX;
 
     if (!dragging.current) {
       if (Math.abs(delta) < DRAG_DEAD_ZONE) {
         return;
       }
+
       dragging.current = true;
     }
 
@@ -124,6 +126,7 @@ const Switch = ({
     if (!pointerStart.current) {
       return;
     }
+
     setPressed(false);
 
     if (dragging.current) {
@@ -145,7 +148,6 @@ const Switch = ({
         const ask: DragAsk = { on: shouldBeOn };
         setAsked(ask);
         onCheckedChange(shouldBeOn);
-        // overdue after two frames: the next frame's callbacks can run before the owner's timer
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             setAsked((current) => (current === ask ? null : current));
@@ -165,6 +167,7 @@ const Switch = ({
     if (!pointerStart.current) {
       return;
     }
+
     setPressed(false);
 
     if (dragging.current) {
@@ -221,6 +224,7 @@ const Switch = ({
         <SwitchPrimitive.Thumb
           render={(thumbProps) => {
             const { style: baseStyle, ...rest } = motionProps(thumbProps);
+
             return (
               <motion.span
                 {...rest}

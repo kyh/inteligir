@@ -1,5 +1,3 @@
-// HTML pasted into the live editor as a host mounts it, read as the block a pause would write.
-
 import { createRef } from "react";
 import { fireEvent, render } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,10 +5,10 @@ import type { PlateEditor } from "platejs/react";
 import { ElementApi } from "platejs";
 
 import { stringProp } from "@repo/editor/headless/node-props";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 import { blockOfElement } from "./headless/body/element-block";
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
@@ -25,17 +23,21 @@ afterAll(() => {
   Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
 });
 
-const paste = (html: string): PlateEditor => {
+const paste = (html: string) => {
   installFakeEditorHost();
   const ref = createRef<PlateEditor>();
+
   const view = render(
     <EditorHarness ref={ref} nodeIds value={[{ children: [{ text: "" }], type: "p" }]} />,
   );
+
   const editable = view.container.querySelector("[data-slate-editor]");
   const editor = ref.current;
+
   if (!(editable instanceof HTMLElement) || editor === null) {
     throw new Error("the harness drew no editor");
   }
+
   editor.tf.select(editor.api.end([0]));
   fireEvent.paste(editable, {
     clipboardData: {
@@ -45,16 +47,16 @@ const paste = (html: string): PlateEditor => {
       types: ["text/html"],
     },
   });
+
   return editor;
 };
 
-const listStyles = (editor: PlateEditor): (string | undefined)[] =>
+const listStyles = (editor: PlateEditor) =>
   editor.children.map((node) => stringProp(node, "listStyleType"));
 
-const storesEveryBlock = (editor: PlateEditor): boolean =>
+const storesEveryBlock = (editor: PlateEditor) =>
   editor.children.every((node) => ElementApi.isElement(node) && blockOfElement(node) !== null);
 
-// a nested list as Google Docs copies it: each level its own list, styled inline
 const DOCS_LIST =
   '<ul style="list-style-type:disc"><li aria-level="1">one</li>' +
   '<ul style="list-style-type:circle"><li aria-level="2">two</li></ul></ul>';
@@ -80,6 +82,7 @@ describe("a list pasted from a page", () => {
   it("keeps a styled list inside a table as one the library stores", () => {
     const html =
       '<table><tr><td><ul style="list-style-type:circle"><li>one</li></ul></td></tr></table>';
+
     expect(storesEveryBlock(paste(html))).toBe(true);
   });
 

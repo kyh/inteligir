@@ -5,9 +5,6 @@ import { LEGAL_DOCS } from "#lib/legal-docs";
 import { PAGES } from "#lib/page-meta";
 import { LICENSES_PATH, siteConfig } from "#lib/site-config";
 
-// each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
-// agent that negotiates text/markdown, so the two representations cannot drift
-
 const { contact, downloadUrl, github, name, url } = siteConfig;
 const libraryUrl = `${url}${LIBRARY_PAGE_PATH}`;
 
@@ -136,8 +133,7 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
   cloud holds for it; the [privacy policy](${url}/privacy) explains exactly what that covers.
 `;
 
-// the connector it names is the answering deployment's (`appUrl`), never the canonical site's
-export const llmsTxt = (appUrl: string): string => `# ${name}
+export const llmsTxt = (appUrl: string) => `# ${name}
 
 > ${name} is a library of everything a person saves and writes (links, articles, videos, images,
 > PDFs, files and their own notes), kept in their account and shown on their Mac, their iPhone
@@ -190,7 +186,7 @@ Mac app is for Apple silicon.
 - [Sitemap](${url}/sitemap.xml)
 `;
 
-export const notFoundMarkdown = (path: string): string => `# Page not found
+export const notFoundMarkdown = (path: string) => `# Page not found
 
 Nothing is served at \`${path}\` on ${url}.
 
@@ -207,8 +203,7 @@ const PAGE_MARKDOWN: ReadonlyMap<string, string> = new Map([
   [PAGES.terms.path, LEGAL_DOCS.terms],
 ]);
 
-// what the page at `path` answers an agent asking for text/markdown, or undefined where no page is
-export const pageMarkdown = (path: string): string | undefined => PAGE_MARKDOWN.get(path);
+export const pageMarkdown = (path: string) => PAGE_MARKDOWN.get(path);
 
 export const SITEMAP_PATHS = [
   PAGES.home,

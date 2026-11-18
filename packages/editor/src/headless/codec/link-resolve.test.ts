@@ -71,9 +71,8 @@ describe("resolveWiki — alias tiers", () => {
         ["sub/plan", "owner.md"],
       ],
     );
-    // basename tier wins
+
     expect(r.resolveWiki("retro")).toBe("retro.md");
-    // suffix tier wins
     expect(r.resolveWiki("sub/plan")).toBe("a/sub/plan.md");
   });
 
@@ -85,9 +84,9 @@ describe("resolveWiki — alias tiers", () => {
         ["retro", "b.md"],
       ],
     );
+
     expect(r.resolveWiki("Retro")).toBe("a.md");
     expect(r.resolveWiki("retro")).toBe("b.md");
-    // ci tier, pickBest over both owners
     expect(r.resolveWiki("RETRO")).toBe("a.md");
   });
 
@@ -103,8 +102,9 @@ describe("resolveWiki — alias tiers", () => {
       ["shared", "a-longer-name.md"],
       ["shared", "a.md"],
     ];
+
     const paths = ["z/deep/nested.md", "b/note.md", "a-longer-name.md", "a.md"];
-    // Fewest segments, then shortest, then lexicographic — for every permutation.
+
     for (let i = 0; i < entries.length; i += 1) {
       const rotatedEntries = [...entries.slice(i), ...entries.slice(0, i)];
       const rotatedPaths = [...paths.slice(i), ...paths.slice(0, i)];
@@ -122,6 +122,7 @@ describe("resolveWiki — alias tiers", () => {
         ["real", "a.md"],
       ],
     );
+
     expect(r.resolveWiki("real")).toBe("a.md");
     expect(r.resolveWiki("ok")).toBeNull();
     expect(r.resolveWiki("  ")).toBeNull();

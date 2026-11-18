@@ -1,9 +1,3 @@
-// What typing costs in a long note, held to a budget recorded from a baseline. One block near the
-// note's end keeps the stack of every read of it, and only a pass over the whole note reaches it:
-// so a pass is found rather than declared, and one that stops early, or a cache keyed by the
-// top-level block, never counts. Each budget row names a pass that does reach it and says why it
-// must; a pass no row names fails, named by the function that ran it.
-
 import { serializeMd } from "@platejs/markdown";
 import { act } from "@testing-library/react";
 import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
@@ -15,16 +9,12 @@ import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { blockId } from "@repo/editor/headless/node-props";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { mountNote } from "./test-support/memory-note";
-import { memoryNotes } from "./test-support/memory-notes";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
+import { mountNote } from "./test-support/memory-note.test-utils";
+import { memoryNotes } from "./test-support/memory-notes.test-utils";
 
-import { generateLongNote } from "./test-support/markdown-doc-generator";
+import { generateLongNote } from "./test-support/markdown-doc-generator.test-utils";
 
-// jsdom rebuilds its document's named-property map on the first `document` read after any
-// insertion, so a renderer that builds through `document.createElement` pays the whole DOM per
-// node: minutes at this size. It renders a block once as it mounts, never on a keystroke
-// elsewhere, so here it would measure jsdom.
 vi.mock(import("katex"), () => ({ render: () => {} }));
 
 const SEED = 704;
@@ -32,34 +22,19 @@ const LONG_LINES = 10_000;
 const SHORT_LINES = LONG_LINES / 8;
 const KEYSTROKES = 6;
 const notes = memoryNotes();
-// past any pause a pass could wait out after typing
 const SETTLE_MS = 1000;
 
-// every inline construct of the dialect, so a pass over any one kind of them reaches this block
 const WATCHED_BLOCK =
   'Last words: a #field tag, a [Hub](mention:0190a000-0000-7000-8000-000000000004) link, a :formula[2]{source="1+1"} pill, $$x$$ and :date[2026-09-24].';
-// the note's end is where a range or a point lands without walking the note, so the watched block
-// is not the last one
+
 const CLOSING_BLOCK = "The end.";
 
-// Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded,
-// with the editor saving the note whole: a keystroke costs 9ms in the long note against 5ms in the
-// short one, 1.9x for eight times the lines, and 0.013 of a 660ms parse of the note. A pass
-// quadratic in the note is 64x. A store atom every block holds is recomputed on every change:
-// Plate's toggle hider or its navigation flash alone put a keystroke at 6-7x and 0.06 of the
-// parse. A memory-starved CI runner's garbage collection pushes a ratio up by about half, so the
-// ceilings leave that room over the recorded costs, and sit well under those atoms' cost; the two
-// atoms read no block's content, so this suite's watched block never names them, and
-// per-block-subscriptions.test.tsx holds them off by name.
 const KEYSTROKE_GROWTH_CEILING = 5;
 const KEYSTROKE_TO_PARSE_CEILING = 0.035;
-// a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
-// and still passes, and CI's job limit is the outer bound
 const COLLECT_TIMEOUT_MS = 1_500_000;
 
 interface Pass {
   readonly name: string;
-  // a module of this package (`toc.tsx`) or a dependency (`@platejs/markdown`)
   readonly module: string;
 }
 
@@ -72,16 +47,19 @@ const ROOT_NORMALIZE: BudgetRow = {
   name: "normalizeNode",
   why: "Slate normalizes every ancestor of an edit, the root among them, and the root's normalization looks at each top-level block",
 };
+
 const SORTABLE_IDS: BudgetRow = {
   module: "block-draggable.tsx",
   name: "sortableIds",
   why: "the sortable context lists every top-level block's id, and useEditorSelector asks on every change",
 };
+
 const FOLD_REACH: BudgetRow = {
   module: "heading-collapse.tsx",
   name: "derive",
   why: "a fold hides every block under its heading up to the next of its rank, which only the top level says, and useEditorSelector asks on every change",
 };
+
 const SELECTOR_SUBSCRIPTIONS: BudgetRow = {
   module: "slate-react",
   name: "current",
@@ -94,7 +72,9 @@ const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   FOLD_REACH,
   SELECTOR_SUBSCRIPTIONS,
 ];
+
 const CARET_BUDGET: readonly BudgetRow[] = [SORTABLE_IDS, FOLD_REACH, SELECTOR_SUBSCRIPTIONS];
+
 const WHOLE_SAVE: BudgetRow = {
   module: "headless/body/note-blocks.ts",
   name: "blocksOfValue",
@@ -103,7 +83,7 @@ const WHOLE_SAVE: BudgetRow = {
 
 const SETTLE_BUDGET: readonly BudgetRow[] = [WHOLE_SAVE];
 
-const passLabel = ({ name, module }: Pass): string => `${name} (${module})`;
+const passLabel = ({ name, module }: Pass) => `${name} (${module})`;
 
 interface Frame {
   readonly fn: string;
@@ -112,51 +92,58 @@ interface Frame {
 }
 
 const OWN_SOURCE = "/packages/editor/src/";
-// pnpm's store path names a package twice; the last `node_modules/<name>/` is the one it runs from
 const PACKAGE_RE = /\/node_modules\/(?!\.pnpm\/)(?<name>(?:@[^/]+\/)?[^/]+)\//gu;
 const FRAME_RE = /^\s*at (?:async )?(?:(?<fn>.+?) \()?(?:file:\/\/)?(?<file>.+?):\d+:\d+\)?$/u;
 
-const parseFrame = (line: string): Frame | null => {
+const parseFrame = (line: string) => {
   const groups = FRAME_RE.exec(line)?.groups;
   const file = groups?.file;
+
   if (file === undefined) {
     return null;
   }
+
   const fn = (groups?.fn ?? "").split(" ")[0]?.split(".").at(-1) ?? "";
   const ownAt = file.lastIndexOf(OWN_SOURCE);
+
   if (ownAt !== -1) {
     const module = file.slice(ownAt + OWN_SOURCE.length);
-    // a frame in a suite or its harness is the test's, not the editor's
-    return /(?:^|\/)test-support\/|\.test\.tsx?$/u.test(module) ? null : { fn, module, own: true };
+
+    return (
+      /(?:^|\/)test-support\/|\.test\.tsx?$/u.test(module) ? null : { fn, module, own: true }
+    ) satisfies Frame | null;
   }
+
   const module = [...file.matchAll(PACKAGE_RE)].at(-1)?.groups?.name ?? null;
-  return { fn, module, own: false };
+
+  return { fn, module, own: false } satisfies Frame | null;
 };
 
-// the traversal every pass goes through, so never the one to name
 const TRAVERSAL = new Set(["slate", "@platejs/slate", "@udecode/utils", "node-props.ts"]);
-// an anonymous function, or one the React compiler hoisted (`t4`), names nothing a reader can find
 const NAMELESS_RE = /^(?:t\d+|<anonymous>|)$/u;
 
-const names = (frame: Frame): boolean =>
+const names = (frame: Frame) =>
   frame.module !== null && !TRAVERSAL.has(frame.module) && !NAMELESS_RE.test(frame.fn);
 
-// the row whose pass is on the stack, else the innermost function that could have run one
-const nameRead = (stack: string, rows: readonly BudgetRow[]): string => {
+const nameRead = (stack: string, rows: readonly BudgetRow[]) => {
   const frames = stack
     .split("\n")
     .slice(1)
     .map(parseFrame)
     .filter((frame) => frame !== null);
+
   for (const frame of frames) {
     const row = rows.find(
       (candidate) => candidate.name === frame.fn && candidate.module === frame.module,
     );
+
     if (row !== undefined) {
       return passLabel(row);
     }
   }
+
   const namer = frames.find((frame) => frame.own && names(frame)) ?? frames.find(names);
+
   return namer === undefined
     ? "an unnamed pass"
     : passLabel({ module: namer.module ?? "", name: namer.fn });
@@ -167,46 +154,45 @@ let recording = false;
 
 const recordedRead =
   <T,>(value: T) =>
-  (): T => {
+  () => {
     if (recording) {
       reads.push(new Error("a read of the watched block").stack ?? "");
     }
+
     return value;
   };
 
-// every property a getter that keeps the stack of its read; frozen like every node Slate holds, so
-// immer never walks it to freeze it
-const watch = (block: TElement): TElement => {
+const watch = (block: TElement) => {
   const watched: TElement = { ...block };
+
   for (const [key, value] of Object.entries(block)) {
     Object.defineProperty(watched, key, { enumerable: true, get: recordedRead(value) });
   }
+
   return Object.freeze(watched);
 };
 
-const passesDuring = async (
-  rows: readonly BudgetRow[],
-  run: () => Promise<void>,
-): Promise<ReadonlySet<string>> => {
+const passesDuring = async (rows: readonly BudgetRow[], run: () => Promise<void>) => {
   reads.length = 0;
   const limit = Error.stackTraceLimit;
-  // a pass's own frame can sit far above the read, under Slate's traversal and Plate's overrides
   Error.stackTraceLimit = Number.POSITIVE_INFINITY;
   recording = true;
+
   try {
     await run();
   } finally {
     recording = false;
     Error.stackTraceLimit = limit;
   }
-  return new Set(reads.map((stack) => nameRead(stack, rows)));
+
+  return new Set(reads.map((stack) => nameRead(stack, rows))) satisfies ReadonlySet<string>;
 };
 
 const expectBudget = (
   moment: string,
   rows: readonly BudgetRow[],
   observed: ReadonlySet<string>,
-): void => {
+) => {
   const allowed = rows.map(passLabel);
   const over = [...observed].filter((pass) => !allowed.includes(pass));
   const stale = allowed.filter((pass) => !observed.has(pass));
@@ -227,55 +213,60 @@ interface OpenNote {
   readonly unmount: () => void;
 }
 
-// a caret in a paragraph's own text, never inside an inline void, where an insert does nothing
-const textEdge = (editor: SlateEditor, from: number, edge: "start" | "end"): Point => {
+const textEdge = (editor: SlateEditor, from: number, edge: "start" | "end") => {
   for (let index = from; index < editor.children.length; index += 1) {
     const block = editor.children[index];
+
     if (block?.type === "p") {
       const childIndex = edge === "start" ? 0 : block.children.length - 1;
       const child = block.children[childIndex];
+
       if (child !== undefined && TextApi.isText(child) && child.text !== "") {
-        return { offset: edge === "start" ? 0 : child.text.length, path: [index, childIndex] };
+        return {
+          offset: edge === "start" ? 0 : child.text.length,
+          path: [index, childIndex],
+        } satisfies Point;
       }
     }
   }
+
   throw new Error("the note holds a paragraph of plain text past the point");
 };
 
-const noteOf = (lines: number): string =>
+const noteOf = (lines: number) =>
   `${generateLongNote(SEED, lines)}\n${WATCHED_BLOCK}\n\n${CLOSING_BLOCK}\n`;
 
-const settle = async (): Promise<void> => {
+const settle = async () => {
   await act(async () => {
     vi.advanceTimersByTime(SETTLE_MS);
     await Promise.resolve();
   });
 };
 
-const keystroke = async (editor: SlateEditor): Promise<void> => {
+const keystroke = async (editor: SlateEditor) => {
   await act(async () => {
     editor.tf.insertText("x");
     await Promise.resolve();
   });
 };
 
-const moveCaret = async (editor: SlateEditor, to: Point): Promise<void> => {
+const moveCaret = async (editor: SlateEditor, to: Point) => {
   await act(async () => {
     editor.tf.select(to);
     await Promise.resolve();
   });
 };
 
-const openNote = async (itemId: string, lines: number): Promise<OpenNote> => {
+const openNote = async (itemId: string, lines: number) => {
   const { editor, unmount } = await mountNote(notes, itemId, noteOf(lines));
   await settle();
   const watched = editor.children.at(-2);
   const closing = editor.children.at(-1);
+
   if (watched === undefined || closing === undefined || blockId(watched) === undefined) {
     throw new Error("the item opens rich, with node ids");
   }
-  // Slate's own way to swap a value outside an operation: NodeIdPlugin clones an inserted node, so
-  // an insert would never put the watched block itself in the document.
+
   await act(async () => {
     editor.children = [...editor.children.slice(0, -2), watch(watched), closing];
     editor.api.onChange();
@@ -284,26 +275,27 @@ const openNote = async (itemId: string, lines: number): Promise<OpenNote> => {
   const middle = Math.floor(editor.children.length / 2);
   const typeAt = textEdge(editor, middle, "end");
   await moveCaret(editor, typeAt);
-  // the first edit after a mount pays for every lazy chunk and first render it wakes
   await keystroke(editor);
   await settle();
+
   return {
     editor,
     elsewhere: textEdge(editor, Math.floor(middle / 2), "start"),
     typeAt,
     unmount,
-  };
+  } satisfies OpenNote;
 };
 
-const timed = async (run: () => Promise<void>): Promise<number> => {
+const timed = async (run: () => Promise<void>) => {
   const began = performance.now();
   await run();
+
   return performance.now() - began;
 };
 
-// the fastest of several keystrokes, so one GC pause or scheduler stall cannot stand for the cost
-const keystrokeMsIn = async (note: OpenNote): Promise<number> => {
+const keystrokeMsIn = async (note: OpenNote) => {
   let fastest = Number.POSITIVE_INFINITY;
+
   for (let round = 0; round < KEYSTROKES; round += 1) {
     fastest = Math.min(
       fastest,
@@ -313,16 +305,19 @@ const keystrokeMsIn = async (note: OpenNote): Promise<number> => {
     );
     await settle();
   }
+
   return fastest;
 };
 
-const fastestParseMs = (markdown: string): number => {
+const fastestParseMs = (markdown: string) => {
   let fastest = Number.POSITIVE_INFINITY;
+
   for (let run = 0; run < 3; run += 1) {
     const began = performance.now();
     parseMarkdown(markdown);
     fastest = Math.min(fastest, performance.now() - began);
   }
+
   return fastest;
 };
 
@@ -332,8 +327,9 @@ interface Observed {
   readonly settle: ReadonlySet<string>;
 }
 
-const observe = async (note: OpenNote): Promise<Observed> => {
+const observe = async (note: OpenNote) => {
   const keystrokes: ReadonlySet<string>[] = [];
+
   for (let index = 0; index < KEYSTROKES; index += 1) {
     keystrokes.push(
       await passesDuring(KEYSTROKE_BUDGET, async () => {
@@ -341,7 +337,9 @@ const observe = async (note: OpenNote): Promise<Observed> => {
       }),
     );
   }
+
   const settled = await passesDuring(SETTLE_BUDGET, settle);
+
   const caretMoves = [
     await passesDuring(CARET_BUDGET, async () => {
       await moveCaret(note.editor, note.elsewhere);
@@ -350,10 +348,11 @@ const observe = async (note: OpenNote): Promise<Observed> => {
       await moveCaret(note.editor, note.typeAt);
     }),
   ];
-  return { caretMoves, keystrokes, settle: settled };
+
+  return { caretMoves, keystrokes, settle: settled } satisfies Observed;
 };
 
-const ms = (value: number): string => `${value.toFixed(0)}ms`;
+const ms = (value: number) => `${value.toFixed(0)}ms`;
 
 describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
   let shortMs: number;
@@ -361,7 +360,6 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
   let parseMs: number;
   let observed: Observed;
 
-  // Everything is collected here: the DOM suite unmounts every tree after each case.
   beforeAll(async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     installFakeEditorHost({ notes });
@@ -415,9 +413,11 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
 describe("the watched block", () => {
   it("holds every inline void of the dialect, as its node", () => {
     const parsed = parseMarkdown(WATCHED_BLOCK);
+
     if (!parsed.ok) {
       throw new Error("the watched block parses");
     }
+
     expect(
       parsed.value[0]?.children.flatMap((child) =>
         ElementApi.isElement(child) ? [child.type] : [],
@@ -427,21 +427,23 @@ describe("the watched block", () => {
 });
 
 describe("the codec's serializer", () => {
-  // patches/@platejs__core@53.5.2.patch: the serializer asks the type of every mark rule on every
-  // text node, most of them marks no plugin registers, and unpatched each such answer resolves one
   it("resolves no plugin for a mark the editor does not register", () => {
     const parsed = parseMarkdown(generateLongNote(SEED, 200));
+
     if (!parsed.ok) {
       throw new Error("the note parses");
     }
+
     const editor = createSlateEditor({ plugins: BASE_KIT, value: parsed.value });
     const asked = vi.spyOn(editor, "getPlugin");
     serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+
     const unregistered = [
       ...new Set(
         asked.mock.calls.map(([plugin]) => plugin.key).filter((key) => !(key in editor.plugins)),
       ),
     ];
+
     expect(
       unregistered,
       `serializing resolved a plugin for ${unregistered.join(", ")}, keys no plugin registers; each is two deep merges per text node (patches/@platejs__core@53.5.2.patch)`,

@@ -1,31 +1,27 @@
 import { createRef } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Point, TRange, Value } from "platejs";
+import type { Point, TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
+import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";
 import { TOUCH_ACTIONS } from "@repo/editor/touch-toolbar";
 
-import { EditorHarness } from "./test-support/editor-harness";
-
-vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn<() => void>(), {
-    error: vi.fn<() => void>(),
-    success: vi.fn<() => void>(),
-    warning: vi.fn<() => void>(),
-  }),
-}));
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const { toast } = await import("@repo/ui/components/sonner");
 
-// every name a button may carry: a row of a table some other surface reads, never a literal
-// of the toolbar's own, and never a chord, which a soft keyboard cannot press
+vi.spyOn(toast, "error");
+
+vi.spyOn(toast, "success");
+
+vi.spyOn(toast, "warning");
+
 const TABLE_LABELS = new Set([
   ...MARK_SHORTCUTS.map((row) => row.label),
   ...EDITOR_SHORTCUTS.map((row) => row.label),
@@ -33,32 +29,36 @@ const TABLE_LABELS = new Set([
   ...Object.values(TOUCH_ACTIONS).map((row) => row.label),
 ]);
 
-const parsedValue = (markdown: string): Value => {
+const parsedValue = (markdown: string) => {
   const parsed = parseMarkdown(markdown);
+
   if (!parsed.ok) {
     throw new Error(`the note must parse: ${parsed.reason.kind}`);
   }
+
   return parsed.value;
 };
 
 interface Mounted {
   readonly editor: PlateEditor;
-  // the note taking no edit, as the item editor draws one offline or held for the agent, and back
   readonly turnReadOnly: (readOnly: boolean) => void;
 }
 
-// under StrictMode, which the site's dev build runs
-const mount = (markdown: string, host: FakeEditorHostOptions = {}): Mounted => {
+const mount = (markdown: string, host: FakeEditorHostOptions = {}) => {
   installFakeEditorHost(host);
   const ref = createRef<PlateEditor>();
   const value = parsedValue(markdown);
+
   const { rerender } = render(<EditorHarness ref={ref} profile="touch" value={value} />, {
     reactStrictMode: true,
   });
+
   const editor = ref.current;
+
   if (editor === null) {
     throw new Error("the harness did not hand over its editor");
   }
+
   return {
     editor,
     turnReadOnly: (readOnly) => {
@@ -66,13 +66,13 @@ const mount = (markdown: string, host: FakeEditorHostOptions = {}): Mounted => {
         rerender(<EditorHarness ref={ref} profile="touch" value={value} readOnly={readOnly} />);
       });
     },
-  };
+  } satisfies Mounted;
 };
 
-const toolbarButtons = (): HTMLElement[] =>
+const toolbarButtons = () =>
   within(screen.getByRole("toolbar", { name: "Formatting" })).getAllByRole("button");
 
-const press = (name: string): void => {
+const press = (name: string) => {
   act(() => {
     fireEvent.click(screen.getByRole("button", { name }));
   });
@@ -90,6 +90,7 @@ describe("the touch toolbar", () => {
     for (const name of names) {
       expect(name !== null && TABLE_LABELS.has(name), `${String(name)} is no table row`).toBe(true);
     }
+
     const expected = [
       ...MARK_SHORTCUTS.map((row) => row.label),
       TOUCH_ACTIONS.indent.label,
@@ -99,12 +100,12 @@ describe("the touch toolbar", () => {
       TOUCH_ACTIONS.redo.label,
       TOUCH_ACTIONS["hide-keyboard"].label,
     ];
+
     for (const label of expected) {
       expect(names, label).toContain(label);
     }
   });
 
-  // the phone asks no agent, so the desktop's Ask agent has no row here
   it("draws no Ask agent on any host", () => {
     mount("body\n");
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
@@ -113,6 +114,7 @@ describe("the touch toolbar", () => {
 
   it("keeps the editor's focus: every press cancels its pointerdown", () => {
     mount("body\n");
+
     for (const button of toolbarButtons()) {
       const dispatched = fireEvent.pointerDown(button);
       expect(dispatched, `${String(button.getAttribute("aria-label"))} let focus move`).toBe(false);
@@ -146,22 +148,21 @@ describe("the touch toolbar", () => {
   });
 });
 
-// slate tells its listeners on a microtask, so the toolbar redraws for a selection a turn later
-const select = async (editor: PlateEditor, at: Point | TRange): Promise<void> => {
+const select = async (editor: PlateEditor, at: Point | TRange) => {
   await act(async () => {
     editor.tf.select(at);
     await Promise.resolve();
   });
 };
 
-const selectOne = async (editor: PlateEditor): Promise<void> => {
+const selectOne = async (editor: PlateEditor) => {
   await select(editor, {
     anchor: { offset: 0, path: [0, 0] },
     focus: { offset: 3, path: [0, 0] },
   });
 };
 
-const writeAddress = async (text: string, submit: string): Promise<void> => {
+const writeAddress = async (text: string, submit: string) => {
   act(() => {
     fireEvent.change(screen.getByRole("textbox", { name: "Link address" }), {
       target: { value: text },

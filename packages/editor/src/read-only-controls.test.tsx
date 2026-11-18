@@ -1,16 +1,12 @@
-// A note that takes no edit draws no control that would write: the model refuses the op either
-// way, so a control left drawn is a press that does nothing.
-
 import { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const NOTE = [
   "| a | b |",
@@ -44,11 +40,13 @@ const NOTE = [
   "",
 ].join("\n");
 
-const noteValue = (): Value => {
+const noteValue = () => {
   const parsed = parseMarkdown(NOTE);
+
   if (!parsed.ok) {
     throw new Error(`the note must parse: ${parsed.reason.kind}`);
   }
+
   return parsed.value;
 };
 
@@ -63,10 +61,9 @@ const WRITES = [
   "Remove One",
 ];
 
-const formulaInput = (): HTMLElement | null =>
-  screen.queryByRole("textbox", { name: "Edit formula" });
+const formulaInput = () => screen.queryByRole("textbox", { name: "Edit formula" });
 
-const pressPill = (): void => {
+const pressPill = () => {
   act(() => {
     fireEvent.click(screen.getByRole("button", { name: "42" }));
   });
@@ -82,9 +79,11 @@ describe("a note's editing controls", () => {
     ["a note that takes none", true],
   ] as const)("are drawn by %s: %s", (_note, readOnly) => {
     render(<EditorHarness readOnly={readOnly} value={noteValue()} />);
+
     for (const name of WRITES) {
       expect(screen.queryAllByRole("button", { name }).length > 0, name).toBe(!readOnly);
     }
+
     for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
@@ -108,9 +107,11 @@ describe("a note's editing controls", () => {
     render(<EditorHarness ref={ref} value={noteValue()} />);
     pressPill();
     const input = formulaInput();
+
     if (!(input instanceof HTMLInputElement) || input.form === null) {
       throw new Error("the pill opened no editor");
     }
+
     const { form } = input;
 
     act(() => {

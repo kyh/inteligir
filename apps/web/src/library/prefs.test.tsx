@@ -1,6 +1,3 @@
-// The blobs are spelled out rather than read off the stores: they are what a window's storage
-// holds, and the root's no-flash script reads the device's before any of this loads.
-
 import { SIDEBAR_MAX_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +12,6 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-// what a window's storage may hold of a store's fields, readable or not
 type Stored =
   | string
   | number
@@ -24,12 +20,26 @@ type Stored =
   | readonly Stored[]
   | { readonly [key: string]: Stored };
 
-const blob = (state: Stored): string => JSON.stringify({ state, version: 0 });
+const blob = (state: Stored) => JSON.stringify({ state, version: 0 });
 
-const stored = (name: string): string | null => window.localStorage.getItem(name);
+const stored = (name: string) => window.localStorage.getItem(name);
 
-// another window's write, as this one hears of it
-const writtenElsewhere = (name: string, state: Stored): void => {
+const STORAGE_QUOTA = 5_000_000;
+const FILLER = "filler";
+
+const fillStorage = () => {
+  const storage = window.localStorage;
+  let used = 0;
+
+  for (let at = 0; at < storage.length; at += 1) {
+    const key = storage.key(at) ?? "";
+    used += key.length + (storage.getItem(key) ?? "").length;
+  }
+
+  storage.setItem(FILLER, "x".repeat(STORAGE_QUOTA - used - FILLER.length - 8));
+};
+
+const writtenElsewhere = (name: string, state: Stored) => {
   const raw = blob(state);
   window.localStorage.setItem(name, raw);
   window.dispatchEvent(new StorageEvent("storage", { key: name, newValue: raw }));
@@ -113,11 +123,16 @@ describe("a write", () => {
   });
 
   it("keeps the choice for the session when storage refuses it", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new DOMException("full", "QuotaExceededError");
-    });
-    devicePrefs.setState({ theme: "light" });
-    expect(devicePrefs.getState().theme).toBe("light");
+    const refused = vi.spyOn(Storage.prototype, "setItem");
+    fillStorage();
+
+    try {
+      devicePrefs.setState({ theme: "light" });
+      expect(devicePrefs.getState().theme).toBe("light");
+      expect(refused.mock.results.at(-1)?.type).toBe("throw");
+    } finally {
+      window.localStorage.removeItem(FILLER);
+    }
   });
 });
 

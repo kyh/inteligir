@@ -1,9 +1,3 @@
-// CLAUDE.md § The agent panel is the account's threads. The built-in agent's conversations, the
-// same on every device: the threads come from the cloud, read again as an answer of what moved
-// names them, and a thread's events as they happen, the reply as it is written; a send, a stop and
-// an undo go to the cloud, so each waits for a connection. A message carries the screen it was
-// sent from (the open item, or the grid's scope and selection).
-
 import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
 import {
@@ -38,9 +32,7 @@ import { announceUndo } from "./undo-answer";
 import { UNDO_SCOPE, undoToEnd, useUndoWaits } from "./undo-queue";
 
 export interface AgentPanelProps {
-  // the screen the next message leaves from, read as it is sent
   readonly viewContext: () => AgentViewContext | undefined;
-  // writes what the open item holds unsaved, so an undo meets the item as the person sees it
   readonly flushOpen: () => Promise<void>;
 }
 
@@ -54,6 +46,7 @@ const EntryRow = ({
   undoWaits: boolean;
 }) => {
   const { event } = entry;
+
   switch (event.type) {
     case "user.message": {
       return (
@@ -62,6 +55,7 @@ const EntryRow = ({
         </p>
       );
     }
+
     case "agent.message": {
       return (
         <StreamingText
@@ -72,15 +66,17 @@ const EntryRow = ({
         />
       );
     }
-    // a run of work draws as a block of its own (`conversationOf`)
+
     case "agent.progress":
     case "agent.tool_use":
     case "agent.tool_result": {
       return null;
     }
+
     case "turn.ended": {
       const words = endingWords(event.reason);
       const run = undo(event.turn);
+
       return (
         <div className="flex items-center gap-2" data-turn-ended={event.turn}>
           {words === "" ? null : <p className="m-0 text-caption text-muted-foreground">{words}</p>}
@@ -92,11 +88,13 @@ const EntryRow = ({
         </div>
       );
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(event satisfies never)}`);
+    }
   }
 };
 
-// the agent's work between two messages: its notes, then the calls it made
 const WorkBlock = ({
   block,
   live,
@@ -128,8 +126,6 @@ const WorkBlock = ({
   </Thinking>
 );
 
-// one block of a conversation: a run of work live only while it is the turn's last, the reply as
-// it is written, or an event
 const Block = ({
   block,
   live,
@@ -145,6 +141,7 @@ const Block = ({
     case "work": {
       return <WorkBlock block={block} live={live} />;
     }
+
     case "draft": {
       return (
         <StreamingText
@@ -156,19 +153,25 @@ const Block = ({
         />
       );
     }
+
     case "entry": {
       return <EntryRow entry={block.entry} undo={undo} undoWaits={undoWaits} />;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(block satisfies never)}`);
+    }
   }
 };
 
 const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void }) => {
   const threads = useQuery(useLibraryQueries().threads()).data?.threads ?? [];
   const nowMs = useNow();
+
   if (threads.length === 0) {
     return <p className="m-0 px-3 py-2 text-body text-muted-foreground">{EMPTY_WORDS}</p>;
   }
+
   return (
     <ul className="m-0 flex list-none flex-col p-1" aria-label="Conversations">
       {threads
@@ -194,12 +197,11 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
   );
 };
 
-const onRefused = (cause: unknown): void => {
+const onRefused = (cause: unknown) => {
   toast.error(callRefusalWords(cause));
 };
 
-// read as the send fails, since the allowance's words name when it fills again from now
-const onSendRefused = (cause: unknown): void => {
+const onSendRefused = (cause: unknown) => {
   toast.error(sendRefusalWords(cause, Date.now()));
 };
 
@@ -217,8 +219,7 @@ const Conversation = ({
   const { blocks, underWay } = conversationOf(followed?.rows ?? [], followed?.draft ?? "");
   const undoable = useQuery(queries.undoable(threadId)).data?.turns ?? [];
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
-  // a press names its conversation, so one that waits offline keeps to it whichever is open when
-  // it goes
+
   const undo = useMutation(
     orpc.library.agent.undo.mutationOptions({
       mutationFn: async (press) => await undoToEnd(client, press),
@@ -226,9 +227,6 @@ const Conversation = ({
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
       onMutate: flushOpen,
-      // awaited, so the queue holds every Undo down until the turns left to undo are read again:
-      // what moved may be asked after the answer, and a press between the two would ask for what
-      // just went back
       onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.agent.undoable.key() });
       },
@@ -236,16 +234,18 @@ const Conversation = ({
       scope: UNDO_SCOPE,
     }),
   );
+
   const undoWaits = useUndoWaits();
-  const undoTurn = (turn: number): (() => void) | null =>
-    undoable.includes(turn)
+
+  const undoTurn = (turn: number) =>
+    (undoable.includes(turn)
       ? () => {
           undo.mutate({ threadId, turn });
         }
-      : null;
+      : null) satisfies (() => void) | null;
+
   const status = underWay ? "running" : "idle";
-  // a reversed column scrolls from its end, so the browser keeps the conversation on the reply as
-  // it grows and lets go once the person scrolls up; the auto margin keeps a short one at the top
+
   return (
     <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto" data-thread={threadId}>
       <div className="mb-auto flex flex-col gap-2 p-3">
@@ -291,7 +291,6 @@ const Conversation = ({
   );
 };
 
-// Tidy my library's request, above the field the person may add to
 const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
   <div className="flex items-center gap-1 px-1 pb-1" data-tidy-request>
     <span className="rounded-full bg-muted px-2 py-0.5 text-caption">{TIDY_LABEL}</span>
@@ -306,17 +305,17 @@ const Composer = ({ viewContext }: { viewContext: () => AgentViewContext | undef
     wire: { orpc },
     workspace,
   } = usePageLibrary();
+
   const { quoted, target, text } = useStore(workspace.store, (state) => state.composer);
   const field = useRef<HTMLTextAreaElement>(null);
   const tidying = target.kind === "tidying";
   const threadId = target.kind === "asking" ? target.threadId : null;
-  // a passage waiting on the person's question hands the field the keyboard, as it is quoted and
-  // as the composer comes up holding it
   useEffect(() => {
     if (quoted > 0) {
       field.current?.focus();
     }
   }, [quoted]);
+
   const send = useMutation(
     orpc.library.agent.send.mutationOptions({
       onError: onSendRefused,
@@ -325,20 +324,23 @@ const Composer = ({ viewContext }: { viewContext: () => AgentViewContext | undef
       },
     }),
   );
-  // read off the cache, since the words outlive this composer and a send may too
+
   const sending = useIsMutating({ mutationKey: orpc.library.agent.send.mutationKey() }) > 0;
-  const submit = (): void => {
+
+  const submit = () => {
     if (sending) {
       return;
     }
-    // a Tidy starts a conversation of its own, from Unsorted, whatever the screen shows
+
     const input = tidying
       ? { text: tidyMessage(text), viewContext: TIDY_VIEW_CONTEXT }
       : sendInput({ text, threadId, viewContext: viewContext() });
+
     if (input !== null) {
       send.mutate(input);
     }
   };
+
   return (
     <div className="flex shrink-0 flex-col gap-1.5 border-t border-border p-3">
       <InputMessage
@@ -371,13 +373,15 @@ const Composer = ({ viewContext }: { viewContext: () => AgentViewContext | undef
 
 export const AgentPanel = ({ viewContext, flushOpen }: AgentPanelProps) => {
   const { workspace } = usePageLibrary();
-  // the conversation shown: the one the composer sends to
+
   const threadId = useStore(workspace.store, ({ composer: { target } }) =>
     target.kind === "asking" ? target.threadId : null,
   );
-  const onThread = (next: string | null): void => {
+
+  const onThread = (next: string | null) => {
     workspace.compose({ kind: "chose", threadId: next });
   };
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-agent-panel>
       <div className="flex h-10 shrink-0 items-center gap-1 px-2">

@@ -1,6 +1,3 @@
-// The `[[` picker: the query Plate's mention input holds, over the library's titles. A picked item
-// is linked by its id, with the title it goes by now, so a rename never breaks it.
-
 import { useState } from "react";
 import { FilePlusIcon, FileTextIcon } from "lucide-react";
 import { PlateElement } from "platejs/react";
@@ -18,11 +15,8 @@ import { rankTitles } from "@repo/editor/mention/rank-titles";
 
 const CREATE_VALUE = "__create__";
 
-// Ranked and cut before any row mounts, never filtered per row: a row per item is a mount per
-// item, each one re-filtering on every keystroke.
 export const MENTION_PICKER_MAX_ROWS = 50;
 
-// an item to link, or the note to make under the typed title
 type MentionRow = PickerRow &
   (
     | { readonly kind: "link"; readonly target: LinkTarget }
@@ -36,26 +30,32 @@ export const MentionInputElement = (props: PlateElementProps) => {
 
   const typed = value.trim();
 
-  // typing `]]` links the one item the words name, or leaves them the text they are
   const linkWords = (words: string) => {
     const named = byKey.get(titleKey(words));
+
     if (named === undefined || named === null) {
       editor.tf.insertText(`[${words}]]`);
+
       return;
     }
+
     insertPageLink(editor, named);
   };
 
-  const rows = rankTitles(targets, typed)
+  const rows: MentionRow[] = rankTitles(targets, typed)
     .slice(0, MENTION_PICKER_MAX_ROWS)
-    .map((target): MentionRow => ({
-      kind: "link",
-      onSelect: (picked) => {
-        insertPageLink(picked, target);
-      },
-      target,
-      value: target.id,
-    }));
+    .map(
+      (target) =>
+        ({
+          kind: "link",
+          onSelect: (picked) => {
+            insertPageLink(picked, target);
+          },
+          target,
+          value: target.id,
+        }) satisfies MentionRow,
+    );
+
   if (typed !== "" && !byKey.has(titleKey(typed))) {
     rows.push({
       kind: "create",

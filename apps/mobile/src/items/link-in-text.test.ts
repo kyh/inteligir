@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { linkInText, withoutLink } from "./link-in-text";
 
-const urlIn = (text: string): string | null => linkInText(text)?.url ?? null;
+const urlIn = (text: string) => linkInText(text)?.url ?? null;
 
 describe("a link inside text", () => {
   it("keeps a closing bracket the link opened", () => {

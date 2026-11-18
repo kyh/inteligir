@@ -1,8 +1,10 @@
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { deferred } from "@repo/contract/deferred";
+import type { Deferred } from "@repo/contract/deferred";
 import { fileSha } from "@repo/contract/library/file-sha";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { onlineManager } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
@@ -21,33 +23,31 @@ const paragraph = { children: [{ text: "Held by the cell." }], id: "p1", type: "
 const cell = createFakeCell();
 const page = cell.device("page");
 const { client } = page;
+
 const wire = {
   client,
   orpc: createTanstackQueryUtils(client),
   outliving: cell.device("outliving").client,
 };
 
-const nothing = (): void => {
-  // the suite's session has nothing to stop
-};
+const nothing = () => {};
 
-const held = (text: string): BodyBlock[] => [
-  { block: { children: [{ text }], id: "p1", type: "p" }, section: "note" },
-];
+const held = (text: string) =>
+  [{ block: { children: [{ text }], id: "p1", type: "p" }, section: "note" }] satisfies BodyBlock[];
 
-// the host over the cell alone: no layout, workspace or panel is mounted, and the tab is where
-// `openItem` says
 const install = (
   upload: (request: Request) => Promise<Response>,
   openItem: string | null = null,
 ) => {
   const queryClient = createPageQueryClient();
   const workspace = createWorkspaceStore();
+
   const goes = {
     now: () => ({ find: null, kind: null, openItem, scope: { kind: "all" }, settings: false }),
     openItem: vi.fn<LibraryGoes["openItem"]>(),
     showScope: vi.fn<LibraryGoes["showScope"]>(),
   } satisfies Pick<LibraryGoes, "now" | "openItem" | "showScope">;
+
   installPageEditorHost({
     cloud: { fetch: upload, onSessionEnd: nothing, origin: ORIGIN },
     goes,
@@ -55,11 +55,44 @@ const install = (
     wire,
     workspace,
   });
+
   return { goes, queryClient, workspace };
 };
 
-const refused = async (): Promise<Response> =>
-  await Promise.resolve(new Response(null, { status: 500 }));
+const refused = async () => await Promise.resolve(new Response(null, { status: 500 }));
+
+interface Standing {
+  readonly version: number;
+  readonly deleted: boolean;
+}
+
+const followed = () => {
+  let last: Standing | null = null;
+  const waits: { readonly want: Standing; readonly heard: Deferred<void> }[] = [];
+  const same = (a: Standing, b: Standing) => a.version === b.version && a.deleted === b.deleted;
+
+  return {
+    heard: (standing: Standing) => {
+      last = standing;
+
+      for (const wait of waits) {
+        if (same(standing, wait.want)) {
+          wait.heard.resolve();
+        }
+      }
+    },
+    reaches: async (want: Standing) => {
+      const heard = deferred();
+      waits.push({ heard, want });
+
+      if (last !== null && same(last, want)) {
+        heard.resolve();
+      }
+
+      await heard.promise;
+    },
+  };
+};
 
 describe("the page's editor host", () => {
   it("answers an embedded item's blocks as the cell holds them, and none for an item it lacks", async () => {
@@ -123,6 +156,7 @@ describe("the page's editor host", () => {
     await notes.read(id);
 
     page.setOffline(true);
+
     try {
       await expect(notes.read(id)).resolves.toMatchObject({ blocks: held("Read before.") });
       await expect(notes.read(unread)).rejects.toThrow();
@@ -135,18 +169,14 @@ describe("the page's editor host", () => {
     const id = cell.seed.item({ title: "Minutes" }, held("One."));
     const { queryClient } = install(refused);
     const { notes } = getEditorHostIo();
-    const heard = vi.fn<(standing: { version: number; deleted: boolean }) => void>();
-    const stop = notes.follow(id, heard);
+    const standing = followed();
+    const stop = notes.follow(id, standing.heard);
 
-    await vi.waitFor(() => {
-      expect(heard).toHaveBeenLastCalledWith({ deleted: false, version: 1 });
-    });
+    await standing.reaches({ deleted: false, version: 1 });
     await client.library.items.saveBody({ baseVersion: 1, blocks: held("Two."), id });
     await client.library.items.delete({ ids: [id] });
     await queryClient.invalidateQueries({ queryKey: libraryQueries(wire).item(id).queryKey });
-    await vi.waitFor(() => {
-      expect(heard).toHaveBeenLastCalledWith({ deleted: true, version: 2 });
-    });
+    await standing.reaches({ deleted: true, version: 2 });
     stop();
   });
 
@@ -154,6 +184,7 @@ describe("the page's editor host", () => {
     install(refused);
     const { notes } = getEditorHostIo();
     let heard = 0;
+
     const stop = notes.reach.subscribe(() => {
       heard += 1;
     });

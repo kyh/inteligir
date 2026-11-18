@@ -1,16 +1,7 @@
-// A Raindrop.io CSV export read into library items: the header by name in any order and case,
-// a row per bookmark, folded by url key, every cell treated as hostile text. A bookmark's highlights
-// land in its note as blocks, each passage a quote with its own note under it, built here and never
-// written as markdown, so no word of one reads as syntax. Pure: `./raindrop-import` lands them.
-//
-// Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
-// favorite. Only `url` is required; a per-collection export has no `folder`.
-
 import { cleanUrl, isWebUrl, urlKey } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
 import { importedFields, stubFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
-import type { ImportedFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { parseItemTime } from "@repo/editor/headless/items/item-time";
 import Papa from "papaparse";
@@ -33,8 +24,7 @@ export interface RaindropRow {
   favorite: boolean;
 }
 
-// `skipped` counts the rows left out: one with no web address, or one in the bin
-export type RaindropParse =
+type RaindropParse =
   | { ok: true; rows: RaindropRow[]; skipped: number }
   | { ok: false; reason: "not-csv" | "no-url-column" | "empty" };
 
@@ -50,23 +40,27 @@ const COLUMNS = [
   "highlights",
   "favorite",
 ] as const;
+
 type Column = (typeof COLUMNS)[number];
 
 const TRASH = "trash";
 const HIGHLIGHT_LINE = /^\s*highlight\s*:\s?/iu;
 const NOTE_LINE = /^\s*note\s*:\s?/iu;
 
-// `Highlight: …` opens a block and a `Note: …` line inside one starts its note; a cell with no
-// `Highlight:` line is one quote
-export const parseRaindropHighlights = (cell: string): RaindropHighlight[] => {
+export const parseRaindropHighlights = (cell: string) => {
   const lines = cell.split(/\r\n|\r|\n/u);
+
   if (!lines.some((line) => HIGHLIGHT_LINE.test(line))) {
     const quote = cell.trim();
-    return quote === "" ? [] : [{ note: "", quote }];
+
+    return (quote === "" ? [] : [{ note: "", quote }]) satisfies RaindropHighlight[];
   }
+
   const blocks: { quote: string[]; note: string[] | null }[] = [];
+
   for (const line of lines) {
     const open = blocks.at(-1);
+
     if (HIGHLIGHT_LINE.test(line)) {
       blocks.push({ note: null, quote: [line.replace(HIGHLIGHT_LINE, "")] });
     } else if (open?.note === null && NOTE_LINE.test(line)) {
@@ -75,60 +69,72 @@ export const parseRaindropHighlights = (cell: string): RaindropHighlight[] => {
       (open.note ?? open.quote).push(line);
     }
   }
-  return blocks
-    .map((block) => ({
-      note: (block.note ?? []).join("\n").trim(),
-      quote: block.quote.join("\n").trim(),
-    }))
-    .filter((highlight) => highlight.quote !== "");
+
+  return blocks.flatMap((block) => {
+    const quote = block.quote.join("\n").trim();
+
+    return quote === "" ? [] : [{ note: (block.note ?? []).join("\n").trim(), quote }];
+  });
 };
 
-const folderSegments = (cell: string): string[] =>
+const folderSegments = (cell: string) =>
   cell
     .split("/")
     .map((segment) => segment.trim())
     .filter((segment) => segment !== "");
 
-const isTrue = (cell: string): boolean => ["true", "1", "yes"].includes(cell.trim().toLowerCase());
+const isTrue = (cell: string) => ["true", "1", "yes"].includes(cell.trim().toLowerCase());
 
-// RFC 4180 as exports in the wild write it; a quote that never closes is no CSV, and a quote inside
-// an unquoted field is the character it is
-const csvRecords = (text: string): string[][] | null => {
+const csvRecords = (text: string) => {
   const parsed = Papa.parse<string[]>(text, { delimiter: ",", skipEmptyLines: true });
+
   return parsed.errors.some((error) => error.code === "MissingQuotes") ? null : parsed.data;
 };
 
-export const parseRaindropCsv = (text: string): RaindropParse => {
+export const parseRaindropCsv = (text: string) => {
   const records = csvRecords(text);
+
   if (records === null) {
-    return { ok: false, reason: "not-csv" };
+    return { ok: false, reason: "not-csv" } satisfies RaindropParse;
   }
+
   const [header, ...data] = records;
+
   if (header === undefined) {
-    return { ok: false, reason: "empty" };
+    return { ok: false, reason: "empty" } satisfies RaindropParse;
   }
+
   const indexes = new Map<Column, number>();
+
   for (const [index, name] of header.entries()) {
     const column = COLUMNS.find((known) => known === name.trim().toLowerCase());
+
     if (column !== undefined && !indexes.has(column)) {
       indexes.set(column, index);
     }
   }
+
   if (!indexes.has("url")) {
-    return { ok: false, reason: "no-url-column" };
+    return { ok: false, reason: "no-url-column" } satisfies RaindropParse;
   }
+
   if (data.length === 0) {
-    return { ok: false, reason: "empty" };
+    return { ok: false, reason: "empty" } satisfies RaindropParse;
   }
+
   const rows: RaindropRow[] = [];
   let skipped = 0;
+
   for (const record of data) {
-    const cell = (column: Column): string => {
+    const cell = (column: Column) => {
       const index = indexes.get(column);
+
       return index === undefined ? "" : (record[index] ?? "");
     };
+
     const url = cell("url").trim();
     const folder = folderSegments(cell("folder"));
+
     if (!isWebUrl(url) || folder[0]?.toLowerCase() === TRASH) {
       skipped += 1;
     } else {
@@ -151,31 +157,25 @@ export const parseRaindropCsv = (text: string): RaindropParse => {
       });
     }
   }
-  return { ok: true, rows, skipped };
+
+  return { ok: true, rows, skipped } satisfies RaindropParse;
 };
 
-// what one row becomes: an item of the library, keyed once by its address
 export interface PlannedItem {
-  // Raindrop's own picture, a hint the fill tries after the page's
   readonly cover: string | null;
   readonly description: string | null;
-  // its folder's path, null when Raindrop filed it in none
   readonly folder: string | null;
-  // each passage the person marked, with its own note, in Raindrop's order
   readonly highlights: RaindropHighlight[];
-  // the person's note on the bookmark, as markdown
   readonly note: string;
   readonly pinned: boolean;
   readonly savedMs: number;
   readonly tags: string[];
-  // the row's own title, null when it gave none
   readonly title: string | null;
   readonly url: string;
 }
 
-export interface ImportPlan {
+interface ImportPlan {
   items: PlannedItem[];
-  // rows folded into an earlier row with the same url key
   duplicates: number;
 }
 
@@ -183,9 +183,7 @@ const DESCRIPTION_MAX = 1000;
 const MS_PER_SECOND = 1000;
 const DATE_MAX_MS = 8.64e15;
 
-// a tag as a library tag name: NFC, no `#`, every run of what a name cannot hold one `-`, each
-// level trimmed of dashes; null when no name is left
-export const toTagName = (raw: string): string | null => {
+export const toTagName = (raw: string) => {
   const levels = raw
     .normalize("NFC")
     .replaceAll("#", "")
@@ -197,37 +195,37 @@ export const toTagName = (raw: string): string | null => {
         .replaceAll(/^-+|-+$/gu, ""),
     )
     .filter((level) => level !== "");
+
   const name = levels.join("/");
+
   return isTagName(name) ? name : null;
 };
 
-// a bookmark's collection as a folder's path: Raindrop's own Unsorted is no folder
-const folderOf = (segments: readonly string[]): string | null =>
+const folderOf = (segments: readonly string[]) =>
   segments.length === 0 || (segments.length === 1 && segments[0]?.toLowerCase() === "unsorted")
     ? null
     : segments.join("/");
 
-const readCreated = (created: string): number | null =>
+const readCreated = (created: string) =>
   /^\d+(?:\.\d+)?$/u.test(created)
     ? Math.trunc(Number(created) * MS_PER_SECOND)
     : parseItemTime(created);
 
-// ISO 8601 or unix seconds; anything else, or an instant no field or `Date` holds, is the import's
-// own moment
-const savedMsOf = (created: string | null, now: number): number => {
+const savedMsOf = (created: string | null, now: number) => {
   const read = created === null ? null : readCreated(created);
+
   return read !== null && Number.isInteger(read) && read >= 0 && read <= DATE_MAX_MS ? read : now;
 };
 
-const oneLine = (text: string): string | null => {
+const oneLine = (text: string) => {
   const line = text.replaceAll(/\s+/gu, " ").trim().slice(0, DESCRIPTION_MAX).trim();
+
   return line === "" ? null : line;
 };
 
-const sameTag = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+const sameTag = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-// a passage's paragraphs: Raindrop keeps a line break inside one, and a blank line between two
-const paragraphs = (text: string): string[] =>
+const paragraphs = (text: string) =>
   text
     .split(/\n[\t ]*\n/u)
     .map((part) => part.trim())
@@ -235,53 +233,63 @@ const paragraphs = (text: string): string[] =>
 
 const paragraph = (text: string) => ({ children: [{ text }], type: "p" as const });
 
-// each highlight a quote, its own note the paragraphs under it: blocks built whole, so a passage's
-// `*`, `[` or `:` is the text it is
 export const highlightBlocks = (
   highlights: readonly RaindropHighlight[],
   newBlockId: () => string,
-): LibraryBlock[] =>
-  highlights.flatMap((highlight): LibraryBlock[] => {
+) =>
+  highlights.flatMap((highlight) => {
     const quoted = paragraphs(highlight.quote).map(paragraph);
+
     return [
       ...(quoted.length === 0
         ? []
         : [{ children: quoted, id: newBlockId(), type: "blockquote" as const }]),
       ...paragraphs(highlight.note).map((text) => ({ ...paragraph(text), id: newBlockId() })),
-    ];
+    ] satisfies LibraryBlock[];
   });
 
-export const planRaindropImport = (rows: readonly RaindropRow[], now: number): ImportPlan => {
+export const planRaindropImport = (rows: readonly RaindropRow[], now: number) => {
   const byKey = new Map<string, PlannedItem>();
   let duplicates = 0;
+
   for (const row of rows) {
     const key = urlKey(row.url);
     const url = cleanUrl(row.url);
+
     if (key === null || url === null) {
       continue;
     }
+
     const tags: string[] = [];
+
     for (const raw of row.tags) {
       const name = toTagName(raw);
+
       if (name !== null && !tags.some((tag) => sameTag(tag, name))) {
         tags.push(name);
       }
     }
+
     const earlier = byKey.get(key);
+
     if (earlier !== undefined) {
       duplicates += 1;
+
       for (const tag of tags) {
         if (!earlier.tags.some((held) => sameTag(held, tag))) {
           earlier.tags.push(tag);
         }
       }
+
       for (const highlight of row.highlights) {
         if (!earlier.highlights.some((held) => held.quote === highlight.quote)) {
           earlier.highlights.push(highlight);
         }
       }
+
       continue;
     }
+
     byKey.set(key, {
       cover:
         row.cover !== null && row.cover.length <= ITEM_FIELD_CAPS.url && isWebUrl(row.cover)
@@ -298,11 +306,11 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       url,
     });
   }
-  return { duplicates, items: [...byKey.values()] };
+
+  return { duplicates, items: [...byKey.values()] } satisfies ImportPlan;
 };
 
-// a bookmark as an unread link, its page read by the cloud once it lands
-export const bookmarkFields = (item: PlannedItem): ImportedFields =>
+export const bookmarkFields = (item: PlannedItem) =>
   importedFields({
     ...stubFields({
       folderId: null,

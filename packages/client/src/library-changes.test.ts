@@ -1,11 +1,8 @@
-// A device asking what moved, over the fake cell another device writes to, on fake timers and on
-// TanStack's own focus and online managers, as a tab or the phone drives them.
-
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { environmentManager, focusManager, onlineManager, QueryClient } from "@tanstack/query-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 
 import { createLibraryChanges } from "./library-changes";
 import type { ItemsMoved } from "./library-cache";
@@ -14,7 +11,6 @@ const BEAT_MS = 15_000;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  // node has no window, which TanStack takes for a server and schedules no beat on
   environmentManager.setIsServer(() => false);
 });
 
@@ -25,7 +21,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// a tab asking what moved over a cell holding a note, and another device writing to it
 const askingTab = () => {
   const cell = createFakeCell();
   const noteId = cell.seed.item({ title: "Note" });
@@ -42,8 +37,10 @@ const askingTab = () => {
   const listing = queries.library.listing.titles.queryKey();
   queryClient.setQueryData(row, cell.held(noteId));
   queryClient.setQueryData(listing, { targets: [] });
-  const stale = (key: typeof row | typeof listing): boolean =>
+
+  const stale = (key: typeof row | typeof listing) =>
     queryClient.getQueryState(key)?.isInvalidated === true;
+
   return {
     asks: () => cell.calls.filter((call) => call === "tab library/changes").length,
     changes,

@@ -1,5 +1,5 @@
 "use client";
-// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
+// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator";
 

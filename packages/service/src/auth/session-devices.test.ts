@@ -1,6 +1,3 @@
-// Every device signed in by Better Auth's own session: the routes it signs in and out on, the
-// devices it lists and ends, and the cap a new sign-in keeps the account under.
-
 import { randomUUID } from "node:crypto";
 
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
@@ -23,8 +20,8 @@ import {
   signInPhone,
   signUpUser,
   userIdOf,
-} from "../test-support/auth-requests";
-import { issueToken } from "../test-support/password-reset";
+} from "../test-support/auth-requests.test-utils";
+import { issueToken } from "../test-support/password-reset.test-utils";
 import { getAuth } from "./auth";
 import {
   deviceNameOf,
@@ -41,24 +38,25 @@ const liveSessionsOf = async (userId: string) =>
     .from(session)
     .where(and(eq(session.userId, userId), gt(session.expiresAt, new Date())));
 
-// what the browser extension sends: the browser's own session cookie as a bearer
 const extensionHeaders = (cookie: string) => ({
   authorization: `Bearer ${sessionTokenOf(cookie)}`,
 });
 
 const phoneHeaders = (cookie: string) => ({ cookie, "expo-origin": PHONE_ORIGIN });
 
-// the session a cookie names, as a device list marks the one asking
-const sessionIdOf = async (cookie: string): Promise<string> => {
+const sessionIdOf = async (cookie: string) => {
   const found = await sessionOf({ cookie });
+
   if (found === null) {
     throw new Error("no session for that cookie");
   }
+
   return found.session.id;
 };
 
 const adapter = async () => {
   const context = await getAuth().$context;
+
   return context.internalAdapter;
 };
 
@@ -66,11 +64,13 @@ dbSuite("Better Auth's routes for every device", () => {
   it("answers a sign-in with its cookie and no token a script could read", async () => {
     const email = "routes-token@example.test";
     await signUpUser(email);
+
     const callers: readonly Record<string, string>[] = [
       { origin: ORIGIN },
       { "expo-origin": PHONE_ORIGIN },
       { origin: EXTENSION_ORIGIN },
     ];
+
     for (const headers of callers) {
       const signedIn = await authPost("/sign-in/email", headers, { email, password: PASSWORD });
       expect(signedIn.status).toBe(200);
@@ -84,11 +84,13 @@ dbSuite("Better Auth's routes for every device", () => {
     const email = "routes-origins@example.test";
     const { cookie } = await signUpUser(email);
     const other = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
     const refused = await authPost(
       "/sign-in/email",
       { origin: other },
       { email, password: PASSWORD },
     );
+
     expect(refused.status).toBe(403);
     const keptOut = await authPost("/sign-out", { cookie, origin: other });
     expect(keptOut.status).toBe(403);
@@ -100,12 +102,13 @@ dbSuite("Better Auth's routes for every device", () => {
     expect(signedOut.status).toBe(200);
     expect(signedOut.headers.get("clear-site-data")).toBe('"cache"');
     await expect(liveSessionsOf(accountId)).resolves.toHaveLength(0);
-    // a native request names no Origin, so the phone's plugin reads its scheme in its place
+
     const phone = await authPost(
       "/sign-in/email",
       { cookie: await signInPhone(email), "expo-origin": PHONE_ORIGIN },
       { email, password: PASSWORD },
     );
+
     expect(phone.status).toBe(200);
   });
 
@@ -117,10 +120,12 @@ dbSuite("Better Auth's routes for every device", () => {
 
   it("keeps a sign-in sixty days", async () => {
     const { cookie } = await signUpUser("routes-sixty@example.test");
+
     const [row] = await db
       .select({ createdAt: session.createdAt, expiresAt: session.expiresAt })
       .from(session)
       .where(eq(session.userId, await userIdOf(cookie)));
+
     expect((row?.expiresAt.getTime() ?? 0) - (row?.createdAt.getTime() ?? 0)).toBeGreaterThan(
       59 * DAY_MS,
     );
@@ -130,11 +135,13 @@ dbSuite("Better Auth's routes for every device", () => {
     const email = "routes-reset@example.test";
     const { cookie } = await signUpUser(email);
     const phoneCookie = await signInPhone(email);
+
     const reset = await authPost(
       "/reset-password",
       { origin: ORIGIN },
       { newPassword: "new-password-5678", token: await issueToken(email) },
     );
+
     expect(reset.status).toBe(200);
     await expect(sessionOf(phoneHeaders(phoneCookie))).resolves.toBeNull();
     await expect(sessionOf(extensionHeaders(cookie))).resolves.toBeNull();
@@ -153,6 +160,7 @@ dbSuite("the account's devices, its sessions", () => {
       { current: false, name: "Chrome on Mac" },
       { current: true, name: "iPhone" },
     ]);
+
     for (const device of devices) {
       expect(Object.keys(device).toSorted()).toStrictEqual([
         "createdAt",
@@ -162,7 +170,9 @@ dbSuite("the account's devices, its sessions", () => {
         "name",
       ]);
     }
+
     const listed = JSON.stringify(devices);
+
     for (const { token } of await liveSessionsOf(accountId)) {
       expect(listed).not.toContain(token);
     }
@@ -175,6 +185,7 @@ dbSuite("the account's devices, its sessions", () => {
     const accountId = await userIdOf(cookie);
     const listed = await listSessionDevices(accountId, await sessionIdOf(cookie));
     const phoneRow = listed.find(({ current }) => !current);
+
     if (phoneRow === undefined) {
       throw new Error("no phone session listed");
     }

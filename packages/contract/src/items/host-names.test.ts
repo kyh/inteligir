@@ -12,6 +12,7 @@ describe(isLoopbackName, () => {
     for (const name of ["localhost", "LOCALHOST", "localhost.", "a.localhost", "x.y.Localhost"]) {
       expect(isLoopbackName(name), name).toBe(true);
     }
+
     for (const name of ["localhost.com", "mylocalhost", "example.com"]) {
       expect(isLoopbackName(name), name).toBe(false);
     }
@@ -23,6 +24,7 @@ describe(isPrivateUseName, () => {
     for (const name of ["nas", "wiki.", "printer.local", "box.home.arpa", "git.corp", "a.lan"]) {
       expect(isPrivateUseName(name), name).toBe(true);
     }
+
     for (const name of ["example.com", "local.example.com", "lan.example"]) {
       expect(isPrivateUseName(name), name).toBe(false);
     }

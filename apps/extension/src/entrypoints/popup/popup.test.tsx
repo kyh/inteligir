@@ -21,20 +21,21 @@ const SIGN_IN_URL = "https://inteligir.com/app/sign-in";
 const LIBRARY_URL = "https://inteligir.com/library";
 const FULL = "Your library is full.";
 
-const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });
-const refused = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
+const saved = (created: boolean) =>
+  ({ created, kind: "saved", title: "File over app" }) satisfies Outcome;
+
+const refused = (reason: OutcomeReason) => ({ kind: "refused", reason }) satisfies Outcome;
+
 const signedIn: Status = {
   account: { email: "reader@example.test", libraryUrl: LIBRARY_URL },
   signInUrl: SIGN_IN_URL,
 };
+
 const signedOut: Status = { account: null, signInUrl: SIGN_IN_URL };
 
 const LATER: RefusedSave = { message: FULL, name: "Read it later", opId: "later" };
 const OVER: RefusedSave = { message: FULL, name: "File over app", opId: "over" };
 
-// a worker that answers a save from the script and a status as the case says, null being none it
-// could read, holds the saves the library refused, and records what it was asked. A refused save
-// tried again lands, unless the case says the library still refuses
 const worker = (
   status: Status | null,
   answers: Outcome[] = [],
@@ -43,49 +44,50 @@ const worker = (
   const asked: ExtensionRequest[] = [];
   let parked = held.refused ?? [];
   const without = (opId: string) => parked.filter((save) => save.opId !== opId);
+
   const ask: WorkerAsks = {
     discard: async (opId) => {
       asked.push({ opId, type: "discard" });
       parked = without(opId);
+
       return parked;
     },
     refused: async () => {
       asked.push({ type: "refused" });
+
       return parked;
     },
     retry: async (opId) => {
       asked.push({ opId, type: "retry" });
       parked = held.stillRefused === true ? parked : without(opId);
+
       return parked;
     },
     save: async (tabId) => {
       asked.push({ tabId, type: "save" });
+
       return answers.shift() ?? refused("failed");
     },
     status: async () => {
       asked.push({ type: "status" });
+
       return status;
     },
   };
+
   return { ask, asked };
 };
 
-const tabSeven = async (): Promise<number | null> => 7;
+const tabSeven = async () => 7;
 
-// the popup as its page opens it: over the one save its opening makes, which it suspends on as it
-// mounts, so React asks that the mount be awaited
-const openPopup = async (
-  ask: WorkerAsks,
-  activeTabId: () => Promise<number | null> = tabSeven,
-): Promise<void> => {
+const openPopup = async (ask: WorkerAsks, activeTabId: () => Promise<number | null> = tabSeven) => {
   const opened = saveOpenedTab(activeTabId, ask);
   await act(async () => {
     render(<Popup ask={ask} opened={opened} />);
   });
 };
 
-// a press whose ask the worker answers before the test reads the popup again
-const press = async (name: string, row: HTMLElement): Promise<void> => {
+const press = async (name: string, row: HTMLElement) => {
   await act(async () => {
     fireEvent.click(within(row).getByRole("button", { name }));
   });
@@ -100,7 +102,6 @@ describe("the popup", () => {
     expect(screen.getByText("Open your library").closest("a")?.getAttribute("href")).toBe(
       LIBRARY_URL,
     );
-    // the refused saves are asked for once the save has settled
     expect(asked).toStrictEqual([
       { tabId: 7, type: "save" },
       { type: "status" },
@@ -125,6 +126,7 @@ describe("the popup", () => {
       ...ask,
       save: async (tabId) => {
         await held.promise;
+
         return await ask.save(tabId);
       },
     });
@@ -157,7 +159,6 @@ describe("the popup", () => {
       await openPopup(worker(signedOut, [refused(reason)]).ask);
       const line = outcomeLine(refused(reason));
       const shown = await screen.findByText(line.text);
-      // a line that links the sign-in page is that link; any other is an alert
       expect(
         line.signIn ? shown.closest("a")?.getAttribute("href") : shown.getAttribute("role"),
         reason,
@@ -182,6 +183,7 @@ describe("the popup's refused saves", () => {
     const { ask } = worker(signedIn, [{ kind: "refused", message: FULL, reason: "library" }], {
       refused: [LATER, OVER],
     });
+
     await openPopup(ask);
     const headline = await screen.findByRole("alert");
     expect(headline.textContent).toBe(FULL);
@@ -202,9 +204,11 @@ describe("the popup's refused saves", () => {
     const landing = worker(signedIn, [saved(true)], { refused: [LATER, OVER] });
     await openPopup(landing.ask);
     const [later] = await screen.findAllByRole("listitem");
+
     if (later === undefined) {
       throw new Error("the popup listed no refused save");
     }
+
     await press("Try again", later);
     expect(landing.asked.at(-1)).toStrictEqual({ opId: "later", type: "retry" });
     expect(screen.getAllByRole("listitem").map((row) => row.textContent)).toStrictEqual([
@@ -262,12 +266,10 @@ describe("the welcome page", () => {
   });
 });
 
-// a component the compiler memoizes wrongly passes every other test and fails only in the browser.
-// Welcome draws static parts, which the compiler caches behind its sentinel; the popup's mark is
-// the memo cache it opens
 test("holds the React Compiler's output for the extension's pages", () => {
   const plugin =
     "the extension vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/";
+
   expect(Welcome.toString(), plugin).toContain("react.memo_cache_sentinel");
   expect(Popup.toString(), plugin).toContain("const $ = ");
 });

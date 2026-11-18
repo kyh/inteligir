@@ -1,7 +1,3 @@
-// CLAUDE.md § The panel starts closed, is flat-tabbed, and is dragged like the rail. The right
-// panel's tabs: Info about one item (the open one, else the one card selected), and the built-in
-// agent's conversations about the whole library.
-
 import type { AgentViewContext } from "@repo/client/agent-send";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { z } from "zod";
@@ -17,7 +13,6 @@ const panelTabSchema = z.enum(PANEL_TABS);
 export interface PanelProps {
   readonly itemId: string | null;
   readonly viewContext: () => AgentViewContext | undefined;
-  // waits for the open note to store what was typed in it, which an undo does first
   readonly flushOpen: () => Promise<void>;
 }
 
@@ -28,11 +23,13 @@ const NoItem = () => (
 export const Panel = ({ itemId, viewContext, flushOpen }: PanelProps) => {
   const { workspace } = usePageLibrary();
   const tab = useStore(workspace.store, (state) => state.panelTab);
+
   return (
     <Tabs
       value={tab}
       onValueChange={(value) => {
         const next = panelTabSchema.safeParse(value);
+
         if (next.success) {
           workspace.showPanelTab(next.data);
         }

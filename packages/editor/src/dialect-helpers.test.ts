@@ -7,22 +7,27 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-const chipDates = (nodes: Descendant[]): string[] => {
+const chipDates = (nodes: Descendant[]) => {
   const out: string[] = [];
+
   for (const node of nodes) {
     if (!ElementApi.isElement(node)) {
       continue;
     }
+
     const date = node.type === "date" ? stringProp(node, "date") : undefined;
+
     if (date !== undefined) {
       out.push(date);
     }
+
     out.push(...chipDates(node.children));
   }
+
   return out;
 };
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 describe("date chip inserts", () => {
   it("/date inserts today's ISO date", () => {

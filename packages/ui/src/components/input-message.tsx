@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type {
@@ -29,12 +29,10 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   topSlot?: ReactNode;
   rightSlot?: ReactNode;
   disabled?: boolean;
-  // a send with nothing typed is one too: a named action carries the message by itself
   sendsEmpty?: boolean;
   minRows?: number;
   maxRows?: number;
   sendLabel?: string;
-  // the forwarded ref is the container's; this one reaches the textarea
   textareaRef?: Ref<HTMLTextAreaElement>;
   textareaProps?: Omit<
     TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -42,17 +40,14 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   >;
 }
 
-// a message goes once it holds something, or with nothing when the caller says that is a message
-const sendable = (trimmed: string, disabled: boolean, sendsEmpty: boolean | undefined): boolean =>
+const sendable = (trimmed: string, disabled: boolean, sendsEmpty: boolean | undefined) =>
   !disabled && (sendsEmpty === true || trimmed.length > 0);
 
-// `w-7` is how an icon-compact Button spells its width, so the toolbar can shrink it to a 6
 const TOOLBAR = "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-caption";
 
-// the composer's edge over the surface's own ring: the field's focus outranks the hover by
-// specificity, a `:has()` counting its argument
 const FOCUS_EDGE =
   "has-[textarea:focus-visible]:shadow-[0_0_0_1px_color-mix(in_oklab,var(--foreground)_20%,transparent),0_1px_1px_-0.5px_var(--shadow-color)]";
+
 const HOVER_EDGE = "hover:shadow-[0_0_0_1px_var(--border),0_1px_1px_-0.5px_var(--shadow-color)]";
 
 const InputMessage = ({
@@ -76,28 +71,27 @@ const InputMessage = ({
 }: InputMessageProps & RefAttributes<HTMLDivElement>) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const {
-    // runs before the composer's own handling and wins by preventDefault (a mention combobox
-    // intercepts the keys the composer treats as submit)
-    onKeyDown: consumerOnKeyDown,
-    ...restTextareaProps
-  } = textareaProps ?? {};
+  const { onKeyDown: consumerOnKeyDown, ...restTextareaProps } = textareaProps ?? {};
 
   const lineHeightCache = useRef<{ el: HTMLTextAreaElement; value: number } | null>(null);
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
+
     if (!el) {
       return;
     }
+
     el.style.height = "auto";
     let cache = lineHeightCache.current;
+
     if (!cache || cache.el !== el) {
       // oxlint-disable-next-line unicorn/prefer-number-coercion -- lineHeight is a CSS length like "20px", which Number() reads as NaN
       const lineHeight = Number.parseFloat(getComputedStyle(el).lineHeight);
       cache = { el, value: Number.isNaN(lineHeight) ? 20 : lineHeight };
       lineHeightCache.current = cache;
     }
+
     const min = cache.value * minRows;
     const max = cache.value * maxRows;
     const next = Math.min(Math.max(el.scrollHeight, min), max);
@@ -105,30 +99,32 @@ const InputMessage = ({
     el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
   }, [minRows, maxRows]);
 
-  // after every commit, with no dependency list: the height follows what the field holds, which
-  // the effect reads off the element and never from a prop
   useLayoutEffect(() => {
     resizeTextarea();
   });
 
-  // a mount-time measure at near-zero width reads the wrapped placeholder as many lines and pins
-  // maxRows until the next value change; width-gated so the observer cannot loop on its own
-  // height writes.
   useEffect(() => {
     const el = textareaRef.current;
+
     if (!el) {
       return;
     }
+
     let lastWidth = el.offsetWidth;
+
     const ro = new ResizeObserver(() => {
       const width = el.offsetWidth;
+
       if (width === lastWidth) {
         return;
       }
+
       lastWidth = width;
       resizeTextarea();
     });
+
     ro.observe(el);
+
     return () => {
       ro.disconnect();
     };
@@ -141,6 +137,7 @@ const InputMessage = ({
     if (!canSend) {
       return;
     }
+
     onSend?.(trimmed);
   };
 
@@ -148,6 +145,7 @@ const InputMessage = ({
     if (isImeComposing(e)) {
       return;
     }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -158,13 +156,17 @@ const InputMessage = ({
     if (disabled) {
       return;
     }
+
     const target = e.target instanceof HTMLElement ? e.target : null;
+
     if (target === null || target === textareaRef.current) {
       return;
     }
+
     if (target.closest('button, a, input, select, textarea, [contenteditable], [role="button"]')) {
       return;
     }
+
     e.preventDefault();
     textareaRef.current?.focus();
   };
@@ -198,9 +200,11 @@ const InputMessage = ({
           }}
           onKeyDown={(e) => {
             consumerOnKeyDown?.(e);
+
             if (e.defaultPrevented) {
               return;
             }
+
             handleKeyDown(e);
           }}
           placeholder={placeholder}

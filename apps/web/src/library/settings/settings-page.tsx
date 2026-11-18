@@ -1,8 +1,3 @@
-// Settings, drawn over the workspace it leaves mounted (`library-layout.tsx`): the account and
-// what reaches it, bringing a library in, and how the editor reads. A section
-// the cloud answers waits for a connection and says so; the editor's are this page's own. Its own
-// address, so it deep-links and Back works.
-
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
@@ -30,8 +25,6 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { label: "Dark", value: "dark" },
 ];
 
-// ids agree with the sections below; the nav scrolls to one rather than linking to its fragment,
-// so the address stays the route
 const NAV = [
   { id: "account", label: "Account" },
   { id: "import", label: "Import" },
@@ -42,6 +35,7 @@ const NAV = [
 const EditorSection = () => {
   const { theme, setTheme } = useTheme();
   const [appearance, setAppearance] = usePref(devicePrefs, "appearance");
+
   return (
     <section id="editor" className="scroll-mt-10 space-y-2">
       <SectionHeading>Editor</SectionHeading>

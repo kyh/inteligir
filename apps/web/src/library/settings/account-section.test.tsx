@@ -1,24 +1,32 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import type { PageLibrary } from "../cloud/library-context";
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
-import type { CellCall } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library.test-utils";
+import type { CellCall } from "../test-support/fake-page-library.test-utils";
 import { AccountSection } from "./account-section";
 
-// Better Auth's calls, answered with the suite's `status` and recorded as their method and path.
-// Its client binds `fetch` as it is made, so the stub is in place before any import.
-const betterAuth = vi.hoisted(() => {
+const { betterAuth, network } = await vi.hoisted(async () => {
+  const { http, HttpResponse } = await import("msw");
+  const { setupServer } = await import("msw/node");
   const asked: string[] = [];
   const held = { asked, status: 200 };
-  vi.stubGlobal("fetch", async (input: Request | string | URL, init?: RequestInit) => {
-    const request = new Request(input, init);
-    held.asked.push(`${request.method} ${new URL(request.url).pathname}`);
-    return await Promise.resolve(
-      Response.json({ success: held.status === 200 }, { status: held.status }),
-    );
-  });
-  return held;
+
+  const server = setupServer(
+    http.all("*/api/auth/*", ({ request }) => {
+      held.asked.push(`${request.method} ${new URL(request.url).pathname}`);
+
+      return HttpResponse.json({ success: held.status === 200 }, { status: held.status });
+    }),
+  );
+
+  server.listen({ onUnhandledRequest: "error" });
+
+  return { betterAuth: held, network: server };
+});
+
+afterAll(() => {
+  network.close();
 });
 
 const device = (id: string, name: string, current: boolean) => ({
@@ -36,23 +44,26 @@ const answer = ({ path }: CellCall) => {
         devices: [device("s-mac", "Safari on Mac", true), device("s-phone", "iPhone", false)],
       };
     }
+
     case "account.assistants.list": {
       return { assistants: [] };
     }
+
     default: {
       return { enabled: false, resetsAt: 0, turnsLeft: 0 };
     }
   }
 };
 
-// Better Auth answering with `status`, and where the page went once it left
 const signingOut = (status: number) => {
   betterAuth.status = status;
   betterAuth.asked.length = 0;
   const leaves: string[] = [];
+
   const left: PageLibrary["left"] = (reason) => {
     leaves.push(reason);
   };
+
   return { asked: betterAuth.asked, leaves, left };
 };
 

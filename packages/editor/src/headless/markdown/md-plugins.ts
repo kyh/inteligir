@@ -1,7 +1,3 @@
-// The one grammar: CommonMark and GFM as Plate writes them, `$$` math, and remark-directive for the
-// dialect's own blocks and inlines. Frontmatter comes first, so a leading `---` is claimed before
-// the thematic break reads it.
-
 /// <reference types="remark-parse" />
 
 import type {
@@ -48,95 +44,110 @@ import { isMdastRoot } from "./mdast-nodes";
 
 declare module "mdast" {
   interface BlockquoteData {
-    // the alert a quote's first line named, which the blockquote rule reads into the node
     alert?: AlertVariant;
   }
 }
 
 type TextDirective = Extract<PhrasingContent, { type: "textDirective" }>;
+
 type ContainerDirective = Extract<RootContent, { type: "containerDirective" }>;
 
-const labelText = (node: { children: readonly PhrasingContent[] }): string =>
+const labelText = (node: { children: readonly PhrasingContent[] }) =>
   node.children.map((child) => ("value" in child ? child.value : "")).join("");
 
-// a text directive the rules can read whole: a date's label is its ISO day, a formula says its
-// source, and its name where it has one, and nothing else
-const readableText = (node: TextDirective): boolean => {
+const readableText = (node: TextDirective) => {
   const attributes = node.attributes ?? {};
-  switch (textDirectiveSchema.safeParse(node.name).data) {
+
+  const directiveName = textDirectiveSchema.safeParse(node.name).data;
+
+  switch (directiveName) {
     case "date": {
       return Object.keys(attributes).length === 0 && isIsoDate(labelText(node));
     }
+
     case "formula": {
       return formulaAttributesSchema.safeParse(attributes).success;
     }
+
     case undefined: {
       return false;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(directiveName satisfies never)}`);
+    }
   }
 };
 
-const sourceOf = (node: Nodes, source: string): string | null => {
+const sourceOf = (node: Nodes, source: string) => {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
+
   return start === undefined || end === undefined ? null : source.slice(start, end);
 };
 
-const textNode = (value: string): Text => ({ type: "text", value });
+const textNode = (value: string) => ({ type: "text", value }) satisfies Text;
 
-const paragraphOf = (value: string): Paragraph => ({
-  children: [textNode(value)],
-  type: "paragraph",
-});
+const paragraphOf = (value: string) =>
+  ({
+    children: [textNode(value)],
+    type: "paragraph",
+  }) satisfies Paragraph;
 
 const CLOSING_FENCE = /(?<fence>:{3,})[\t ]*$/u;
 
-// an unknown container keeps its marker lines as paragraphs around what it held
-const containerAsText = (node: ContainerDirective, source: string): RootContent[] => {
+const containerAsText = (node: ContainerDirective, source: string) => {
   const written = sourceOf(node, source) ?? `:::${node.name}`;
   const lines = written.split("\n");
   const [first] = lines;
   const last = lines.length > 1 ? lines.at(-1) : undefined;
   const fence = last === undefined ? undefined : CLOSING_FENCE.exec(last)?.groups?.fence;
   const [head] = node.children;
+
   const body =
     head?.type === "paragraph" && head.data?.directiveLabel === true
       ? node.children.slice(1)
       : node.children;
-  return [paragraphOf(first ?? ""), ...body, ...(fence === undefined ? [] : [paragraphOf(fence)])];
+
+  return [
+    paragraphOf(first ?? ""),
+    ...body,
+    ...(fence === undefined ? [] : [paragraphOf(fence)]),
+  ] satisfies RootContent[];
 };
 
-// Every directive the dialect does not read lands as the text it was written as: an unknown name,
-// a leaf, a date that is no day. The source is the file's own bytes, so nothing typed is lost.
-const restoreUnknownDirectives = (tree: Root, source: string): void => {
+const restoreUnknownDirectives = (tree: Root, source: string) => {
   visit(tree, (node, index, parent) => {
     if (parent === undefined || index === undefined) {
       return;
     }
+
     if (node.type === "textDirective" && !readableText(node)) {
       parent.children.splice(index, 1, textNode(sourceOf(node, source) ?? `:${node.name}`));
+
       return [SKIP, index + 1];
     }
+
     if (node.type === "leafDirective") {
       parent.children.splice(index, 1, paragraphOf(sourceOf(node, source) ?? `::${node.name}`));
+
       return [SKIP, index + 1];
     }
+
     if (
       node.type === "containerDirective" &&
       !containerDirectiveSchema.safeParse(node.name).success
     ) {
       parent.children.splice(index, 1, ...containerAsText(node, source));
+
       return index;
     }
+
     return CONTINUE;
   });
 };
 
-// mdast-util-directive escapes a `:` before any word character, so `10:30` would save as `10\:30`.
-// Only a name the dialect reads can turn typed text into a node, so only that name is escaped; any
-// other directive reads back as its text (`restoreUnknownDirectives`).
-const isStockColonEntry = (entry: Unsafe): boolean =>
+const isStockColonEntry = (entry: Unsafe) =>
   entry.character === ":" && entry.before === "[^:]" && entry.atBreak !== true;
 
 const DIALECT_COLON: Unsafe = {
@@ -146,37 +157,36 @@ const DIALECT_COLON: Unsafe = {
   inConstruct: ["phrasing"],
 };
 
-// gfm splits a row at every bare pipe, before any inline is read, and an attribute's value has no
-// backslash escape, so a pipe in one is written as the character reference the value decodes
-const inCellPipes =
-  (handle: Handle): Handle =>
-  (node, parent, state, info) => {
+const inCellPipes = (handle: Handle) =>
+  ((node, parent, state, info) => {
     const written = handle(node, parent, state, info);
+
     return state.stack.includes("tableCell")
       ? written.replaceAll(/(?<!\\)\|/gu, "&#x7C;")
       : written;
-  };
+  }) satisfies Handle;
 
-const remarkDialectDirectives: Plugin = function remarkDialectDirectives(
-  this: Processor,
-): Transformer {
+const remarkDialectDirectives: Plugin = function remarkDialectDirectives(this: Processor) {
   remarkDirective.call(this);
   const writer = this.data().toMarkdownExtensions?.at(-1);
+
   if (writer !== undefined) {
     writer.unsafe = [
       ...(writer.unsafe ?? []).filter((entry) => !isStockColonEntry(entry)),
       DIALECT_COLON,
     ];
     const textDirective = writer.handlers?.textDirective;
+
     if (textDirective !== undefined) {
       writer.handlers = { ...writer.handlers, textDirective: inCellPipes(textDirective) };
     }
   }
-  return (tree, file) => {
+
+  return ((tree, file) => {
     if (isMdastRoot(tree)) {
       restoreUnknownDirectives(tree, String(file));
     }
-  };
+  }) satisfies Transformer;
 };
 
 const ALERT_MARKER_RE = new RegExp(
@@ -184,31 +194,30 @@ const ALERT_MARKER_RE = new RegExp(
   "iu",
 );
 
-// the marker a text opens with, and how much of the text its line takes. It is read where the
-// source spells it, so the `\[!NOTE]` a write escaped stays the words it is.
-const alertMarker = (
-  lead: Text,
-  source: string,
-): { alert: AlertVariant; length: number } | null => {
+const alertMarker = (lead: Text, source: string) => {
   const found = ALERT_MARKER_RE.exec(lead.value);
   const alert = alertVariantSchema.safeParse(found?.groups?.variant?.toUpperCase());
   const marker = found?.groups?.marker;
   const at = lead.position?.start.offset;
+
   if (found === null || !alert.success || marker === undefined || at === undefined) {
     return null;
   }
-  return source.startsWith(marker, at) ? { alert: alert.data, length: found[0].length } : null;
+
+  return (
+    source.startsWith(marker, at) ? { alert: alert.data, length: found[0].length } : null
+  ) satisfies { alert: AlertVariant; length: number } | null;
 };
 
-// GitHub's alert is a quote whose first line opens `[!NOTE]`, in any case, alone or before words:
-// the quote takes the alert and loses the marker
-const liftAlert = (quote: Blockquote, source: string): void => {
+const liftAlert = (quote: Blockquote, source: string) => {
   const [first, ...others] = quote.children;
   const [lead, ...rest] = first?.type === "paragraph" ? first.children : [];
   const marker = lead?.type === "text" ? alertMarker(lead, source) : null;
+
   if (first?.type !== "paragraph" || lead?.type !== "text" || marker === null) {
     return;
   }
+
   const tail = lead.value.slice(marker.length);
   const [after, ...below] = rest;
   const line = tail === "" && after?.type === "break" ? below : rest;
@@ -218,36 +227,35 @@ const liftAlert = (quote: Blockquote, source: string): void => {
     words.length === 0 && others.length > 0 ? others : [{ ...first, children: words }, ...others];
 };
 
-const remarkAlerts: Plugin = function remarkAlerts(): Transformer {
-  return (tree, file) => {
+const remarkAlerts: Plugin = function remarkAlerts() {
+  return ((tree, file) => {
     if (isMdastRoot(tree)) {
       const source = String(file);
       visit(tree, "blockquote", (quote) => {
         liftAlert(quote, source);
       });
     }
-  };
+  }) satisfies Transformer;
 };
 
 const MATH_OPTIONS = { singleDollarTextMath: false };
 
 const inlineMathHandle = mathToMarkdown(MATH_OPTIONS).handlers?.inlineMath;
 const exitInlineMath = mathFromMarkdown().exit?.mathText;
+
 if (!inlineMathHandle || !exitInlineMath) {
   throw new Error("mdast-util-math ships no inline math handlers");
 }
 
-// a cell's pipe is gfm's divider, so inline math in a row writes its own as `\|`, read back as gfm
-// reads a code span's; TeX's own `\|` is the same double bar as `\Vert`
 const CELL_PIPE_SPELLING: ReadonlyMap<string, string> = new Map([
   ["|", String.raw`\|`],
   [String.raw`\|`, String.raw`\Vert `],
 ]);
 
-const escapeCellPipes = (raw: string): string =>
+const escapeCellPipes = (raw: string) =>
   raw.replaceAll(/\\[\s\S]|\|/gu, (run) => CELL_PIPE_SPELLING.get(run) ?? run);
 
-const readCellPipes = (raw: string): string =>
+const readCellPipes = (raw: string) =>
   raw.replaceAll(/\\[\\|]/gu, (run) => (run === String.raw`\|` ? "|" : run));
 
 const inlineMathInRow: Handle = (node: InlineMath, parent, state, info) =>
@@ -264,6 +272,7 @@ const inlineMathFromRow: FromMarkdownExtension = {
       exitInlineMath.call(this, token);
       const parent = this.stack.at(-1);
       const math = parent !== undefined && "children" in parent ? parent.children.at(-1) : null;
+
       if (this.data.inTable === true && math?.type === "inlineMath") {
         math.value = readCellPipes(math.value);
       }
@@ -271,12 +280,9 @@ const inlineMathFromRow: FromMarkdownExtension = {
   },
 };
 
-// gfm pairs a cell's backslashes before it splits the row, and a code span reads the last of an odd
-// run with its pipe as a bare pipe, so a pipe written after an even run would end the cell. Each
-// pipe gets an odd run that reads back as its own; an odd run of the span's own has no spelling,
-// so it reads back one backslash longer, and from there holds.
 const inlineCodeInRow: Handle = (node: InlineCode, parent, state) => {
   const written = defaultHandlers.inlineCode(node, parent, state);
+
   return state.stack.includes("tableCell")
     ? written.replaceAll(
         /(?<run>\\*)\|/gu,
@@ -285,25 +291,25 @@ const inlineCodeInRow: Handle = (node: InlineCode, parent, state) => {
     : written;
 };
 
-// Plate types remarkPlugins as Plugin[] (no [plugin, options] tuples), so options bind by name
 const remarkMathNoSingleDollar: Plugin = function remarkMathNoSingleDollar(this: Processor) {
   remarkMath.call(this, MATH_OPTIONS);
   (this.data().fromMarkdownExtensions ??= []).push(inlineMathFromRow);
 };
 
 const gfmListItem = gfmTaskListItemToMarkdown().handlers?.listItem;
+
 if (!gfmListItem) {
   throw new Error("mdast-util-gfm-task-list-item ships no listItem handler");
 }
 
-// gfm writes an empty to-do as a bare `-`, since its box follows content the item does not have;
-// a zero-width space is that content, which Plate's paragraph rule reads back as empty
 const listItemEmptyTodo: Handle = (node: ListItem, parent, state, info) => {
   const [head, ...rest] = node.children;
+
   const empty =
     (node.checked === true || node.checked === false) &&
     head?.type === "paragraph" &&
     head.children.every((child) => child.type === "text" && child.value === "");
+
   return gfmListItem(
     empty
       ? { ...node, children: [{ ...head, children: [textNode(ZERO_WIDTH_SPACE)] }, ...rest] }
@@ -314,11 +320,9 @@ const listItemEmptyTodo: Handle = (node: ListItem, parent, state, info) => {
   );
 };
 
-// a block nested in a list item rides beside the list until the root is written
 const rootInLists: Handle = (node: Root, _parent, state, info) =>
   state.containerFlow({ ...node, children: nestInLists(node.children) }, info);
 
-// `***` for a rule, since a `---` opening the text is frontmatter to the next read
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
@@ -330,27 +334,27 @@ export const MD_STRINGIFY = {
   rule: "*",
 } satisfies ToMarkdownOptions;
 
-const imageSource = (alt: string | null | undefined): Text => textNode(`![${alt ?? ""}]()`);
+const imageSource = (alt: string | null | undefined) => textNode(`![${alt ?? ""}]()`);
 
-const addressOf = (node: Nodes, urls: ReadonlyMap<string, string>): string | undefined => {
+const addressOf = (node: Nodes, urls: ReadonlyMap<string, string>) => {
   switch (node.type) {
     case "link":
     case "image": {
       return node.url;
     }
+
     case "linkReference":
     case "imageReference": {
       return urls.get(node.identifier);
     }
+
     default: {
-      return undefined;
+      return null;
     }
   }
 };
 
-// A link or an image to no address names nothing an item can store: a link is its words and an
-// image the text that spelled it, whether it wrote its address or a definition did.
-const addresslessAsText = (tree: Root): void => {
+const addresslessAsText = (tree: Root) => {
   const urls = new Map<string, string>();
   visit(tree, (node) => {
     if (node.type === "definition" && !urls.has(node.identifier)) {
@@ -361,39 +365,42 @@ const addresslessAsText = (tree: Root): void => {
     if (parent === undefined || index === undefined) {
       return CONTINUE;
     }
+
     if (addressOf(node, urls) !== "") {
       return CONTINUE;
     }
+
     if (node.type === "link" || node.type === "linkReference") {
       parent.children.splice(index, 1, ...node.children);
+
       return index;
     }
+
     if (node.type === "image" || node.type === "imageReference") {
       parent.children.splice(index, 1, imageSource(node.alt));
+
       return [SKIP, index + 1];
     }
+
     return CONTINUE;
   });
 };
 
-const definitionLine = (node: Definition): string => {
+const definitionLine = (node: Definition) => {
   const url = node.url === "" ? "<>" : node.url;
   const title = node.title === null || node.title === undefined ? "" : ` "${node.title}"`;
+
   return `[${node.label ?? node.identifier}]: ${url}${title}`;
 };
 
-// Plate reads a reference as the link its label's first definition names and drops every
-// definition. One nothing uses, or a label's second, is the line it was written as, so no words a
-// person wrote go; the parse's own transforms then read it as finished text, so a bare url in it is
-// the link the next read would make it.
-const remarkUnusedDefinitions: Plugin = function remarkUnusedDefinitions(
-  this: Processor,
-): Transformer {
+const remarkUnusedDefinitions: Plugin = function remarkUnusedDefinitions(this: Processor) {
   const data = this.data();
-  return (tree) => {
+
+  return ((tree) => {
     if (!isMdastRoot(tree)) {
       return;
     }
+
     addresslessAsText(tree);
     const used = new Set<string>();
     visit(tree, (node) => {
@@ -407,22 +414,27 @@ const remarkUnusedDefinitions: Plugin = function remarkUnusedDefinitions(
       if (node.type !== "definition" || parent === undefined || index === undefined) {
         return CONTINUE;
       }
+
       if (used.has(node.identifier) && !named.has(node.identifier)) {
         named.add(node.identifier);
+
         return CONTINUE;
       }
+
       const line = paragraphOf(definitionLine(node));
       lines.push(line);
       parent.children.splice(index, 1, line);
+
       return [SKIP, index + 1];
     });
     const finished: Root = { children: lines, type: "root" };
+
     for (const extension of (data.fromMarkdownExtensions ?? []).flat()) {
       for (const transform of extension.transforms ?? []) {
         transform(finished);
       }
     }
-  };
+  }) satisfies Transformer;
 };
 
 export const MD_REMARK_PLUGINS: Plugin[] = [

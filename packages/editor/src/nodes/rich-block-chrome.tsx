@@ -1,6 +1,3 @@
-// A rich block's shell: its card, the editors over its payload and the view of what it parses to.
-// Degrading never touches bytes: the fence value stays verbatim on the node; only the presentation changes.
-
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { PlateElement } from "platejs/react";
@@ -11,10 +8,8 @@ import { cn } from "@repo/ui/lib/cn";
 import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-// what a block's fence value reads as: its payload, or why it stays code
 export type Parse<T> = { ok: true; payload: T } | { ok: false; reason: string };
 
-// the actions wait for a hover, which a finger never makes, so a coarse pointer shows them outright
 const RichBlockCard = ({
   actions,
   children,
@@ -41,16 +36,13 @@ const RichBlockCard = ({
   </div>
 );
 
-// Outside the editable, so the browser types nothing into a locked container's blocks; a caret a
-// tap leaves there has its keystrokes refused by the lock, and its model guard refuses whatever
-// edit arrives some other way.
 export const LockedContent = ({
   children,
   locked,
 }: {
-  children: ReactNode;
+  children: Exclude<ReactNode, PromiseLike<unknown>>;
   locked: boolean;
-}): ReactNode => (locked ? <div contentEditable={false}>{children}</div> : children);
+}) => (locked ? <div contentEditable={false}>{children}</div> : children);
 
 export const DegradedPayloadView = ({ reason, value }: { reason: string; value: string }) => (
   <div>
@@ -74,6 +66,7 @@ const PayloadEditor = ({
 }) => {
   const [value, setValue] = useState(initial);
   const [refusal, setRefusal] = useState<string | null>(null);
+
   return (
     <div className="p-2">
       <textarea
@@ -104,6 +97,7 @@ const PayloadEditor = ({
           className="rounded-md bg-primary px-2 py-0.5 text-body text-primary-foreground"
           onClick={() => {
             const verdict = validate(value);
+
             if (verdict === null) {
               onSave(value);
             } else {
@@ -128,20 +122,15 @@ const HeaderAction = ({ label, onClick }: { label: string; onClick: () => void }
   </button>
 );
 
-// view: what the payload parses to. structured: the block's own editor over the parsed payload.
-// raw: the payload's text, which is all a payload that does not parse can be edited as.
 type Mode = "view" | "structured" | "raw";
 
 interface RichBlockSpec<T> {
   label: string;
   parse: (value: string) => Parse<T>;
   renderView: (payload: T) => ReactNode;
-  // what the header says of a payload that parses, in the label's place
   titleOf?: (payload: T) => string | undefined;
-  // the view's own actions, which change nothing in the note
   viewActions?: ReactNode;
   structured?: {
-    // names the button that opens it
     label: string;
     renderEditor: (payload: T, write: (value: string) => void, value: string) => ReactNode;
   };
@@ -160,26 +149,28 @@ export const RichBlock = <T,>({
   const frozen = useFrozen();
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parse(value);
-  // a block that takes no edit draws its view, whichever editor it had open
   const shown = frozen ? "view" : mode;
-  const toView = (): void => {
+
+  const toView = () => {
     setMode("view");
   };
-  // an ordinary transaction, so the change rides the item's next write like typing
-  const write = (next: string): void => {
+
+  const write = (next: string) => {
     const path = props.editor.api.findPath(props.element);
+
     if (path !== undefined) {
       props.editor.tf.setNodes({ value: next }, { at: path });
     }
   };
 
-  const body = (): ReactNode => {
+  const body = () => {
     if (shown === "raw") {
       return (
         <PayloadEditor
           initial={value}
           validate={(next) => {
             const verdict = parse(next);
+
             return verdict.ok ? null : verdict.reason;
           }}
           onCancel={toView}
@@ -190,12 +181,16 @@ export const RichBlock = <T,>({
         />
       );
     }
+
     if (!parsed.ok) {
       return <DegradedPayloadView reason={parsed.reason} value={value} />;
     }
-    return shown === "structured" && structured !== undefined
-      ? structured.renderEditor(parsed.payload, write, value)
-      : renderView(parsed.payload);
+
+    if (shown === "structured" && structured !== undefined) {
+      return <>{structured.renderEditor(parsed.payload, write, value)}</>;
+    }
+
+    return <>{renderView(parsed.payload)}</>;
   };
 
   return (

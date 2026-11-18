@@ -1,23 +1,12 @@
-// Every refusal `/v1` answers, declared once with oRPC's `error()` and registered on each row that
-// can raise it, so a client narrows a refusal by its code and reads its data typed. oRPC's own
-// codes stand wherever they mean the same thing; the codes below them are this wire's own. An
-// error's message and data reach the client and, through the connector, the model, so neither
-// holds anything a caller may not see.
-
 import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { editRefusalSchema, shaSchema } from "../library/library-wire";
 
-// a refusal an oRPC client threw, its code and data typed as the wire carries them, where
-// `instanceof` alone types both `any`
 export const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
 
-// ---- what any request may meet before its procedure runs ----
-
-// the build is below the cloud's floor: the credential stands, and only an update moves past it
 export const ClientOutdatedError = error("CLIENT_OUTDATED", {
   message: "This version of the app is too old. Update it to keep going.",
 });
@@ -26,36 +15,25 @@ export const TooManyRequestsError = error("TOO_MANY_REQUESTS", {
   message: "Too many requests. Try again in a minute.",
 });
 
-// the credential is revoked or unknown; one answer for both, since "revoked" tells a thief it
-// once worked
 export const UnauthorizedError = error("UNAUTHORIZED", {
   message: "You're signed out. Sign in again.",
 });
 
-// the account is deleted: 410, not 401, since a client told "unauthorized" retries the credential
 export const AccountGoneError = error("GONE", { message: "This account was deleted." });
 
-// ---- the library's ----
-
-// a base the write named no longer holds; the screen puts back what it showed and reads again, so
-// the refusal carries nothing to merge
 export const ConflictError = error("CONFLICT", { message: "This changed since it was read." });
 
 export const NotFoundError = error("NOT_FOUND", { message: "That isn't in the library." });
 
-// a write names a file the library does not hold yet: the device uploads these and resends
 export const BlobMissingError = error("BLOB_MISSING", {
   data: z.object({ shas: z.array(shaSchema).min(1) }),
   message: "A file this names hasn't been uploaded yet.",
 });
 
-// a file's bytes that do not hash to the sha they were sent under, which no resend changes:
-// oRPC's own code, declared, where an undeclared one is a call the cell could not read
 export const BlobMismatchError = error("BAD_REQUEST", {
   message: "This file changed on this device before it was sent.",
 });
 
-// a block, an item's text or a field past its cap
 export const PayloadTooLargeError = error("PAYLOAD_TOO_LARGE", {
   message: "This is too large to keep in one item.",
 });
@@ -65,34 +43,25 @@ export const QuotaError = error("QUOTA", {
   message: "Your library is full.",
 });
 
-// an edit by passages that cannot land, for the reason its data names
 export const EditRefusedError = error("UNPROCESSABLE_CONTENT", {
   data: editRefusalSchema,
   message: "That edit doesn't match the item's text.",
 });
-
-// ---- the built-in agent's ----
 
 export const AgentBudgetError = error("AGENT_BUDGET", {
   data: z.object({ resetsAt: z.number().int().nonnegative() }),
   message: "The agent has used today's allowance.",
 });
 
-// the built-in agent is off, its model cannot be reached, or every account's spend for the day is
-// gone, when it is back at `resetsAt`; no turn starts and none is charged
 export const AgentUnavailableError = error("SERVICE_UNAVAILABLE", {
   data: z.object({ resetsAt: z.number().int().nonnegative() }).optional(),
   message: "The agent can't be reached right now.",
 });
 
-// ---- the account's ----
-
 export const InvalidCredentialsError = error("INVALID_CREDENTIALS", {
   message: "That email and password don't match an account.",
 });
 
-// what every row is built on, since every row is signed: the floor, the rate limits and the
-// session's own refusals
 export const signedBase = oc.errors({
   [AccountGoneError.code]: AccountGoneError,
   [ClientOutdatedError.code]: ClientOutdatedError,
@@ -100,17 +69,14 @@ export const signedBase = oc.errors({
   [UnauthorizedError.code]: UnauthorizedError,
 });
 
-// the codes oRPC does not know; one with no status here would default to 400 unnoticed
 export const V1_CUSTOM_ERROR_STATUS = {
   [AgentBudgetError.code]: 429,
   [BlobMissingError.code]: 409,
   [ClientOutdatedError.code]: 426,
   [InvalidCredentialsError.code]: 401,
-  // 507: the library cannot store this, which no retry fixes
   [QuotaError.code]: 507,
 } as const;
 
-// the `/v1` handler maps codes to statuses with this, and every suite that stands one up
 export const V1_ERROR_STATUS_MAP = {
   ...COMMON_ERROR_STATUS_MAP,
   ...V1_CUSTOM_ERROR_STATUS,

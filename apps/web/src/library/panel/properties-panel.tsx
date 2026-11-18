@@ -33,23 +33,30 @@ const Field = ({
     case "checkbox": {
       return <CheckboxField label={prop.key} value={prop.value} onCommit={onCommit} />;
     }
+
     case "tags": {
       return <TagsField label={prop.key} value={prop.value} onCommit={onCommit} />;
     }
+
     case "unsupported": {
       return <UnsupportedField raw={prop.raw} />;
     }
+
     case "number": {
       return <LineField label={prop.key} type="number" value={prop.value} onCommit={onCommit} />;
     }
+
     case "date": {
       return <LineField label={prop.key} type="date" value={prop.value} onCommit={onCommit} />;
     }
+
     case "text": {
       return <TextField label={prop.key} value={prop.value} onCommit={onCommit} />;
     }
+
     default: {
       const exhaustive: never = prop;
+
       return exhaustive;
     }
   }
@@ -92,7 +99,6 @@ const KINDS = [
   { kind: "tags", label: "List" },
 ] as const satisfies readonly { kind: PropertyKind; label: string }[];
 
-// the one-line control each type's value is typed into; a checkbox is its own
 const VALUE_INPUT = {
   date: { required: true, type: "date" },
   number: { placeholder: "Value", required: true, step: "any", type: "number" },
@@ -102,9 +108,6 @@ const VALUE_INPUT = {
 
 const ADD_INPUT_CLASS = "h-7 px-1.5 text-body";
 
-// A new property: its name, its type and that type's control, so the value written is the type
-// picked and never one read into what was typed. A submit either adds and closes or stays open
-// saying why: the browser for a number or a date left empty, the form for a name already taken.
 const AddForm = ({
   refuse,
   onAdd,
@@ -132,11 +135,14 @@ const AddForm = ({
         event.preventDefault();
         const name = nameInput.current?.value.trim() ?? "";
         const value = valueInput.current === null ? null : HELD[kind](valueInput.current);
+
         if (name === "" || value === null) {
           return;
         }
+
         const refused = refuse(name);
         setRefusal(refused);
+
         if (refused === null) {
           onAdd(name, value);
         }
@@ -203,7 +209,6 @@ const AddForm = ({
   );
 };
 
-// an item's properties as rows, each edited in place, and every edit handed back as one op
 export const PropertiesPanel = ({
   properties,
   onWrite,
@@ -212,9 +217,11 @@ export const PropertiesPanel = ({
   onWrite: (op: PropertyOp) => void;
 }) => {
   const [adding, setAdding] = useState(false);
+
   const write = (key: string, value?: PropertyValue) => {
     onWrite(propertyOp(properties, key, value));
   };
+
   return (
     <div className="flex flex-col gap-0.5">
       {rowsOf(properties).map((prop) => (

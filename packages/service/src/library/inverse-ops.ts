@@ -1,9 +1,3 @@
-// An item's way back as a change set keeps it: one op a slot (a field, a list, a property by its
-// key), each guarded by the value the set left, since an Undo lands them long after, over edits
-// made since. A field sets whole, the reading too, met by its value, a list merges as a set and a
-// property is the device's own op (`@repo/contract/library/field-ops`). Each of the set's landings
-// composes its own in (`composeInverse`), and only the set's Undo lands them.
-
 import { sameJson } from "@repo/contract/library/canonical-json";
 import {
   applyGuarded,
@@ -15,7 +9,7 @@ import {
   sameList,
   sameOptionalJson,
 } from "@repo/contract/library/field-ops";
-import type { GuardedOutcome, OpVerdict } from "@repo/contract/library/field-ops";
+import type { OpVerdict } from "@repo/contract/library/field-ops";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { z } from "zod";
@@ -25,7 +19,6 @@ type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "
 const isScalarField = (field: keyof LibraryItemFields): field is ScalarField =>
   field !== "aliases" && field !== "properties" && field !== "tags";
 
-// read off the schema, so a field it gains is one an undo restores
 export const SCALAR_FIELDS = libraryItemFieldsSchema.keyof().options.filter(isScalarField);
 
 const FIELDS = libraryItemFieldsSchema.shape;
@@ -38,7 +31,6 @@ const setOf = <F extends ScalarField>(field: F) =>
     value: FIELDS[field],
   });
 
-// one variant per field, so an op's values are its field's own type
 const setOpSchema = z.discriminatedUnion("field", [
   setOf("author"),
   setOf("coverSha"),
@@ -58,13 +50,12 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("url"),
 ]);
 
-// a list merges as a set: what the set added goes, what it took out comes back, and what anyone
-// else did since stays
 const tagsOpSchema = z.strictObject({
   base: FIELDS.tags,
   op: z.literal("tags"),
   value: FIELDS.tags,
 });
+
 const aliasesOpSchema = z.strictObject({
   base: FIELDS.aliases,
   op: z.literal("aliases"),
@@ -77,39 +68,48 @@ export const inverseOpSchema = z.discriminatedUnion("op", [
   aliasesOpSchema,
   propertyOpSchema,
 ]);
+
 export type InverseOp = z.infer<typeof inverseOpSchema>;
 
-// a field's set op: indexed by its field, a mapped type ties the values to it, in a loop over fields too
 type SetOp<F extends ScalarField> = {
   [P in F]: { base: LibraryItemFields[P]; field: P; op: "set"; value: LibraryItemFields[P] };
 }[F];
 
-const setOp = <F extends ScalarField>(
+const setOp: <F extends ScalarField>(
   field: F,
   from: LibraryItemFields,
   to: LibraryItemFields,
-): SetOp<F> => ({ base: from[field], field, op: "set", value: to[field] });
+) => SetOp<F> = <F extends ScalarField>(field: F, from: LibraryItemFields, to: LibraryItemFields) =>
+  ({ base: from[field], field, op: "set", value: to[field] }) satisfies SetOp<F>;
 
-const verdictOf = (fields: LibraryItemFields, op: InverseOp): OpVerdict => {
+const verdictOf = (fields: LibraryItemFields, op: InverseOp) => {
   switch (op.op) {
     case "set": {
       const current = fields[op.field];
+
       if (sameJson(current, op.base)) {
-        return "apply";
+        return "apply" as const;
       }
-      return sameJson(current, op.value) ? "satisfied" : "conflict";
+
+      return (sameJson(current, op.value) ? "satisfied" : "conflict") satisfies OpVerdict;
     }
+
     case "tags":
     case "aliases": {
       const current = fields[op.op];
-      return sameList(mergeListField(op.op, current, op.base, op.value), current)
-        ? "satisfied"
-        : "apply";
+
+      return (
+        sameList(mergeListField(op.op, current, op.base, op.value), current) ? "satisfied" : "apply"
+      ) satisfies OpVerdict;
     }
+
     case "property": {
       return propertyVerdict(fields, op);
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(op satisfies never)}`);
+    }
   }
 };
 
@@ -117,90 +117,98 @@ const withField = <F extends ScalarField>(
   fields: LibraryItemFields,
   field: F,
   value: LibraryItemFields[F],
-): LibraryItemFields => ({ ...fields, [field]: value });
+) => ({ ...fields, [field]: value }) satisfies LibraryItemFields;
 
-// the fields with one op landed, whose guard already passed
-const landOp = (fields: LibraryItemFields, op: InverseOp): LibraryItemFields => {
+const landOp = (fields: LibraryItemFields, op: InverseOp) => {
   switch (op.op) {
     case "set": {
       return withField(fields, op.field, op.value);
     }
+
     case "tags":
     case "aliases": {
-      return { ...fields, [op.op]: mergeListField(op.op, fields[op.op], op.base, op.value) };
+      return {
+        ...fields,
+        [op.op]: mergeListField(op.op, fields[op.op], op.base, op.value),
+      } satisfies LibraryItemFields;
     }
+
     case "property": {
       return landPropertyOp(fields, op);
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(op satisfies never)}`);
+    }
   }
 };
 
-// the way back landed on the item as it is now: whole, or not at all where an edit since meets it
-export const applyInverse = (
-  fields: LibraryItemFields,
-  ops: readonly InverseOp[],
-): GuardedOutcome => applyGuarded(fields, ops, verdictOf, landOp);
+export const applyInverse = (fields: LibraryItemFields, ops: readonly InverseOp[]) =>
+  applyGuarded(fields, ops, verdictOf, landOp);
 
-// what an op writes: a field by its name, a property by its key
-const slotOf = (op: InverseOp): string => {
+const slotOf = (op: InverseOp) => {
   switch (op.op) {
     case "set": {
       return op.field;
     }
+
     case "property": {
       return `property:${op.key}`;
     }
+
     case "tags":
     case "aliases": {
       return op.op;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(op satisfies never)}`);
+    }
   }
 };
 
-// the ops that take `from` to `to`, each guarded by `from`
-const opsBetween = (from: LibraryItemFields, to: LibraryItemFields): InverseOp[] => {
+const opsBetween = (from: LibraryItemFields, to: LibraryItemFields) => {
   const ops: InverseOp[] = [];
+
   for (const field of SCALAR_FIELDS) {
     if (!sameJson(from[field], to[field])) {
       ops.push(setOp(field, from, to));
     }
   }
+
   for (const op of ["tags", "aliases"] as const) {
     if (!sameList(from[op], to[op])) {
       ops.push({ base: from[op], op, value: to[op] });
     }
   }
+
   for (const key of new Set([...Object.keys(from.properties), ...Object.keys(to.properties)])) {
     const [base, value] = [propertyAt(from, key), propertyAt(to, key)];
+
     if (!sameOptionalJson(base, value)) {
       ops.push({ base, key, op: "property", value });
     }
   }
+
   return ops;
 };
 
-// The ops that take an item back from `after` to where `inverse` takes `before`: a set's way back,
-// one more landing of its own taken in. Each slot the landing changed gets one op, guarded by
-// `after`, back to `before` with the earlier op landed, or to `before` as it stands where someone
-// else changed the slot since; every other slot keeps its op. So an edit made between two of the
-// set's landings is never taken back, and one made since the set last wrote a slot meets that
-// slot's guard.
 export const composeInverse = (
   inverse: readonly InverseOp[],
   before: LibraryItemFields,
   after: LibraryItemFields,
-): InverseOp[] => {
+) => {
   const landed = new Set(opsBetween(before, after).map(slotOf));
   let target = before;
+
   for (const op of inverse) {
     if (landed.has(slotOf(op)) && verdictOf(target, op) === "apply") {
       target = landOp(target, op);
     }
   }
+
   return [
     ...inverse.filter((op) => !landed.has(slotOf(op))),
     ...opsBetween(after, target).filter((op) => landed.has(slotOf(op))),
-  ];
+  ] satisfies InverseOp[];
 };

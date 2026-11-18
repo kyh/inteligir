@@ -13,20 +13,24 @@ const CHART: ChartPayload = {
   type: "bar",
 };
 
-const cell = (name: string): HTMLInputElement => {
+const cell = (name: string) => {
   const input = screen.getByRole("textbox", { name });
+
   if (!(input instanceof HTMLInputElement)) {
     throw new TypeError(`${name} is not an input`);
   }
+
   return input;
 };
 
 const mountGrid = (chart: ChartPayload) => {
   const onCommit = vi.fn<(next: ChartPayload) => void>();
   const view = render(<ChartGridEditor chart={chart} onCommit={onCommit} />);
-  const rerender = (next: ChartPayload): void => {
+
+  const rerender = (next: ChartPayload) => {
     view.rerender(<ChartGridEditor chart={next} onCommit={onCommit} />);
   };
+
   return { onCommit, rerender };
 };
 

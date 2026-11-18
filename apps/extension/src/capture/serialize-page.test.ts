@@ -3,15 +3,17 @@ import { describe, expect, it } from "vitest";
 import { capturedPageSchema } from "./captured-page";
 import { CAPTURE_HTML_MAX_CHARS, serializePage } from "./serialize-page";
 
-const pageOf = (body: string, head = ""): Document => {
+const pageOf = (body: string, head = "") => {
   const doc = document.implementation.createHTMLDocument("A rendered page");
   doc.head.insertAdjacentHTML("beforeend", head);
   doc.body.innerHTML = body;
+
   return doc;
 };
 
-const parsed = (html: string | null): Document => {
+const parsed = (html: string | null) => {
   expect(html).not.toBeNull();
+
   return new DOMParser().parseFromString(html ?? "", "text/html");
 };
 
@@ -29,6 +31,7 @@ describe("the captured page", () => {
     const doc = pageOf(
       '<script>steal()</script><script type="module">x()</script><script type=" Application/LD+JSON ">{"@type":"Article"}</script><p>text</p>',
     );
+
     const out = parsed(serializePage(doc).html);
     const scripts = [...out.querySelectorAll("script")];
     expect(scripts.map((script) => script.textContent)).toStrictEqual(['{"@type":"Article"}']);
@@ -39,10 +42,13 @@ describe("the captured page", () => {
     const doc = pageOf(
       '<form><input name="q" value="prefilled"><input type="password" value="hunter2"><input type="submit" value="Search"><textarea>draft words</textarea><input type="checkbox" name="news" checked><select name="country"><option value="fr">France</option><option value="nz" selected>New Zealand</option></select></form>',
     );
+
     const typed = doc.querySelector("input");
+
     if (typed !== null) {
       typed.value = "typed by the person";
     }
+
     const html = serializePage(doc).html ?? "";
     expect(html).not.toContain("prefilled");
     expect(html).not.toContain("hunter2");
@@ -54,7 +60,6 @@ describe("the captured page", () => {
     expect(
       [...out.querySelectorAll("option")].map((option) => option.hasAttribute("selected")),
     ).toStrictEqual([false, false]);
-    // the page's list of choices stays: it is the page's, never the person's
     expect([...out.querySelectorAll("option")].map((option) => option.value)).toStrictEqual([
       "fr",
       "nz",
@@ -72,9 +77,11 @@ describe("the captured page", () => {
         '<div contenteditable="FALSE">kept, not editable</div>',
       ].join(""),
     );
+
     const html = serializePage(doc).html ?? "";
     expect(html).toContain("The article.");
     expect(html).toContain("kept, not editable");
+
     for (const typed of ["half a reply", "a comment", "a message", "a field drawn by script"]) {
       expect(html).not.toContain(typed);
     }
@@ -84,11 +91,14 @@ describe("the captured page", () => {
     const doc = pageOf(
       '<img src="placeholder.gif" srcset="small.jpg 1x, large.jpg 2x" sizes="50vw"><picture><source media="(min-width: 800px)" srcset="wide.jpg"><img src="narrow.jpg"></picture><img>',
     );
+
     const [chosen, inPicture] = doc.querySelectorAll("img");
+
     if (chosen !== undefined && inPicture !== undefined) {
       Object.defineProperty(chosen, "currentSrc", { value: "https://example.test/large.jpg" });
       Object.defineProperty(inPicture, "currentSrc", { value: "https://example.test/wide.jpg" });
     }
+
     const out = parsed(serializePage(doc).html);
     const images = [...out.querySelectorAll("img")];
     expect(images.map((image) => image.getAttribute("src"))).toStrictEqual([

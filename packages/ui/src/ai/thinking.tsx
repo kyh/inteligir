@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Beautiful UI (beautifului.dev), MIT.
+// @license MIT, vendored from Beautiful UI (beautifului.dev).
 
 import { useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";

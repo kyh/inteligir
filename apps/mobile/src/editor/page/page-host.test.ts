@@ -1,17 +1,13 @@
-// The note page's host as the editor reaches it: the library through the actions native handed it
-// last, the note read and saved whole among them, and native's props followed after every render:
-// whether there is a connection, which items moved, and a leave's ask, which the open note answers.
-
 import { resolveObjectURL } from "node:buffer";
 
 import { bytesFromBase64 } from "@repo/contract/bytes";
 import type { HeldNote } from "@repo/contract/library/held-note";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "@repo/contract/deferred";
-import { nextTask } from "../../test-support/async";
+import { nextTask } from "../../test-support/async.test-utils";
 import { installPageHost } from "./page-host";
 import type { NoteState, PageProps, Settled } from "./page-host";
 
@@ -31,6 +27,7 @@ const pageOver = () => {
   const opened: string[] = [];
   let targets = [{ id: NOTE, title: "Plans" }];
   let reads = 0;
+
   const first: PageProps = {
     createNote: async () => await Promise.resolve(OTHER),
     focus: false,
@@ -38,6 +35,7 @@ const pageOver = () => {
     keepFile: async () => await Promise.resolve({ sha: "kept" }),
     linkTargets: async () => {
       reads += 1;
+
       return await Promise.resolve(targets);
     },
     moved: { ids: [], seq: 0 },
@@ -58,7 +56,9 @@ const pageOver = () => {
       answers.push(answer);
     },
   };
+
   const host = installPageHost(first);
+
   return {
     answers,
     first,
@@ -72,11 +72,11 @@ const pageOver = () => {
   };
 };
 
-// an open note whose unsaved edit the suite turns, and whose leave it answers
 const noteThat = (start: { readonly unsaved: boolean }) => {
   let { unsaved } = start;
   const holds = deferred<boolean>();
   const listeners = new Set<() => void>();
+
   const note: OpenNote = {
     agentEdited: vi.fn<OpenNote["agentEdited"]>(),
     agentEditing: vi.fn<OpenNote["agentEditing"]>(),
@@ -84,6 +84,7 @@ const noteThat = (start: { readonly unsaved: boolean }) => {
     itemId: NOTE,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
@@ -91,12 +92,14 @@ const noteThat = (start: { readonly unsaved: boolean }) => {
     unloadLoses: () => false,
     unsaved: () => unsaved,
   };
+
   return {
     answer: holds.resolve,
     listeners,
     note,
     turn: (next: boolean) => {
       unsaved = next;
+
       for (const listener of listeners) {
         listener();
       }
@@ -145,11 +148,15 @@ describe("the note page's host", () => {
 
   it("sends a pasted file as base64, and draws a file from one native read for the page's life", async () => {
     const { first, host } = pageOver();
-    const keepFile = vi.fn<PageProps["keepFile"]>(async () => await Promise.resolve({ sha: "s" }));
-    const readFile = vi.fn<PageProps["readFile"]>(
-      async () => await Promise.resolve({ base64: "AQID", mediaType: "audio/mp4" }),
-    );
-    host.follow({ ...first, keepFile, readFile });
+
+    const native = {
+      keepFile: async () => await Promise.resolve({ sha: "s" }),
+      readFile: async () => await Promise.resolve({ base64: "AQID", mediaType: "audio/mp4" }),
+    } satisfies Pick<PageProps, "keepFile" | "readFile">;
+
+    const keepFile = vi.spyOn(native, "keepFile");
+    const readFile = vi.spyOn(native, "readFile");
+    host.follow({ ...first, ...native });
     const io = getEditorHostIo();
 
     await expect(io.keepFile(Uint8Array.from([1, 2, 3]), "image/png")).resolves.toStrictEqual({
@@ -170,14 +177,24 @@ describe("the note page's host", () => {
 
   it("refuses a file the phone holds no copy of, and reads it again when next asked", async () => {
     const { first, host } = pageOver();
-    const readFile = vi
-      .fn<PageProps["readFile"]>(async () => await Promise.resolve(null))
-      .mockRejectedValueOnce(new Error("native answered nothing"));
+
+    let reads = 0;
+
+    const readFile = async () => {
+      reads += 1;
+
+      if (reads === 1) {
+        throw new Error("native answered nothing");
+      }
+
+      return await Promise.resolve(null);
+    };
+
     host.follow({ ...first, readFile });
 
     await expect(getEditorHostIo().fileSrc("s")).rejects.toThrow(Error);
     await expect(getEditorHostIo().fileSrc("s")).rejects.toThrow(Error);
-    expect(readFile).toHaveBeenCalledTimes(2);
+    expect(reads).toBe(2);
   });
 
   it("turns the note read-only the moment native says there is no connection", () => {

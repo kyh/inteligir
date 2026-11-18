@@ -1,4 +1,4 @@
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 import type { ReactNode, RefAttributes } from "react";
 import { motion } from "motion/react";
 import type { HTMLMotionProps } from "motion/react";
@@ -9,14 +9,11 @@ import { SurfaceProvider, useRaisedSurface } from "@repo/ui/lib/surface-context"
 import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 
 interface ElevatedProps extends Omit<HTMLMotionProps<"div">, "children"> {
-  // conventional offsets: 2 for menus and popovers, 4 for dialogs
   offset: number;
   shadowLevel?: SurfaceLevel;
   children?: ReactNode;
 }
 
-// a motion element, so a popup can render its Popup as the surface and animate that one element:
-// Base UI waits only on the Popup's own animations before it unmounts a closing popup
 const Elevated = ({
   offset,
   shadowLevel,
@@ -25,6 +22,7 @@ const Elevated = ({
   ...props
 }: ElevatedProps & RefAttributes<HTMLDivElement>) => {
   const level = useRaisedSurface(offset);
+
   return (
     <SurfaceProvider value={level}>
       <motion.div className={cn(surfaceClasses(level, shadowLevel ?? level), className)} {...props}>

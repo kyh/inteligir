@@ -1,11 +1,3 @@
-// Home: the account's library, newest first, a page at a time as the list scrolls, and as the phone
-// last read it while there is no connection. A scope from the menu (every item, Unsorted, a
-// folder, Deleted), the kind chips and the header's search narrow it, the search ranked by the
-// cell's own index; the field above saves a link or a thought where the scope saves. Pulling the
-// list down reads it again. The menu opens the built-in agent's conversations, which need a
-// connection. FlatList, not a ScrollView: a library holds thousands of items and an eager row each
-// janks the open.
-
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -54,28 +46,27 @@ import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 import { online } from "@/ui/needs-connection";
 
-// the search waits for a pause in the typing before it asks the cloud
 const SEARCH_PAUSE_MS = 300;
 
-// a save that met no connection, or a sign-in that ended under it, said as the screen says it
 const NOT_SAVED = `${UNREACHABLE} Try again once it can.`;
 
-// a picture or a PDF opens full size; everything else opens in the editor
-const openRow = (row: ListedItem): void => {
+const openRow = (row: ListedItem) => {
   if (row.fields.kind === "image" || row.fields.kind === "pdf") {
     openViewer(row.id);
+
     return;
   }
+
   openItem(row.id);
 };
 
-// a save the cloud did not take, said; true for one it took
 const saidIfNotSaved = (saved: SaveOutcome): saved is Extract<SaveOutcome, { kind: "landed" }> => {
   if (saved.kind === "refused") {
     Alert.alert("Couldn't save", saved.message);
   } else if (saved.kind !== "landed") {
     Alert.alert("Couldn't save", NOT_SAVED);
   }
+
   return saved.kind === "landed";
 };
 
@@ -84,22 +75,28 @@ const SaveField = ({ scope }: { scope: LibraryScope }) => {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const save = (): void => {
+
+  const save = () => {
     if (draft.trim() === "" || saving) {
       return;
     }
+
     if (!online()) {
       return;
     }
+
     void (async () => {
       setSaving(true);
       const saved = await saves.saveText(draft, { folderId: saveFolderOf(scope) });
       setSaving(false);
+
       if (!saidIfNotSaved(saved)) {
         return;
       }
+
       setDraft("");
       void queryClient.invalidateQueries({ queryKey: queries.library.listing.key() });
+
       if (!saved.answer.created) {
         Alert.alert("Already in your library", undefined, [
           { style: "cancel", text: "OK" },
@@ -113,6 +110,7 @@ const SaveField = ({ scope }: { scope: LibraryScope }) => {
       }
     })();
   };
+
   return (
     <View className="flex-row items-center gap-3">
       <TextInput
@@ -148,6 +146,7 @@ const KindChips = ({
   >
     {CHIP_ORDER.map((kind) => {
       const on = kinds.has(kind);
+
       return (
         <Pressable
           key={kind}
@@ -167,17 +166,18 @@ const KindChips = ({
   </ScrollView>
 );
 
-// the words typed, once the typing pauses
-const usePaused = (words: string): string => {
+const usePaused = (words: string) => {
   const [paused, setPaused] = useState(words);
   useEffect(() => {
     const timer = setTimeout(() => {
       setPaused(words);
     }, SEARCH_PAUSE_MS);
+
     return () => {
       clearTimeout(timer);
     };
   }, [words]);
+
   return paused;
 };
 
@@ -188,10 +188,11 @@ const emptyLabel = (
   if (listing.isError) {
     return UNREACHABLE;
   }
+
   if (listing.isPending) {
-    // a first read with no connection waits for one rather than fail
     return listing.fetchStatus === "paused" ? NEEDS_CONNECTION : "Loading your library…";
   }
+
   return filtered
     ? "Nothing here matches."
     : "Nothing saved yet. Share a page to Inteligir, or type a link or a thought above.";
@@ -207,10 +208,9 @@ const LibraryScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const scopes = useQuery(queries.library.listing.scopes.queryOptions());
   const folders = scopes.data?.folders ?? [];
-  // a folder deleted on another device reads as every item, so nothing lists under it or saves
-  // into it
   const scope = scopes.data === undefined ? chosenScope : listedScope(chosenScope, folders);
   const words = usePaused(query.trim());
+
   const listing = useInfiniteQuery(
     queries.library.listing.page.infiniteOptions({
       getNextPageParam: (page) => page.cursor ?? undefined,
@@ -219,49 +219,59 @@ const LibraryScreen = () => {
       placeholderData: keepPreviousData,
     }),
   );
+
   const rows = listingView(listing.data?.pages ?? [])?.items ?? [];
-  const changedItems = async (): Promise<void> => {
+
+  const changedItems = async () => {
     await queryClient.invalidateQueries({ queryKey: queries.library.key() });
   };
+
   const moveToDeleted = useMoveToDeleted();
+
   const restore = useMutation(
     queries.library.items.restore.mutationOptions({ onSettled: changedItems }),
   );
 
-  const refresh = async (): Promise<void> => {
+  const refresh = async () => {
     setRefreshing(true);
     await Promise.allSettled([listing.refetch(), scopes.refetch()]);
     setRefreshing(false);
   };
 
-  const toggleKind = (kind: ItemKind): void => {
+  const toggleKind = (kind: ItemKind) => {
     setKinds((held) => {
       const next = new Set(held);
+
       if (next.has(kind)) {
         next.delete(kind);
       } else {
         next.add(kind);
       }
+
       return next;
     });
   };
 
-  const newNote = async (): Promise<void> => {
+  const newNote = async () => {
     if (!online()) {
       return;
     }
+
     const made = await saves.newNote({ folderId: saveFolderOf(scope) });
+
     if (saidIfNotSaved(made)) {
       void changedItems();
       openItem(made.answer.id, { focus: true });
     }
   };
 
-  const addPhoto = async (): Promise<void> => {
+  const addPhoto = async () => {
     if (!online()) {
       return;
     }
+
     const added = await ingestPhoto(saves, saveFolderOf(scope));
+
     if (added.kind === "refused") {
       Alert.alert("Couldn't add the photo", added.message);
     } else if (added.kind === "picked") {
@@ -270,12 +280,14 @@ const LibraryScreen = () => {
     }
   };
 
-  const restoreRow = async (row: ListedItem): Promise<void> => {
+  const restoreRow = async (row: ListedItem) => {
     if (!online()) {
       return;
     }
+
     try {
       const { addressHeld } = await restore.mutateAsync({ ids: [row.id], opId: newId() });
+
       if (addressHeld.length > 0) {
         Alert.alert(
           "Couldn't restore",
@@ -287,7 +299,7 @@ const LibraryScreen = () => {
     }
   };
 
-  const rowActions = (row: ListedItem): void => {
+  const rowActions = (row: ListedItem) => {
     const deleted = row.fields.deletedAt !== null;
     const options = ["Cancel", "Open", deleted ? "Restore" : "Move to Deleted"];
     ActionSheetIOS.showActionSheetWithOptions(

@@ -31,19 +31,25 @@ const ResetForm = ({
 }) => {
   const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const newPassword = fieldValue(form, "password");
+
     if (newPassword !== fieldValue(form, "confirm")) {
       return "Passwords don't match.";
     }
+
     const { error: failure } = await authClient.resetPassword({ newPassword, token });
+
     if (failure === null) {
       onSettled({ kind: "done" });
+
       return null;
     }
-    // the token is single-use, so a refused one stays refused and a retry could only fail again
+
     if (failure.code === "INVALID_TOKEN") {
       onSettled({ kind: "dead" });
+
       return null;
     }
+
     return authErrorMessage(failure);
   });
 
@@ -128,14 +134,18 @@ export const ResetPasswordForm = ({
     case "form": {
       return <ResetForm token={view.token} next={next} onSettled={setView} />;
     }
+
     case "done": {
       return <PasswordChanged next={next} />;
     }
+
     case "dead": {
       return <DeadLink next={next} />;
     }
+
     default: {
       const exhaustive: never = view;
+
       return exhaustive;
     }
   }

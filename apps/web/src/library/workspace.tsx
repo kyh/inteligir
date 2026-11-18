@@ -1,12 +1,4 @@
-// The library's page as a layout: the rail of scopes, the grid of the scope or the item open in its
-// place, and the right panel (Info, the agent), over the account's library cell. It draws where
-// the tab is, which rides the url, and keeps what only it holds: the grid's listing and selection,
-// the window's chords and the save of a paste or a drop no field took. What a press does is a
-// command's (`./library/library-commands.tsx`), and what the shell holds between its screens the
-// tab's store's (`./workspace-store.ts`).
-
 import { viewContextOf } from "@repo/client/agent-send";
-import type { AgentViewContext } from "@repo/client/agent-send";
 import { scopeTitle } from "@repo/client/library-labels";
 import { listingView } from "@repo/client/listing-view";
 import type { LibraryScope } from "@repo/contract/library-scope";
@@ -35,16 +27,12 @@ import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
-// a listing no page of which has answered yet
 const NOTHING_LISTED = { items: [], total: 0 };
 
 export interface WorkspaceProps {
-  // where the tab is: its address's scope as the library lists it, the kind it is narrowed to and
-  // the item open over them
   readonly scope: LibraryScope;
   readonly kind: ItemKind | null;
   readonly openItem: string | null;
-  // another surface draws over the workspace: it goes inert and its window-level chords stand down
   readonly covered: boolean;
 }
 
@@ -62,20 +50,15 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
   useLeaveItem(noteRef);
-  // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
 
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
-  // the selection as it changes, which the panel's Info follows: what it names of the listing as
-  // far as that is read
   const selected = useStore(selection.store, (state) => state.selected);
   const picked = selectedIn(selected, view ?? NOTHING_LISTED);
 
-  // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since
-  // an id both scopes list would stay selected and a ⌘A would name the new scope
   const scopeKey = JSON.stringify(scope);
   const selectedUnder = useRef(scopeKey);
   useEffect(() => {
@@ -85,10 +68,9 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
     }
   }, [scopeKey, selection]);
 
-  // a ⌘A with nothing left in it (a verb emptied its scope, or every item was left out) selects
-  // nothing more, so the next item saved there is not born selected
   const spent =
     selected.kind === "scope" && view !== undefined && view.total <= selected.except.size;
+
   useEffect(() => {
     if (spent) {
       selection.apply({ kind: "clear" });
@@ -101,23 +83,30 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
         commands.askAgent();
         break;
       }
+
       case "open-palette": {
         commands.openPalette();
         break;
       }
+
       case "open-settings": {
         commands.openSettings();
         break;
       }
+
       case "toggle-panel": {
         workspace.togglePanel();
         break;
       }
+
       case "toggle-rail": {
         railRef.current?.toggle();
         break;
       }
-      // no default
+
+      default: {
+        throw new Error(`unexpected ${String(action satisfies never)}`);
+      }
     }
   });
 
@@ -128,8 +117,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
     onCapture: commands.save,
   });
 
-  // what the agent is told about the screen a message leaves from
-  const viewContext = (): AgentViewContext | undefined =>
+  const viewContext = () =>
     viewContextOf({
       kind,
       openItem,
@@ -137,7 +125,6 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
       selected: { count: picked.count, ids: picked.rows.map((row) => row.id) },
     });
 
-  // the panel's item: the open one, else the one card selected
   const panelItem = openItem ?? (picked.count === 1 ? (picked.rows[0]?.id ?? null) : null);
 
   return (

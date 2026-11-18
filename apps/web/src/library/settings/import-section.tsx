@@ -1,8 +1,3 @@
-// Bringing a library in: a Raindrop export or a zip of markdown, an Obsidian vault among them, read
-// on this device and landed a batch at a time (`../import/import-run`). Stop ends it where it
-// stands, keeping what it added; so does closing the tab, and choosing the file again carries on.
-// It needs a connection.
-
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { Button } from "@repo/ui/components/button";
 import { formatCount } from "@repo/ui/lib/plural";
@@ -15,32 +10,41 @@ import type { ImportRun } from "../import/import-run";
 import type { ImportSource } from "../import/import-news";
 import { Row, SectionHeading } from "./settings-chrome";
 
-// what an import says once it ran, or as it runs
-export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>): string => {
+export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>) => {
   switch (run.kind) {
     case "reading": {
       return "Reading the file…";
     }
+
     case "landing": {
       return `Added ${formatCount(run.counts.added)} of ${formatCount(run.total)}…`;
     }
+
     case "done": {
       const parts = [`Added ${formatCount(run.counts.added)}`];
+
       if (run.counts.alreadySaved > 0) {
         parts.push(`${formatCount(run.counts.alreadySaved)} already in the library`);
       }
+
       if (run.counts.unreadable > 0) {
         parts.push(`${formatCount(run.counts.unreadable)} couldn't be read`);
       }
+
       return `${parts.join(", ")}.`;
     }
+
     case "failed": {
       return run.message;
     }
+
     case "stopped": {
       return `Stopped after adding ${formatCount(run.counts.added)}.`;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(run satisfies never)}`);
+    }
   }
 };
 
@@ -56,6 +60,7 @@ const ImportRow = () => {
   const pickerRef = useRef<HTMLInputElement | null>(null);
   const [source, setSource] = useState<ImportSource>("raindrop");
   const running = run.kind === "reading" || run.kind === "landing";
+
   return (
     <Row label="Import">
       <div className="flex flex-col gap-1.5">
@@ -68,6 +73,7 @@ const ImportRow = () => {
               disabled={running || !online}
               onClick={() => {
                 setSource(option.source);
+
                 if (pickerRef.current !== null) {
                   pickerRef.current.accept = option.accept;
                   pickerRef.current.click();
@@ -86,6 +92,7 @@ const ImportRow = () => {
           onChange={(event) => {
             const [file] = event.currentTarget.files ?? [];
             event.currentTarget.value = "";
+
             if (file !== undefined) {
               startImport({ file, source }, cloud.onSessionEnd);
             }

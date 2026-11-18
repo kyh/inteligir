@@ -1,10 +1,3 @@
-// The library's tab, in a browser or the Mac app's window alike, opened once a document whatever
-// library page it opens on: it reads the session the site's sign-in left and makes the wire, what
-// asks what moved, the shell's store and the QueryClient the workspace and Settings share, and with
-// no session sends the browser to the site's sign-in, which brings it back here. Sign-in is the first
-// run: there is nothing to choose before it. Where the tab's session stands after that is one
-// value, moved by one step (`tabAfter`) whichever way the page meets its end.
-
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createLibraryChanges } from "@repo/client/library-changes";
@@ -32,7 +25,6 @@ type TabEnd =
   | { readonly kind: "ended"; readonly why: SessionEnd }
   | { readonly kind: "left"; readonly why: LeaveReason };
 
-// the account's storage on this device goes, and the page goes `to`
 type TabEffect = { readonly kind: "forget" } | { readonly kind: "go"; readonly to: string };
 
 interface TabStep {
@@ -42,36 +34,33 @@ interface TabStep {
 
 export type TabOpening =
   | { readonly kind: "open"; readonly library: PageLibrary; readonly queryClient: QueryClient }
-  // the site or the connection failed before anything was drawn
   | { readonly kind: "unreached" }
-  // no session: the browser is on its way to the site's sign-in
   | { readonly kind: "leaving" };
 
-// the floor spares a page the Worker served by a header only a browser this old leaves out, and
-// the sign-in would send a tab it signed in straight back here, so that tab keeps its session
 const tabAfter = (
   session: TabSession,
   end: TabEnd,
   here: Pick<Location, "pathname" | "search">,
-): TabStep => {
+) => {
   if (session.kind !== "live") {
-    return { effects: [], session };
+    return { effects: [], session } satisfies TabStep;
   }
+
   if (end.kind === "left") {
     return {
       effects: [{ kind: "forget" }, { kind: "go", to: end.why === "deleted" ? "/" : SIGN_IN_PATH }],
       session: { kind: "left" },
-    };
+    } satisfies TabStep;
   }
+
   return {
     effects:
       end.why === "outdated" ? [] : [{ kind: "forget" }, { kind: "go", to: signInHref(here) }],
     session: { kind: "ended", why: end.why },
-  };
+  } satisfies TabStep;
 };
 
 interface TabSessionArgs {
-  // Better Auth's own read, which a keeper makes on a timer so an idle page finds out too
   readonly read: () => Promise<SessionState>;
   readonly forget: () => void;
   readonly location: Pick<Location, "assign" | "pathname" | "search">;
@@ -80,81 +69,100 @@ interface TabSessionArgs {
 export const createTabSession = ({ read, forget, location }: TabSessionArgs) => {
   let session: TabSession = { kind: "live" };
   const listeners = new Set<() => void>();
-  const end = (cause: TabEnd): void => {
+
+  const end = (cause: TabEnd) => {
     const next = tabAfter(session, cause, location);
+
     if (next.session === session) {
       return;
     }
+
     ({ session } = next);
+
     for (const effect of next.effects) {
       switch (effect.kind) {
         case "forget": {
           forget();
           break;
         }
+
         case "go": {
           location.assign(effect.to);
           break;
         }
-        // no default
+
+        default: {
+          throw new Error(`unexpected ${String(effect satisfies never)}`);
+        }
       }
     }
+
     for (const heard of listeners) {
       heard();
     }
   };
+
   keepSession(async () => {
     const { kind } = await read();
+
     if (kind === "signed-out") {
       end({ kind: "ended", why: "signed-out" });
     }
   });
+
   const store: TabSessionStore = {
     get: () => session,
     subscribe: (heard) => {
       listeners.add(heard);
+
       return () => {
         listeners.delete(heard);
       };
     },
   };
+
   return { end, store };
 };
 
-const open = async (): Promise<TabOpening> => {
-  // before the first paint: a stored "off" must not flash red underlines, nor a dial its default
+const open = async () => {
   followDevicePrefs(document.documentElement);
   const { origin } = window.location;
   const session = await activeSession();
-  // a fault of the site's says neither signed in nor out, so it never sends a signed-in person to
-  // sign in again
+
   if (session.kind === "unknown") {
-    return { kind: "unreached" };
+    return { kind: "unreached" } satisfies TabOpening;
   }
+
   if (session.kind === "signed-out") {
-    // a session ends with no tab open too, so nothing else saw it go
     forgetAccountStorage();
     window.location.assign(signInHref(window.location));
-    return { kind: "leaving" };
+
+    return { kind: "leaving" } satisfies TabOpening;
   }
+
   const { user } = session;
   claimAccountStorage(user.id);
+
   const tab = createTabSession({
     forget: forgetAccountStorage,
     location: window.location,
     read: activeSession,
   });
-  const sessionEnded = (why: SessionEnd): void => {
+
+  const sessionEnded = (why: SessionEnd) => {
     tab.end({ kind: "ended", why });
   };
+
   const cloud: FileCloud = {
     fetch: async (request) => await fetch(request),
     onSessionEnd: sessionEnded,
     origin,
   };
+
   const wire = createCloudWire(cloud, sessionEnded);
   const queryClient = createPageQueryClient();
   const changes = createLibraryChanges({ client: wire.client, queries: wire.orpc, queryClient });
+
   const library: PageLibrary = {
     account: { email: user.email, name: user.name },
     changes,
@@ -166,25 +174,23 @@ const open = async (): Promise<TabOpening> => {
     wire,
     workspace: createWorkspaceStore(),
   };
-  // the head first, so every write after it is one a later answer names, then the rail's scopes
-  // before the grid draws, waiting for one answer and not the retries the rail's own query makes: a
-  // refusal is the rail's to draw, and with no connection nothing waits
+
   if (onlineManager.isOnline()) {
     await changes.poll();
     await Promise.allSettled([
       queryClient.query({ ...libraryQueries(wire).scopes(), retry: 0, staleTime: "static" }),
     ]);
   }
-  return { kind: "open", library, queryClient };
+
+  return { kind: "open", library, queryClient } satisfies TabOpening;
 };
 
 let opening: Promise<TabOpening> | undefined;
 
-// once a document, so Settings and back keeps one wire, one head and one QueryClient: one promise,
-// which the page's `use` reads again on every render
 export const pageTab = {
-  get opening(): Promise<TabOpening> {
+  get opening() {
     opening ??= open();
+
     return opening;
   },
 };

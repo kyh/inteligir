@@ -4,8 +4,8 @@ import { oembedEndpoint, parseOEmbed, youTubeStills } from "./oembed";
 
 type Answer = Readonly<Record<string, string | number | string[]>>;
 
-const textBytes = (text: string): Uint8Array => new TextEncoder().encode(text);
-const answerBytes = (answer: Answer): Uint8Array => textBytes(JSON.stringify(answer));
+const textBytes = (text: string) => new TextEncoder().encode(text);
+const answerBytes = (answer: Answer) => textBytes(JSON.stringify(answer));
 
 describe("an oEmbed answer", () => {
   it("reads what a host says of a page", () => {

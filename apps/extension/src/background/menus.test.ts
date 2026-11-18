@@ -58,17 +58,14 @@ describe("a data: address's bytes", () => {
     expect(await bytesOfDataUrl("data:image/png;base64,iVBORw0KGgo=")).toStrictEqual(
       Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    // %89 is no UTF-8, and still the one byte a PNG starts with
     expect(await bytesOfDataUrl("data:image/png,%89PNG%0D%0A")).toStrictEqual(
       Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]),
     );
-    // copied into this realm's Uint8Array: jsdom's TextEncoder answers node's
     expect(await bytesOfDataUrl("data:image/svg+xml,<svg>é</svg>")).toStrictEqual(
       Uint8Array.from(new TextEncoder().encode("<svg>é</svg>")),
     );
   });
 
-  // as the browser reads one: its body percent-decoded first, then its base64
   it("are its base64 with its escapes decoded, as the picture the browser draws", async () => {
     const signature = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     expect(await bytesOfDataUrl("data:image/png;base64,iVBORw0KGgo%3D")).toStrictEqual(signature);

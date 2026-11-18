@@ -1,6 +1,3 @@
-// built off the editor's heading nodes, not @platejs/toc: the scroll container is the host's
-// `[data-editor-scroller]`, not a PlateContainer.
-
 import { useEffect, useRef, useState } from "react";
 import { ElementApi, KEYS, NodeApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
@@ -25,101 +22,103 @@ const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h3, 3],
 ]);
 
-// where a heading the outline names lands, and the line the scroll spy reads it against
 const HEADER_OFFSET = 64;
 
 interface BlockHeading {
-  // below the top-level block, whose index moves when a block is added above it
   relative: Path;
   depth: number;
   title: string;
 }
 
-// The outline is asked on every change, a caret move included, and a keystroke replaces one
-// top-level block and keeps every other by identity, so only the block that changed is walked.
 const headingsByBlock = new WeakMap<TElement, readonly BlockHeading[]>();
 
-const blockHeadings = (editor: SlateEditor, block: TElement): readonly BlockHeading[] => {
+const blockHeadings = (editor: SlateEditor, block: TElement) => {
   const cached = headingsByBlock.get(block);
+
   if (cached !== undefined) {
     return cached;
   }
+
   const found: BlockHeading[] = [];
-  // what editor.api.nodes leaves unwalked: a void's content and a read-only element's
+
   for (const [node, relative] of NodeApi.nodes(block, {
     pass: ([n]) =>
       ElementApi.isElement(n) && (editor.api.isVoid(n) || editor.api.isElementReadOnly(n)),
   })) {
     const depth = ElementApi.isElement(node) ? HEADING_DEPTH.get(node.type) : undefined;
     const title = depth === undefined ? "" : shownText(node).trim();
+
     if (depth !== undefined && title) {
       found.push({ depth, relative, title });
     }
   }
+
   headingsByBlock.set(block, found);
+
   return found;
 };
 
-export const collectHeadings = (editor: SlateEditor): HeadingItem[] =>
+export const collectHeadings = (editor: SlateEditor) =>
   editor.children.flatMap((block, index) =>
     blockHeadings(editor, block).map(({ depth, relative, title }) => {
       const path = [index, ...relative];
+
       return { depth, id: path.join("."), path, title };
     }),
   );
 
-// resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
-// also holds headings the outline skips (empty ones) and ones no node of the document draws.
-export const headingElement = (editor: SlateEditor, heading: HeadingItem): HTMLElement | null => {
+export const headingElement = (editor: SlateEditor, heading: HeadingItem) => {
   const entry = editor.api.node<TElement>(heading.path);
+
   if (entry === undefined) {
     return null;
   }
+
   const [node] = entry;
+
   if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) {
     return null;
   }
+
   return editor.api.toDOMNode(node) ?? null;
 };
 
 export const TOC_RAIL_CAP = 20;
 
-// the window slides so the active row is always inside it; cut at a fixed index, every heading
-// past the cap would highlight nothing.
 export const railWindow = (count: number, activeIndex: number) => {
   const active = Math.max(0, Math.min(activeIndex, count - 1));
   const start = Math.max(0, active - TOC_RAIL_CAP + 1);
+
   return { end: start + TOC_RAIL_CAP, start };
 };
 
-// collectHeadings returns a fresh array and useEditorSelector's default equality is `===`, so
-// without this the scrollspy effect re-arms on every keystroke. `title` is compared on purpose:
-// typing inside a heading changes no id or depth.
-const sameHeadings = (a: readonly HeadingItem[], b: readonly HeadingItem[]): boolean => {
+const sameHeadings = (a: readonly HeadingItem[], b: readonly HeadingItem[]) => {
   if (a.length !== b.length) {
     return false;
   }
+
   return a.every((h, i) => {
     const other = b[i];
+
     return (
       other !== undefined && h.id === other.id && h.depth === other.depth && h.title === other.title
     );
   });
 };
 
-// under this the rail is a floating dash beside a note that needs no map
 const TOC_MIN_HEADINGS = 3;
 
 const RUN = "[data-slate-chunk]";
 
-// the last of these boxes whose top is at or above the line, by bisection; -1 when none is
-const lastAtOrAbove = (boxes: readonly Element[], y: number): number => {
+const lastAtOrAbove = (boxes: readonly Element[], y: number) => {
   let low = 0;
   let high = boxes.length - 1;
   let found = -1;
+
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
     const box = boxes[mid];
+
     if (box !== undefined && box.getBoundingClientRect().top <= y) {
       found = mid;
       low = mid + 1;
@@ -127,42 +126,46 @@ const lastAtOrAbove = (boxes: readonly Element[], y: number): number => {
       high = mid - 1;
     }
   }
+
   return found;
 };
 
-// the last heading at or above the scanner line, found by bisection. A long note's run off screen
-// holds its estimated height while a heading measured inside it lays out at its real one, past
-// the box, so a heading's top orders only within its run: the runs' own boxes, which stack in
-// order, place the line first, and only the headings of the run it falls in are measured. A
-// heading the dom does not hold reads as above the line, so the predicate stays monotone.
 export const activeHeadingAt = (
   editor: SlateEditor,
   headings: readonly HeadingItem[],
   scroller: Element,
-): number => {
+) => {
   const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
   const editable = editor.api.toDOMNode(editor);
   const runs = editable === undefined ? [] : [...editable.querySelectorAll(`:scope > ${RUN}`)];
   const runOf = new Map(runs.map((run, index) => [run, index]));
   const scannerRun = lastAtOrAbove(runs, scannerY);
-  const above = (index: number): boolean => {
+
+  const above = (index: number) => {
     const heading = headings[index];
     const el = heading === undefined ? null : headingElement(editor, heading);
+
     if (el === null) {
       return true;
     }
+
     const run = el.closest(RUN);
     const at = run === null ? undefined : runOf.get(run);
+
     if (at !== undefined && at !== scannerRun) {
       return at < scannerRun;
     }
+
     return el.getBoundingClientRect().top <= scannerY;
   };
+
   let low = 0;
   let high = headings.length - 1;
   let active = 0;
+
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
+
     if (above(mid)) {
       active = mid;
       low = mid + 1;
@@ -170,42 +173,47 @@ export const activeHeadingAt = (
       high = mid - 1;
     }
   }
+
   return active;
 };
 
 const TableOfContents = () => {
   const editor = useEditorRef();
+
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
     equalityFn: sameHeadings,
   });
+
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // a scroll listener rather than an IntersectionObserver, which never fires against this
-  // scroller as a custom root.
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const scroller = rootRef.current?.closest("[data-editor-scroller]");
+
     if (!scroller || headings.length === 0) {
       return;
     }
-    // once per frame however many scroll events it holds, and by bisection, since the headings
-    // sit in document order: measuring each one per event laid out the whole note, where a long
-    // note's runs off screen skip their layout until something asks
+
     let frame: number | null = null;
+
     const spy = () => {
       frame = null;
       setActiveIndex(activeHeadingAt(editor, headings, scroller));
     };
+
     const onScroll = () => {
       // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- the React Compiler cannot compile `??=` yet (react/todo), so this component would go uncompiled
       if (frame === null) {
         frame = requestAnimationFrame(spy);
       }
     };
+
     spy();
     scroller.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
       scroller.removeEventListener("scroll", onScroll);
+
       if (frame !== null) {
         cancelAnimationFrame(frame);
       }
@@ -219,9 +227,11 @@ const TableOfContents = () => {
   const scrollTo = (index: number) => {
     const heading = headings[index];
     const el = heading === undefined ? null : headingElement(editor, heading);
+
     if (el !== null) {
       reveal(el, { top: HEADER_OFFSET });
     }
+
     setActiveIndex(index);
   };
 
@@ -274,7 +284,6 @@ const TableOfContents = () => {
   );
 };
 
-// the desktop's outline, beside the text: after the container, inside the host's scroller
 export const TocKit = [
   createPlatePlugin({
     key: "tableOfContents",

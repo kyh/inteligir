@@ -1,7 +1,3 @@
-// Preview mounts a srcdoc iframe sandboxed with no permissions: it inherits the page's policy,
-// which allows inline style and no script, so it draws the static first frame and runs nothing.
-// Never allow-same-origin: it would hand the payload this origin's storage and API.
-
 import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
@@ -12,12 +8,12 @@ type HtmlMode = "source" | "preview";
 
 const FRAME_CLASS = "h-96 w-full border-0 bg-white print:hidden";
 
-// any text is an html payload, an empty one included
-const parseHtmlPayload = (value: string): Parse<string> => ({ ok: true, payload: value });
+const parseHtmlPayload = (value: string) => ({ ok: true, payload: value }) satisfies Parse<string>;
 
 const SourceView = ({ value }: { value: string }) => {
   const lines = value.split("\n");
   const head = lines.slice(0, 12).join("\n");
+
   return (
     <pre className="max-h-48 overflow-auto px-3 py-2 font-mono text-body whitespace-pre text-muted-foreground">
       {head}
@@ -26,14 +22,15 @@ const SourceView = ({ value }: { value: string }) => {
   );
 };
 
-// a sandboxed frame prints blank on some engines; print gets the source.
 const HtmlView = ({ mode, value }: { mode: HtmlMode; value: string }) => {
   if (value.trim() === "") {
     return <DegradedPayloadView reason="Empty html block." value={value} />;
   }
+
   if (mode === "source") {
     return <SourceView value={value} />;
   }
+
   return (
     <>
       <iframe title="HTML preview" srcDoc={value} sandbox="" className={FRAME_CLASS} />

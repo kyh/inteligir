@@ -1,5 +1,3 @@
-// The plugins are headless (headless/math-base.ts); KaTeX loads lazily from nodes/equation-katex.tsx.
-
 import { KEYS } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
@@ -8,7 +6,7 @@ import { EquationElement, InlineEquationElement } from "@repo/editor/nodes/equat
 
 import { EquationBasePlugin, InlineEquationBasePlugin } from "@repo/editor/headless/kits/math-base";
 
-export const insertEquation = (editor: PlateEditor): void => {
+export const insertEquation = (editor: PlateEditor) => {
   insertVoidAndEscape(editor, {
     children: [{ text: "" }],
     texExpression: "",
@@ -16,7 +14,7 @@ export const insertEquation = (editor: PlateEditor): void => {
   });
 };
 
-export const insertInlineEquation = (editor: PlateEditor): void => {
+export const insertInlineEquation = (editor: PlateEditor) => {
   const seed = editor.selection ? editor.api.string(editor.selection) : "";
   insertVoidAndEscape(editor, {
     children: [{ text: "" }],

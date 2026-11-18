@@ -26,7 +26,6 @@ const row = (line: number, event: StoredEvent) => ({
   type: "x",
 });
 
-// a conversation of `events`, in the order given
 const conversation = (...events: readonly StoredEvent[]) =>
   conversationOf(
     events.map((event, line) => row(line, event)),
@@ -52,7 +51,6 @@ const result = (toolUseId: string, isError = false, summary = "[]") => ({
 const typesOf = (blocks: readonly ThreadBlock[]) =>
   blocks.map((block) => (block.kind === "entry" ? block.entry.event.type : block.kind));
 
-// every call the conversation's runs of work show, by its id, as it stands
 const usesOf = (blocks: readonly ThreadBlock[]) =>
   blocks.flatMap((block) => (block.kind === "work" ? block.uses : []));
 
@@ -66,6 +64,7 @@ describe("a thread's entries", () => {
       ],
       "",
     );
+
     expect(typesOf(blocks)).toStrictEqual(["user.message", "agent.message"]);
   });
 
@@ -74,6 +73,7 @@ describe("a thread's entries", () => {
       [row(0, { text: "File these.", type: "user.message" }), row(1, used("a"))],
       "Filing",
     );
+
     expect(typesOf(blocks)).toStrictEqual(["user.message", "work", "draft"]);
     expect(blocks.at(-1)).toStrictEqual({ key: "draft", kind: "draft", text: "Filing" });
   });
@@ -107,7 +107,6 @@ describe("a thread's entries", () => {
   });
 });
 
-// a refusal as the client reads one the procedure declared
 const refused = (code: string, data?: { readonly resetsAt: number }) =>
   createORPCErrorFromJson({ code, data, defined: true, message: code });
 
@@ -146,6 +145,7 @@ describe("a conversation's blocks", () => {
       used("c", "read_item"),
       { text: "Done.", type: "agent.message" },
     );
+
     expect(typesOf(blocks)).toStrictEqual(["user.message", "work", "agent.message"]);
     const [, work] = blocks;
     expect(work?.kind === "work" ? work.notes : null).toStrictEqual([
@@ -165,6 +165,7 @@ describe("a conversation's blocks", () => {
       result("a"),
       result("a", true, "Again."),
     );
+
     expect(typesOf(blocks)).toStrictEqual(["work"]);
     expect(usesOf(blocks)).toStrictEqual([
       { kind: "done", name: "search_library", toolUseId: "a" },

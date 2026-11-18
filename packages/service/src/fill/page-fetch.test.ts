@@ -1,13 +1,8 @@
-// The cloud's guarded read, hop by hop: what it refuses to ask (every refusal before a byte
-// leaves), each redirect judged again where it points, and the caps counted on the bytes as they
-// arrive. A suite's web answers its hops, so every address a test names is asked of nobody; what the
-// dispatcher refuses after a lookup is `./public-dispatcher`'s suite's.
-
 import { setTimeout } from "node:timers/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { htmlPage, redirect, serveWeb } from "../test-support/fill-web";
+import { htmlPage, redirect, serveWeb } from "../test-support/fill-web.test-utils";
 import { pageFetch } from "./page-fetch";
 import type { HopFetch, PageRequest } from "./page-fetch";
 import { PrivateAddressError } from "./public-dispatcher";
@@ -15,10 +10,10 @@ import { readPage } from "./read-page";
 
 const readerOver = (fetch: HopFetch) => pageFetch({ deadlineMs: 20_000, fetch });
 
-// a site that answers only well past the deadline, by when the read has given up on its signal
 const slow: HopFetch = async (_url, init) => {
   await setTimeout(200);
   init.signal.throwIfAborted();
+
   return new Response("<p>too late</p>", { headers: { "content-type": "text/html" } });
 };
 
@@ -27,24 +22,23 @@ const down: HopFetch = async () => {
   throw new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") });
 };
 
-// a web where one host resolves into private space, which undici rejects with the lookup's error as
-// the cause of its own
-const resolvingPrivately =
-  (privateHost: string, routes: Parameters<typeof serveWeb>[0] = {}): HopFetch =>
-  async (url, init) => {
+const resolvingPrivately = (privateHost: string, routes: Parameters<typeof serveWeb>[0] = {}) =>
+  (async (url, init) => {
     if (new URL(url).hostname === privateHost) {
       throw new TypeError("fetch failed", { cause: new PrivateAddressError(privateHost) });
     }
-    return await serveWeb(routes).fetch(url, init);
-  };
 
-const asking = (url: string, overrides: Partial<PageRequest> = {}): PageRequest => ({
-  accept: "text/html",
-  maxBytes: 1024,
-  overflow: "truncate",
-  url,
-  ...overrides,
-});
+    return await serveWeb(routes).fetch(url, init);
+  }) satisfies HopFetch;
+
+const asking = (url: string, overrides: Partial<PageRequest> = {}) =>
+  ({
+    accept: "text/html",
+    maxBytes: 1024,
+    overflow: "truncate",
+    url,
+    ...overrides,
+  }) satisfies PageRequest;
 
 describe("what the cloud never asks", () => {
   it.each([
@@ -87,7 +81,6 @@ describe("what the cloud never asks", () => {
     ["http://192.0.2.10/post"],
     ["http://[::1]/"],
     ["http://[fd00::1]/"],
-    // the spellings a parser folds into a dotted quad or a bracketed address
     ["http://2130706433/"],
     ["http://0177.0.0.1/"],
     ["http://0x7f.0.0.1/"],
@@ -114,9 +107,11 @@ describe("what the cloud never asks", () => {
 
   it("drops a credential the address carries, and sends no cookie of its own", async () => {
     const web = serveWeb({ "https://pages.example/post": htmlPage("<p>hi</p>") });
+
     const fetched = await readerOver(web.fetch)(
       asking("https://someone:secret@pages.example/post"),
     );
+
     expect(fetched.ok).toBe(true);
     expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://pages.example/post"]);
     const [hop] = web.asked;
@@ -133,6 +128,7 @@ describe("a redirect", () => {
       "https://a.example/next": redirect("https://b.example/end", 308),
       "https://b.example/end": htmlPage("<p>arrived</p>"),
     });
+
     const fetched = await readerOver(web.fetch)(asking("https://a.example/start"));
     expect(fetched).toMatchObject({ ok: true, page: { url: "https://b.example/end" } });
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([
@@ -175,6 +171,7 @@ describe("a redirect", () => {
         redirect(`https://loop.example/${String(hop + 1)}`),
       ]),
     );
+
     const web = serveWeb(routes);
     await expect(readerOver(web.fetch)(asking("https://loop.example/0"))).resolves.toStrictEqual({
       failure: { kind: "redirects" },
@@ -207,6 +204,7 @@ describe("the caps", () => {
       "https://big.example/declared": () =>
         new Response("x".repeat(10), { headers: { "content-length": "999999" } }),
     });
+
     const refuse = { maxBytes: 1000, overflow: "refuse" } as const;
     await expect(
       readerOver(web.fetch)(asking("https://big.example/declared", refuse)),
@@ -229,6 +227,7 @@ describe("the caps", () => {
           headers: { "content-type": 'Text/HTML; charset="ISO-8859-1"' },
         }),
     });
+
     await expect(readerOver(web.fetch)(asking("https://pages.example/"))).resolves.toMatchObject({
       ok: true,
       page: { charset: "ISO-8859-1", mediaType: "text/html", truncated: false },
@@ -242,6 +241,7 @@ describe("a page that did not answer", () => {
       "https://busy.example/": htmlPage("", 429),
       "https://gone.example/": htmlPage("", 410),
     });
+
     await expect(readerOver(web.fetch)(asking("https://gone.example/"))).resolves.toStrictEqual({
       failure: { kind: "status", reason: "gone", status: 410, transient: false },
       ok: false,
@@ -258,10 +258,12 @@ describe("a page that did not answer", () => {
       failure: { kind: "timeout" },
       ok: false,
     });
+
     const read = await readPage(
       { fetch: patient, keep: async () => await Promise.resolve(null) },
       { coverHint: null, itemId: "i", url: "https://slow.example/" },
     );
+
     expect(read).toStrictEqual({ kind: "retry", sentence: "The page took too long to answer." });
   });
 
@@ -287,6 +289,7 @@ describe("a name that resolved into private space", () => {
     const fetch = resolvingPrivately("intranet.example", {
       "https://a.example/start": redirect("https://intranet.example/admin"),
     });
+
     await expect(readerOver(fetch)(asking("https://a.example/start"))).resolves.toStrictEqual({
       failure: { kind: "refused", refusal: "private-from-public" },
       ok: false,

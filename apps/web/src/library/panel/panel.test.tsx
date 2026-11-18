@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library.test-utils";
 import { Panel } from "./panel";
 
 const MESSAGE = { name: "Message the agent" };

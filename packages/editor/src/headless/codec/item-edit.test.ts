@@ -6,7 +6,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
-import { pretendLibrary, withoutId } from "../../test-support/codec-ports";
+import { pretendLibrary, withoutId } from "../../test-support/codec-ports.test-utils";
 import { editItemView } from "./item-edit";
 import type { EditPorts } from "./item-edit";
 import { importItem } from "./item-markdown";
@@ -18,45 +18,50 @@ const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
 
 const titles = new Map([[OTHER_ID, "Other note"]]);
 
-const portsWith = (): EditPorts => {
+const portsWith = () => {
   let blocks = 0;
+
   return {
     fileKind: () => "image",
     itemByTitle: (title) => [...titles].find(([, held]) => held === title)?.[0] ?? null,
     newBlockId: () => {
       blocks += 1;
+
       return `n${String(blocks)}`;
     },
     title: (itemId) => titles.get(itemId) ?? null,
-  };
+  } satisfies EditPorts;
 };
 
-// ports naming every item whose title the view asked for
 const askingPorts = () => {
   const asked: string[] = [];
+
   const ports: EditPorts = {
     ...portsWith(),
     title: (itemId) => {
       asked.push(itemId);
+
       return titles.get(itemId) ?? null;
     },
   };
+
   return { asked, ports };
 };
 
-// an import whose links reach the items `titles` holds, by title, and nothing else
-const storedOf = (text: string): BodyBlock[] => {
+const storedOf = (text: string) => {
   const read = importItem(
     { name: "Item", text },
     { ...pretendLibrary().importPorts(), ...libraryLinks(portsWith()) },
   );
+
   if (!read.ok) {
     throw new Error(read.reason.kind);
   }
-  return [...read.item.blocks];
+
+  return [...read.item.blocks] satisfies BodyBlock[];
 };
 
-const placeAfter = (blocks: BodyBlock[], afterId: string | null, body: BodyBlock): void => {
+const placeAfter = (blocks: BodyBlock[], afterId: string | null, body: BodyBlock) => {
   blocks.splice(
     afterId === null ? 0 : blocks.findIndex(({ block }) => block.id === afterId) + 1,
     0,
@@ -64,52 +69,61 @@ const placeAfter = (blocks: BodyBlock[], afterId: string | null, body: BodyBlock
   );
 };
 
-// the item's blocks after the changes, as its note lands them on a body nobody else touched
-const landed = (blocks: readonly BodyBlock[], changes: readonly BodyChange[]): BodyBlock[] => {
+const landed = (blocks: readonly BodyBlock[], changes: readonly BodyChange[]) => {
   const after = [...blocks];
-  const at = (id: string): number => after.findIndex(({ block }) => block.id === id);
+  const at = (id: string) => after.findIndex(({ block }) => block.id === id);
+
   for (const change of changes) {
     switch (change.kind) {
       case "put": {
         const index = at(change.blockId);
         const held = after[index];
+
         if (held !== undefined) {
           after[index] = { ...held, block: change.block };
         }
+
         break;
       }
+
       case "drop": {
         after.splice(at(change.blockId), 1);
         break;
       }
+
       case "insertAfter": {
         placeAfter(after, change.afterId, { block: change.block, section: change.section });
         break;
       }
+
       case "move": {
         const [held] = after.splice(at(change.blockId), 1);
+
         if (held !== undefined) {
           placeAfter(after, change.afterId, held);
         }
+
         break;
       }
-      // no default
+
+      default: {
+        throw new Error(`unexpected ${String(change satisfies never)}`);
+      }
     }
   }
+
   return after;
 };
 
-const textOf = (blocks: readonly BodyBlock[]): string => itemView(blocks, portsWith()).markdown;
+const textOf = (blocks: readonly BodyBlock[]) => itemView(blocks, portsWith()).markdown;
 
-// a page of `count` blocks from `from`, however long it runs
 const unbounded = (from: number, count: number) => ({
   count,
   from,
   maxChars: Number.POSITIVE_INFINITY,
 });
 
-// each block's text, in reading order
-const textBlocks = (blocks: readonly BodyBlock[]): string[] =>
+const textBlocks = (blocks: readonly BodyBlock[]) =>
   itemView(blocks, portsWith())
     .groups.flatMap((group) => group.blocks)
     .map((block) => block.children.map((child) => ("text" in child ? child.text : "")).join(""));
@@ -129,25 +143,27 @@ const NOTE = [
   "",
 ].join("\n");
 
-// the blocks after one edit of the view, which has to land
-const editedTo = (blocks: readonly BodyBlock[], oldText: string, newText: string): BodyBlock[] => {
+const editedTo = (blocks: readonly BodyBlock[], oldText: string, newText: string) => {
   const edited = editItemView(blocks, [{ newText, oldText }], portsWith());
+
   if (edited.kind !== "changed") {
     throw new Error(`the edit did not land: ${JSON.stringify(edited)}`);
   }
+
   return landed(blocks, edited.changes);
 };
 
-// a table's row, read back: how many cells it holds, and what each one reads as
 const cellsOf = (blocks: readonly BodyBlock[]) => {
   const table = blocks.find(({ block }) => block.type === "table");
+
   if (table === undefined || !("children" in table.block)) {
     throw new Error("no table landed");
   }
+
   return JSON.stringify(table.block.children.at(-1));
 };
 
-const withoutIds = (cells: string): string => cells.replaceAll(/"id":"[^"]*",?/gu, "");
+const withoutIds = (cells: string) => cells.replaceAll(/"id":"[^"]*",?/gu, "");
 
 describe("an edit beside a pill", () => {
   const ORDER = [
@@ -158,14 +174,15 @@ describe("an edit beside a pill", () => {
     "",
   ].join("\n");
 
-  // read alone the list's pill would show its source, and every block of the list would change
   it("leaves the pill a block of its group holds as it reads among the whole note's", () => {
     const blocks = storedOf(ORDER);
+
     const edited = editItemView(
       blocks,
       [{ newText: "- four of them", oldText: "- three of them" }],
       portsWith(),
     );
+
     expect(edited).toMatchObject({
       changes: [{ block: { children: [{ text: "four of them" }] }, kind: "put" }],
       kind: "changed",
@@ -199,16 +216,18 @@ describe("the agent's view of an item", () => {
 
   it("places every block where its group's text reads back as it", { timeout: 90_000 }, () => {
     const FIXTURES = fileURLToPath(new URL("../../test-support/fixtures/corpus/", import.meta.url));
+
     for (const file of readdirSync(FIXTURES)) {
       const blocks = storedOf(readFileSync(`${FIXTURES}${file}`, "utf-8"));
       const view = itemView(blocks, portsWith());
+
       for (const group of view.groups) {
         expect(group.text.trim(), file).not.toBe("");
         expect(view.markdown.slice(group.start, group.start + group.text.length), file).toBe(
           group.text,
         );
       }
-      // an edit that writes every group of the note back as it was changes nothing
+
       const note = view.markdown.slice(0, view.noteEnd);
       const whole = editItemView(blocks, [{ newText: note, oldText: note }], portsWith());
       expect(whole.kind === "changed" ? whole.changes : whole, file).toStrictEqual([]);
@@ -222,7 +241,6 @@ describe("the agent's view of an item", () => {
     expect(page.markdown).toBe(
       `# Plan\n\nFirst paragraph links [Other note](mention:${OTHER_ID}) and stays.\n`,
     );
-    // starting inside the list takes the whole of it
     expect(viewPage(blocks, portsWith(), unbounded(4, 1))).toMatchObject({
       from: 3,
       markdown: "- one\n- two\n- three\n",
@@ -244,6 +262,7 @@ describe("the agent's view of an item", () => {
       ":::",
       "",
     ].join("\n");
+
     const blocks = storedOf(text);
     expect(textOf(blocks)).toBe("My note.\n\n:::article\n\nThe page.\n\n:::\n");
     expect(viewPage(blocks, portsWith(), unbounded(1, 1)).markdown).toBe(
@@ -255,14 +274,17 @@ describe("the agent's view of an item", () => {
 describe("an edit made on the view", () => {
   it("puts the one block it changed and leaves every other id and block alone", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [{ newText: "Last line, edited.", oldText: "Last line." }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       return;
     }
+
     const last = blocks.find((stored) => JSON.stringify(stored.block).includes("Last line"));
     expect(outcome.changes).toStrictEqual([
       expect.objectContaining({ base: last?.block, kind: "put" }),
@@ -274,14 +296,17 @@ describe("an edit made on the view", () => {
 
   it("inserts a new block after the one it follows", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [{ newText: "and stays.\n\nA new paragraph.", oldText: "and stays." }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes).toStrictEqual([
       expect.objectContaining({ afterId: blocks[1]?.block.id, kind: "insertAfter" }),
     ]);
@@ -302,16 +327,18 @@ describe("an edit made on the view", () => {
   it("reads a list again whole, and puts only the item it changed", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(blocks, [{ newText: "- TWO", oldText: "- two" }], portsWith());
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes).toHaveLength(1);
     expect(JSON.stringify(outcome.changes[0])).toContain("TWO");
   });
 
   it("refuses new text that nests deeper than the editor reads, losing no block", () => {
     const blocks = storedOf(NOTE);
-    // past the conversion's reach, and past the parse's own
+
     for (const depth of [1500, 12_000]) {
       expect(
         editItemView(
@@ -336,14 +363,17 @@ describe("an edit made on the view", () => {
 
   it("keeps the item a link it did not change names, and finds one written by title", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [{ newText: "and also [[Other note]] here.", oldText: "and stays." }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     const written = outcome.changes.map((change) => ("block" in change ? change.block : null));
     const links = JSON.stringify(written).match(new RegExp(OTHER_ID, "gu")) ?? [];
     expect(links).toHaveLength(2);
@@ -353,6 +383,7 @@ describe("an edit made on the view", () => {
     const blocks = storedOf(
       "Area is r ^2 and x==1==y and 50%% or 60%%\n\nEnds on r ^2\n\n^alone\n",
     );
+
     const outcome = editItemView(
       blocks,
       [
@@ -362,9 +393,11 @@ describe("an edit made on the view", () => {
       ],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(textBlocks(landed(blocks, outcome.changes))).toStrictEqual([
       "The area is r ^2 and x==1==y and 50%% or 60%%",
       "Ending on r ^2",
@@ -374,32 +407,39 @@ describe("an edit made on the view", () => {
 
   it("keeps an escape an edit writes on a line beside a `:::` line as the person's text", () => {
     const blocks = storedOf(":::toggle\nbody here\n:::\n");
+
     const outcome = editItemView(
       blocks,
       [{ newText: "first line\n\\==x== literal", oldText: "body here" }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(JSON.stringify(outcome.changes)).toContain("==x== literal");
   });
 
   it("lands a web image an edit writes in a list as the embed it is", () => {
     const blocks = storedOf("One.\n\nTwo.\n");
+
     const outcome = editItemView(
       blocks,
       [{ newText: "- ![](https://a.b/c.png)", oldText: "Two." }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(JSON.stringify(outcome.changes)).toContain('"url":"https://a.b/c.png"');
   });
 
   it("keeps the spellings an edit writes the text they are, the last edit's alone", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [
@@ -411,9 +451,11 @@ describe("an edit made on the view", () => {
       ],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes).toHaveLength(1);
     expect(JSON.stringify(outcome.changes[0])).toContain(
       '"text":" and ==stays== twice %%hidden%% here. ^named"',
@@ -432,14 +474,17 @@ describe("an edit made on the view", () => {
 
   it("reads an edit that starts between two blocks over both of them", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [{ newText: "\nLast line, edited.", oldText: "\nLast line." }],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes.map((change) => change.kind)).toStrictEqual(["put"]);
     expect(textOf(landed(blocks, outcome.changes))).toBe(
       textOf(blocks).replace("Last line.", "Last line, edited."),
@@ -462,6 +507,7 @@ describe("an edit made on the view", () => {
 
   it("adds the new text of an empty old text after the note, above the page", () => {
     const blocks = storedOf(WITH_NOTE);
+
     const outcome = editItemView(
       blocks,
       [
@@ -470,9 +516,11 @@ describe("an edit made on the view", () => {
       ],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes.map((change) => change.kind)).toStrictEqual([
       "insertAfter",
       "insertAfter",
@@ -488,9 +536,11 @@ describe("an edit made on the view", () => {
   ])("writes a note into %s", (_name, text, read) => {
     const blocks = storedOf(text);
     const outcome = editItemView(blocks, [{ newText: "My summary.", oldText: "" }], portsWith());
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(outcome.changes).toStrictEqual([
       expect.objectContaining({ afterId: null, kind: "insertAfter", section: "note" }),
     ]);
@@ -499,11 +549,13 @@ describe("an edit made on the view", () => {
 
   it("turns down an old text that reaches the article, and counts one only in the note", () => {
     const blocks = storedOf(WITH_NOTE.replace("Page.", "Page. Note. Note."));
+
     for (const oldText of ["Page.", ":::article", "Note.\n\n:::article\n\nPage.", "Note. Note."]) {
       expect(editItemView(blocks, [{ newText: "x", oldText }], portsWith()), oldText).toStrictEqual(
         { kind: "refused", refusal: { edit: 0, kind: "section" } },
       );
     }
+
     expect(textOf(editedTo(blocks, "Note.", "Note, edited."))).toBe(
       "Note, edited.\n\n:::article\n\nPage. Note. Note.\n\n:::\n",
     );
@@ -514,18 +566,22 @@ describe("an edit made on the view", () => {
       block: { children: [{ text: "Underlined.", underline: true }], id: "u", type: "p" },
       section: "note",
     };
+
     const blocks = [marked, ...storedOf("- one\n\n  ```\n  code\n  ```\n\n- two\n\nLast line.\n")];
+
     const outcome = editItemView(
       blocks,
       [{ newText: "Last line, edited.", oldText: "Last line." }],
       portsWith(),
     );
+
     expect(outcome).toMatchObject({ changes: [{ blockId: blocks.at(-1)?.block.id, kind: "put" }] });
     expect(outcome.kind === "changed" ? outcome.changes : outcome).toHaveLength(1);
   });
 
   it("applies each edit to the text the ones before it left", () => {
     const blocks = storedOf(NOTE);
+
     const outcome = editItemView(
       blocks,
       [
@@ -534,9 +590,11 @@ describe("an edit made on the view", () => {
       ],
       portsWith(),
     );
+
     if (outcome.kind !== "changed") {
       throw new Error(outcome.kind);
     }
+
     expect(textOf(landed(blocks, outcome.changes))).toContain("Final words.");
   });
 });
@@ -608,6 +666,7 @@ describe("a link or an equation in a table cell", () => {
       id: "t",
       type: "table",
     };
+
     const blocks: BodyBlock[] = [{ block: table, section: "note" }];
     const row = cellsOf(editedTo(blocks, "word", "changed"));
     expect(row.match(/"type":"t[dh]"/gu)).toHaveLength(2);
@@ -620,6 +679,7 @@ describe("a link or an equation in a table cell", () => {
 | - | - |
 | $$\|x\| + \Vert y$$ | word |
 `);
+
     const before = cellsOf(blocks);
     expect(before).toContain(String.raw`|x| + \\Vert y`);
     expect(withoutIds(cellsOf(editedTo(blocks, "word", "changed")))).toBe(
@@ -631,7 +691,6 @@ describe("a link or an equation in a table cell", () => {
 describe("what an edit writes", () => {
   const LINKED_ID = "0195f3a0-5c1e-7000-8000-0000000000a1";
 
-  // a note, and a page whose one paragraph links an item, so writing the page asks its title
   const NOTE_AND_PAGE: BodyBlock[] = [
     { block: { children: [{ text: "Note." }], id: "n1", type: "p" }, section: "note" },
     {

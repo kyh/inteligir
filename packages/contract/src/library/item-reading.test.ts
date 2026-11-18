@@ -5,7 +5,7 @@ import { readingAfter, takesRead, withReading } from "./item-reading";
 import type { Reading, ReadingEvent } from "./item-reading";
 import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
-import { paragraph } from "../test-support/library-items";
+import { paragraph } from "../test-support/library-items.test-utils";
 
 const AT = 1_700_000_000_000;
 const LATER = AT + 60_000;
@@ -13,7 +13,6 @@ const WHY = "The page answered 404: it may have moved.";
 
 const NONE: Reading = { state: "none" };
 const WAITING: Reading = { at: null, state: "pending" };
-// waiting to be read again
 const AGAIN: Reading = { at: AT, state: "pending" };
 const READ: Reading = { at: AT, state: "read" };
 const FAILED: Reading = { at: AT, error: WHY, state: "failed" };
@@ -22,13 +21,13 @@ const ASKED: ReadingEvent = { kind: "asked" };
 const LANDED: ReadingEvent = { at: LATER, kind: "read" };
 const BROKE: ReadingEvent = { at: LATER, error: "Timed out.", kind: "failed" };
 
-const linkWith = (reading: Reading): LibraryItemFields => ({
-  ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
-  reading,
-});
+const linkWith = (reading: Reading) =>
+  ({
+    ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
+    reading,
+  }) satisfies LibraryItemFields;
 
-// the reading `event` leaves a link holding `reading`
-const landed = (reading: Reading, event: ReadingEvent): Reading =>
+const landed = (reading: Reading, event: ReadingEvent) =>
   withReading(linkWith(reading), event).reading;
 
 describe("a saved page's reading", () => {
@@ -36,6 +35,7 @@ describe("a saved page's reading", () => {
     for (const reading of [NONE, WAITING, AGAIN, READ, FAILED]) {
       expect(libraryItemFieldsSchema.parse(linkWith(reading)).reading).toStrictEqual(reading);
     }
+
     for (const reading of [
       { at: AT, state: "failed" },
       { at: AT, error: "", state: "failed" },
@@ -44,7 +44,7 @@ describe("a saved page's reading", () => {
     ]) {
       expect(libraryItemFieldsSchema.validate({ ...linkWith(NONE), reading })).toBe(false);
     }
-    // a read page says nothing of a failure, and a note nothing of a time
+
     expect(
       libraryItemFieldsSchema.parse({
         ...linkWith(NONE),
@@ -79,9 +79,11 @@ describe("a saved page's reading", () => {
 
   it("takes a device's read that found an article, only while it waits or failed with none of its own", () => {
     const found = { article: [paragraph("p1", "Read.")] };
+
     const takers = [NONE, WAITING, AGAIN, READ, FAILED].filter((reading) =>
       takesRead(reading, false, found),
     );
+
     expect(takers).toStrictEqual([WAITING, AGAIN, FAILED]);
     expect(takesRead(WAITING, true, found)).toBe(false);
     expect(takesRead(WAITING, false, { article: [] })).toBe(false);

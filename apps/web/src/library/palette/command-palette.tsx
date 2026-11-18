@@ -1,10 +1,3 @@
-// CLAUDE.md § There is one search surface, and it is ⌘P. One field over the library and the page's
-// commands: what is typed is searched by the cell's full-text index (titles, notes and saved
-// articles), ranked as the cell ranks it for every device; a hit opens its item with the find
-// bar on the words, a search with no hits says why, and a typed web address leads with saving it.
-// The commands are the page's verbs that need no item: a new note, a link, the agent and Tidy my
-// library, Settings.
-
 import { shownTitle } from "@repo/contract/items/item-name";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
@@ -36,25 +29,22 @@ import type { ShortcutIn } from "../shortcuts";
 
 type WindowAction = ShortcutIn<"window">["action"];
 
-// a row of the palette: a search's hit, which draws its snippet under its title, or a verb, which
-// draws the chord the window answers it by
 interface PaletteRow extends CommandRow {
   readonly hit?: { readonly itemId: string; readonly snippet: string } | undefined;
   readonly chord?: WindowAction | undefined;
 }
 
-// the chord a command answers to, as the window's table spells it
 const Chord = ({ action }: { action: WindowAction }) => {
   const hotkey = hotkeyFor(action);
+
   return hotkey === null ? null : (
     <CommandShortcut caps={hotkeyCaps(hotkey, platformShortcutModifier())} />
   );
 };
 
-// a hit with a passage draws two lines, which the control's fixed height can't hold
 const TWO_LINE_ROW = "h-auto py-1";
 
-const twoLines = (row: PaletteRow): boolean => row.hit !== undefined && row.hit.snippet !== "";
+const twoLines = (row: PaletteRow) => row.hit !== undefined && row.hit.snippet !== "";
 
 const RowContent = ({ row }: { row: PaletteRow }) => {
   if (row.hit !== undefined) {
@@ -67,6 +57,7 @@ const RowContent = ({ row }: { row: PaletteRow }) => {
       </span>
     );
   }
+
   return (
     <>
       {row.label}
@@ -75,9 +66,6 @@ const RowContent = ({ row }: { row: PaletteRow }) => {
   );
 };
 
-// CLAUDE.md § A cell call pauses offline and says so. What the palette shows of its search for the
-// words typed: the hits, else why there are none. The hits typed before answer other words, so
-// they stay up only while the next are asked.
 const searchShown = (
   typed: string,
   search: UseQueryResult<{ readonly items: readonly ListedItem[] }>,
@@ -85,27 +73,36 @@ const searchShown = (
   if (typed === "") {
     return { hits: [], said: null };
   }
+
   const standing = cellStanding({
     data: search.isPlaceholderData ? undefined : search.data,
     error: search.error,
     fetchStatus: search.fetchStatus,
   });
+
   switch (standing.kind) {
     case "answered": {
       const hits = standing.data.items;
+
       return { hits, said: hits.length === 0 ? "Nothing in your library matches." : null };
     }
+
     case "loading": {
       return { hits: search.data?.items ?? [], said: null };
     }
+
     case "needs-connection": {
       return { hits: [], said: NEEDS_CONNECTION };
     }
+
     case "missing":
     case "unreachable": {
       return { hits: [], said: refusalText(standing.error, "Your library couldn't be searched.") };
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(standing satisfies never)}`);
+    }
   }
 };
 
@@ -116,23 +113,21 @@ export const CommandPalette = () => {
   const [query, setQuery] = useState("");
   const typed = query.trim();
   const { hits, said } = searchShown(typed, useQuery(useLibraryQueries().search(typed)));
-  const close = (): void => {
+
+  const close = () => {
     workspace.setPaletteOpen(false);
     setQuery("");
   };
+
   const run = (verb: () => void) => () => {
     close();
     verb();
   };
-  const verb = (
-    value: string,
-    label: string,
-    act: () => void,
-    chord?: WindowAction,
-  ): PaletteRow => ({ chord, label, onSelect: run(act), value });
+
+  const verb = (value: string, label: string, act: () => void, chord?: WindowAction) =>
+    ({ chord, label, onSelect: run(act), value }) satisfies PaletteRow;
+
   const groups: CommandRowGroup<PaletteRow>[] = [
-    // the first row is the lit one Enter runs, and a pasted address is there to be saved, so Save
-    // leads the hits its words also found
     ...(isWebUrl(typed)
       ? [
           {
@@ -155,16 +150,18 @@ export const CommandPalette = () => {
       : [
           {
             heading: "Items",
-            items: hits.map((hit): PaletteRow => ({
-              action: "Open",
-              hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
-              label: shownTitle(hit.card.title),
-              // on the words it was found by
-              onSelect: run(() => {
-                commands.openItem(hit.id, typed);
-              }),
-              value: `hit:${hit.id}`,
-            })),
+            items: hits.map(
+              (hit) =>
+                ({
+                  action: "Open",
+                  hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
+                  label: shownTitle(hit.card.title),
+                  onSelect: run(() => {
+                    commands.openItem(hit.id, typed);
+                  }),
+                  value: `hit:${hit.id}`,
+                }) satisfies PaletteRow,
+            ),
           },
         ]),
     {
@@ -178,6 +175,7 @@ export const CommandPalette = () => {
       ],
     },
   ];
+
   return (
     <CommandDialog
       open={open}

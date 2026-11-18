@@ -1,6 +1,3 @@
-// An import read on its own thread, start to end: the reader its source names, and what it came to
-// told as it goes, so the page draws it and Stop ends the thread wherever it stands.
-
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 
 import { freshTally, ImportStoppedError } from "./import-landing";
@@ -24,26 +21,29 @@ const READERS: Readonly<Record<ImportSource, Reader>> = {
   raindrop: readRaindropCsv,
 };
 
-const countsOf = ({ added, alreadySaved, unreadable }: ImportTally): ImportCounts => ({
-  added,
-  alreadySaved,
-  unreadable,
-});
+const countsOf = ({ added, alreadySaved, unreadable }: ImportTally) =>
+  ({
+    added,
+    alreadySaved,
+    unreadable,
+  }) satisfies ImportCounts;
 
 export const readImport = async (
   ask: ImportAsk,
   cell: ImportCell,
   tell: (news: ImportNews) => void,
-): Promise<void> => {
+) => {
   const tally = freshTally();
   tell({ kind: "reading" });
-  const heard = (): void => {
+
+  const heard = () => {
     tell(
       tally.total === null
         ? { kind: "reading" }
         : { counts: countsOf(tally), kind: "landing", total: tally.total },
     );
   };
+
   try {
     await READERS[ask.source](ask.file, cell, tally, heard);
     tell({ counts: countsOf(tally), kind: "done" });

@@ -1,6 +1,3 @@
-// The Embed row's url prompt, open by an option of the editor whose row ran: the slash combobox
-// unmounts itself on a pick, so the prompt is drawn after the editable instead.
-
 import { useState } from "react";
 import type { PluginConfig } from "platejs";
 import { createTPlatePlugin, useEditorRef, usePluginOption } from "platejs/react";
@@ -23,7 +20,6 @@ const EmbedPromptOptions = createTPlatePlugin<PluginConfig<"embedPrompt", { open
   options: { open: false },
 });
 
-// mounted only while the prompt is open, so each opening starts empty
 const EmbedUrlForm = () => {
   const editor = useEditorRef();
   const [url, setUrl] = useState("");
@@ -34,10 +30,13 @@ const EmbedUrlForm = () => {
     if (!trimmed) {
       return;
     }
+
     if (!insertEmbedFromUrl(editor, trimmed)) {
       setRefused(true);
+
       return;
     }
+
     editor.setOption(EmbedPromptOptions, "open", false);
     editor.tf.focus();
   };
@@ -57,6 +56,7 @@ const EmbedUrlForm = () => {
           if (isImeComposing(e)) {
             return;
           }
+
           if (e.key === "Enter") {
             submit();
           }
@@ -77,6 +77,7 @@ const EmbedUrlForm = () => {
 const EmbedPrompt = () => {
   const editor = useEditorRef();
   const open = usePluginOption(EmbedPromptOptions, "open");
+
   return (
     <Dialog
       open={open}

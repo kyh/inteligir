@@ -1,9 +1,4 @@
-// The fill's dispatcher, after the lookup: a name answered with any private, loopback, link-local or
-// reserved address is refused whole before a connection opens, an IPv4 address spelled as IPv6
-// judged as itself, and a public answer handed to the connect as it asked. A real server on this
-// machine, reached by a public-looking name, never sees the connection.
-
-import type { LookupAddress, LookupOptions } from "node:dns";
+import type { LookupOptions } from "node:dns";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { promisify } from "node:util";
@@ -22,16 +17,12 @@ import {
 
 const answering =
   (...addresses: readonly string[]) =>
-  async (): Promise<LookupAddress[]> =>
+  async () =>
     await Promise.resolve(
       addresses.map((address) => ({ address, family: address.includes(":") ? 6 : 4 })),
     );
 
-// the lookup's answer to a connect asking as `options` does: the address, or every one
-const lookUp = async (
-  addresses: readonly string[],
-  options: LookupOptions = {},
-): Promise<string | LookupAddress[]> =>
+const lookUp = async (addresses: readonly string[], options: LookupOptions = {}) =>
   await promisify(vettedLookup(answering(...addresses)))("pages.example", options);
 
 describe("an address a name resolves to", () => {
@@ -95,11 +86,11 @@ describe("the dispatcher", () => {
     }
   });
 
-  // a server on this machine, counting every connection made to it
   const loopbackServer = async () => {
     const server = createServer((_request, response) => {
       response.end("inside");
     });
+
     let connections = 0;
     server.on("connection", () => {
       connections += 1;
@@ -111,6 +102,7 @@ describe("the dispatcher", () => {
       await once(server, "close");
     });
     const { port } = z.object({ port: z.number() }).parse(server.address());
+
     return { connections: () => connections, port };
   };
 
@@ -124,7 +116,6 @@ describe("the dispatcher", () => {
       undiciFetch(`http://pages.example:${String(server.port)}/`, { dispatcher }),
     ).rejects.toHaveProperty("cause", expect.any(PrivateAddressError));
     expect(server.connections()).toBe(0);
-    // the server answers a connection made to it by its address
     const reached = await undiciFetch(`http://127.0.0.1:${String(server.port)}/`);
     await expect(reached.text()).resolves.toBe("inside");
     expect(server.connections()).toBe(1);

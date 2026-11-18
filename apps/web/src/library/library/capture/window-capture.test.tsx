@@ -11,13 +11,13 @@ afterEach(() => {
 type OnCapture = (payload: CapturePayload) => void;
 
 const Harness = ({ enabled, onCapture }: { enabled: boolean; onCapture: OnCapture }) => {
-  // a Mac's: ⌘ is the shortcut modifier, ⌃ a key of its own
   const { catcherRef, dropInto } = useWindowCapture({
     into: () => "Reading",
     enabled,
     modifier: "meta",
     onCapture,
   });
+
   return (
     <div>
       <button type="button">a card</button>
@@ -34,26 +34,27 @@ const Harness = ({ enabled, onCapture }: { enabled: boolean; onCapture: OnCaptur
 const mount = (enabled = true) => {
   const onCapture = vi.fn<OnCapture>();
   render(<Harness enabled={enabled} onCapture={onCapture} />);
+
   return onCapture;
 };
 
-// jsdom builds no ClipboardEvent or DragEvent with data, so the data rides the event itself
 const strings = (data: Record<string, string>) => ({
   files: [],
   getData: (format: string) => data[format] ?? "",
   items: [],
 });
 
-const paste = (target: Element, text: string): Event => {
+const paste = (target: Element, text: string) => {
   const event = new Event("paste", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "clipboardData", { value: strings({ "text/plain": text }) });
   act(() => {
     target.dispatchEvent(event);
   });
+
   return event;
 };
 
-const drag = (type: "dragover" | "drop", target: Element, uris: string, text = ""): Event => {
+const drag = (type: "dragover" | "drop", target: Element, uris: string, text = "") => {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", {
     value: { ...strings({ "text/plain": text, "text/uri-list": uris }), dropEffect: "none" },
@@ -61,12 +62,12 @@ const drag = (type: "dragover" | "drop", target: Element, uris: string, text = "
   act(() => {
     target.dispatchEvent(event);
   });
+
   return event;
 };
 
 const card = () => screen.getByRole("button", { name: "a card" });
 
-// a picture the page itself draws, from the library's own files
 const PAGE_FILE = `https://inteligir.com/v1/blobs/${"a".repeat(64)}`;
 
 describe("a paste no field claimed", () => {
@@ -194,7 +195,6 @@ describe("a drop over the window", () => {
     expect(drag("dragover", card(), PAGE_FILE).defaultPrevented).toBe(false);
     drag("drop", card(), PAGE_FILE);
     expect(onCapture).not.toHaveBeenCalled();
-    // once that drag ends, a drop from outside the window is saved again
     act(() => {
       card().dispatchEvent(new Event("dragend", { bubbles: true }));
     });

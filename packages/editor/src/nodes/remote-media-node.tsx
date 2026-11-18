@@ -1,4 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import type { ReactNode } from "react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
@@ -21,9 +21,9 @@ const Unplayable = ({ children }: { children: ReactNode }) => (
 
 const NOT_HERE = "This recording isn't on this device yet.";
 
-// a recording the library holds by its sha, played from where the host draws its files
 const LibraryVideo = ({ selected, sha }: { selected: boolean; sha: string }) => {
   const [file, failed] = useLibraryFile(sha);
+
   if (file.kind === "ready") {
     return (
       // oxlint-disable-next-line jsx-a11y/media-has-caption -- a person's own recording has no caption track to offer
@@ -35,13 +35,14 @@ const LibraryVideo = ({ selected, sha }: { selected: boolean; sha: string }) => 
       />
     );
   }
+
   if (file.kind === "loading") {
     return <div className="h-40 w-full max-w-sm animate-pulse rounded-md bg-muted" />;
   }
+
   return <Unplayable>{NOT_HERE}</Unplayable>;
 };
 
-// a video by its sha, or a web page or video by its address, which the page never loads
 export const remoteMediaElement = (kind: "video" | "page") =>
   function RemoteMediaElement(props: PlateElementProps) {
     const selected = useSelected();
@@ -53,9 +54,11 @@ export const remoteMediaElement = (kind: "video" | "page") =>
       if (sha !== null) {
         return <LibraryVideo selected={focused && selected} sha={sha} />;
       }
+
       if (isWebUrl(url)) {
         return <RemoteContentCard kind={kind} selected={focused && selected} url={url} />;
       }
+
       return url === "" ? (
         <Unplayable>No URL</Unplayable>
       ) : (

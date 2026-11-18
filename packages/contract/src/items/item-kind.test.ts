@@ -15,9 +15,11 @@ import {
 describe("item kinds", () => {
   it("names every kind once, the url kinds among them", () => {
     expect(new Set(ITEM_KINDS).size).toBe(ITEM_KINDS.length);
+
     for (const kind of URL_ITEM_KINDS) {
       expect(isItemKind(kind)).toBe(true);
     }
+
     expect(isItemKind("bookmark")).toBe(false);
     expect(isItemKind("Link")).toBe(false);
   });

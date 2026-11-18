@@ -1,23 +1,20 @@
-// each indexable page's metadata, in one table the route heads, the JSON-LD and the sitemap all read
-
 type PageKind = "home" | "about" | "contact" | "legal";
 
 export interface PageMeta {
   path: "/" | "/about" | "/contact" | "/privacy" | "/terms";
   kind: PageKind;
-  // the page's own name, without the site's; the <title> appends it
   title: string;
   description: string;
-  // under public/; 1200x630 cards, but the home page's 1920x1080 og.jpg
   image: { path: string; width: number; height: number; alt: string };
 }
 
-const card = (slug: string, alt: string): PageMeta["image"] => ({
-  alt,
-  height: 630,
-  path: `/og/${slug}.jpg`,
-  width: 1200,
-});
+const card = (slug: string, alt: string) =>
+  ({
+    alt,
+    height: 630,
+    path: `/og/${slug}.jpg`,
+    width: 1200,
+  }) satisfies PageMeta["image"];
 
 export const PAGES = {
   about: {
@@ -40,7 +37,6 @@ export const PAGES = {
     description:
       "One library for the links, articles, images, PDFs and files you save and the notes you write, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
     image: {
-      // what og.jpg shows, the tagline written into it included
       alt: "Inteligir: the workspace for knowledge work",
       height: 1080,
       path: "/og.jpg",
@@ -81,17 +77,21 @@ const MONTHS = [
   "November",
   "December",
 ] as const;
+
 const MONTH_NUMBERS = new Map<string, number>(MONTHS.map((name, index) => [name, index + 1]));
 
 /** The ISO date a legal doc states it took effect ("Effective as of October 3, 2026"), or null. */
-export const statedDate = (markdown: string): string | null => {
+export const statedDate = (markdown: string) => {
   const groups =
     /(?:Effective as of|Last revised:\*\*)\s+(?<month>[A-Z][a-z]+) (?<day>\d{1,2}), (?<year>\d{4})/u.exec(
       markdown,
     )?.groups;
+
   const month = MONTH_NUMBERS.get(groups?.month ?? "");
+
   if (groups === undefined || month === undefined) {
     return null;
   }
+
   return `${groups.year}-${String(month).padStart(2, "0")}-${(groups.day ?? "").padStart(2, "0")}`;
 };

@@ -1,9 +1,3 @@
-// the reader over a committed corpus of synthetic pages: what a page says about itself, the
-// article rules, the page's text that stays text whatever the dialect would read it as, and the
-// words each page's item reads as (`*.article.txt`, rewritten by `vitest -u`), over linkedom, the
-// DOM the Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in:
-// defuddle picks the whole body).
-
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,53 +8,50 @@ import { deriveBody } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
 import { extractPage } from "./extract-page";
-import type { ExtractedPage } from "./extract-page";
-import type { ExtractedPageBlocks } from "./page-facts";
 import { readHtml } from "./read-html";
-import { longPage } from "./test-support/long-page";
+import { longPage } from "./test-support/long-page.test-utils";
 
-// spelled in two halves: the scheme the article must not hold, never a link of this suite's
 const SCRIPT_SCHEME = ["java", "script:"].join("");
 
 const CORPUS = path.join(import.meta.dirname, "test-support/corpus");
 const PAGE_URL = "https://pages.example/posts/item";
 
-const page = (name: string): string => readFileSync(path.join(CORPUS, `${name}.html`), "utf-8");
+const page = (name: string) => readFileSync(path.join(CORPUS, `${name}.html`), "utf-8");
 
-const extracted = (name: string): ExtractedPage =>
+const extracted = (name: string) =>
   extractPage({ html: page(name), prefer: "article", url: PAGE_URL });
 
-// block ids from a counter, as a host mints its own
-const counter = (): (() => string) => {
+const counter = () => {
   let next = 0;
-  return () => {
+
+  return (() => {
     next += 1;
+
     return `page${String(next)}`;
-  };
+  }) satisfies () => string;
 };
 
-const readOf = (html: string, prefer: "article" | "description" = "article"): ExtractedPageBlocks =>
+const readOf = (html: string, prefer: "article" | "description" = "article") =>
   readHtml({ html, prefer, url: PAGE_URL }, counter());
 
-const read = (name: string): ExtractedPageBlocks => readOf(page(name));
+const read = (name: string) => readOf(page(name));
 
-// the article as an export writes it, inside its `:::article` lines
-const written = (blocks: readonly LibraryBlock[]): string =>
+const written = (blocks: readonly LibraryBlock[]) =>
   itemView(
     blocks.map((block) => ({ block, section: "article" })),
     { title: () => null },
   ).markdown;
 
-// the text an item's article reads as, a block's lines after the last's
-const wordsOf = (blocks: readonly LibraryBlock[]): string => {
+const wordsOf = (blocks: readonly LibraryBlock[]) => {
   const { text } = deriveBody(blocks.map((block) => ({ block, section: "article" })));
+
   return text === "" ? "" : `${text}\n`;
 };
 
-// every node type the blocks hold, a text leaf as "text"
-const typesIn = (blocks: readonly LibraryNode[]): Set<string> => {
+const typesIn = (blocks: readonly LibraryNode[]) => {
   const types = new Set<string>();
   const pending = [...blocks];
+
   for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
     if ("text" in node) {
       types.add("text");
@@ -69,11 +60,11 @@ const typesIn = (blocks: readonly LibraryNode[]): Set<string> => {
       pending.push(...node.children);
     }
   }
+
   return types;
 };
 
-// a page whose article is the markup given, behind enough prose for the extractor to pick it
-const articlePage = (markup: string): string =>
+const articlePage = (markup: string) =>
   `<html><body><article><h1>A page</h1><p>An opening paragraph of ordinary prose, long enough for the reader to take the article as the page's readable part.</p>${markup}<p>A closing paragraph of ordinary prose, as long as the first, so the article ends in words.</p></article></body></html>`;
 
 describe("page meta", () => {
@@ -156,6 +147,7 @@ describe("the article", () => {
       "![A shelf of paper notebooks](https://pages.example/images/shelf.jpg)",
     );
     expect(article).toContain("> Write programs to handle text streams");
+
     for (const chrome of ["Subscribe", "Archive", "window.track", "One more post"]) {
       expect(article, chrome).not.toContain(chrome);
     }
@@ -196,6 +188,7 @@ describe("the article", () => {
   it("keeps nothing a script, a frame, an object or a form put there", () => {
     const article = written(read("script-heavy").article.blocks);
     expect(article).toContain("offline mode");
+
     for (const hostile of [
       "injected",
       SCRIPT_SCHEME,
@@ -225,21 +218,20 @@ describe("the article", () => {
         `<table><caption>Departures from North Quay on weekdays, before the summer timetable starts in June</caption><tr><th>Ferry</th><th>Leaves</th></tr><tr><td>Morning</td><td>05:40</td></tr></table>`,
       ),
     );
+
     expect(captioned.rung).toBe("rich");
     expect(written(captioned.article.blocks)).toMatch(
       /Departures from North Quay on weekdays, before the summer timetable starts in June\n\n\| Ferry/u,
     );
   });
 
-  // defuddle drops a list of two to eight short items with no closing stop near the article's start
-  // or end, nested or not, as a blog's metadata (its content patterns), and a base64 picture of
-  // under 133 characters as a lazy load's placeholder; the reader patches nothing around its
-  // extractor, and reads a to-do list it is handed as one
   it("hands the reader a list item's paragraphs and its nested lists, less a short list it reads as a blog's metadata", () => {
     const { readable } = extracted("nested-lists");
+
     if (readable.kind !== "content") {
       throw new Error("the extractor gave up on the page");
     }
+
     for (const kept of [
       "Seeing it all at once",
       "Sleeping bag and pad at the bottom",
@@ -249,6 +241,7 @@ describe("the article", () => {
     ]) {
       expect(readable.html, kept).toContain(kept);
     }
+
     for (const dropped of ["Water filter", "Headlamp with fresh batteries", "First aid kit"]) {
       expect(readable.html, dropped).not.toContain(dropped);
     }
@@ -256,10 +249,12 @@ describe("the article", () => {
 
   it("reads a list item's paragraphs and the lists under it at their depth, an in-page link as its words and an inline picture as its alt", () => {
     const { blocks } = read("nested-lists").article;
-    const textOf = (node: LibraryNode): string =>
+
+    const textOf: (node: LibraryNode) => string = (node: LibraryNode) =>
       "text" in node ? node.text : node.children.map(textOf).join("");
-    const blockOf = (words: string): LibraryBlock | undefined =>
-      blocks.find((block) => textOf(block).startsWith(words));
+
+    const blockOf = (words: string) => blocks.find((block) => textOf(block).startsWith(words));
+
     expect(blockOf("Lay everything out")).toMatchObject({ indent: 1, listStyleType: "decimal" });
     expect(blockOf("Seeing it all at once")).toMatchObject({ indent: 2, type: "p" });
     expect(blockOf("Sleeping bag and pad")).toMatchObject({ indent: 2, listStyleType: "disc" });
@@ -284,7 +279,6 @@ describe("the article", () => {
 });
 
 describe("the article's budget", () => {
-  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
   it(
     "keeps a long page's leading paragraphs, whole, within the budget",
     { timeout: 30_000 },
@@ -293,23 +287,22 @@ describe("the article's budget", () => {
       const article = wordsOf(readOf(long.html).article.blocks);
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
-      // whole paragraphs: the last one kept ends its sentence
       expect(article.trimEnd().endsWith("ordinary prose.")).toBe(true);
-      // the words are shorter than the markup they were read from, which the budget counts
       expect(article.length).toBeLessThan(FILL_LIMITS.articleBytes);
       expect(article.length).toBeGreaterThan(FILL_LIMITS.articleBytes / 3);
     },
   );
 
-  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
   it(
     "opens one wrapper past the budget rather than losing the whole page",
     { timeout: 30_000 },
     () => {
       const long = longPage(FILL_LIMITS.articleBytes * 2);
+
       const wrapped = long.html
         .replace("<article>", "<article><div><div>")
         .replace("</article>", "</div></div></article>");
+
       const article = wordsOf(readOf(wrapped).article.blocks);
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
@@ -354,15 +347,15 @@ describe("a page's text the dialect would read as its own", () => {
 describe("a page the tree cannot hold", () => {
   it("reads as its words when the page nests past any recursion", () => {
     const depth = 3000;
+
     const deep = readOf(
       `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
     );
+
     expect(deep.rung).toBe("text");
     expect(wordsOf(deep.article.blocks)).toBe("deep words here\nafter them\n");
   });
 
-  // the deepest the extractor hands the tree's parser: no stack runs out under it on the way,
-  // and a loaded machine reads it in seconds
   it.each([
     ["sections", "<div>", "</div>", "rich"],
     ["marks", "<em>", "</em>", "rich"],
@@ -371,17 +364,20 @@ describe("a page the tree cannot hold", () => {
     const deep = readOf(
       articlePage(`${open.repeat(250)}<p>deep words here</p>${close.repeat(250)}`),
     );
+
     expect(deep.rung).toBe(rung);
     expect(wordsOf(deep.article.blocks)).toContain("deep words here");
   });
 
   it("reads as its words when the tree would lose them to a block no store takes", () => {
     const depth = 40;
+
     const quoted = readOf(
       articlePage(
         `${"<blockquote>".repeat(depth)}<p>Words quoted deeper than a block may nest, which the page still says and the article still keeps, every one of them.</p>${"</blockquote>".repeat(depth)}`,
       ),
     );
+
     expect(quoted.rung).toBe("text");
     expect(wordsOf(quoted.article.blocks)).toContain("Words quoted deeper than a block may nest");
     expect([...typesIn(quoted.article.blocks)].toSorted()).toStrictEqual(["p", "text"]);
@@ -414,6 +410,7 @@ describe("every corpus page", () => {
     const { blocks } = readOf(
       "<html><body><article><p>A post about #rust with ==marks== and a %%note%% in it, longer than a line.</p></article></body></html>",
     ).article;
+
     const stored = JSON.stringify(blocks);
     expect(stored).not.toContain('"tag"');
     expect(stored).toContain("#rust");

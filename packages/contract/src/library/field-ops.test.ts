@@ -4,7 +4,7 @@ import { applyPropertyOps, mergeListField, propertyOpSchema } from "./field-ops"
 import type { PropertyOp } from "./field-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
-import { noteFixture } from "../test-support/library-items";
+import { noteFixture } from "../test-support/library-items.test-utils";
 
 describe(mergeListField, () => {
   it("merges two writers' tags as a set, case folded, so both land", () => {
@@ -34,11 +34,13 @@ describe(mergeListField, () => {
   });
 });
 
-const applied = (fields: LibraryItemFields, ops: readonly PropertyOp[]): LibraryItemFields => {
+const applied = (fields: LibraryItemFields, ops: readonly PropertyOp[]) => {
   const outcome = applyPropertyOps(fields, ops);
+
   if (outcome.kind !== "applied") {
     throw new Error(`ops did not land: ${JSON.stringify(outcome)}`);
   }
+
   return outcome.fields;
 };
 
@@ -47,6 +49,7 @@ describe(applyPropertyOps, () => {
     const rated = applied(noteFixture({ properties: { rating: 3 } }), [
       { base: 3, key: "rating", op: "property", value: 4 },
     ]);
+
     expect(rated.properties).toStrictEqual({ rating: 4 });
     const added = applied(rated, [{ key: "due", op: "property", value: "2026-11-01" }]);
     expect(added.properties).toStrictEqual({ due: "2026-11-01", rating: 4 });

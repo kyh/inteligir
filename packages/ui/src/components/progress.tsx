@@ -1,5 +1,5 @@
 "use client";
-// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
+// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 

@@ -1,8 +1,3 @@
-// A file's two calls, `library.files.reserve` and `settle`, around the PUT between them: a sha the
-// library holds is never sent twice and waits a day for the write naming it, bytes that are not
-// the file's are refused and let go, and what lands is kept for good in the write that names its
-// row.
-
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
@@ -13,10 +8,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { env } from "../env";
 import { mintLibraryId } from "../library/library-ids";
-import { buildHeaders, phoneHeaders, v1Link } from "../test-support/v1-link";
-import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests";
-import { fileOf, putTo, sendFile } from "../test-support/file-uploads";
-import { personalLibrary, seedFile } from "../test-support/library-fixture";
+import { buildHeaders, phoneHeaders, v1Link } from "../test-support/v1-link.test-utils";
+import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
+import { fileOf, putTo, sendFile } from "../test-support/file-uploads.test-utils";
+import { personalLibrary, seedFile } from "../test-support/library.fixture";
 import { releaseUnnamedFiles } from "./file-release";
 import { FILE_STORE } from "./file-store-of";
 
@@ -24,23 +19,25 @@ const TEN = "0123456789";
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
-// an upload reserved for `text`, with the pathname its URL names
 const reserved = async (library: Library, sha: string, mime = "image/png") => {
   const answer = await library.files.reserve({ bytes: 10, mime, sha });
+
   if (answer.kind !== "upload") {
     throw new Error("the library held a file the test reserved");
   }
+
   const pathname = new URL(answer.url, "http://cloud.test").searchParams.get("pathname") ?? "";
+
   return { ...answer, pathname };
 };
 
 const rowOf = async (accountId: string, sha: string) => {
   const [row] = await db.select().from(file).where(eq(file.accountId, accountId));
+
   return row?.sha256 === sha ? row : null;
 };
 
-// housekeeping's hourly release, over an account a first write made a library of
-const housekeep = async (accountId: string): Promise<void> => {
+const housekeep = async (accountId: string) => {
   await db.insert(libraryState).values({ accountId }).onConflictDoNothing();
   await db.transaction(async (tx) => await releaseUnnamedFiles(tx, Date.now()));
 };
@@ -48,6 +45,7 @@ const housekeep = async (accountId: string): Promise<void> => {
 const signedIn = async (email: string) => {
   const { cookie } = await signUpUser(email);
   const phone = phoneHeaders(await signInPhone(email));
+
   return { accountId: await userIdOf(cookie), phone };
 };
 
@@ -170,9 +168,11 @@ dbSuite("settle", () => {
     );
     await putTo(upload.url, bytes, "image/png");
     const [body = ""] = upload.uploadId.split(".");
+
     for (const uploadId of [`${body}.forged`, "nonsense"]) {
       await expect(library.files.settle({ sha, uploadId })).rejects.toMatchObject(notFound);
     }
+
     await expect(
       library.files.settle({ sha: fileOf("other").sha, uploadId: upload.uploadId }),
     ).rejects.toMatchObject(notFound);
@@ -313,6 +313,7 @@ describe("the folder store's upload route", () => {
 
       const late = await reserved(library, fileOf("late").sha);
       vi.useFakeTimers({ now: Date.now() + 2 * 60 * 60 * 1000, toFake: ["Date"] });
+
       try {
         await expect(putTo(late.url, bytes, "image/png")).resolves.toMatchObject({ status: 403 });
       } finally {

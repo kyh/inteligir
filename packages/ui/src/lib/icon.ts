@@ -1,4 +1,4 @@
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 import type { ComponentType } from "react";
 
 interface IconComponentProps {

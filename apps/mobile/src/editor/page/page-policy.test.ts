@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PAGE_POLICY } from "./page-policy";
 
-const directive = (name: string): string | undefined =>
+const directive = (name: string) =>
   PAGE_POLICY.split("; ")
     .find((entry) => entry.startsWith(`${name} `))
     ?.slice(name.length + 1);

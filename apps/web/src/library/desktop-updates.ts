@@ -1,13 +1,8 @@
-// The updater lives in the Mac app's shell because it replaces the app; the page mirrors the state
-// the shell pushes and asks it to move. One store, so the notice and Settings say one thing. It
-// starts on its first subscriber, never at import, and starts with a check, as the page loads.
-
 import { useSyncExternalStore } from "react";
 
 import { desktopBridge } from "./shell/desktop-bridge";
 import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 
-/** null in a browser tab, which has no updater. */
 type UpdatesSnapshot = DesktopUpdateState | null;
 
 const ASKS = {
@@ -23,18 +18,19 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
   let snapshot: UpdatesSnapshot = bridge === null ? null : { status: "idle" };
   let started = false;
 
-  const adopt = (state: DesktopUpdateState): void => {
+  const adopt = (state: DesktopUpdateState) => {
     snapshot = state;
+
     for (const listener of listeners) {
       listener();
     }
   };
-  // a shell that refuses the call answers as the step that did not go through, so every screen
-  // already has its words for it
-  const move = async (next: UpdateMove): Promise<void> => {
+
+  const move = async (next: UpdateMove) => {
     if (bridge === null) {
       return;
     }
+
     try {
       adopt(await ASKS[next](bridge));
     } catch (error) {
@@ -45,22 +41,26 @@ export const createUpdatesStore = (bridge: DesktopBridge | null) => {
       });
     }
   };
-  const subscribe = (listener: () => void): (() => void) => {
+
+  const subscribe = (listener: () => void) => {
     listeners.add(listener);
+
     if (!started && bridge !== null) {
       started = true;
       bridge.onUpdateState(adopt);
       void move("check");
     }
-    return () => {
+
+    return (() => {
       listeners.delete(listener);
-    };
+    }) satisfies () => void;
   };
-  const getSnapshot = (): UpdatesSnapshot => snapshot;
+
+  const getSnapshot = () => snapshot;
 
   return {
     move,
-    use: (): UpdatesSnapshot => useSyncExternalStore(subscribe, getSnapshot),
+    use: () => useSyncExternalStore(subscribe, getSnapshot),
   };
 };
 

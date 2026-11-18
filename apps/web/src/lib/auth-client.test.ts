@@ -1,20 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpResponse } from "msw";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { activeSession, keepSession, SESSION_READ_MS } from "./auth-client";
 
-// the client settles its base and its fetch as it loads, so both are in place first
-const cloud = vi.hoisted(() => {
-  const answers = { getSession: async (): Promise<Response> => Response.json(null) };
+const { cloud, network } = await vi.hoisted(async () => {
+  const { http } = await import("msw");
+  const { setupServer } = await import("msw/node");
+  const answers = { getSession: async () => Response.json(null) };
   vi.stubEnv("BETTER_AUTH_URL", "http://localhost");
-  vi.stubGlobal("fetch", async () => await answers.getSession());
-  return answers;
+  const server = setupServer(http.all("*", async () => await answers.getSession()));
+  server.listen({ onUnhandledRequest: "error" });
+
+  return { cloud: answers, network: server };
+});
+
+afterAll(() => {
+  network.close();
 });
 
 const answering = (status: number) => async () => Response.json(null, { status });
 
-const offline = async (): Promise<Response> => {
-  throw new TypeError("Failed to fetch");
-};
+const offline = async () => await Promise.resolve(HttpResponse.error());
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -39,14 +45,16 @@ describe("reading who is signed in", () => {
 
 describe("keeping a tab's session", () => {
   it("reads it inside the day a session waits to slide, and keeps reading", async () => {
-    const read = vi.fn<() => Promise<void>>(async () => {
+    let reads = 0;
+
+    keepSession(async () => {
+      reads += 1;
       await Promise.resolve();
     });
-    keepSession(read);
-    expect(read).not.toHaveBeenCalled();
+    expect(reads).toBe(0);
     expect(SESSION_READ_MS).toBeLessThan(86_400_000);
 
     await vi.advanceTimersByTimeAsync(2 * SESSION_READ_MS);
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(reads).toBe(2);
   });
 });

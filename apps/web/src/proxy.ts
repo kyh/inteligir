@@ -9,9 +9,6 @@ import { prefersMarkdown } from "#lib/content-negotiation";
 import { libraryPolicy, mintNonce } from "#lib/document-policy";
 import { signInHref } from "#lib/next-path";
 
-// The documents rendered per request, exactly: a path under them nothing serves falls to the
-// prerendered 404, whose scripts carry no nonce and would be refused under this policy. The
-// matcher below spells the same list, since Next reads it as a literal.
 const NONCE_DOCUMENTS: ReadonlySet<string> = new Set([
   LIBRARY_PAGE_PATH,
   `${LIBRARY_PAGE_PATH}/settings`,
@@ -22,10 +19,9 @@ const NONCE_DOCUMENTS: ReadonlySet<string> = new Set([
   CONNECTOR_CONSENT_PATH,
 ]);
 
-const SIGNED_IN_ONLY = (pathname: string): boolean =>
+const SIGNED_IN_ONLY = (pathname: string) =>
   pathname === LIBRARY_PAGE_PATH || pathname.startsWith(`${LIBRARY_PAGE_PATH}/`);
 
-// a page that answers markdown names this route, which a client asking for HTML never reaches
 const MARKDOWN_ROUTE = "/api/markdown";
 
 /**
@@ -43,6 +39,7 @@ export const proxy = (request: NextRequest) => {
     if (SIGNED_IN_ONLY(nextUrl.pathname) && getSessionCookie(request) === null) {
       return NextResponse.redirect(new URL(signInHref(nextUrl), nextUrl), 307);
     }
+
     const nonce = mintNonce();
     const policy = libraryPolicy(nextUrl, nonce);
     const headers = new Headers(request.headers);
@@ -50,19 +47,19 @@ export const proxy = (request: NextRequest) => {
     headers.set("x-nonce", nonce);
     const response = NextResponse.next({ request: { headers } });
     response.headers.set("content-security-policy", policy);
+
     return response;
   }
 
-  // the markdown route varies its own answer by Accept
   if (prefersMarkdown(request.headers.get("accept"))) {
     return NextResponse.rewrite(
       new URL(`${MARKDOWN_ROUTE}${nextUrl.pathname === "/" ? "" : nextUrl.pathname}`, nextUrl),
     );
   }
-  // the page for a client that named markdown and ranks HTML first, which a cache keyed on the URL
-  // alone would otherwise hand the next client whatever it asked
+
   const response = NextResponse.next();
   response.headers.append("vary", "Accept");
+
   return response;
 };
 

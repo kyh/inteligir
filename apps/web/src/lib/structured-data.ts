@@ -7,7 +7,6 @@ const ORGANIZATION_ID = `${url}/#organization`;
 const WEBSITE_ID = `${url}/#website`;
 const APP_ID = `${url}/#app`;
 
-// no postal address or phone: the project publishes neither, so the org schema stays partial
 export const siteGraph = () => ({
   "@context": "https://schema.org",
   "@graph": [
@@ -58,19 +57,19 @@ const PAGE_TYPE = {
   legal: "WebPage",
 } as const satisfies Record<PageMeta["kind"], string>;
 
-const absolute = (path: string): string => `${url}${path === "/" ? "" : path}`;
+const absolute = (path: string) => `${url}${path === "/" ? "" : path}`;
 
 /** The page's own node and its breadcrumb, beside the site-wide graph the root document carries. */
 export const pageGraph = (page: PageMeta, options: { dateModified?: string | null } = {}) => {
   const pageUrl = absolute(page.path);
   const isHome = page.kind === "home";
+
   return {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@id": `${pageUrl}#webpage`,
         "@type": PAGE_TYPE[page.kind],
-        // JSON drops an undefined field, so a page without one simply omits it
         about: isHome ? { "@id": APP_ID } : undefined,
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
         dateModified: options.dateModified ?? undefined,

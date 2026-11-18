@@ -1,6 +1,3 @@
-// The library's crash, which `app/(library)/error.tsx` draws in place of the workspace or Settings:
-// it says what the crash left as it was, since whatever reached the library is safe there.
-
 import { Button } from "@repo/ui/components/button";
 
 interface RenderCrashProps {

@@ -1,6 +1,5 @@
 import { siteConfig } from "#lib/site-config";
 
-// a route, not MetadataRoute.Robots, which has no field for Content-Signal (contentsignals.org)
 const body = [
   "User-agent: *",
   "Content-Signal: search=yes, ai-input=yes, ai-train=yes",

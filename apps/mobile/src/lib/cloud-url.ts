@@ -1,31 +1,30 @@
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 
-const isWebOrigin = (url: URL): boolean => url.protocol === "https:" || url.protocol === "http:";
+const isWebOrigin = (url: URL) => url.protocol === "https:" || url.protocol === "http:";
 
-const parseUrl = (value: string): URL | null => {
+const parseUrl = (value: string) => {
   try {
-    return new URL(value);
+    return new URL(value) satisfies URL | null;
   } catch {
     return null;
   }
 };
 
-// unset is production, so a store build carries no value and cannot point anywhere else. no
-// LAN-host fallback: the Worker's dev server binds localhost, so a guessed Metro-host origin never
-// answers a phone.
-export const getCloudUrl = (): string => {
-  // spelled whole: Metro inlines an EXPO_PUBLIC_ variable only at a static member access.
+export const getCloudUrl = () => {
   const raw = process.env.EXPO_PUBLIC_CLOUD_URL;
   const configured = raw === undefined ? "" : raw.trim();
+
   if (configured === "") {
     return PRODUCTION_CLOUD_ORIGIN;
   }
+
   const url = parseUrl(configured);
+
   if (url === null || !isWebOrigin(url)) {
     throw new Error(
       `EXPO_PUBLIC_CLOUD_URL must be an absolute http(s) URL (got "${configured}"); unset it to use ${PRODUCTION_CLOUD_ORIGIN}`,
     );
   }
-  // origin only: `new URL("/v1/…", base)` drops any path the base carries.
+
   return url.origin;
 };

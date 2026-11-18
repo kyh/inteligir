@@ -5,7 +5,7 @@ import { dbSuite } from "@repo/db/test-database";
 import { eq } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { authFetch, authPost, ORIGIN, signUpUser } from "../test-support/auth-requests";
+import { authFetch, authPost, ORIGIN, signUpUser } from "../test-support/auth-requests.test-utils";
 import {
   followGetLeg,
   issueToken,
@@ -13,15 +13,14 @@ import {
   requestReset,
   RESET_PAGE_PATH,
   watchMailLog,
-} from "../test-support/password-reset";
+} from "../test-support/password-reset.test-utils";
 
-// the new password every reset here sets
 const NEW_PASSWORD = "new-password-5678";
 
-const signIn = async (email: string, password: string): Promise<Response> =>
+const signIn = async (email: string, password: string) =>
   await authPost("/sign-in/email", { origin: ORIGIN }, { email, password });
 
-const resetPassword = async (newPassword: string, token: string): Promise<Response> =>
+const resetPassword = async (newPassword: string, token: string) =>
   await authPost("/reset-password", { origin: ORIGIN }, { newPassword, token });
 
 afterEach(() => {
@@ -91,6 +90,7 @@ dbSuite("password reset", () => {
       const response = await requestReset("off-site@example.com", stranger);
       expect(response.status, stranger).toBe(403);
     }
+
     expect(mail.links()).toHaveLength(0);
   });
 
@@ -106,6 +106,7 @@ dbSuite("password reset", () => {
 
   it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
     await signUpUser("bounds@example.com");
+
     for (const newPassword of [
       "x".repeat(PASSWORD_MIN_LENGTH - 1),
       "x".repeat(PASSWORD_MAX_LENGTH + 1),
@@ -143,9 +144,11 @@ dbSuite("password reset", () => {
     const { password } = await signUpUser("expired@example.com");
     const link = await mailedResetLink("expired@example.com");
     const token = new URL(link).pathname.split("/").at(-1);
+
     if (token === undefined) {
       throw new Error("no token in link");
     }
+
     await db
       .update(verification)
       .set({ expiresAt: new Date(Date.now() - 1000) })

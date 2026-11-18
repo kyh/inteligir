@@ -8,32 +8,34 @@ import type { ItemListing, ListingQuery, ListingRow } from "./library-index";
 import type { LibraryItemFields } from "./library-item";
 import { listingPageInputSchema } from "./library-wire";
 
-const row = (id: string, overrides: Partial<ListingRow> = {}): ListingRow => ({
-  deletedAt: null,
-  folderId: null,
-  id,
-  kind: "note",
-  pinnedAt: null,
-  savedAt: 0,
-  tags: [],
-  title: id,
-  updatedAt: 0,
-  url: null,
-  ...overrides,
-});
+const row = (id: string, overrides: Partial<ListingRow> = {}) =>
+  ({
+    deletedAt: null,
+    folderId: null,
+    id,
+    kind: "note",
+    pinnedAt: null,
+    savedAt: 0,
+    tags: [],
+    title: id,
+    updatedAt: 0,
+    url: null,
+    ...overrides,
+  }) satisfies ListingRow;
 
-const query = (overrides: Partial<ListingQuery> = {}): ListingQuery => ({
-  deleted: false,
-  limit: 50,
-  offset: 0,
-  order: { by: "saved" },
-  ...overrides,
-});
+const query = (overrides: Partial<ListingQuery> = {}) =>
+  ({
+    deleted: false,
+    limit: 50,
+    offset: 0,
+    order: { by: "saved" },
+    ...overrides,
+  }) satisfies ListingQuery;
 
-const ids = (index: LibraryIndex<ListingRow>, overrides: Partial<ListingQuery> = {}): string[] =>
+const ids = (index: LibraryIndex<ListingRow>, overrides: Partial<ListingQuery> = {}) =>
   index.items(query(overrides)).items.map((item) => item.id);
 
-const filled = (): LibraryIndex<ListingRow> => {
+const filled = () => {
   const index = new LibraryIndex<ListingRow>();
   index.setFolders([
     { id: "work", name: "Work", parentId: null, sort: "a1" },
@@ -54,6 +56,7 @@ const filled = (): LibraryIndex<ListingRow> => {
   );
   index.upsert(row("pinned", { pinnedAt: 2, savedAt: 0, title: "zeta" }));
   index.upsert(row("binned", { deletedAt: 4, savedAt: 9 }));
+
   return index;
 };
 
@@ -95,6 +98,7 @@ describe(LibraryIndex, () => {
       ["binned", 2],
       ["pinned", 5],
     ]);
+
     const index = filled();
     expect(ids(index, { order: { by: "rank", rank } })).toStrictEqual(["pinned", "link", "old"]);
     expect(ids(index, { deleted: true, order: { by: "rank", rank } })).toStrictEqual(["binned"]);
@@ -183,7 +187,7 @@ const listing = (
   id: string,
   fields: Partial<LibraryItemFields>,
   tags: readonly string[] = fields.tags ?? [],
-): ItemListing =>
+) =>
   itemListing(
     {
       card: { outline: [], preview: "", title: fields.title ?? id, words: 0 },
@@ -195,24 +199,22 @@ const listing = (
     tags,
   );
 
-const answering = (): LibraryIndex<ItemListing> => {
+const answering = () => {
   const index = new LibraryIndex<ItemListing>();
   index.upsert(listing("cherry", { savedAt: 1, title: "Cherry" }));
   index.upsert(listing("apple", { savedAt: 2, title: "Apple" }, ["Fruit", "red"]));
   index.upsert(listing("banana", { savedAt: 3, title: "Banana" }));
   index.upsert(listing("durian", { kind: "link", savedAt: 4, url: "https://example.com/durian" }));
+
   return index;
 };
 
-// the index above holds each row whole
-const whole = (listed: ItemListing): ItemListing => listed;
+const whole = (listed: ItemListing) => listed;
 
-// a browse asks no search
 const noSearch = (): never => {
   throw new Error("a page with no words searched");
 };
 
-// a page as the wire's schema parses its request, every default in place
 const pageOf = (
   index: LibraryIndex<ItemListing>,
   input: z.input<typeof listingPageInputSchema>,
@@ -226,6 +228,7 @@ describe(listingPageOf, () => {
       scope: { kind: "all" as const },
       sort: "title" as const,
     };
+
     const first = pageOf(answering(), { ...notes, limit: 2 });
     expect(first.items.map(({ card }) => card.title)).toStrictEqual(["Apple", "Banana"]);
     expect(first).toMatchObject({ cursor: 2, kindCounts: { link: 1, note: 3 }, total: 3 });
@@ -245,7 +248,6 @@ describe(listingPageOf, () => {
 
   it("lists what a scope names: every item, Unsorted, a folder with what is under it, a tag, or Deleted", () => {
     const index = answering();
-    // a scope names a folder by its id, as the library mints one
     const fruit = "01a0f4c2-c400-78d9-a955-7935ec13d6d5";
     const red = "01a0f4c2-c400-78d9-a955-7935ec13d6d6";
     index.setFolders([
@@ -254,8 +256,10 @@ describe(listingPageOf, () => {
     ]);
     index.upsert(listing("apple", { folderId: red, savedAt: 2, title: "Apple" }, ["Fruit"]));
     index.upsert(listing("elder", { deletedAt: 9, savedAt: 5, title: "Elder" }));
+
     const titles = (scope: LibraryScope) =>
       pageOf(index, { limit: 10, scope }).items.map(({ card }) => card.title);
+
     expect(titles({ kind: "all" })).toStrictEqual(["durian", "Banana", "Apple", "Cherry"]);
     expect(titles({ kind: "unsorted" })).toStrictEqual(["durian", "Banana", "Cherry"]);
     expect(titles({ folderId: fruit, kind: "folder" })).toStrictEqual(["Apple"]);
@@ -266,11 +270,14 @@ describe(listingPageOf, () => {
   it("answers only a search's hits on the scope's side, best first, cutting a passage for each row of the page alone", () => {
     const cut: string[] = [];
     const asked: [string, boolean][] = [];
+
     const search = (words: string, deleted: boolean) => {
       asked.push([words, deleted]);
+
       return {
         passage: (id: string) => {
           cut.push(id);
+
           return id === "cherry" ? "a cherry tree" : null;
         },
         rank: new Map([
@@ -280,6 +287,7 @@ describe(listingPageOf, () => {
         ]),
       };
     };
+
     const page = pageOf(answering(), { limit: 2, scope: { kind: "all" }, words: "tree" }, search);
     expect(page.items.map(({ id, snippet }) => [id, snippet])).toStrictEqual([
       ["cherry", "a cherry tree"],
@@ -293,6 +301,7 @@ describe(listingPageOf, () => {
       { limit: 2, scope: { kind: "deleted" }, words: "tree" },
       search,
     );
+
     expect(deleted.items).toStrictEqual([]);
     expect(asked).toStrictEqual([
       ["tree", false],
@@ -325,6 +334,7 @@ describe(itemSummary, () => {
       tags: ["Read", "later"],
       url: "https://example.com/a",
     });
+
     expect(itemSummary(saved)).toStrictEqual({
       folderId: "work",
       id: "a",

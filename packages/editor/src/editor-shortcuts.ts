@@ -1,6 +1,3 @@
-// In a plain browser tab ⌘T and sometimes ⌘L are reserved before the page sees
-// them; the desktop shell's window delivers both.
-
 import { isHotkey, KEYS } from "platejs";
 import { SlateReactExtensionPlugin, createPlatePlugin } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
@@ -31,7 +28,6 @@ export type EditorShortcutAction =
   | "toggle-numbered-list"
   | "toggle-bulleted-list";
 
-// `hotkey` is is-hotkey's spelling, which `spellHotkey` spells for the platform.
 export interface EditorShortcut<Action extends string = EditorShortcutAction> {
   readonly hotkey: string;
   readonly action: Action;
@@ -50,12 +46,12 @@ const LIST_FOR_ACTION = {
   "toggle-todo-list": "todo-list",
 } satisfies Partial<Record<EditorShortcutAction, TurnIntoId>>;
 
-// a list's chord is named as the turn-into menu names the list
-const listShortcut = (action: keyof typeof LIST_FOR_ACTION, hotkey: string): EditorShortcut => ({
-  action,
-  hotkey,
-  label: turnIntoOption(LIST_FOR_ACTION[action]).label,
-});
+const listShortcut = (action: keyof typeof LIST_FOR_ACTION, hotkey: string) =>
+  ({
+    action,
+    hotkey,
+    label: turnIntoOption(LIST_FOR_ACTION[action]).label,
+  }) satisfies EditorShortcut;
 
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   CODE_MARK_SHORTCUT,
@@ -64,59 +60,63 @@ export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   listShortcut("toggle-bulleted-list", "mod+l"),
 ];
 
-export const matchesHotkey = (hotkey: string, event: ShortcutKeyEvent): boolean =>
+export const matchesHotkey = (hotkey: string, event: ShortcutKeyEvent) =>
   // oxlint-disable-next-line typescript/no-unsafe-call -- platejs re-exports is-hotkey, which ships no types, so the type-aware pass reads the call as an unresolved type
   Boolean(isHotkey(hotkey, event));
 
 export const editorShortcutFor = <Action extends string>(
   rows: readonly EditorShortcut<Action>[],
   event: ShortcutKeyEvent,
-): EditorShortcut<Action> | null => rows.find((row) => matchesHotkey(row.hotkey, event)) ?? null;
+) => rows.find((row) => matchesHotkey(row.hotkey, event)) ?? null;
 
-const inCodeBlock = (editor: PlateEditor): boolean =>
+const inCodeBlock = (editor: PlateEditor) =>
   editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } });
 
-const toggleList = (editor: PlateEditor, id: TurnIntoId): void => {
+const toggleList = (editor: PlateEditor, id: TurnIntoId) => {
   const entry = effectiveBlockEntry(editor);
   const active = entry !== null && turnIntoOptionFor(entry[0]).id === id;
   turnIntoSelection(editor, turnIntoOption(active ? "text" : id));
 };
 
-// false when the action does not apply where the caret is, so a key it did not take still types;
-// a surface with no key (the touch toolbar) runs the same rows through here
-export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAction): boolean => {
+export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAction) => {
   switch (action) {
     case "toggle-code-mark": {
-      // a code mark inside a code block is nonsense the serializer would nest
       if (inCodeBlock(editor)) {
         return false;
       }
+
       editor.tf.toggleMark(KEYS.code);
+
       return true;
     }
+
     case "toggle-todo-list":
     case "toggle-numbered-list":
     case "toggle-bulleted-list": {
       if (inCodeBlock(editor)) {
         return false;
       }
+
       toggleList(editor, LIST_FOR_ACTION[action]);
+
       return true;
     }
-    // an exhaustive switch: falling off the end is what makes tsc reject a new action
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(action satisfies never)}`);
+    }
   }
 };
 
-export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent): void => {
+export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent) => {
   const row = editorShortcutFor(EDITOR_SHORTCUTS, event);
+
   if (row !== null && runEditorShortcut(editor, row.action)) {
     event.preventDefault();
   }
 };
 
 export const EditorShortcutsKit = [
-  // Plate's own keydown, whose Tab indents a list item or a code line
   SlateReactExtensionPlugin.configure({ editOnly: true }),
   createPlatePlugin({ editOnly: true, key: "editorShortcuts" }).extend(() => ({
     handlers: {

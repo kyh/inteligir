@@ -1,7 +1,3 @@
-// CLAUDE.md § The rail chooses the library's scope. Stacked groups over the one grid (the library,
-// its folders, its tags, Deleted), each row a link to a scope with the count the cell answers for
-// it, and Settings at its foot.
-
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -54,7 +50,6 @@ import type { FolderRow } from "./folder-paths";
 
 export interface RailProps {
   readonly scope: LibraryScope;
-  // an item is open over the grid, so no scope row is lit
   readonly itemOpen: boolean;
 }
 
@@ -62,21 +57,23 @@ const Count = ({ count }: { count: number }) => (
   <SidebarMenuBadge>{formatCount(count)}</SidebarMenuBadge>
 );
 
-const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope): boolean => {
+const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope) => {
   if (itemOpen || scope.kind !== row.kind) {
     return false;
   }
+
   if (scope.kind === "folder" && row.kind === "folder") {
     return scope.folderId === row.folderId;
   }
+
   if (scope.kind === "tag" && row.kind === "tag") {
     return scope.tag === row.tag;
   }
+
   return true;
 };
 
-// a click the browser opens elsewhere, in a new tab or window, is left to the browser
-const opensElsewhere = (event: MouseEvent): boolean =>
+const opensElsewhere = (event: MouseEvent) =>
   event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
 type ScopeLinkProps = RailProps &
@@ -84,10 +81,9 @@ type ScopeLinkProps = RailProps &
     readonly target: LibraryScope;
   };
 
-// A row is a link to its scope, so it has an address to copy and a modified or middle click opens
-// it in a new tab; a plain click moves this tab, so the leave guard asks once and Back walks scopes.
 const ScopeLink = ({ target, scope, itemOpen, ...props }: ScopeLinkProps) => {
   const commands = useLibraryCommands();
+
   return (
     <SidebarMenuButton
       {...props}
@@ -101,6 +97,7 @@ const ScopeLink = ({ target, scope, itemOpen, ...props }: ScopeLinkProps) => {
         if (opensElsewhere(event)) {
           return;
         }
+
         event.preventDefault();
         commands.showScope(target);
       }}
@@ -108,7 +105,6 @@ const ScopeLink = ({ target, scope, itemOpen, ...props }: ScopeLinkProps) => {
   );
 };
 
-// the menu drops under More when More opened it, and under the row when a right-click on it did
 type FolderMenu = { readonly under: "more" } | { readonly under: "row"; readonly row: HTMLElement };
 
 const FolderItem = ({
@@ -119,6 +115,7 @@ const FolderItem = ({
 }: RailProps & { readonly row: FolderRow; readonly count: number }) => {
   const commands = useLibraryCommands();
   const [menu, setMenu] = useState<FolderMenu | null>(null);
+
   return (
     <SidebarMenuItem>
       <ScopeLink
@@ -181,6 +178,7 @@ const FolderItem = ({
 const FolderRows = ({ scope, itemOpen }: RailProps) => {
   const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
   const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
+
   return (
     <SidebarMenu aria-label="Folders">
       {folderPaths(folders).map((row) => (
@@ -198,9 +196,11 @@ const FolderRows = ({ scope, itemOpen }: RailProps) => {
 
 const TagRows = ({ scope, itemOpen }: RailProps) => {
   const tags = useQuery(useLibraryQueries().scopes()).data?.tags ?? [];
+
   if (tags.length === 0) {
     return <p className="m-0 px-3 py-1 text-caption text-muted-foreground">No tags yet</p>;
   }
+
   return (
     <SidebarMenu aria-label="Tags">
       {tags.map(({ items, tag }) => (
@@ -224,6 +224,7 @@ export const Rail = ({ scope, itemOpen }: RailProps) => {
   const commands = useLibraryCommands();
   const scopes = useQuery(useLibraryQueries().scopes()).data;
   const [tagsOpen, setTagsOpen] = usePref(windowLayout, "railTagsOpen");
+
   return (
     <>
       <SidebarHeader>

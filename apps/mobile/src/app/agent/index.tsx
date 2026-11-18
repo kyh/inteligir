@@ -1,7 +1,3 @@
-// The built-in agent's conversations, the account's and the same on every device: as the phone last
-// read them, so a past one reads offline, newest first, each with its state when a turn is under
-// way. Asking needs a connection, which the conversation says where it would send.
-
 import { Stack } from "expo-router";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +9,7 @@ import { screenStyle, useTheme } from "@/lib/theme";
 const ConversationsScreen = () => {
   const theme = useTheme();
   const threads = useThreads() ?? [];
+
   return (
     <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Toolbar placement="right">
@@ -37,6 +34,7 @@ const ConversationsScreen = () => {
         }
         renderItem={({ item: thread }) => {
           const state = statusWords(thread.status);
+
           return (
             <Pressable
               accessibilityRole="button"

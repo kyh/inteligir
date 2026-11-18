@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { deferred } from "@repo/contract/deferred";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { noteFixture } from "@repo/contract/test-support/library-items";
+import { noteFixture } from "@repo/contract/test-support/library-items.test-utils";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { Tx } from "@repo/db/drizzle-client";
@@ -26,7 +26,7 @@ import { PgTable } from "drizzle-orm/pg-core";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { makeAccount, seedItem } from "../test-support/library-fixture";
+import { makeAccount, seedItem } from "../test-support/library.fixture";
 import { refuse } from "./library-refusal";
 import { withAccountLock, writeLibrary } from "./library-store";
 import type { WriteScope } from "./library-store";
@@ -34,16 +34,16 @@ import type { WriteScope } from "./library-store";
 const NO_OP = undefined;
 const PERSON = { kind: "person" } as const;
 
-const headOf = async (accountId: string): Promise<number | null> => {
+const headOf = async (accountId: string) => {
   const [row] = await db
     .select({ head: libraryState.head })
     .from(libraryState)
     .where(eq(libraryState.accountId, accountId));
+
   return row?.head ?? null;
 };
 
-// a folder the write lands, stamped with its sequence
-const addFolder = async (scope: WriteScope, name: string): Promise<string> => {
+const addFolder = async (scope: WriteScope, name: string) => {
   const id = randomUUID();
   await scope.tx.insert(folder).values({
     accountId: scope.accountId,
@@ -53,6 +53,7 @@ const addFolder = async (scope: WriteScope, name: string): Promise<string> => {
     seq: await scope.seq(),
     sort: "a0",
   });
+
   return id;
 };
 
@@ -65,18 +66,19 @@ const foldersOf = async (accountId: string) =>
 
 const backendsSchema = z.array(z.object({ pid: z.number() }));
 
-const backendOf = async (tx: Tx): Promise<number> => {
+const backendOf = async (tx: Tx) => {
   const [backend] = backendsSchema.parse(
     await tx.execute(sql`select pg_backend_pid() as pid`, "objects"),
   );
+
   if (backend === undefined) {
     throw new Error("the transaction has no backend");
   }
+
   return backend.pid;
 };
 
-// the backends a lock of `holder`'s holds up
-const waitersOn = async (holder: number): Promise<number> =>
+const waitersOn = async (holder: number) =>
   backendsSchema.parse(
     await db.execute(
       sql`select pid from pg_stat_activity where ${holder}::int = any(pg_blocking_pids(pid))`,
@@ -85,7 +87,6 @@ const waitersOn = async (holder: number): Promise<number> =>
   ).length;
 
 dbSuite("a library write", () => {
-  // a library's first write makes its row, which a second waits on as it would on the lock
   it.each([
     ["a library's first", false],
     ["a library's later", true],
@@ -93,10 +94,13 @@ dbSuite("a library write", () => {
     const mine = await makeAccount();
     const theirs = await makeAccount();
     const landed: string[] = [];
+
     const stamp = (name: string) => async (scope: WriteScope) => {
       landed.push(name);
+
       return await scope.seq();
     };
+
     if (later) {
       await writeLibrary(
         { accountId: mine, actor: PERSON },
@@ -104,9 +108,11 @@ dbSuite("a library write", () => {
         stamp("before"),
       );
     }
+
     const head = later ? 1 : 0;
     const holding = deferred();
     const holder = deferred<number>();
+
     try {
       const first = writeLibrary(
         { accountId: mine, actor: PERSON },
@@ -114,15 +120,19 @@ dbSuite("a library write", () => {
         async (scope) => {
           holder.resolve(await backendOf(scope.tx));
           await holding.promise;
+
           return await stamp("first")(scope);
         },
       );
+
       const holderPid = await holder.promise;
+
       const second = writeLibrary(
         { accountId: mine, actor: PERSON },
         { answer: z.number(), opId: NO_OP },
         stamp("second"),
       );
+
       await vi.waitFor(async () => {
         expect(await waitersOn(holderPid)).toBe(1);
       });
@@ -132,6 +142,7 @@ dbSuite("a library write", () => {
         { answer: z.number(), opId: NO_OP },
         stamp("other"),
       );
+
       expect(other).toStrictEqual({ ok: true, value: 1 });
 
       holding.resolve();
@@ -154,27 +165,33 @@ dbSuite("a library write", () => {
       const accountId = await makeAccount();
       const holding = deferred();
       const held = deferred();
+
       const holder = withAccountLock(accountId, async () => {
         held.resolve();
         await holding.promise;
       });
+
       try {
         await held.promise;
         let ran = false;
+
         const waited = await writeLibrary(
           { accountId, actor: PERSON },
           { answer: z.number(), opId: NO_OP },
           async (scope) => {
             ran = true;
+
             return await scope.seq();
           },
         );
+
         expect(waited).toStrictEqual({ ok: false, refusal: { kind: "busy" } });
         expect(ran).toBe(false);
       } finally {
         holding.resolve();
         await holder;
       }
+
       expect(await headOf(accountId)).toBe(0);
     },
   );
@@ -183,6 +200,7 @@ dbSuite("a library write", () => {
     const accountId = await makeAccount();
     const opId = randomUUID();
     const made = z.object({ id: z.string(), seq: z.number() });
+
     const makeFolder = async (writer: string) =>
       await writeLibrary(
         { accountId: writer, actor: PERSON },
@@ -199,7 +217,6 @@ dbSuite("a library write", () => {
     expect(await headOf(accountId)).toBe(1);
     expect(await foldersOf(accountId)).toHaveLength(1);
 
-    // an op id is its account's own
     const other = await makeAccount();
     const theirs = await makeFolder(other);
     expect(theirs).toMatchObject({ ok: true, value: { seq: 1 } });
@@ -208,21 +225,26 @@ dbSuite("a library write", () => {
 
   it("takes back a refused attempt alone, the sequence it took with it", async () => {
     const accountId = await makeAccount();
+
     const result = await writeLibrary(
       { accountId, actor: PERSON },
       { answer: z.number(), opId: NO_OP },
       async (scope) => {
         const refused = await scope.attempt(async (part) => {
           await addFolder(part, "refused");
+
           return refuse({ kind: "conflict" });
         });
+
         expect(refused).toStrictEqual({ ok: false, refusal: { kind: "conflict" } });
         await addFolder(scope, "kept");
         const attempted = await scope.attempt(async (part) => await addFolder(part, "attempted"));
         expect(attempted).toMatchObject({ ok: true });
+
         return await scope.seq();
       },
     );
+
     expect(result).toStrictEqual({ ok: true, value: 1 });
     expect(await foldersOf(accountId)).toStrictEqual([
       { name: "attempted", seq: 1 },
@@ -233,11 +255,13 @@ dbSuite("a library write", () => {
 
   it("moves the head once for a write that stamps, and never for one that is refused or fails", async () => {
     const accountId = await makeAccount();
+
     const stamps = await writeLibrary(
       { accountId, actor: PERSON },
       { answer: z.array(z.number()), opId: NO_OP },
       async (scope) => [await scope.seq(), await scope.seq(), await scope.seq()],
     );
+
     expect(stamps).toStrictEqual({ ok: true, value: [1, 1, 1] });
 
     const quiet = await writeLibrary(
@@ -245,6 +269,7 @@ dbSuite("a library write", () => {
       { answer: z.null(), opId: NO_OP },
       async () => null,
     );
+
     expect(quiet).toStrictEqual({ ok: true, value: null });
     expect(await headOf(accountId)).toBe(1);
 
@@ -253,9 +278,11 @@ dbSuite("a library write", () => {
       { answer: z.string(), opId: NO_OP },
       async (scope) => {
         await addFolder(scope, "refused");
+
         return refuse({ kind: "not-found" });
       },
     );
+
     expect(refused).toStrictEqual({ ok: false, refusal: { kind: "not-found" } });
     await expect(
       writeLibrary(
@@ -275,6 +302,7 @@ dbSuite("a library write", () => {
       { answer: z.number(), opId: NO_OP },
       async (scope) => await scope.seq(),
     );
+
     expect(next).toStrictEqual({ ok: true, value: 2 });
   });
 
@@ -283,13 +311,16 @@ dbSuite("a library write", () => {
     const kickJobs = vi.fn<(kicked: string) => void>();
     const writer = { accountId, actor: PERSON, kickJobs };
     const lot = { kind: "sweep" as const, payload: { ids: [] } };
+
     const jobsOf = async () =>
       await db.select({ id: job.id }).from(job).where(eq(job.accountId, accountId));
 
     const landed = await writeLibrary(writer, { answer: z.null(), opId: NO_OP }, async (scope) => {
       await scope.askJobs([{ ...lot, id: "sweep:kept" }]);
+
       return null;
     });
+
     expect(landed).toStrictEqual({ ok: true, value: null });
     expect(kickJobs.mock.calls).toStrictEqual([[accountId]]);
 
@@ -298,14 +329,19 @@ dbSuite("a library write", () => {
       await scope.askJobs([]);
       await scope.attempt(async (part) => {
         await part.askJobs([{ ...lot, id: "sweep:taken-back" }]);
+
         return refuse({ kind: "not-found" });
       });
+
       return null;
     });
+
     const refused = await writeLibrary(writer, { answer: z.null(), opId: NO_OP }, async (scope) => {
       await scope.askJobs([{ ...lot, id: "sweep:refused" }]);
+
       return refuse({ kind: "not-found" });
     });
+
     expect(refused).toStrictEqual({ ok: false, refusal: { kind: "not-found" } });
     expect(kickJobs).not.toHaveBeenCalled();
     await expect(jobsOf()).resolves.toStrictEqual([{ id: "sweep:kept" }]);
@@ -314,38 +350,42 @@ dbSuite("a library write", () => {
 
 const LIBRARY_TABLES = Object.values(librarySchema).filter((value) => is(value, PgTable));
 
-// how many rows each library table holds of the account's
-const rowsOf = async (accountId: string): Promise<Record<string, number>> =>
+const rowsOf: (accountId: string) => Promise<Record<string, number>> = async (accountId: string) =>
   Object.fromEntries(
     await Promise.all(
       LIBRARY_TABLES.map(async (table) => {
         const { accountId: owner } = getColumns(table);
+
         if (owner === undefined) {
           throw new Error(`${getTableName(table)} has no account_id`);
         }
+
         const [row] = await db.select({ rows: count() }).from(table).where(eq(owner, accountId));
+
         return [getTableName(table), row?.rows ?? 0];
       }),
     ),
   );
 
-const linkedNote = (target: string): LibraryBlock => ({
-  children: [
-    { text: "about #inline " },
-    { children: [{ text: "a page" }], type: "a", url: "https://example.com/page" },
-    { children: [{ text: "" }], key: target, type: "mention", value: "Elsewhere" },
-  ],
-  id: "p1",
-  type: "p",
-});
+const linkedNote = (target: string) =>
+  ({
+    children: [
+      { text: "about #inline " },
+      { children: [{ text: "a page" }], type: "a", url: "https://example.com/page" },
+      { children: [{ text: "" }], key: target, type: "mention", value: "Elsewhere" },
+    ],
+    id: "p1",
+    type: "p",
+  }) satisfies LibraryBlock;
 
-// one row at least in every library table, as a library in use holds them
-const fillLibrary = async (accountId: string): Promise<void> => {
+const fillLibrary = async (accountId: string) => {
   const elsewhere = await seedItem(accountId, { fields: noteFixture({ title: "Elsewhere" }) });
+
   const note = await seedItem(accountId, {
     blocks: [{ block: linkedNote(elsewhere.id), section: "note" }],
     fields: noteFixture({ tags: ["field"] }),
   });
+
   const sha256 = "a".repeat(64);
   const changeSetId = randomUUID();
   await db.transaction(async (tx) => {

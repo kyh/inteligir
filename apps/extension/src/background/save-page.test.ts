@@ -1,5 +1,5 @@
 import { fileSha } from "@repo/contract/library/file-sha";
-import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response.test-utils";
 import {
   AccountGoneError,
   BlobMismatchError,
@@ -32,8 +32,8 @@ import {
   SESSION,
   SIGNED_IN,
   SIGNED_OUT,
-} from "./test-support/fake-cloud";
-import type { FakeCloud } from "./test-support/fake-cloud";
+} from "./test-support/fake-cloud.test-utils";
+import type { FakeCloud } from "./test-support/fake-cloud.test-utils";
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -62,44 +62,46 @@ const ARTICLE_HTML = [
   "</article></body></html>",
 ].join("\n");
 
-// a PNG's signature and IHDR, of a cover's size
 const PNG = (() => {
   const head = new Uint8Array(24);
   head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   const view = new DataView(head.buffer);
   view.setUint32(16, 1200);
   view.setUint32(20, 630);
+
   return head;
 })();
 
 const TAB = { id: 7, title: "File over app — Steph Ango", url: URL_SAVED };
 
-const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
-  html: ARTICLE_HTML,
-  title: "File over app",
-  url: URL_SAVED,
-  ...overrides,
-});
+const page = (overrides: Partial<CapturedPage> = {}) =>
+  ({
+    html: ARTICLE_HTML,
+    title: "File over app",
+    url: URL_SAVED,
+    ...overrides,
+  }) satisfies CapturedPage;
 
 const answering = (status: number) => async () => new Response(null, { status });
 
-// a cloud that refuses an upload, as it answers one
-const uploadRefused = (declared: Parameters<typeof refusalResponse>[0]): FakeCloud =>
+const uploadRefused = (declared: Parameters<typeof refusalResponse>[0]) =>
   fakeCloud({ upload: async () => refusalResponse(declared) });
 
 const FULL = new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } });
+
 const OVERSIZE = new PayloadTooLargeError({
   message: "This file is larger than your library keeps.",
 });
 
-const refusedFor = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
-const refusedByLibrary = (message: string): Outcome => ({
-  kind: "refused",
-  message,
-  reason: "library",
-});
+const refusedFor = (reason: OutcomeReason) => ({ kind: "refused", reason }) satisfies Outcome;
 
-// a save as the queue keeps it
+const refusedByLibrary = (message: string) =>
+  ({
+    kind: "refused",
+    message,
+    reason: "library",
+  }) satisfies Outcome;
+
 const kept = (payload: { email?: string; title?: string; url: string }) =>
   expect.objectContaining({ payload: expect.objectContaining(payload) });
 
@@ -113,24 +115,29 @@ const depsWith = (
 ) => {
   const covers: string[] = [];
   const captures: number[] = [];
+
   const deps: SaveDeps = {
     capture: async (tabId) => {
       captures.push(tabId);
+
       return options.captured === undefined ? page() : options.captured;
     },
     cloud: () => cloud.cloud,
     fetchCover: async (url) => {
       covers.push(url);
+
       return PNG;
     },
     newBlockId: () => {
       seq += 1;
+
       return `block-${String(seq)}`;
     },
     now: () => Date.UTC(2026, 10, 5, 12),
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
     signIn: async () => options.signIn ?? SIGNED_IN,
   };
+
   return { captures, covers, deps };
 };
 
@@ -154,13 +161,13 @@ describe("a tab saved", () => {
     });
     expect(JSON.stringify(save?.article)).toContain(PASSAGE);
     expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png", sha: fileSha(PNG) }]);
-    // a public page never sends this browser into the person's own network
     expect(run.covers).toStrictEqual(["https://cdn.example.test/cover.png"]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
   it("keeps a video's description as its article, as every device reads it", async () => {
     const url = "https://www.youtube.com/watch?v=abc123";
+
     const video = [
       "<!doctype html>",
       '<html lang="en"><head><title>A talk</title>',
@@ -169,6 +176,7 @@ describe("a tab saved", () => {
       `<p>${"The words around the video. ".repeat(20)}</p>`,
       "</article></body></html>",
     ].join("\n");
+
     const cloud = fakeCloud({});
     await saveTab(depsWith(cloud, { captured: page({ html: video, url }) }).deps, {
       tab: { ...TAB, url },
@@ -214,11 +222,13 @@ describe("a tab saved", () => {
     vi.useFakeTimers();
     const cloud = fakeCloud({});
     const run = depsWith(cloud);
+
     const stalled = {
       ...run.deps,
       // oxlint-disable-next-line promise/avoid-new -- a capture that never settles, as a page stuck loading answers
       capture: async () => await new Promise<CapturedPage | null>(() => {}),
     };
+
     const saved = saveTab(stalled, { tab: TAB });
     await vi.advanceTimersByTimeAsync(CAPTURE_DEADLINE_MS);
     await expect(saved).resolves.toMatchObject({ kind: "saved" });
@@ -241,6 +251,7 @@ describe("a tab saved", () => {
       '<meta name="description" content="A page its scripts have yet to draw.">',
       '</head><body><div id="root"></div></body></html>',
     ].join("\n");
+
     const cloud = fakeCloud({});
     await saveTab(depsWith(cloud, { captured: page({ html: shell, title: "A shell" }) }).deps, {
       tab: TAB,
@@ -301,6 +312,7 @@ describe("a tab saved", () => {
         throw new TypeError("Failed to fetch");
       },
     });
+
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "queued",
       waitsFor: "connection",
@@ -317,14 +329,17 @@ describe("a tab saved", () => {
   it("is kept in the queue, the alarm standing, before its first call goes", async () => {
     let queuedAtCall: number | null = null;
     let alarmAtCall: Browser.alarms.Alarm | undefined;
+
     const cloud = fakeCloud({
       save: async () => {
         const queued = await queuedSaves();
         queuedAtCall = queued.length;
         alarmAtCall = await browser.alarms.get(SEND_ALARM);
+
         return savedAs("File over app");
       },
     });
+
     await saveTab(depsWith(cloud).deps, { tab: TAB });
     expect(queuedAtCall).toBe(1);
     expect(alarmAtCall).toBeDefined();
@@ -343,18 +358,20 @@ describe("a tab saved", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([
       kept({ email: SESSION.email, title: TAB.title, url: URL_SAVED }),
     ]);
-    // the site's sign-in sends it, which no timer brings
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
     const replaced = keptAs(OTHER_SESSION.email, OTHER_SESSION.bearer);
+
     const cloud = fakeCloud({
       save: async () => {
         await keepConnection(replaced);
+
         return await refusal("GONE")();
       },
     });
+
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
       reason: "not-connected",
@@ -365,11 +382,13 @@ describe("a tab saved", () => {
 
   it("asks for a sign-in first, and saves nothing off the web", async () => {
     const cloud = fakeCloud({});
+
     for (const signIn of [SIGNED_IN, SIGNED_OUT]) {
       await expect(
         saveTab(depsWith(cloud, { signIn }).deps, { tab: { ...TAB, url: "chrome://settings" } }),
       ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
     }
+
     await expect(
       saveTab(depsWith(cloud, { signIn: NONE }).deps, { tab: TAB }),
     ).resolves.toStrictEqual({
@@ -452,6 +471,7 @@ describe("a right-click's address or picture", () => {
         true,
       ],
     ];
+
     for (const [met, cloud, outcome, accountKept] of rows) {
       await keepConnection(KEPT);
       await expect(

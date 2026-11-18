@@ -1,6 +1,3 @@
-// The account's rows as a device's link calls them on `/v1/rpc`: its devices listed and ended, its
-// deletion with the password asked again, and the status every refusal answers under.
-
 import { session } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
@@ -15,15 +12,15 @@ import {
   signInPhone,
   signUpUser,
   userIdOf,
-} from "../test-support/auth-requests";
-import { pageHeaders, phoneHeaders, v1Link } from "../test-support/v1-link";
+} from "../test-support/auth-requests.test-utils";
+import { pageHeaders, phoneHeaders, v1Link } from "../test-support/v1-link.test-utils";
 
 const DAY_MS = 86_400_000;
 
-// an account made on the site and signed in on a phone: the site's cookie and the phone's link
 const signedUp = async (email: string) => {
   const { cookie } = await signUpUser(email);
   const phoneCookie = await signInPhone(email);
+
   return { cookie, phone: v1Link(phoneHeaders(phoneCookie)), phoneCookie };
 };
 
@@ -78,14 +75,16 @@ dbSuite("the account's devices", () => {
   it("slides a session only on Better Auth's own read, whose cookie follows it", async () => {
     const { cookie } = await signUpUser("rows-slide@example.test");
     const accountId = await userIdOf(cookie);
-    const expiresAt = async (): Promise<number | undefined> => {
+
+    const expiresAt = async () => {
       const [row] = await db
         .select({ expiresAt: session.expiresAt })
         .from(session)
         .where(eq(session.userId, accountId));
+
       return row?.expiresAt.getTime();
     };
-    // a session last used weeks ago, due to slide on its next read
+
     const due = new Date(Date.now() + 5 * DAY_MS);
     await db.update(session).set({ expiresAt: due }).where(eq(session.userId, accountId));
 
@@ -104,9 +103,11 @@ dbSuite("deleting the account", () => {
     await expect(phone.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
       deleted: true,
     });
+
     for (const signedIn of [cookie, phoneCookie]) {
       await expect(sessionOf({ cookie: signedIn })).resolves.toBeNull();
     }
+
     await expect(phone.refusalOf(phone.account.devices.list())).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
@@ -116,11 +117,13 @@ dbSuite("deleting the account", () => {
   it("refuses a wrong password, and a session past its minute's guesses", async () => {
     const { phone, phoneCookie } = await signedUp("rows-delete-guesses@example.test");
     const refusals = [];
+
     for (let guess = 0; guess < 6; guess += 1) {
       refusals.push(
         await phone.refusalOf(phone.account.delete({ password: `not-the-password-${guess}` })),
       );
     }
+
     expect(refusals.map((refusal) => [refusal.code, refusal.status])).toStrictEqual([
       ...Array.from({ length: 5 }, () => ["INVALID_CREDENTIALS", 401]),
       ["TOO_MANY_REQUESTS", 429],

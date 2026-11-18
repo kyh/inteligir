@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 
-import { meaningOf, readValue, rewrite, writeValue } from "../../test-support/markdown-meaning";
+import {
+  meaningOf,
+  readValue,
+  rewrite,
+  writeValue,
+} from "../../test-support/markdown-meaning.test-utils";
 
-const paragraph = (text: string): TElement[] => [{ children: [{ text }], type: "p" }];
+const paragraph = (text: string) => [{ children: [{ text }], type: "p" }] satisfies TElement[];
 
-// text a person types that a read could take for markdown, the dialect's or another tool's
 const TYPED = [
   ":date[x]",
   ":date[2026-01-02]",
@@ -45,10 +49,8 @@ const TYPED = [
   "&amp; &#x7C;",
 ];
 
-// GFM reads a bare url in finished text as a link, whatever the writer escapes around it
 const TYPED_URLS = ["https://x.y", "see https://x.y/a:b now", "![x](https://y.z/a.png)"];
 
-// markdown a person pastes that only looks like the dialect
 const PASTED = [
   "see [[Title]] and [[Other|alias]]",
   ":unknown[x]{a=b}",
@@ -77,8 +79,6 @@ describe("text a person types", () => {
     expect(JSON.stringify(back)).toContain('"type":"a"');
   });
 
-  // a line opening with `::` would open a leaf or a container, which the stock escape keeps text,
-  // and gfm escapes the `:` of a url, which its own read takes for a link all the same
   it("escapes a `:` inside a line only before a construct the dialect reads", () => {
     for (const text of TYPED.filter((typed) => !typed.startsWith("::"))) {
       expect(writeValue(paragraph(text)), text).not.toMatch(/\\:(?!(?:date|formula)\\?[[{])/u);
@@ -92,14 +92,13 @@ describe("markdown a person pastes", () => {
   });
 });
 
-const pill = (type: string, props: Record<string, string>): TElement => ({
-  children: [{ text: "" }],
-  type,
-  ...props,
-});
+const pill = (type: string, props: Record<string, string>) =>
+  ({
+    children: [{ text: "" }],
+    type,
+    ...props,
+  }) satisfies TElement;
 
-// every ASCII punctuation mark, and each inline construct a label could read as, so a label the
-// writer escapes too little shows here; a pill shows such text when it is its source
 const LABELS = [
   "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
   "*a* _b_ `c` ~~d~~ ~e~ $$f$$ [g](h) ![i](j) <k> <https://l.m> &amp; :n[o] p|q \\*r",
@@ -124,6 +123,7 @@ describe("a label", () => {
         type: "tab_group",
       },
     ]);
+
     expect(written).toContain(":date[2026-08-22]");
     expect(written).toContain(":formula[1,000.50]");
     expect(written).toContain(":tab[Q3 - plan (draft)]");
@@ -150,6 +150,7 @@ describe("a label", () => {
         type: "tab_group",
       },
     ];
+
     const written = writeValue(value);
     expect(meaningOf(readValue(written))).toBe(meaningOf(value));
     expect(rewrite(written)).toBe(written);

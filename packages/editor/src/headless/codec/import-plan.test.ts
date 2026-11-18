@@ -6,7 +6,7 @@ import type { ImportedFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
-import { CODEC_NOW, withoutId } from "../../test-support/codec-ports";
+import { CODEC_NOW, withoutId } from "../../test-support/codec-ports.test-utils";
 import { basenamePath, dirnamePath } from "@repo/contract/knowledge/folder-path";
 
 import {
@@ -22,7 +22,6 @@ import type { ImportEntry, PlanIds } from "./import-plan";
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
 
-// an Obsidian vault beside a note an earlier version wrote, the binaries named by a pretend sha
 const OBSIDIAN_VAULT = {
   ".obsidian/app.json": '{"theme":"moonstone"}',
   "Notes/Daily.md": [
@@ -77,13 +76,14 @@ const OBSIDIAN_VAULT = {
 } satisfies Record<string, string>;
 
 const PAST_A_LINE = "a".repeat(ITEM_FIELD_CAPS.line + 1);
+
 const LONG_ALIASES = Array.from(
   { length: ITEM_FIELD_CAPS.listEntries },
   (_, index) => `- ${String(index).padStart(3, "0")}${"a".repeat(ITEM_FIELD_CAPS.line - 3)}`,
 );
+
 const BIG = "x".repeat(ITEM_FIELD_CAPS.propertiesBytes / 2);
 
-// notes whose frontmatter holds what no field or property takes as written
 const HOSTILE_NOTES = {
   "Aliases.md": `---\naliases:\n${LONG_ALIASES.join("\n")}\n---\nBody.\n`,
   "Big.md": `---\nfirst: ${BIG}\nsecond: ${BIG}\n---\nBody.\n`,
@@ -92,7 +92,7 @@ const HOSTILE_NOTES = {
   "Tag.md": `---\ntags: [ok, ${PAST_A_LINE}]\n---\nBody.\n`,
 } satisfies Record<string, string>;
 
-const shaOf = (path: string): string =>
+const shaOf = (path: string) =>
   [...path]
     .map((char) => (char.codePointAt(0) ?? 0).toString(16).padStart(2, "0"))
     .join("")
@@ -112,20 +112,25 @@ const BINARIES = new Map(
   ].map((path) => [path, shaOf(path)]),
 );
 
-const counters = (): PlanIds & { newBlockId: () => string } => {
+const counters = () => {
   let next = 0;
+
   const mint = (prefix: string) => () => {
     next += 1;
+
     return `${prefix}${String(next)}`;
   };
+
   let uuid = 0;
+
   return {
     newBlockId: mint("b"),
     newItemId: () => {
       uuid += 1;
+
       return `0195f3a0-5c1e-7000-9000-${String(uuid).padStart(12, "0")}`;
     },
-  };
+  } satisfies PlanIds & { newBlockId: () => string };
 };
 
 interface LibraryItem {
@@ -147,36 +152,40 @@ interface ReadLibrary {
   readonly skipped: string[];
 }
 
-// the folder each item sits in and every folder above it, as the cell makes them, each by its path
-const foldersOf = (items: readonly LibraryItem[]): Folder[] => {
+const foldersOf = (items: readonly LibraryItem[]) => {
   const paths = new Set<string>();
+
   for (const item of items) {
     for (let path = item.folderPath; path !== ""; path = dirnamePath(path)) {
       paths.add(path);
     }
   }
+
   return [...paths].map((path) => {
     const parent = dirnamePath(path);
+
     return { id: path, name: basenamePath(path), parentId: parent === "" ? null : parent };
   });
 };
 
-// the three passes over a folder's files, as an import runs them
 const readFolder = (
   files: Readonly<Record<string, string>>,
   binaries: ReadonlyMap<string, string>,
-): ReadLibrary => {
+) => {
   const ids = counters();
   const skipped: string[] = [];
   const entries: ImportEntry[] = [];
   const texts = new Map<string, string>();
+
   const listed = unwrapExport([
     ...Object.entries(files).map(([path, text]) => ({ path, text })),
     ...[...binaries].map(([path, sha]) => ({ path, sha })),
   ]);
+
   for (const entry of listed) {
     const { path } = entry;
     const kind = importPathKind(path);
+
     if ("sha" in entry) {
       if (kind === "file") {
         entries.push({ kind, path, sha: entry.sha });
@@ -190,31 +199,39 @@ const readFolder = (
       skipped.push(path);
     }
   }
+
   const plan = planImport(entries, ids);
   const reader = openPlan(plan);
   const attached = new Set<string>();
   const originals = new Set<string>();
   const items: LibraryItem[] = [];
+
   for (const doc of plan.docs) {
     const read = importPlannedDoc(reader, doc, texts.get(doc.path) ?? "", {
       ...ids,
       now: CODEC_NOW,
     });
+
     if (!read.ok) {
       throw new Error(`${read.path}: ${read.reason.kind}`);
     }
+
     const { coverSha, originalSha } = read.read.item.fields;
+
     for (const sha of [coverSha, originalSha]) {
       if (sha !== null) {
         attached.add(sha);
       }
     }
+
     for (const { block } of read.read.item.blocks) {
       collectFileShas(block, attached);
     }
+
     if (originalSha !== null) {
       originals.add(originalSha);
     }
+
     items.push({
       blocks: read.read.item.blocks,
       fields: read.read.item.fields,
@@ -222,37 +239,45 @@ const readFolder = (
       itemId: doc.itemId,
     });
   }
+
   for (const item of planFileItems(plan, { attached, originals }, ids, CODEC_NOW)) {
     items.push({ ...item, blocks: [] });
   }
-  return { folders: foldersOf(items), items, skipped };
+
+  return { folders: foldersOf(items), items, skipped } satisfies ReadLibrary;
 };
 
-const byTitle = (library: ReadLibrary, title: string): LibraryItem => {
+const byTitle = (library: ReadLibrary, title: string) => {
   const item = library.items.find((candidate) => candidate.fields.title === title);
+
   if (item === undefined) {
     throw new Error(`no item titled ${title}`);
   }
+
   return item;
 };
 
-const nodesOf = (item: LibraryItem): LibraryNode[] => {
+const nodesOf = (item: LibraryItem) => {
   const all: LibraryNode[] = [];
-  const walk = (node: LibraryNode): void => {
+
+  const walk = (node: LibraryNode) => {
     all.push(node);
+
     if (!("text" in node)) {
       for (const child of node.children) {
         walk(child);
       }
     }
   };
+
   for (const { block } of item.blocks) {
     walk(block);
   }
+
   return all;
 };
 
-const textOf = (item: LibraryItem): string =>
+const textOf = (item: LibraryItem) =>
   nodesOf(item)
     .flatMap((node) => ("text" in node ? [node.text] : []))
     .join("");
@@ -296,7 +321,6 @@ describe("an Obsidian vault read into the library", () => {
     expect(daily.folderPath).toBe("Notes");
     expect(project.folderPath).toBe("Projects");
     expect(byTitle(library, "orphan").folderPath).toBe("");
-    // a file alone in a folder of its own sits under the folder its parent already is
     expect(byTitle(library, "spec").folderPath).toBe("Projects/Specs");
   });
 
@@ -304,6 +328,7 @@ describe("an Obsidian vault read into the library", () => {
     const links = nodesOf(daily).flatMap((node) =>
       "type" in node && node.type === "mention" ? [node] : [],
     );
+
     expect(links.map(({ key, value }) => ({ key, value }))).toStrictEqual([
       { key: PROJECT_ID, value: "Project X" },
       { key: PROJECT_ID, value: "Project X" },
@@ -333,6 +358,7 @@ describe("an Obsidian vault read into the library", () => {
       },
       new Map(),
     );
+
     const alpha = items.find((item) => item.fields.title === "Alpha");
     expect(alpha?.blocks.map(({ block }) => block)).toMatchObject([
       {
@@ -351,10 +377,12 @@ describe("an Obsidian vault read into the library", () => {
       { length: ITEM_FIELD_CAPS.listEntries + 1 },
       (_, index) => `- a${String(index)}`,
     );
+
     const plan = planImport(
       [{ kind: "doc", path: "Many.md", text: `---\naliases:\n${aliases.join("\n")}\n---\n` }],
       counters(),
     );
+
     expect(plan.docs[0]?.aliases).toHaveLength(ITEM_FIELD_CAPS.listEntries);
   });
 
@@ -362,6 +390,7 @@ describe("an Obsidian vault read into the library", () => {
     const media = daily.blocks.flatMap(({ block }) =>
       block.type === "img" || block.type === "file" ? [block] : [],
     );
+
     expect(media).toMatchObject([
       { sha: shaOf("assets/shot.png"), type: "img", width: 300 },
       { name: "board.canvas", sha: shaOf("board.canvas"), type: "file" },
@@ -411,10 +440,12 @@ describe("an Obsidian vault read into the library", () => {
       "Old",
       "Tag",
     ]);
+
     for (const { blocks, fields, itemId } of hostile.items) {
       const sent = { blocks, cover: null, fields, folder: null, id: itemId, kind: "new" };
       expect(importedItemSchema.safeParse(sent).error?.issues, fields.title).toBeUndefined();
     }
+
     expect(byTitle(hostile, "Old").fields).toMatchObject({
       properties: { fetched: "1960-05-01" },
       savedAt: CODEC_NOW,
@@ -444,12 +475,10 @@ describe("an Obsidian vault read into the library", () => {
       reading: { state: "read" },
     });
     expect(page.blocks.map(({ section }) => section)).toStrictEqual(["article"]);
-    // the page's hashtags are the page's text
     expect(textOf(page)).toContain("with #hashtag text.");
   });
 });
 
-// a library as content alone: ids aside, items by title
 const contentOf = (library: ReadLibrary) =>
   library.items
     .map((item) => ({
@@ -477,14 +506,18 @@ describe("a path in a folder of bytes", () => {
       [{ kind: "file", path: `assets/0123456789abcdef/${name}`, sha: shaOf(name) }],
       counters(),
     );
+
     expect(plan.files.map((file) => file.kind)).toStrictEqual([kind]);
   });
 });
 
 describe("a folder an export was unpacked to", () => {
   const TOP = "Library 2026-11-07";
-  const under = <Value>(entries: Iterable<readonly [string, Value]>): [string, Value][] =>
-    [...entries].map(([path, value]) => [`${TOP}/${path}`, value]);
+
+  const under: <Value>(entries: Iterable<readonly [string, Value]>) => [string, Value][] = <Value>(
+    entries: Iterable<readonly [string, Value]>,
+  ) => [...entries].map(([path, value]) => [`${TOP}/${path}`, value]);
+
   const litter = {
     ".DS_Store": "left by Finder",
     [`${TOP}/.DS_Store`]: "left by Finder",
@@ -493,10 +526,12 @@ describe("a folder an export was unpacked to", () => {
 
   it("reads as the folder itself, what a Mac's Compress adds passed over", () => {
     const plain = readFolder(OBSIDIAN_VAULT, BINARIES);
+
     const wrapped = readFolder(
       { ...Object.fromEntries(under(Object.entries(OBSIDIAN_VAULT))), ...litter },
       new Map(under(BINARIES)),
     );
+
     expect(contentOf(wrapped)).toStrictEqual(contentOf(plain));
     expect(wrapped.skipped.toSorted()).toStrictEqual(
       [...plain.skipped, ".DS_Store", ".DS_Store", `__MACOSX/${TOP}/._Daily.md`].toSorted(),

@@ -8,7 +8,6 @@ import { CardGrid } from "./card-grid";
 import type { CardGridHandle } from "./card-grid";
 import { MediaCard, mediaCardHeight } from "./media-card";
 
-// 800 wide less 16 either side is 768: four columns of 180 with three gaps of 16
 const RECT = { height: 600, width: 800 };
 
 const mount = (props: Partial<ComponentProps<typeof CardGrid>> = {}) =>
@@ -26,7 +25,7 @@ const mount = (props: Partial<ComponentProps<typeof CardGrid>> = {}) =>
     </div>,
   );
 
-const drawnCells = (): string[] =>
+const drawnCells = () =>
   screen.getAllByRole("gridcell").map((cell) => cell.getAttribute("aria-label") ?? "");
 
 describe("the card grid", () => {
@@ -88,8 +87,6 @@ describe("the card grid", () => {
     expect(handleRef.current?.scrollToCell).toBeTypeOf("function");
   });
 
-  // React bubbles a portal's keys to its React parents, so a cell's popup under <body> would
-  // otherwise move the light or delete the selection while the person reads it
   it("takes the keys pressed in its cells, never those of a popup a cell opened", () => {
     const onKeyDown = vi.fn<() => void>();
     mount({

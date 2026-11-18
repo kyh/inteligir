@@ -1,6 +1,3 @@
-// No chart library: four shapes over one axis, and inline SVG keeps the render CSP-inert.
-// An invalid payload stays code; the bytes are never touched.
-
 import { z } from "zod";
 import type { PlateElementProps } from "platejs/react";
 
@@ -58,8 +55,6 @@ const optionsSchema = z.strictObject({
   showLegend: z.boolean().optional(),
 });
 
-// a plain union: both branches share "bar", which zod's discriminator refuses; the series
-// branch omitting "stacked-bar" is the one-data-array rule.
 const chartSchema = z.union([
   z.strictObject({
     data: z.array(pointSchema).min(1),
@@ -77,19 +72,27 @@ const chartSchema = z.union([
 
 export type ChartPayload = z.infer<typeof chartSchema>;
 
-export const parseChartPayload = (value: string): Parse<ChartPayload> => {
+export const parseChartPayload = (value: string) => {
   let json: unknown;
+
   try {
     json = JSON.parse(value);
   } catch {
-    return { ok: false, reason: "The payload is not valid JSON." };
+    return { ok: false, reason: "The payload is not valid JSON." } satisfies Parse<ChartPayload>;
   }
+
   const parsed = chartSchema.safeParse(json);
+
   if (!parsed.success) {
     const [first] = parsed.error.issues;
-    return { ok: false, reason: `Not a chart: ${first?.message ?? "shape mismatch"}` };
+
+    return {
+      ok: false,
+      reason: `Not a chart: ${first?.message ?? "shape mismatch"}`,
+    } satisfies Parse<ChartPayload>;
   }
-  return { ok: true, payload: parsed.data };
+
+  return { ok: true, payload: parsed.data } satisfies Parse<ChartPayload>;
 };
 
 const W = 480;
@@ -102,25 +105,31 @@ interface Series {
   name?: string | undefined;
 }
 
-const seriesOf = (chart: ChartPayload): Series[] => {
+const seriesOf: (chart: ChartPayload) => Series[] = (chart: ChartPayload) => {
   if ("series" in chart) {
     return chart.series;
   }
-  return [{ data: chart.data }];
+
+  return [{ data: chart.data }] satisfies Series[];
 };
 
-const themeColor = (index: number, explicit?: string): string =>
+const themeColor = (index: number, explicit?: string) =>
   explicit ?? `var(--chart-${String((index % 5) + 1)})`;
 
-const bounds = (series: Series[]): { max: number; min: number } => {
+const bounds = (series: Series[]) => {
   const values = series.flatMap((row) => row.data.map((point) => point.value));
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
-  return max === min ? { max: min + 1, min } : { max, min };
+
+  return (max === min ? { max: min + 1, min } : { max, min }) satisfies {
+    max: number;
+    min: number;
+  };
 };
 
-const yOf = (value: number, min: number, max: number): number => {
+const yOf = (value: number, min: number, max: number) => {
   const usable = H - PAD.top - PAD.bottom;
+
   return PAD.top + usable * (1 - (value - min) / (max - min));
 };
 
@@ -136,7 +145,7 @@ const ChartSvg = ({ chart }: { chart: ChartPayload }) => {
   const bars = chart.type === "bar" || chart.type === "stacked-bar";
   const barWidth = bars ? (slot * 0.7) / (chart.type === "bar" ? series.length : 1) : 0;
 
-  const linePoints = (row: Series): string =>
+  const linePoints = (row: Series) =>
     row.data
       .map(
         (point, i) =>
@@ -147,7 +156,6 @@ const ChartSvg = ({ chart }: { chart: ChartPayload }) => {
   return (
     <svg
       viewBox={`0 0 ${String(W)} ${String(H)}`}
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label={chart.title ?? "chart"}
       className="w-full"
@@ -185,10 +193,12 @@ const ChartSvg = ({ chart }: { chart: ChartPayload }) => {
             row.data.map((point, i) => {
               const y = yOf(Math.max(0, point.value), min, max);
               const height = Math.abs(yOf(point.value, min, max) - zeroY);
+
               const x =
                 chart.type === "bar"
                   ? PAD.left + slot * i + slot * 0.15 + barWidth * s
                   : PAD.left + slot * i + slot * 0.15;
+
               return (
                 <rect
                   key={`${String(s)}-${String(i)}`}

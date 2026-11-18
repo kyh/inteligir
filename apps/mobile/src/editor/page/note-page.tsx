@@ -1,9 +1,5 @@
 "use dom";
 
-// The phone's note: the editor every device draws, through its touch profile, in a web view of
-// its own, Expo's DOM component. Its props are the whole wire (page-host.ts); outside this folder
-// the phone draws natively.
-
 import "./zod-jitless";
 import "./note-page.css";
 
@@ -26,23 +22,21 @@ interface NotePageProps extends PageProps {
   readonly dom?: DOMProps;
 }
 
-// the page follows the phone's appearance, so there is no choice to keep
-const keepSystemTheme = (): void => {
-  /* empty */
-};
+// oxlint-disable-next-line no-empty-function -- the note page follows the system theme, which nothing here sets
+const keepSystemTheme = () => {};
 
 const NotePage = (props: NotePageProps) => {
   const { focus, itemId } = props;
-  // installed before the first render, since the editor's kits read the host as they render; the
-  // policy first, so nothing the item names loads ahead of it. A dev build runs Metro's own scripts
-  // from its server, which the policy would refuse.
+
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [host] = useState(() => {
     if (process.env.NODE_ENV === "production") {
       insertPagePolicy();
     }
+
     return installPageHost(props);
   });
+
   useEffect(() => {
     host.follow(props);
   });
@@ -50,10 +44,12 @@ const NotePage = (props: NotePageProps) => {
     if (!focus) {
       return;
     }
+
     return onLiveEditor(itemId, (editor) => {
       editor.tf.focus({ edge: "endEditor" });
     });
   }, [focus, itemId]);
+
   return (
     <ThemeProvider theme="system" setTheme={keepSystemTheme}>
       <MotionPolicy>

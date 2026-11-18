@@ -3,20 +3,14 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // What the library's two projects extend, and the site's does not. Compiled like the shipped
-  // bundle, so a component the compiler memoizes wrongly fails here rather than only in the built
-  // page. Test files stay uncompiled: a fixture hook minted inside a factory is hoisted to module
-  // scope with no diagnostic.
   plugins: [
     viteReact(),
     babel({
-      // the plugin's own default (node_modules and rolldown's runtime), which an exclude replaces
       exclude: [
         /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/u,
         /\.test\.tsx?$/u,
         /\/test-support\//u,
       ],
-      // Next's own compiler option has no slot for it, so the suites hold the rule the build cannot
       presets: [
         reactCompilerPreset({
           environment: { validateNoDynamicallyCreatedComponentsOrHooks: true },
@@ -26,16 +20,13 @@ export default defineConfig({
   ],
   test: {
     maxWorkers: 2,
-    // the unmount after the gate: an afterEach registered later runs sooner, and a gate that throws
-    // ends the hooks behind it, which would leave a logged test's tree mounted for the next
     setupFiles: [
-      "src/library/test-support/jsdom-stubs.ts",
-      "src/library/test-support/console-error-gate.ts",
-      "src/library/test-support/dom-cleanup.ts",
+      "src/library/test-support/jsdom-stubs.test-utils.ts",
+      "src/library/test-support/console-error-gate.test-utils.ts",
+      "src/library/test-support/dom-cleanup.test-utils.ts",
     ],
     projects: [
       {
-        // the site's suites, under node
         test: {
           exclude: [...configDefaults.exclude, "src/library/**"],
           include: ["src/**/*.test.ts"],
@@ -43,7 +34,6 @@ export default defineConfig({
         },
       },
       {
-        // under node; a suite that needs a document and draws no JSX says so in vitest's docblock
         extends: true,
         test: { include: ["src/library/**/*.test.ts"], name: "library" },
       },

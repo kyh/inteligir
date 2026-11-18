@@ -40,49 +40,71 @@ interface CanvasPayload {
   labels: z.infer<typeof labelSchema>[];
 }
 
-export const parseCanvasPayload = (value: string): Parse<CanvasPayload> => {
+export const parseCanvasPayload = (value: string) => {
   const lines = value.split("\n");
   const [headerLine, labelLine] = lines;
+
   if (!isGridHeader(headerLine)) {
-    return { ok: false, reason: `The payload does not begin with ${GRID_HEADER}.` };
+    return {
+      ok: false,
+      reason: `The payload does not begin with ${GRID_HEADER}.`,
+    } satisfies Parse<CanvasPayload>;
   }
+
   let rowStart = 1;
   let labels: CanvasPayload["labels"] = [];
+
   if (isLabelsLine(labelLine)) {
     if (!labelLine.endsWith("]]")) {
-      return { ok: false, reason: "The labels line does not close." };
+      return {
+        ok: false,
+        reason: "The labels line does not close.",
+      } satisfies Parse<CanvasPayload>;
     }
+
     const raw = labelLine.slice(LABELS_PREFIX.length, -1);
     let json: unknown;
+
     try {
       json = JSON.parse(raw);
     } catch {
-      return { ok: false, reason: "The labels metadata is not valid JSON." };
+      return {
+        ok: false,
+        reason: "The labels metadata is not valid JSON.",
+      } satisfies Parse<CanvasPayload>;
     }
+
     const parsed = z.array(labelSchema).safeParse(json);
+
     if (!parsed.success) {
-      return { ok: false, reason: "A label is missing id/text or sits off-grid." };
+      return {
+        ok: false,
+        reason: "A label is missing id/text or sits off-grid.",
+      } satisfies Parse<CanvasPayload>;
     }
+
     labels = parsed.data;
     rowStart = 2;
   }
+
   const rows = lines.slice(rowStart, rowStart + CANVAS_ROWS);
+
   const grid = rows.map((row) =>
     Array.from({ length: Math.min(CANVAS_COLS, row.length) }, (_, col) => {
       const cell = row[col];
+
       return cell !== undefined && cell !== "." && cell !== " ";
     }),
   );
-  return { ok: true, payload: { grid, labels } };
+
+  return { ok: true, payload: { grid, labels } } satisfies Parse<CanvasPayload>;
 };
 
-const usedRowsOf = ({ grid, labels }: CanvasPayload): number =>
-  // crop to used rows so a small sketch is not a sea of empty grid; columns stay full width for stable label geometry.
+const usedRowsOf = ({ grid, labels }: CanvasPayload) =>
   Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
 
-const cellKey = (col: number, row: number): string => `${String(col)},${String(row)}`;
+const cellKey = (col: number, row: number) => `${String(col)},${String(row)}`;
 
-// the one drawing of a canvas: its children are the sketch's stroke in progress, under the labels
 const CanvasGrid = ({
   canvas,
   children,
@@ -92,15 +114,9 @@ const CanvasGrid = ({
 }: ComponentProps<"svg"> & {
   canvas: CanvasPayload;
   rows: number;
-  // the ink a stroke in progress rubs out
   erased?: ReadonlyMap<string, CanvasCell>;
 }) => (
-  <svg
-    viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(rows * CELL)}`}
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
-    role="img"
-    {...svg}
-  >
+  <svg viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(rows * CELL)}`} role="img" {...svg}>
     <defs>
       <pattern id="canvas-dots" width={CELL * 4} height={CELL * 4} patternUnits="userSpaceOnUse">
         <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
@@ -140,7 +156,6 @@ const CanvasGrid = ({
 
 type SketchTool = "pencil" | "eraser";
 
-// the stroke commits once on pointer-up: one transaction, one undo step.
 const SketchSurface = ({
   canvas,
   onStroke,
@@ -154,27 +169,31 @@ const SketchSurface = ({
   const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
   const lastCell = useRef<CanvasCell | null>(null);
 
-  const cellAt = (event: ReactPointerEvent<SVGSVGElement>): CanvasCell => {
+  const cellAt = (event: ReactPointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
+
     return {
       col: Math.floor(((event.clientX - rect.left) / rect.width) * CANVAS_COLS),
       row: Math.floor(((event.clientY - rect.top) / rect.height) * rowsShown),
-    };
+    } satisfies CanvasCell;
   };
 
-  const extend = (to: CanvasCell): void => {
+  const extend = (to: CanvasCell) => {
     const from = lastCell.current ?? to;
     lastCell.current = to;
     setPending((prior) => {
       const next = new Map(prior);
+
       for (const cell of strokeSegmentCells(from, to)) {
         next.set(cellKey(cell.col, cell.row), cell);
       }
+
       return next;
     });
   };
 
   const erasing = tool === "eraser";
+
   return (
     <CanvasGrid
       canvas={canvas}
@@ -196,6 +215,7 @@ const SketchSurface = ({
         if (pending.size > 0) {
           onStroke([...pending.values()], !erasing);
         }
+
         setPending(new Map());
         lastCell.current = null;
       }}
@@ -252,6 +272,7 @@ const CanvasSketch = ({
   write: (next: string) => void;
 }) => {
   const [tool, setTool] = useState<SketchTool>("pencil");
+
   return (
     <div className="px-2 py-1">
       <div className="flex items-center gap-1 pb-1">

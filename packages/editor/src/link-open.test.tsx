@@ -2,27 +2,31 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Value } from "platejs";
 import { describe, expect, it, vi } from "vitest";
 
-import { EditorHarness } from "./test-support/editor-harness";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 const openPopover = (url: string) => {
   const host = installFakeEditorHost();
+
   const value: Value = [
     { children: [{ children: [{ text: "the plan" }], type: "a", url }], type: "p" },
   ];
+
   render(<EditorHarness value={value} />);
   fireEvent.click(screen.getByText("the plan"));
+
   return host.calls;
 };
 
-const anchorOf = (url: string): HTMLAnchorElement | null => {
+const anchorOf = (url: string) => {
   openPopover(url);
+
   return screen.getByText("the plan").closest("a");
 };
 
 describe("a link's Open", () => {
   it("hands an external url to the browser, with no handle back to this window", async () => {
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
+    const opened = vi.spyOn(window, "open");
     const calls = openPopover("https://example.com/plan");
     fireEvent.click(await screen.findByRole("button", { name: "Open link" }));
     expect(opened).toHaveBeenCalledWith(

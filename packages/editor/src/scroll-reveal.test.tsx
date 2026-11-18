@@ -1,20 +1,15 @@
-// A reveal near at hand glides, but not for a person who asked for reduced motion: the outline's
-// heading and the find bar's match land at once for them, as the rest of the app drops travel.
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { reveal } from "@repo/editor/scroll-reveal";
 
-// jsdom has no media queries; reveal reads only whether the query matches
-const askForReducedMotion = (reduce: boolean): void => {
+const askForReducedMotion = (reduce: boolean) => {
   vi.stubGlobal("matchMedia", (media: string) => ({
     matches: reduce && media === "(prefers-reduced-motion: reduce)",
     media,
   }));
 };
 
-// jsdom lays nothing out: one box makes the element drawn, and every place measures 0, so near
-const drawn = <E extends Element>(el: E): E => {
+const drawn = <E extends Element>(el: E) => {
   const box = new DOMRect(0, 0, 100, 20);
   el.getClientRects = () => ({
     0: box,
@@ -22,6 +17,7 @@ const drawn = <E extends Element>(el: E): E => {
     length: 1,
     [Symbol.iterator]: () => [box][Symbol.iterator](),
   });
+
   return el;
 };
 
@@ -30,6 +26,7 @@ const centred = () => {
   const scrollIntoView = vi.fn<(options?: boolean | ScrollIntoViewOptions) => void>();
   match.scrollIntoView = scrollIntoView;
   document.body.append(match);
+
   return { match, scrollIntoView };
 };
 
@@ -41,6 +38,7 @@ const inScroller = () => {
   const heading = drawn(document.createElement("h2"));
   scroller.append(heading);
   document.body.append(scroller);
+
   return { heading, scrollTo };
 };
 

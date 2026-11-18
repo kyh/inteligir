@@ -1,6 +1,3 @@
-// A stroke rewrites only the cells it touched: untouched cells keep their original glyphs
-// (existing payloads use arbitrary ink), and rows are padded only as far as a painted cell requires.
-
 import {
   CANVAS_COLS,
   CANVAS_ROWS,
@@ -19,26 +16,26 @@ interface SplitPayload {
   rows: string[];
 }
 
-const splitPayload = (value: string): SplitPayload | null => {
+const splitPayload = (value: string) => {
   const lines = value.split("\n");
   const [headerLine, labelLine] = lines;
+
   if (!isGridHeader(headerLine)) {
     return null;
   }
+
   const head = isLabelsLine(labelLine) ? [GRID_HEADER, labelLine] : [GRID_HEADER];
-  return { head, rows: lines.slice(head.length) };
+
+  return { head, rows: lines.slice(head.length) } satisfies SplitPayload | null;
 };
 
-// off-grid cells are ignored, not clamped: clamping would ink a border cell the pointer never touched.
-export const paintCanvasCells = (
-  value: string,
-  cells: readonly CanvasCell[],
-  ink: boolean,
-): string => {
+export const paintCanvasCells = (value: string, cells: readonly CanvasCell[], ink: boolean) => {
   const split = splitPayload(value);
+
   if (split === null) {
     return value;
   }
+
   const inBounds = cells.filter(
     (cell) =>
       cell.col >= 0 &&
@@ -48,42 +45,52 @@ export const paintCanvasCells = (
       Number.isInteger(cell.col) &&
       Number.isInteger(cell.row),
   );
+
   if (inBounds.length === 0) {
     return value;
   }
+
   const rows = [...split.rows];
+
   for (const cell of inBounds) {
     while (rows.length <= cell.row) {
       rows.push("");
     }
+
     const row = rows[cell.row] ?? "";
     const padded = row.length <= cell.col ? row + ".".repeat(cell.col - row.length + 1) : row;
     rows[cell.row] = padded.slice(0, cell.col) + (ink ? "#" : ".") + padded.slice(cell.col + 1);
   }
+
   return [...split.head, ...rows].join("\n");
 };
 
-export const clearCanvasGrid = (value: string): string => {
+export const clearCanvasGrid = (value: string) => {
   const split = splitPayload(value);
+
   if (split === null) {
     return value;
   }
+
   return split.head.join("\n");
 };
 
-export const strokeSegmentCells = (from: CanvasCell, to: CanvasCell): CanvasCell[] => {
+export const strokeSegmentCells = (from: CanvasCell, to: CanvasCell) => {
   const steps = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
   const seen = new Set<string>();
   const cells: CanvasCell[] = [];
+
   for (let i = 0; i <= steps; i += 1) {
     const t = steps === 0 ? 0 : i / steps;
     const col = Math.round(from.col + (to.col - from.col) * t);
     const row = Math.round(from.row + (to.row - from.row) * t);
     const key = `${String(col)},${String(row)}`;
+
     if (!seen.has(key)) {
       seen.add(key);
       cells.push({ col, row });
     }
   }
+
   return cells;
 };

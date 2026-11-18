@@ -1,14 +1,9 @@
-// A pill's display where its source lands: in the editor that makes the change, inside that
-// change, in an editor a body saved elsewhere is laid in only where two changes met, and in a new
-// item's blocks as a caller sent them.
-
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BLOCK_MAX_BYTES, storableBlockSchema } from "@repo/contract/library/library-nodes";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import type { Pill } from "@repo/editor/headless/formulas/displays";
 import { pillNode } from "@repo/editor/formulas/formula-entry";
@@ -19,8 +14,7 @@ import { stringProp } from "@repo/editor/headless/node-props";
 import { layBody } from "@repo/editor/headless/body/lay-body";
 import { blocksOfValue } from "@repo/editor/headless/body/note-blocks";
 
-// a paragraph holding one pill, showing `display`
-const line = (id: string, pill: Pill, display: string): LibraryBlock =>
+const line = (id: string, pill: Pill, display: string) =>
   storableBlockSchema.parse({
     children: [{ text: `${id}: ` }, { ...pillNode(pill), display }],
     id,
@@ -33,24 +27,24 @@ const ORDER = [
   line("total", { name: "total", source: "price*qty" }, "15"),
 ];
 
-const shown = (editor: SlateEditor): string[] =>
+const shown = (editor: SlateEditor) =>
   pillEntries(editor.children).map(({ node }) => stringProp(node, "display") ?? "");
 
-// the pill a name reads, with its path
 const named = (editor: SlateEditor, name: string) => {
   const entry = pillEntries(editor.children).find(({ node }) => pillOf(node).name === name);
+
   if (entry === undefined) {
     throw new Error(`the note holds no pill named ${name}`);
   }
+
   return entry;
 };
 
-const setSource = (editor: SlateEditor, name: string, source: string): void => {
+const setSource = (editor: SlateEditor, name: string, source: string) => {
   editor.tf.setNodes({ source }, { at: named(editor, name).at });
 };
 
-// ids on as the app runs them, since a body is laid by block id
-const editorOver = (blocks: readonly TElement[]): SlateEditor =>
+const editorOver = (blocks: readonly TElement[]) =>
   createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: [...blocks] });
 
 describe("a pill's display in the editor that changes one", () => {
@@ -90,6 +84,7 @@ describe("a pill's display in the editor that changes one", () => {
       line("two", { name: "x", source: "2" }, "2"),
       line("ten", { source: "x*10" }, "10"),
     ]);
+
     editor.tf.moveNodes({ at: [1], to: [0] });
 
     expect(shown(editor)).toStrictEqual(["2", "1", "20"]);
@@ -105,8 +100,7 @@ describe("a pill's display in the editor that changes one", () => {
   });
 });
 
-// the editor's blocks as the library stores them, each in the person's section
-const stored = (editor: SlateEditor): BodyBlock[] => blocksOfValue(editor.children);
+const stored = (editor: SlateEditor) => blocksOfValue(editor.children);
 
 describe("a pill's display in a body laid from elsewhere", () => {
   it("lands as the body that was saved, with nothing left to settle and nothing in the undo", () => {
@@ -124,10 +118,9 @@ describe("a pill's display in a body laid from elsewhere", () => {
     const elsewhere = editorOver(ORDER);
     setSource(here, "qty", "4");
     setSource(elsewhere, "price", "6");
-    // a merge takes each block from the side that changed it: the price from elsewhere, the rest
-    // as typed here, the total showing what this editor last settled
     const [price] = stored(elsewhere);
     const [, qty, total] = stored(here);
+
     if (price === undefined || qty === undefined || total === undefined) {
       throw new Error("three blocks");
     }
@@ -135,7 +128,6 @@ describe("a pill's display in a body laid from elsewhere", () => {
     expect(layBody(here, [price, qty, total])).toBe(true);
     expect(shown(here)).toStrictEqual(["6", "4", "24"]);
     expect(here.history.undos).toHaveLength(1);
-    // the price laid in has replaced the one this undo would read, so the total is derived again
     here.undo();
     expect(shown(here)).toStrictEqual(["6", "3", "18"]);
     here.redo();
@@ -143,8 +135,7 @@ describe("a pill's display in a body laid from elsewhere", () => {
   });
 });
 
-// each block's pills' displays, in reading order
-const displays = (body: readonly BodyBlock[] | null): string[][] | null =>
+const displays = (body: readonly BodyBlock[] | null) =>
   body?.map(({ block }) =>
     pillEntries([block]).map(({ node }) => stringProp(node, "display") ?? ""),
   ) ?? null;
@@ -152,10 +143,13 @@ const displays = (body: readonly BodyBlock[] | null): string[][] | null =>
 describe("a pill's display in a new item's blocks as a caller sent them", () => {
   it("is what its source gives among the item's pills, its note's and its page's alike", () => {
     const [price, qty, total] = ORDER;
+
     if (price === undefined || qty === undefined || total === undefined) {
       throw new Error("three blocks");
     }
+
     const wrong = line("total", { name: "total", source: "price*qty" }, "5");
+
     const body: BodyBlock[] = [
       { block: price, section: "note" },
       { block: qty, section: "article" },
@@ -170,13 +164,14 @@ describe("a pill's display in a new item's blocks as a caller sent them", () => 
   });
 
   it("leaves a body whose pills all show what their sources give as it is", () => {
-    const body = ORDER.map((block): BodyBlock => ({ block, section: "note" }));
+    const body = ORDER.map((block) => ({ block, section: "note" }) satisfies BodyBlock);
     expect(settledBody(body)).toBe(body);
   });
 
   it("is refused as no body when settling grows a block past what one holds", () => {
     const source = "w".repeat(1024);
     const long = line("long", { name: "long", source }, source);
+
     const reader = storableBlockSchema.parse({
       children: [
         { text: "t".repeat(BLOCK_MAX_BYTES - 512) },

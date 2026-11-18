@@ -1,33 +1,36 @@
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryScope } from "@repo/contract/library-scope";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests";
-import { personalLibrary, seedFolder, seedItem } from "../test-support/library-fixture";
-import { extensionHeaders, phoneHeaders, v1Link } from "../test-support/v1-link";
+import { signInPhone, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
+import { personalLibrary, seedFolder, seedItem } from "../test-support/library.fixture";
+import { extensionHeaders, phoneHeaders, v1Link } from "../test-support/v1-link.test-utils";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
 const LINK = "https://example.com/durian";
 
-// a laptop's library: a fresh account, its router client, and notes it saved one a second apart
 const laptop = async () => {
   const { accountId, library } = await personalLibrary();
   let saved = 0;
+
   const note = async (
     title: string,
     fields: Partial<LibraryItemFields> = {},
     blocks: readonly BodyBlock[] = [{ block: paragraph("p1", `${title}.`), section: "note" }],
-  ): Promise<string> => {
+  ) => {
     saved += 1;
+
     const { id } = await seedItem(accountId, {
       blocks,
       fields: noteFixture({ savedAt: SAVED_AT + saved * 1000, title, ...fields }),
     });
+
     return id;
   };
+
   return { accountId, library, note };
 };
 
@@ -36,9 +39,11 @@ const BY_TITLE = { scope: { kind: "all" }, sort: "title" } as const;
 dbSuite("what the apps read of the library", () => {
   it("pages a listing from where the last page ended, counting each kind", async () => {
     const { library, note } = await laptop();
+
     for (const title of ["Cherry", "Apple", "Banana"]) {
       await note(title);
     }
+
     await note("", { kind: "link", url: LINK });
 
     const first = await library.listing.page({ ...BY_TITLE, kinds: ["note"], limit: 2 });
@@ -51,6 +56,7 @@ dbSuite("what the apps read of the library", () => {
       kinds: ["note"],
       limit: 2,
     });
+
     expect(last.items.map(({ card }) => card.title)).toStrictEqual(["Cherry"]);
     expect(last.cursor).toBeNull();
     await expect(
@@ -63,14 +69,18 @@ dbSuite("what the apps read of the library", () => {
     const banana = await note("banana", { pinnedAt: SAVED_AT });
     const apple = await note("Apple");
     const cherry = await note("cherry");
+
     const { id: changed } = await seedItem(accountId, {
       fields: noteFixture({ savedAt: SAVED_AT, title: "Date" }),
       updatedAt: SAVED_AT + 60_000,
     });
+
     const ids = async (sort: "saved" | "modified" | "title") => {
       const page = await library.listing.page({ limit: 10, scope: { kind: "all" }, sort });
+
       return page.items.map(({ id }) => id);
     };
+
     await expect(ids("saved")).resolves.toStrictEqual([banana, cherry, apple, changed]);
     await expect(ids("modified")).resolves.toStrictEqual([banana, changed, cherry, apple]);
     await expect(ids("title")).resolves.toStrictEqual([banana, apple, cherry, changed]);
@@ -87,14 +97,15 @@ dbSuite("what the apps read of the library", () => {
 
     const titlesOf = async (scope: LibraryScope) => {
       const page = await library.listing.page({ limit: 10, scope, sort: "title" });
+
       return page.items.map(({ card }) => card.title);
     };
+
     await expect(titlesOf({ kind: "tag", tag: "WORK" })).resolves.toStrictEqual(["Filed"]);
     await expect(titlesOf({ kind: "tag", tag: "work_" })).resolves.toStrictEqual([]);
     await expect(titlesOf({ folderId: projects, kind: "folder" })).resolves.toStrictEqual([
       "Filed",
     ]);
-    // a folder deleted since lists nothing, and what it held reads as unsorted
     await expect(titlesOf({ folderId: archive, kind: "folder" })).resolves.toStrictEqual([]);
     await expect(titlesOf({ kind: "unsorted" })).resolves.toStrictEqual(["Archived", "Loose"]);
   });
@@ -107,7 +118,6 @@ dbSuite("what the apps read of the library", () => {
     await note("One", { folderId: garden, tags: ["work"] });
     await note("Two", { tags: ["Work", "home"] });
     await note("Three", { deletedAt: SAVED_AT, tags: ["gone"] });
-    // its field and its body spell one tag two ways, and it counts once
     await note("Four", { tags: ["HOME"] }, [
       { block: paragraph("p1", "Back #home soon."), section: "note" },
     ]);
@@ -158,9 +168,11 @@ dbSuite("what the apps read of the library", () => {
     const { accountId, library, note } = await laptop();
     const projects = await seedFolder(accountId, { name: "Projects" });
     const one = await note("Item 1.", { folderId: projects, tags: ["n"] });
+
     const two = await note("Item 2.", { tags: ["N"] }, [
       { block: paragraph("p1", "Read #later."), section: "note" },
     ]);
+
     const three = await note("Item 3.", { pinnedAt: SAVED_AT, tags: ["n"] });
 
     const first = await library.items.list({ limit: 2 });
@@ -171,7 +183,6 @@ dbSuite("what the apps read of the library", () => {
 
     const byTitle = await library.items.list({ kinds: ["note"], sort: "title", tag: "N" });
     expect(byTitle.items.map(({ id }) => id)).toStrictEqual([three, one, two]);
-    // a summary names every tag its item carries, the one written in its note too
     await expect(library.items.list({ tag: "later" })).resolves.toStrictEqual({
       cursor: null,
       items: [
@@ -226,6 +237,7 @@ dbSuite("what the apps read of the library", () => {
     const { cookie } = await signUpUser("library-reads@example.test");
     const accountId = await userIdOf(cookie);
     const { id } = await seedItem(accountId, { fields: noteFixture({ title: "On the wire" }) });
+
     for (const link of [
       v1Link(phoneHeaders(await signInPhone("library-reads@example.test"))),
       v1Link(extensionHeaders(cookie)),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { inlineTagSpans } from "./tag-grammar";
 
-const tagsIn = (text: string): string[] => inlineTagSpans(text).map(({ tag }) => tag);
+const tagsIn = (text: string) => inlineTagSpans(text).map(({ tag }) => tag);
 
 describe("an inline tag", () => {
   it("pulls `#tag` tokens from prose", () => {

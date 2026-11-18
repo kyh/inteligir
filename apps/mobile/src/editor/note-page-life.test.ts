@@ -11,12 +11,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// a page's life, with each leave made and each time the person was asked
 const lifeOver = (deep = false) => {
   const life = notePageLife({ deep });
   const heard = { asked: 0, left: 0 };
   let discard: (() => void) | null = null;
-  const back = (): void => {
+
+  const back = () => {
     life.leave(
       () => {
         heard.left += 1;
@@ -27,12 +27,14 @@ const lifeOver = (deep = false) => {
       },
     );
   };
+
   return {
     back,
     discard: () => {
       if (discard === null) {
         throw new Error("nobody was asked to leave without the edits");
       }
+
       discard();
     },
     heard,

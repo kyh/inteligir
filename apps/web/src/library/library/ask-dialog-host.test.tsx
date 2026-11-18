@@ -1,36 +1,36 @@
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library.test-utils";
 import { askFolder, askName, askTags } from "./ask";
 import { AskDialogHost } from "./ask-dialog-host";
 
 const FOLDER = { confirm: "Create", initial: "", label: "Folder name", title: "New folder" };
 const LINK = { confirm: "Save", initial: "", label: "The page's address", title: "Save a link" };
 
-const hostOver = (cell = createFakeCell()): void => {
+const hostOver = (cell = createFakeCell()) => {
   renderOnLibrary(<AskDialogHost />, fakePageLibrary({ cell }).library);
 };
 
-// an ask made as a command makes it, outside React's render; held, since a returned promise would
-// make the helper wait for the answer itself
 interface Asked<Answer> {
   readonly answer: Promise<Answer>;
 }
 
-const asked = <Answer,>(ask: () => Promise<Answer>): Asked<Answer> => {
+const asked = <Answer,>(ask: () => Promise<Answer>) => {
   let answer: Promise<Answer> | undefined;
   act(() => {
     answer = ask();
   });
+
   if (answer === undefined) {
     throw new Error("the ask was not made");
   }
-  return { answer };
+
+  return { answer } satisfies Asked<Answer>;
 };
 
-const typed = (label: string, value: string): void => {
+const typed = (label: string, value: string) => {
   fireEvent.change(screen.getByRole("textbox", { name: label }), { target: { value } });
 };
 
@@ -60,6 +60,7 @@ describe("a command's ask", () => {
       async () =>
         await askName({ ...LINK, refuse: (name) => (name === "no" ? "Not that." : null) }),
     );
+
     typed(LINK.label, "no");
     fireEvent.click(await screen.findByRole("button", { name: "Save" }));
 

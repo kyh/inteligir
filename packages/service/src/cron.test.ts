@@ -14,6 +14,7 @@ describe("a scheduled job's route", () => {
     const ran = await serveCron(call("Bearer s3cret"), "s3cret", run);
     expect(ran.status).toBe(200);
     await expect(ran.json()).resolves.toStrictEqual({ ran: true });
+
     for (const refused of [
       await serveCron(call(), "s3cret", run),
       await serveCron(call("Bearer guess"), "s3cret", run),

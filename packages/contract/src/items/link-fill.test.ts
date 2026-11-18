@@ -1,6 +1,3 @@
-// how a device judges what it read of a link: a cover candidate by the picture its bytes are and
-// its size, a page by the text its address is kept for, and a reading by who reads after it
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,7 +8,7 @@ import {
   isPage,
   preferredText,
 } from "./link-fill";
-import { heifOf, pngOf } from "../test-support/picture-heads";
+import { heifOf, pngOf } from "../test-support/picture-heads.test-utils";
 
 describe("a cover candidate", () => {
   it("is a cover when its bytes are a picture of a cover's size, by the type they are", () => {

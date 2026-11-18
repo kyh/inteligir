@@ -5,9 +5,7 @@ import type { JobKick } from "../library/library-store";
 import type { AppPrincipal } from "./admit";
 
 export interface RpcContext {
-  // admitted before the handler matched a row (`./admit`), so every row runs for a session
   readonly principal: AppPrincipal;
-  // the credential a row hands Better Auth back, as deletion's password check does
   readonly headers: Headers;
   readonly kickJobs: JobKick;
 }

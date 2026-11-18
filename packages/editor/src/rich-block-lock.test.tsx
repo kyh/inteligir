@@ -9,9 +9,9 @@ import type { PlateEditor } from "platejs/react";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const NOTE = [
   "before",
@@ -55,36 +55,39 @@ const NOTE = [
 
 const valueOf = (md: string) => {
   const parsed = parseMarkdown(md);
+
   if (!parsed.ok) {
     throw new Error(`the note must parse: ${parsed.reason.kind}`);
   }
+
   return parsed.value;
 };
 
-const touchEditor = (md = NOTE): PlateEditor =>
+const touchEditor = (md = NOTE) =>
   createPlateEditor({ plugins: TOUCH_EDITOR_KIT, value: valueOf(md) });
 
-const topLevelPath = (editor: PlateEditor, type: string): Path => {
+const topLevelPath = (editor: PlateEditor, type: string) => {
   const index = editor.children.findIndex(
     (node) => ElementApi.isElement(node) && node.type === type,
   );
+
   if (index === -1) {
     throw new Error(`the note holds no ${type}`);
   }
-  return [index];
+
+  return [index] satisfies Path;
 };
 
-const textPath = (editor: PlateEditor, text: string): Path => {
+const textPath = (editor: PlateEditor, text: string) => {
   for (const [node, path] of NodeApi.texts(editor)) {
     if (TextApi.isText(node) && node.text === text) {
       return path;
     }
   }
+
   throw new Error(`no text node reads "${text}"`);
 };
 
-// the whole model, not only the bytes: a void's text child never serializes, so an edit there
-// would leave the bytes alone and still be an edit
 const snapshot = (editor: PlateEditor) => ({
   bytes: serializeNote(editor),
   children: structuredClone(editor.children),
@@ -140,7 +143,6 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     expect(snapshot(editor)).toStrictEqual(before);
   });
 
-  // Slate merges the paragraph into the group's last block, a move and a merge inside the lock
   it.each([
     ["tab group", "before\n\n::::tabs\n:::tab[One]\ninside\n:::\n::::\n\nafter\n"],
     [
@@ -206,7 +208,6 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     expect(NodeApi.get(editor, [1, 0, 0])).toMatchObject({ children: [{ text: "" }] });
   });
 
-  // the pill's own source is held, and what it shows is derived from one that is not
   it("a pill a column holds shows what a pill outside it now gives", () => {
     const editor = touchEditor(
       [
@@ -243,7 +244,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
   });
 });
 
-const pillEditors = (): number => screen.queryAllByRole("textbox", { name: "Edit formula" }).length;
+const pillEditors = () => screen.queryAllByRole("textbox", { name: "Edit formula" }).length;
 
 const CALLOUTS = [
   "> [!TIP]",
@@ -278,16 +279,18 @@ describe("a locked block's controls", () => {
       />,
     );
     const editor = ref.current;
+
     if (editor === null) {
       throw new Error("the harness did not hand over its editor");
     }
-    // every transform applies through editor.apply, an op the lock refuses included
+
     const applied: Operation[] = [];
     const { apply } = editor.tf;
     editor.apply = (op: Operation) => {
       applied.push(op);
       apply(op);
     };
+
     const second = screen.getByText("inside the second tab");
     expect(second.closest("[data-tab-panel]")?.className).toContain("hidden");
 
@@ -304,7 +307,6 @@ describe("a locked block's controls", () => {
     expect(applied.length, "the log sees an edit").toBeGreaterThan(0);
   });
 
-  // a block the touch kit would insert and then refuse every keystroke into
   it.each([
     ["touch", false],
     ["desktop", true],
@@ -315,18 +317,21 @@ describe("a locked block's controls", () => {
         type: "p",
       },
     ];
+
     render(<EditorHarness profile={profile} value={value} />);
     const options = await screen.findAllByRole("option");
     const shown = options.map((option) => option.textContent);
     const rich = GROUPS.flatMap((group) => group.items).filter((item) => item.richBlock === true);
 
     expect(rich.length).toBeGreaterThan(0);
+
     for (const item of rich) {
       expect(
         shown.some((text) => text.includes(item.description)),
         item.label,
       ).toBe(offered);
     }
+
     expect(shown.some((text) => text.includes("Plain paragraph."))).toBe(true);
   });
 
@@ -335,17 +340,18 @@ describe("a locked block's controls", () => {
     ["desktop", ["Edit data", "Sketch", "Edit payload", "Add tab"]],
   ] as const)("the %s kit draws only the editing controls it would apply", (profile, editing) => {
     render(<EditorHarness profile={profile} value={valueOf(NOTE)} />);
+
     for (const name of ["Edit data", "Sketch", "Edit payload", "Add tab"]) {
       expect(screen.queryAllByRole("button", { name }).length > 0, name).toBe(
         editing.some((drawn) => drawn === name),
       );
     }
+
     for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
   });
 
-  // a pill's editor writes the pill, which the lock refuses where a column or a tab holds it
   it.each([
     ["touch", false],
     ["desktop", true],
@@ -364,6 +370,7 @@ describe("a locked block's controls", () => {
       "::::",
       "",
     ].join("\n");
+
     render(<EditorHarness profile={profile} value={valueOf(note)} />);
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "6" }));
@@ -376,7 +383,6 @@ describe("a locked block's controls", () => {
     expect(pillEditors()).toBeGreaterThan(0);
   });
 
-  // the alert's variant menu writes the quote, which the lock refuses where a column holds it
   it.each([
     ["touch", "Warning", false],
     ["touch", "Tip", true],
@@ -394,10 +400,6 @@ describe("a locked block's controls", () => {
     },
   );
 
-  // A tap lands the caret in a locked block's text, and slate-react defers a plain character's
-  // insert to an input event that never comes there, so the character would land wherever the
-  // user types next. jsdom fires no beforeinput slate-react listens for, so the handler Plate hands
-  // the Editable runs here as slate-react runs it, with the caret where a tap left it.
   it("refuses a keystroke aimed inside a locked block, and passes one aimed at the prose", () => {
     const ref = createRef<PlateEditor>();
     render(
@@ -409,22 +411,30 @@ describe("a locked block's controls", () => {
       />,
     );
     const editor = ref.current;
+
     if (editor === null) {
       throw new Error("the harness did not hand over its editor");
     }
+
     const beforeInput = pipeHandler(editor, { handlerKey: "onDOMBeforeInput" });
-    const refusedAt = (text: string): boolean => {
+
+    const refusedAt = (text: string) => {
       const caret = screen.getByText(text).firstChild;
+
       if (caret === null) {
         throw new Error(`"${text}" drew no text node`);
       }
+
       document.getSelection()?.setBaseAndExtent(caret, text.length, caret, text.length);
+
       const event = new InputEvent("beforeinput", {
         cancelable: true,
         data: "x",
         inputType: "insertText",
       });
+
       beforeInput?.(event);
+
       return event.defaultPrevented;
     };
 

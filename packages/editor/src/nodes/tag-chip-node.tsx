@@ -1,20 +1,18 @@
-// A leaf decoration, never a node, so a `#tag` costs the file only the bytes typed. Not a
-// focusable control: a tabbable element mid-paragraph wrecks caret navigation.
-
 import { PlateLeaf } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
 
-// a drag ending over a chip fires a click; reads the DOM selection because Slate's lags a click by a tick.
-const hasRangeSelection = (): boolean => {
+const hasRangeSelection = () => {
   const selection = document.getSelection();
+
   return selection !== null && !selection.isCollapsed;
 };
 
 export const TagChipLeaf = (props: PlateLeafProps) => {
   const { text } = props.leaf;
   const tag = text.startsWith("#") ? text.slice(1) : "";
+
   return (
     <PlateLeaf
       {...props}

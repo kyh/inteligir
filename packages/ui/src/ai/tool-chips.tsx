@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Beautiful UI (beautifului.dev), MIT.
+// @license MIT, vendored from Beautiful UI (beautifului.dev).
 
 import { useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
@@ -27,7 +27,7 @@ const ToolChipList = ({
   ...props
 }: ToolChipListProps & RefAttributes<HTMLDivElement>) => {
   const [open, setOpen] = useState(true);
-  // the collapse's -mx-1 + px-1.5 keeps x while giving hover pills room inside its clip box
+
   return (
     <div ref={ref} data-slot="tool-chip-list" className={cn("w-full pb-1", className)} {...props}>
       <button
@@ -54,7 +54,6 @@ const ToolChipList = ({
   );
 };
 
-// one call as its row draws it: running under a pill, done, or failed, which alone opens onto why
 type ToolUse =
   | { readonly kind: "running" }
   | { readonly kind: "done" }
@@ -76,6 +75,7 @@ const ToolChip = ({
 }: ToolChipProps & RefAttributes<HTMLDivElement>) => {
   const [open, setOpen] = useState(false);
   const failed = use.kind === "failed";
+
   return (
     <div
       ref={ref}

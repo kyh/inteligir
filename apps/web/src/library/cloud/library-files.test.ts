@@ -1,8 +1,8 @@
 import { fileSha } from "@repo/contract/library/file-sha";
 import { sharedFailure } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response.test-utils";
 import {
   AccountGoneError,
   ClientOutdatedError,
@@ -14,15 +14,16 @@ import { describe, expect, it } from "vitest";
 import { uploadFile } from "./library-files";
 import type { FileCloud } from "./library-files";
 
-// the page's cloud over `transport`, keeping each session end it meets
 const pageCloud = (transport: V1Transport) => {
   const ended: SessionEnd[] = [];
+
   const cloud: FileCloud = {
     ...transport,
     onSessionEnd: (end) => {
       ended.push(end);
     },
   };
+
   return { cloud, ended };
 };
 
@@ -32,7 +33,7 @@ const answering = (answer: () => Response) =>
     origin: "https://library.test",
   });
 
-const upload = async (cloud: FileCloud): Promise<string> =>
+const upload = async (cloud: FileCloud) =>
   await uploadFile(cloud, new Uint8Array([1, 2, 3]), "image/png");
 
 describe("a file sent up from the page", () => {
@@ -61,6 +62,7 @@ describe("a file sent up from the page", () => {
     const full = answering(() =>
       refusalResponse(new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } })),
     );
+
     await expect(upload(full.cloud)).rejects.toMatchObject({
       code: "QUOTA",
       defined: true,

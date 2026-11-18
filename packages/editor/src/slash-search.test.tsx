@@ -4,32 +4,36 @@ import type { Value } from "platejs";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { GROUPS } from "@repo/editor/slash-items";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const rowLabelled = (label: string) => {
   const row = GROUPS.flatMap((group) => group.items).find((item) => item.label === label);
+
   if (row === undefined) {
     throw new Error(`no slash row is labelled ${label}`);
   }
+
   return row;
 };
 
-const typeIntoSlashMenu = async (typed: string): Promise<void> => {
+const typeIntoSlashMenu = async (typed: string) => {
   const value: Value = [
     {
       children: [{ text: "" }, { children: [{ text: "" }], type: KEYS.slashInput }, { text: "" }],
       type: "p",
     },
   ];
+
   render(<EditorHarness value={value} />);
   fireEvent.change(await screen.findByRole("combobox"), { target: { value: typed } });
 };
 
-const searchSlashMenu = async (typed: string): Promise<string[]> => {
+const searchSlashMenu = async (typed: string) => {
   await typeIntoSlashMenu(typed);
   const options = await screen.findAllByRole("option");
+
   return options.map((option) => option.textContent);
 };
 

@@ -15,6 +15,7 @@ export const ForgotPasswordForm = ({ next }: { next: string | undefined }) => {
       email: fieldValue(form, "email"),
       redirectTo: resetLanding(next),
     });
+
     return failure === null ? null : authErrorMessage(failure);
   });
 

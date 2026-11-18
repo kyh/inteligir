@@ -4,9 +4,9 @@ import type { PlateEditor } from "platejs/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "../test-support/editor-harness";
+import { EditorHarness } from "../test-support/editor-harness.test-utils";
 
 const NOTE = [
   'price :formula[5]{name="price" source="5"}',
@@ -17,35 +17,39 @@ const NOTE = [
   "",
 ].join("\n");
 
-// the note drawn, read back as the markdown of each of its blocks
-const mounted = (note = NOTE): (() => string[]) => {
+const mounted = (note = NOTE) => {
   const parsed = parseMarkdown(note);
+
   if (!parsed.ok) {
     throw new Error("the note must parse");
   }
+
   const ref = createRef<PlateEditor>();
   render(<EditorHarness ref={ref} value={parsed.value} />);
-  return () => {
+
+  return (() => {
     if (ref.current === null) {
       throw new Error("the editor never mounted");
     }
+
     return serializeNote(ref.current).trimEnd().split("\n\n");
-  };
+  }) satisfies () => string[];
 };
 
-const openEditor = (pill: string): void => {
+const openEditor = (pill: string) => {
   act(() => {
     fireEvent.click(screen.getByRole("button", { name: pill }));
   });
 };
 
-// the editor of the pill showing `pill`, submitted with `entry` in place of what it held
-const enter = (pill: string, entry: string): void => {
+const enter = (pill: string, entry: string) => {
   openEditor(pill);
   const input = screen.getByRole("textbox", { name: "Edit formula" });
+
   if (!(input instanceof HTMLInputElement) || input.form === null) {
     throw new Error("the pill opened no editor");
   }
+
   const { form } = input;
   act(() => {
     fireEvent.change(input, { target: { value: entry } });
@@ -98,7 +102,7 @@ describe("a pill's editor", () => {
 
 const READ_FROM_EARLIER = "A formula earlier in the note is named rate, so rate reads that one.";
 
-const noticed = (): boolean =>
+const noticed = () =>
   screen.queryAllByRole("textbox", { description: READ_FROM_EARLIER, name: "Edit formula" })
     .length > 0;
 

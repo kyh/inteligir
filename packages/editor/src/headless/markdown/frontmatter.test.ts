@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { frontmatterYaml } from "@repo/editor/headless/markdown/frontmatter";
 
-import { mdastOf } from "../../test-support/mdast-of";
+import { mdastOf } from "../../test-support/mdast-of.test-utils";
 
 const NOTE_HEADERS = {
   "a BOM": "\uFEFF---\ntitle: t\n---\nbody\n",

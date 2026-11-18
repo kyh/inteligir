@@ -14,10 +14,8 @@ import {
   readCode,
   sessionOf,
   signUp,
-} from "../test-support/auth-requests";
+} from "../test-support/auth-requests.test-utils";
 
-// Better Auth serves each of these, and no client calls one: a route by a name the door does not
-// list, one whose path no exact list could name, and a listed route by a method no client sends
 const UNLISTED_AUTH_ROUTES = [
   ["GET", "/list-sessions"],
   ["POST", "/delete-user"],
@@ -25,7 +23,6 @@ const UNLISTED_AUTH_ROUTES = [
   ["POST", "/get-session"],
 ] as const;
 
-// what the sign-up form shows for a code that will not open an account, whatever the reason
 const INVITE_REFUSED = "That invite code doesn't work.";
 
 const signInBodySchema = z.looseObject({ token: z.string() });
@@ -36,6 +33,7 @@ const signInAs = async (email: string) =>
 dbSuite("invite-gated sign-up", () => {
   it("creates the account and burns the code", async () => {
     await mintCode("INVITE-OK");
+
     const response = await signUp({
       email: "ada@example.test",
       inviteCode: "INVITE-OK",
@@ -60,6 +58,7 @@ dbSuite("invite-gated sign-up", () => {
       name: "Mallory",
       password: PASSWORD,
     });
+
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ message: INVITE_REFUSED });
 
@@ -69,12 +68,14 @@ dbSuite("invite-gated sign-up", () => {
 
   it("refuses a code that has already been redeemed", async () => {
     await mintCode("INVITE-ONCE");
+
     const first = await signUp({
       email: "first@example.test",
       inviteCode: "INVITE-ONCE",
       name: "First",
       password: PASSWORD,
     });
+
     expect(first.status).toBe(200);
 
     const second = await signUp({
@@ -83,6 +84,7 @@ dbSuite("invite-gated sign-up", () => {
       name: "Second",
       password: PASSWORD,
     });
+
     expect(second.status).toBe(403);
     await expect(second.json()).resolves.toStrictEqual({ message: INVITE_REFUSED });
     const claimed = await readCode("INVITE-ONCE");
@@ -106,6 +108,7 @@ dbSuite("invite-gated sign-up", () => {
 
   it("refuses a password outside the contract's bounds before touching the invite", async () => {
     await mintCode("INVITE-BOUNDS");
+
     for (const password of [
       "x".repeat(PASSWORD_MIN_LENGTH - 1),
       "x".repeat(PASSWORD_MAX_LENGTH + 1),
@@ -116,11 +119,13 @@ dbSuite("invite-gated sign-up", () => {
         name: "Bounds",
         password,
       });
+
       expect(response.status, String(password.length)).toBe(400);
       await expect(response.json()).resolves.toStrictEqual({
         message: `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
       });
     }
+
     const untouched = await readCode("INVITE-BOUNDS");
     expect(untouched?.redeemedAt).toBeNull();
   });
@@ -139,6 +144,7 @@ dbSuite("invite-gated sign-up", () => {
       { origin: ORIGIN },
       { email: "eve@example.test", name: "Eve", password: PASSWORD },
     );
+
     expect(response.status).toBe(404);
     await expect(response.text()).resolves.toBe("not found");
 
@@ -148,12 +154,14 @@ dbSuite("invite-gated sign-up", () => {
 
   it("answers 404 on a Better Auth route no client calls, even to a signed-in browser", async () => {
     await mintCode("INVITE-SURFACE");
+
     const signedUp = await signUp({
       email: "surface@example.test",
       inviteCode: "INVITE-SURFACE",
       name: "Surface",
       password: PASSWORD,
     });
+
     expect(signedUp.status).toBe(200);
     const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
 
@@ -163,20 +171,22 @@ dbSuite("invite-gated sign-up", () => {
         headers: { ...headers, "content-type": "application/json" },
         method,
       });
+
       expect(response.status, `${method} ${path}`).toBe(404);
-      // the door's own answer, before Better Auth reads the request
       await expect(response.text(), `${method} ${path}`).resolves.toBe("not found");
     }
   });
 
   it("signs an invited account back in through Better Auth, into a cookie and nothing else", async () => {
     await mintCode("INVITE-RETURNS");
+
     const signedUp = await signUp({
       email: "grace@example.test",
       inviteCode: "INVITE-RETURNS",
       name: "Grace",
       password: PASSWORD,
     });
+
     expect(signedUp.status).toBe(200);
 
     const signIn = await signInAs("grace@example.test");
@@ -200,10 +210,12 @@ const windowAttempt = (code: string) => ({
 dbSuite("the invite gate's window", () => {
   it("closes on the eleventh attempt from one address, before it reads the code", async () => {
     const caller = { [CALLER_IP_HEADER]: "203.0.113.77" };
+
     for (let tried = 0; tried < 10; tried += 1) {
       const refused = await signUp(windowAttempt("NOT-A-CODE"), caller);
       expect(refused.status).toBe(403);
     }
+
     await mintCode("INVITE-WINDOW");
     const closed = await signUp(windowAttempt("INVITE-WINDOW"), caller);
     expect(closed.status).toBe(429);

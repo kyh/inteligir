@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { decodeText } from "./decode-text";
 
-// every character below U+0100, one byte each
-const latin1 = (text: string): Uint8Array =>
+const latin1 = (text: string) =>
   Uint8Array.from(text, (character) => character.codePointAt(0) ?? 0);
-const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
-const utf16le = (text: string): number[] =>
+
+const utf8 = (text: string) => new TextEncoder().encode(text);
+
+const utf16le = (text: string) =>
   [...text].flatMap((character) => {
     const unit = character.codePointAt(0) ?? 0;
+
     return [unit % 256, Math.floor(unit / 256)];
   });
 

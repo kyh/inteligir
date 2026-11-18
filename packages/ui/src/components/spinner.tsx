@@ -1,4 +1,4 @@
-// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
+// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 import { cn } from "@repo/ui/lib/cn";
 import { Loader2Icon } from "lucide-react";
 

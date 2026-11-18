@@ -1,7 +1,3 @@
-// The prompt teaches the dialect by example, and an example the codec cannot hold is an agent taught
-// to write bytes that lose what they say on a save, or that read as words where it meant a
-// construct. The examples are read from the prompt as it ships.
-
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
 import type { TElement } from "platejs";
 import { describe, expect, it } from "vitest";
@@ -21,7 +17,7 @@ import {
   readValue,
   rewrite,
   writeValue,
-} from "@repo/editor/test-support/markdown-meaning";
+} from "@repo/editor/test-support/markdown-meaning.test-utils";
 
 import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
 
@@ -33,28 +29,30 @@ interface Example {
   body: string;
 }
 
-// every `markdown` example, named by the section and the heading it stands under. A fence closes on
-// a run of its own character at least as long as the one that opened it, so a ````markdown example
-// may hold a ``` block of its own.
-const markdownExamples = (text: string): Example[] => {
+const markdownExamples = (text: string) => {
   const examples: Example[] = [];
   let section = "";
   let heading = "";
   let open: { fence: string; info: string; body: string[] } | null = null;
+
   for (const line of text.split("\n")) {
     if (open === null) {
       const fence = FENCE_OPEN.exec(line)?.groups;
       const title = HEADING.exec(line)?.groups;
+
       if (fence !== undefined) {
         open = { body: [], fence: fence.fence ?? "", info: fence.info ?? "" };
       } else if (title !== undefined) {
         heading = title.title ?? "";
         section = title.level === "#" ? heading : section;
       }
+
       continue;
     }
+
     const { fence } = open;
     const closing = line.trim();
+
     if (closing.length >= fence.length && [...closing].every((char) => char === fence[0])) {
       if (open.info === "markdown") {
         examples.push({
@@ -62,11 +60,14 @@ const markdownExamples = (text: string): Example[] => {
           site: section === heading ? section : `${section} › ${heading}`,
         });
       }
+
       open = null;
       continue;
     }
+
     open.body.push(line);
   }
+
   return examples;
 };
 
@@ -74,7 +75,6 @@ const EXAMPLES = markdownExamples(AGENT_SYSTEM_PROMPT);
 
 const ALERT = "alert";
 
-// every construct only the dialect spells, as the node a read makes of it
 const DIALECT_CONSTRUCTS = [
   KEYS.mention,
   KEYS.date,
@@ -90,9 +90,9 @@ const DIALECT_CONSTRUCTS = [
   ALERT,
 ];
 
-// what each element of a value reads as; a quote that names an alert is that alert
-const constructsOf = (value: readonly TElement[]): Set<string> => {
+const constructsOf = (value: readonly TElement[]) => {
   const found = new Set<string>();
+
   for (const block of value) {
     for (const [node] of NodeApi.nodes(block)) {
       if (ElementApi.isElement(node)) {
@@ -102,25 +102,23 @@ const constructsOf = (value: readonly TElement[]): Set<string> => {
       }
     }
   }
+
   return found;
 };
 
-// a construct's spelling a read left in words: a directive the dialect did not read, a page link
-// by title nothing resolved, or a colon block's marker line
 const CONSTRUCT_AS_WORDS = /:(?:date|formula)[[{]|\]\(mention:|\[\[|^:{3,}/mu;
 
-// what the writer escapes so that words stay words: a colon before a dialect name, a page link by
-// title, and a quote's marker that is no alert
 const ESCAPED_CONSTRUCT = /\\:|\\\[\\\[|\\\[!/u;
 
-// the spellings an example's read left as words, outside code, and its write escaped
-const leftAsWords = (md: string): string[] => {
+const leftAsWords = (md: string) => {
   const value = readValue(md);
+
   const words = value.flatMap((block) =>
     [...NodeApi.nodes(block)].flatMap(([node, path]) => {
       const inCode = [...NodeApi.ancestors(block, path)].some(
         ([ancestor]) => ElementApi.isElement(ancestor) && ancestor.type === KEYS.codeBlock,
       );
+
       return TextApi.isText(node) &&
         node.code !== true &&
         !inCode &&
@@ -129,8 +127,10 @@ const leftAsWords = (md: string): string[] => {
         : [];
     }),
   );
+
   const escaped = ESCAPED_CONSTRUCT.exec(writeValue(value))?.[0];
-  return escaped === undefined ? words : [...words, escaped];
+
+  return (escaped === undefined ? words : [...words, escaped]) satisfies string[];
 };
 
 describe("the prompt's markdown examples", () => {
@@ -156,6 +156,7 @@ describe("the prompt's markdown examples", () => {
     const shown = new Set(
       EXAMPLES.flatMap((example) => [...constructsOf(readValue(example.body))]),
     );
+
     expect(DIALECT_CONSTRUCTS.filter((construct) => !shown.has(construct))).toStrictEqual([]);
   });
 
@@ -167,6 +168,7 @@ describe("the prompt's markdown examples", () => {
       ":::note\nAside.\n:::",
       "> [!NOTES]\n> Aside.",
     ];
+
     expect(misspelled.filter((md) => leftAsWords(`${md}\n`).length === 0)).toStrictEqual([]);
     expect(leftAsWords("`:date[2026-08-22]` and :date[2026-08-22]\n")).toStrictEqual([]);
   });

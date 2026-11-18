@@ -1,6 +1,3 @@
-// the config and the linked modules are read from expo's own CLIs, never re-derived here, so what
-// is held is what prebuild would write into the binary App Store Connect judges.
-
 import { execFile } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -13,9 +10,7 @@ import { z } from "zod";
 const APP_ROOT = path.resolve(import.meta.dirname, "..");
 const EXPO_BIN_DIR = path.join(APP_ROOT, "node_modules", "expo", "bin");
 const USAGE_DESCRIPTION = /^NS\w*UsageDescription$/u;
-// what an Expo config plugin writes when the app states no purpose of its own.
 const EXPO_DEFAULT_PURPOSE = "Allow $(PRODUCT_NAME)";
-// three node processes on a loaded runner, the config one evaluating every plugin.
 const SPAWN_BUDGET_MS = 120_000;
 
 // oxlint-disable-next-line typescript/strict-void-return -- node documents promisify(execFile) as execFile's promise form; its callback form returns the child, which promisify drops
@@ -38,6 +33,7 @@ const appConfigSchema = z.looseObject({
   }),
   scheme: z.string(),
 });
+
 type AppConfig = z.infer<typeof appConfigSchema>;
 
 const expoModulesSchema = z.looseObject({
@@ -76,63 +72,73 @@ interface DeclaredReason {
   reason: string;
 }
 
-const readCli = async <T>(script: string, args: string[], schema: z.ZodType<T>): Promise<T> => {
+const readCli = async <T>(script: string, args: string[], schema: z.ZodType<T>) => {
   const { stdout } = await runFile(process.execPath, [path.join(EXPO_BIN_DIR, script), ...args], {
     cwd: APP_ROOT,
     env: { ...process.env, EXPO_NO_TELEMETRY: "1" },
     maxBuffer: 64 * 1024 * 1024,
   });
+
   return schema.parse(JSON.parse(stdout));
 };
 
-const linkedPods = async (): Promise<LinkedPod[]> => {
+const linkedPods = async () => {
   const expoModules = await readCli(
     "autolinking",
     ["resolve", "-p", "apple", "--json"],
     expoModulesSchema,
   );
+
   const community = await readCli(
     "autolinking",
     ["react-native-config", "-p", "ios", "--json"],
     communityModulesSchema,
   );
+
   const pods: LinkedPod[] = expoModules.modules.flatMap((module) =>
     module.pods.map((pod) => ({ dir: pod.podspecDir, packageName: module.packageName })),
   );
+
   for (const [packageName, dependency] of Object.entries(community.dependencies)) {
     const { ios } = dependency.platforms;
+
     if (ios !== null && ios !== undefined) {
       pods.push({ dir: path.dirname(ios.podspecPath), packageName });
     }
   }
+
   return pods;
 };
 
-// a module's manifest ships beside its podspec or below it; a nested node_modules is another
-// package's.
-const privacyManifestsUnder = async (dir: string): Promise<string[]> => {
+const privacyManifestsUnder = async (dir: string) => {
   const found: string[] = [];
+
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
+
     if (entry.isDirectory() && entry.name !== "node_modules") {
       found.push(...(await privacyManifestsUnder(full)));
     } else if (entry.isFile() && entry.name.endsWith(".xcprivacy")) {
       found.push(full);
     }
   }
+
   return found;
 };
 
-const declaredReasons = async (pods: LinkedPod[]): Promise<DeclaredReason[]> => {
+const declaredReasons = async (pods: LinkedPod[]) => {
   const reasons: DeclaredReason[] = [];
   const read = new Set<string>();
+
   for (const pod of pods) {
     for (const file of await privacyManifestsUnder(pod.dir)) {
       if (read.has(file)) {
         continue;
       }
+
       read.add(file);
       const manifest = privacyManifestSchema.parse(plist.parse(await readFile(file, "utf-8")));
+
       for (const api of manifest.NSPrivacyAccessedAPITypes ?? []) {
         for (const reason of api.NSPrivacyAccessedAPITypeReasons) {
           reasons.push({
@@ -145,10 +151,11 @@ const declaredReasons = async (pods: LinkedPod[]): Promise<DeclaredReason[]> => 
       }
     }
   }
+
   return reasons;
 };
 
-const reasonKey = (api: string, reason: string): string => `${api} ${reason}`;
+const reasonKey = (api: string, reason: string) => `${api} ${reason}`;
 
 describe("the phone's store config", () => {
   let config: AppConfig;
@@ -161,6 +168,7 @@ describe("the phone's store config", () => {
       linkedPods(),
       readFile(path.join(APP_ROOT, "../../package.json"), "utf-8"),
     ]);
+
     config = introspected;
     productVersion = productVersionSchema.parse(JSON.parse(manifest)).version;
     moduleReasons = await declaredReasons(pods);
@@ -188,6 +196,7 @@ describe("the phone's store config", () => {
       .map(([key, value]) => ({ key, purpose: purposeSchema.safeParse(value) }))
       .filter(({ purpose }) => !purpose.success || purpose.data.startsWith(EXPO_DEFAULT_PURPOSE))
       .map(({ key, purpose }) => `${key}: ${purpose.success ? purpose.data : "not a sentence"}`);
+
     expect(
       defaults,
       "rule: a purpose string is what the permission prompt shows, and an Expo plugin's default names no reason the user could weigh\n" +
@@ -222,9 +231,11 @@ describe("the phone's store config", () => {
         ),
       ),
     );
+
     const missing = moduleReasons
       .filter((row) => !declared.has(reasonKey(row.api, row.reason)))
       .map((row) => `${row.packageName} (${row.file}): ${row.api} ${row.reason}`);
+
     expect(
       [...new Set(missing)],
       "rule: Apple does not reliably read a static pod's own privacy manifest, so the app's must declare every reason a linked module does, or the upload is refused (ITMS-91053)\n" +

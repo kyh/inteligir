@@ -1,6 +1,3 @@
-// the editor's rule table reads these and the agent's prompt spells them; a drifted spelling
-// silently opens the block as plain code.
-
 export const CHART_LANG = "inteligir-chart";
 export const CANVAS_LANG = "inteligir-canvas";
 export const HTML_LANG = "inteligir-html";

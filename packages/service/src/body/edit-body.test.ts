@@ -1,13 +1,9 @@
-// An edit of a note by passages over Postgres, through `library.items.edit` as the built-in agent
-// calls it: made on the body as it stands and written over its version, made again over a person's
-// save that landed while it was made, and refused as busy when the note keeps changing under it.
-
 import { randomUUID } from "node:crypto";
 
 import { deferred } from "@repo/contract/deferred";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import type { Tx } from "@repo/db/drizzle-client";
 import { itemBody, libraryState } from "@repo/db/library-schema";
@@ -16,17 +12,18 @@ import { and, eq, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { libraryAs, personalLibrary } from "../test-support/library-fixture";
+import { libraryAs, personalLibrary } from "../test-support/library.fixture";
 import { mintLibraryId } from "../library/library-ids";
 import { writeLibrary } from "../library/library-store";
 import { writeBody } from "./write-body";
 
 const PERSON = { kind: "person" } as const;
 
-const line = (text: string, section: "note" | "article" = "note"): BodyBlock => ({
-  block: paragraph(randomUUID(), text),
-  section,
-});
+const line = (text: string, section: "note" | "article" = "note") =>
+  ({
+    block: paragraph(randomUUID(), text),
+    section,
+  }) satisfies BodyBlock;
 
 const noteOf = (blocks: readonly BodyBlock[]) => ({
   blocks: [...blocks],
@@ -37,14 +34,14 @@ const noteOf = (blocks: readonly BodyBlock[]) => ({
   title: "",
 });
 
-// the built-in agent in an open turn of a thread of its own
 const agentOf = (accountId: string) =>
   libraryAs({ accountId, actor: { kind: "agent", threadId: randomUUID(), turn: 1 } });
 
 type Library = ReturnType<typeof libraryAs>;
 
-const textsOf = async (library: Library, id: string): Promise<string[]> => {
+const textsOf = async (library: Library, id: string) => {
   const { blocks } = await library.items.get({ id });
+
   return blocks.map(({ block }) =>
     "children" in block
       ? block.children.map((child) => ("text" in child ? child.text : "")).join("")
@@ -52,7 +49,6 @@ const textsOf = async (library: Library, id: string): Promise<string[]> => {
   );
 };
 
-// the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {
   try {
     await call;
@@ -60,25 +56,28 @@ const refusalOf = async (call: Promise<unknown>) => {
     if (isOrpcError(error)) {
       return { code: error.code, data: error.data };
     }
+
     throw error;
   }
+
   throw new Error("the call landed what the test expected it to refuse");
 };
 
 const backendsSchema = z.array(z.object({ pid: z.number() }));
 
-const backendOf = async (tx: Tx): Promise<number> => {
+const backendOf = async (tx: Tx) => {
   const [backend] = backendsSchema.parse(
     await tx.execute(sql`select pg_backend_pid() as pid`, "objects"),
   );
+
   if (backend === undefined) {
     throw new Error("the transaction has no backend");
   }
+
   return backend.pid;
 };
 
-// the backends a lock of `holder`'s holds up, the first in line alone naming it
-const waitersOn = async (holder: number): Promise<number> =>
+const waitersOn = async (holder: number) =>
   backendsSchema.parse(
     await db.execute(
       sql`select pid from pg_stat_activity where ${holder}::int = any(pg_blocking_pids(pid))`,
@@ -86,8 +85,7 @@ const waitersOn = async (holder: number): Promise<number> =>
     ),
   ).length;
 
-// every backend of this suite's database waiting on a lock
-const lockWaiters = async (): Promise<number> =>
+const lockWaiters = async () =>
   backendsSchema.parse(
     await db.execute(
       sql`select pid from pg_stat_activity
@@ -96,20 +94,21 @@ const lockWaiters = async (): Promise<number> =>
     ),
   ).length;
 
-// a person's write holding the account's lock until it is let go to save `blocks` over
-// `baseVersion`
 const holdSave = (accountId: string, itemId: string) => {
   const holder = deferred<number>();
   const letGo = deferred<{ baseVersion: number; blocks: readonly BodyBlock[] }>();
+
   const held = writeLibrary(
     { accountId, actor: PERSON },
     { answer: z.null(), opId: undefined },
     async (scope) => {
       holder.resolve(await backendOf(scope.tx));
       await writeBody(scope, { ...(await letGo.promise), itemId });
+
       return null;
     },
   );
+
   return {
     held,
     holder: holder.promise,
@@ -119,12 +118,10 @@ const holdSave = (accountId: string, itemId: string) => {
   };
 };
 
-// A writer holding the account's row as a write does, that moves the body's version once let go
-// and never the library's head: a write moving the head wakes every waiter on the row at once,
-// each taking the lock in no set order, where these keep them in line
 const holdVersion = (accountId: string, itemId: string) => {
   const holder = deferred<number>();
   const letGo = deferred();
+
   const held = db.transaction(async (tx) => {
     await tx
       .select({ accountId: libraryState.accountId })
@@ -138,6 +135,7 @@ const holdVersion = (accountId: string, itemId: string) => {
       .set({ version: sql`${itemBody.version} + 1` })
       .where(and(eq(itemBody.accountId, accountId), eq(itemBody.itemId, itemId)));
   });
+
   return {
     held,
     holder: holder.promise,
@@ -150,11 +148,13 @@ const holdVersion = (accountId: string, itemId: string) => {
 dbSuite("an edit of a note by passages", () => {
   it("replaces a passage in place, every other block kept with its id, and answers the item's sequence", async () => {
     const { accountId, library } = await personalLibrary();
+
     const [alpha, bravo, charlie] = [
       line("Alpha one."),
       line("Bravo two."),
       line("Charlie three."),
     ];
+
     const made = noteOf([alpha, bravo, charlie]);
     await library.items.create(made);
     const agent = agentOf(accountId);
@@ -163,6 +163,7 @@ dbSuite("an edit of a note by passages", () => {
       edits: [{ newText: "Bravo, edited.", oldText: "Bravo two." }],
       id: made.id,
     });
+
     const edited = await library.items.get({ id: made.id });
     expect(edited).toMatchObject({ bodyVersion: 2, seq });
     expect(edited.blocks.map(({ block }) => block.id)).toStrictEqual(
@@ -188,6 +189,7 @@ dbSuite("an edit of a note by passages", () => {
     const made = noteOf([line("Same."), line("Same."), line("Article words.", "article")]);
     await library.items.create(made);
     const agent = agentOf(accountId);
+
     const edit = async (oldText: string) =>
       await refusalOf(agent.items.edit({ edits: [{ newText: "New.", oldText }], id: made.id }));
 
@@ -227,6 +229,7 @@ dbSuite("an edit of a note by passages", () => {
     const made = noteOf([line("Before.")]);
     await library.items.create(made);
     const agent = agentOf(accountId);
+
     const call = {
       edits: [{ newText: "After.", oldText: "Before." }],
       id: made.id,
@@ -250,6 +253,7 @@ dbSuite("an edit of a note by passages", () => {
       edits: [{ newText: "Alpha, edited.", oldText: "Alpha." }],
       id: made.id,
     });
+
     await vi.waitFor(async () => {
       expect(await waitersOn(holder)).toBe(1);
     });
@@ -281,10 +285,10 @@ dbSuite("an edit of a note by passages", () => {
         id: made.id,
       }),
     );
+
     await vi.waitFor(async () => {
       expect(await waitersOn(firstHolder)).toBe(1);
     });
-    // in line behind the edit's first write, so it holds the lock while the edit is made again
     const second = holdVersion(accountId, made.id);
     await vi.waitFor(async () => {
       expect(await lockWaiters()).toBe(2);

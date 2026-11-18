@@ -1,5 +1,3 @@
-// What Return does on each field of the sign-in form, and when the form is ready to send.
-
 import { describe, expect, it } from "vitest";
 import { formReady, returnOf } from "./sign-in-fields";
 

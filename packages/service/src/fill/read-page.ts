@@ -1,13 +1,3 @@
-// One page read for its item, by the rules every device that fills a link reads it by
-// (`@repo/contract/items/link-fill`'s limits, `@repo/page-reader` over linkedom, `./oembed` and
-// `@repo/contract/items/sniff-media`): the page asked for through the guarded fetch
-// (`./page-fetch`), a file the address answered with kept as the item's original, a page's article
-// and facts read, a media host's oEmbed asked, and the first candidate that is really a picture of a
-// cover's size kept as the cover, whole: no picture is decoded here, so a device decodes it at the
-// size it draws. Every byte kept is a library file before the reading lands
-// (`../files/keep-file`). The reader and the DOM it reads over load with the first page a run
-// reads, never with a route's start.
-
 import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 import type { ReadHtml } from "@repo/page-reader/read-html";
@@ -32,30 +22,28 @@ import type { OEmbed } from "./oembed";
 import type { FetchedPage, PageFetch } from "./page-fetch";
 
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
 const COVER_ACCEPT =
   "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml;q=0.8,*/*;q=0.5";
 
 export interface ReadPorts {
   readonly fetch: PageFetch;
-  // bytes kept as a library file by their sha, or null when the library could not take them
   readonly keep: (file: {
     readonly bytes: Uint8Array;
     readonly mime: string;
   }) => Promise<string | null>;
 }
 
-// a reading that did not land a page: said in the item, unless a later try may get past it
 export type PageRead =
   | { readonly kind: "landing"; readonly landing: FillLanding }
   | { readonly kind: "retry"; readonly sentence: string };
 
-const failed = (sentence: string): PageRead => ({
-  kind: "landing",
-  landing: { kind: "failed", sentence },
-});
+const failed = (sentence: string) =>
+  ({
+    kind: "landing",
+    landing: { kind: "failed", sentence },
+  }) satisfies PageRead;
 
-// the host of the address saved first, since a post that lands on a sign-in still has its answer,
-// then the host a short link landed on
 const askOEmbed = async (
   ports: ReadPorts,
   saved: string,
@@ -63,23 +51,22 @@ const askOEmbed = async (
   discovered: string | null,
 ) => {
   const endpoint = oembedEndpoint(saved, oembedEndpoint(landed, discovered));
+
   if (endpoint === null) {
     return null;
   }
+
   const fetched = await ports.fetch({
     accept: "application/json",
     maxBytes: OEMBED_MAX_BYTES,
     overflow: "refuse",
     url: endpoint,
   });
+
   return fetched.ok ? parseOEmbed(fetched.page.bytes) : null;
 };
 
-// the first candidate that is a picture, and not a pixel or an icon by the size its header names
-const keepCover = async (
-  ports: ReadPorts,
-  candidates: readonly string[],
-): Promise<string | null> => {
+const keepCover = async (ports: ReadPorts, candidates: readonly string[]) => {
   for (const candidate of new Set(candidates)) {
     const fetched = await ports.fetch({
       accept: COVER_ACCEPT,
@@ -87,30 +74,33 @@ const keepCover = async (
       overflow: "refuse",
       url: candidate,
     });
+
     const cover = fetched.ok ? coverPicture(fetched.page.bytes) : null;
+
     if (!fetched.ok || cover === null) {
       continue;
     }
+
     const sha = await ports.keep({ bytes: fetched.page.bytes, mime: cover.mime });
+
     if (sha !== null) {
       return sha;
     }
   }
+
   return null;
 };
 
-// where the page's redirects ended, or the address saved when that spelling is longer than an
-// item's address holds (percent-encoding a hop's path can lengthen even a saved address)
-const finalAddress = (job: FillJob, page: FetchedPage): string =>
+const finalAddress = (job: FillJob, page: FetchedPage) =>
   page.url.length > ITEM_FIELD_CAPS.url ? job.url : page.url;
 
-// a link that answered with a picture or a PDF becomes that file's item; a video, a song or any
-// other file keeps its link and is read as such
-const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
+const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage) => {
   const sniffed = sniffMedia(page.bytes);
+
   if (sniffed !== null && page.truncated) {
     return failed(fileOnlyLinked(page.declaredBytes));
   }
+
   if (sniffed === null) {
     return {
       kind: "landing",
@@ -123,20 +113,24 @@ const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
         playable: playableKindOf(page.mediaType),
         title: null,
       },
-    };
+    } satisfies PageRead;
   }
+
   const sha = await ports.keep({ bytes: page.bytes, mime: sniffed.mediaType });
-  return sha === null
-    ? { kind: "retry", sentence: PAGE_UNREACHED }
-    : {
-        kind: "landing",
-        landing: {
-          fileKind: sniffed.kind,
-          kind: "file",
-          originalName: originalFileName(page.url, sniffed.mediaType),
-          originalSha: sha,
-        },
-      };
+
+  return (
+    sha === null
+      ? { kind: "retry", sentence: PAGE_UNREACHED }
+      : {
+          kind: "landing",
+          landing: {
+            fileKind: sniffed.kind,
+            kind: "file",
+            originalName: originalFileName(page.url, sniffed.mediaType),
+            originalSha: sha,
+          },
+        }
+  ) satisfies PageRead;
 };
 
 const coverCandidates = (
@@ -152,14 +146,14 @@ const coverCandidates = (
   ...(job.coverHint === null ? [] : [job.coverHint]),
 ];
 
-const newBlockId = (): string => crypto.randomUUID();
+const newBlockId = () => crypto.randomUUID();
 
-const loadReader = async (): Promise<ReadHtml> => {
+const loadReader = async () => {
   const reader = await import("@repo/page-reader/read-html");
+
   return reader.readHtml;
 };
 
-// a post whose page is an app shell (X) says its words only in the oEmbed markup
 const articleOf = (
   readHtml: ReadHtml,
   read: ExtractedPageBlocks,
@@ -167,12 +161,12 @@ const articleOf = (
   url: string,
 ) => {
   const markup = oembed?.html ?? null;
+
   return read.article.blocks.length > 0 || markup === null
     ? read.article
     : readHtml({ html: markup, prefer: "article", url }, newBlockId).article;
 };
 
-// what the page says of itself, and what a media host's oEmbed says where the page says nothing
 const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
   savedFacts({
     ...facts,
@@ -180,24 +174,29 @@ const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
     site: facts.site ?? oembed?.provider ?? null,
   });
 
-const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
+const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage) => {
   const html = decodeText(page.bytes.subarray(0, FILL_LIMITS.htmlBytes), page.charset);
   const readHtml = await loadReader();
   const landed = finalAddress(job, page);
+
   const read = readHtml(
     { html, prefer: preferredText(job.url, landed), url: page.url },
     newBlockId,
   );
+
   if (!fillKeepsReading(read)) {
     return failed(TEXT_NOT_SAVED);
   }
+
   const oembed = await askOEmbed(ports, job.url, landed, read.facts.oembed);
   const article = articleOf(readHtml, read, oembed, job.url);
+
   if (article.refused > 0) {
-    // the page held these words, and the item goes without them
     console.warn({ event: "fill-blocks-refused", refused: article.refused });
   }
+
   const coverSha = await keepCover(ports, coverCandidates(job, landed, read.facts.images, oembed));
+
   return {
     kind: "landing",
     landing: {
@@ -209,22 +208,26 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
       playable: null,
       title: fieldLine(read.facts.title ?? oembed?.title ?? null),
     },
-  };
+  } satisfies PageRead;
 };
 
-export const readPage = async (ports: ReadPorts, job: FillJob): Promise<PageRead> => {
+export const readPage = async (ports: ReadPorts, job: FillJob) => {
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
     maxBytes: FILL_LIMITS.pageBytes,
     overflow: "truncate",
     url: job.url,
   });
+
   if (!fetched.ok) {
     const failure = failureOf(fetched.failure);
-    return failure.transient
-      ? { kind: "retry", sentence: failure.sentence }
-      : failed(failure.sentence);
+
+    return (
+      failure.transient ? { kind: "retry", sentence: failure.sentence } : failed(failure.sentence)
+    ) satisfies PageRead;
   }
+
   const { page } = fetched;
+
   return isPage(page) ? await pageRead(ports, job, page) : await fileRead(ports, job, page);
 };

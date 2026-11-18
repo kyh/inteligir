@@ -12,9 +12,11 @@ describe("a library scope", () => {
       { kind: "tag", tag: "design" },
       { kind: "deleted" },
     ];
+
     for (const scope of scopes) {
       expect(libraryScopeSchema.parse(scope)).toStrictEqual(scope);
     }
+
     expect(libraryScopeSchema.validate({ folderId: "", kind: "folder" })).toBe(false);
     expect(libraryScopeSchema.validate({ kind: "folder", path: "Reading" })).toBe(false);
   });
@@ -25,10 +27,12 @@ describe("a library scope", () => {
       { folderId: "Reading", kind: "folder" },
       { folderId: "01a0f4c2-c400-78d9-a955", kind: "folder" },
     ];
+
     for (const scope of refused) {
       expect(libraryScopeSchema.validate(scope)).toBe(false);
       expect(itemScopeSchema.validate(scope)).toBe(false);
     }
+
     expect(itemScopeSchema.validate({ kind: "tag", tag: "t".repeat(1000) })).toBe(true);
   });
 

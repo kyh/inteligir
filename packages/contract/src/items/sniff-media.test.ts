@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { heifOf, pngOf } from "../test-support/picture-heads";
+import { heifOf, pngOf } from "../test-support/picture-heads.test-utils";
 import { pixelSize, sniffMedia } from "./sniff-media";
 
-const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);
+const bytes = (...values: number[]) => new Uint8Array(values) satisfies Uint8Array;
 
-const ascii = (text: string): Uint8Array => new TextEncoder().encode(text);
+const ascii = (text: string) => new TextEncoder().encode(text);
 
 describe(sniffMedia, () => {
   it.each([
@@ -44,12 +44,13 @@ describe(pixelSize, () => {
       height: 1,
       width: 1,
     });
-    // an iPhone's photo: its tiles, the whole picture, its thumbnail
+
     const grid = heifOf("heic", [
       [512, 512],
       [4032, 3024],
       [320, 240],
     ]);
+
     expect(pixelSize(grid, "image/heic")).toStrictEqual({ height: 3024, width: 4032 });
   });
 

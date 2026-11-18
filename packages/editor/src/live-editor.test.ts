@@ -32,9 +32,11 @@ describe("the live editors, by the item each holds", () => {
   it("hands a waiter the item's editor now, or once it first answers, and none after a stop", () => {
     const heard: string[] = [];
     const early = createSlateEditor();
+
     const stopped = onLiveEditor("item-b", () => {
       heard.push("stopped");
     });
+
     stopped();
     onLiveEditor("item-b", (editor) => {
       heard.push(editor === early ? "waited" : "another");

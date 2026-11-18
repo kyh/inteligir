@@ -8,18 +8,18 @@ import { describe, expect, it } from "vitest";
 import type { LinkTarget } from "@repo/editor/host-io";
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { MENTION_PICKER_MAX_ROWS } from "@repo/editor/mention/mention-input";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "../test-support/editor-harness";
+import { EditorHarness } from "../test-support/editor-harness.test-utils";
 
 const LIBRARY_NOTES = 5000;
 
 const PLAN = "0190a000-0000-7000-8000-000000000001";
 const PLANTS = "0190a000-0000-7000-8000-000000000002";
 
-// the editor with `see [` typed and the picker the second `[` opened
 const openPicker = (titles: readonly LinkTarget[]) => {
   const host = installFakeEditorHost({ titles });
+
   const value: Value = [
     {
       children: [
@@ -30,44 +30,50 @@ const openPicker = (titles: readonly LinkTarget[]) => {
       type: "p",
     },
   ];
+
   const ref = createRef<PlateEditor>();
   render(<EditorHarness ref={ref} value={value} />);
-  const editor = (): PlateEditor => {
+
+  const editor = () => {
     if (ref.current === null) {
       throw new Error("the editor never mounted");
     }
+
     return ref.current;
   };
-  // the caret inside the input, where the trigger's insert leaves it
+
   act(() => {
     editor().tf.select({ offset: 0, path: [0, 1, 0] });
   });
+
   return { calls: host.calls, markdown: () => serializeNote(editor()) };
 };
 
-const typeQuery = (query: string): void => {
+const typeQuery = (query: string) => {
   fireEvent.change(screen.getByRole("combobox"), { target: { value: query } });
 };
 
-const rows = async (): Promise<(string | null)[]> => {
+const rows = async () => {
   const options = await screen.findAllByRole("option");
+
   return options.map((option) => option.textContent);
 };
 
-// jsdom lights no row as the query changes, where a browser lights the first, so the arrows do
-const lightRow = async (name: string): Promise<HTMLElement> => {
+const lightRow = async (name: string) => {
   const row = await screen.findByRole("option", { name });
   const field = screen.getByRole("combobox");
-  const lit = (): boolean => Object.hasOwn(row.dataset, "highlighted");
+  const lit = () => Object.hasOwn(row.dataset, "highlighted");
+
   for (let press = 0; press < 3 && !lit(); press += 1) {
     fireEvent.keyDown(field, { key: "ArrowDown" });
   }
+
   expect(lit()).toBe(true);
+
   return field;
 };
 
-// notes whose titles all hold `word`, mid-title
-const notesHolding = (word: string): LinkTarget[] =>
+const notesHolding = (word: string) =>
   Array.from({ length: LIBRARY_NOTES }, (_, i) => ({
     id: `0190a000-0000-7000-8000-${String(i).padStart(12, "0")}`,
     title: `n ${word} ${String(i)}`,
@@ -96,6 +102,7 @@ describe("the [[ picker's rows", () => {
       { id: PLANTS, title: "Plants" },
       { id: PLAN, title: "Plan" },
     ]);
+
     typeQuery("plan");
     fireEvent.click(await screen.findByRole("option", { name: "Plan" }));
     expect(markdown()).toBe(`see [Plan](mention:${PLAN})\n`);
@@ -128,6 +135,7 @@ describe("the [[ picker's keys", () => {
       { id: PLAN, title: "Plan" },
       { id: PLANTS, title: "Plants" },
     ]);
+
     typeQuery("pla");
     const field = await lightRow("Plants");
     fireEvent.keyDown(field, { key: "Enter" });
@@ -149,6 +157,7 @@ describe("the [[ picker's keys", () => {
       { id: PLAN, title: "Q3/Q4 plan" },
       { id: PLANTS, title: "Plants" },
     ]);
+
     typeQuery("q3/q4 PLAN]]");
     expect(markdown()).toBe(`see [Q3/Q4 plan](mention:${PLAN})\n`);
   });
@@ -158,6 +167,7 @@ describe("the [[ picker's keys", () => {
       { id: PLAN, title: "Q3/Q4 plan" },
       { id: PLANTS, title: "Q3/Q4 Plan" },
     ]);
+
     typeQuery("q3/q4 plan]]");
     expect(markdown()).toBe("see \\[\\[q3/q4 plan]]\n");
   });

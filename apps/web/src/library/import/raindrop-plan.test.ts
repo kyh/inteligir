@@ -9,25 +9,28 @@ import {
   planRaindropImport,
   toTagName,
 } from "./raindrop-plan";
-import type { RaindropRow } from "./raindrop-plan";
-import { RAINDROP_EXPORT as FIXTURE } from "../test-support/raindrop-export";
+import { RAINDROP_EXPORT as FIXTURE } from "../test-support/raindrop-export.test-utils";
 
 const NOW = Date.UTC(2026, 9, 17, 9, 0, 0);
 
-const rowsOf = (text: string): RaindropRow[] => {
+const rowsOf = (text: string) => {
   const parsed = parseRaindropCsv(text);
+
   if (!parsed.ok) {
     throw new Error(parsed.reason);
   }
+
   return parsed.rows;
 };
 
 describe(parseRaindropCsv, () => {
   it("reads the export's rows and counts those it leaves out", () => {
     const parsed = parseRaindropCsv(FIXTURE);
+
     if (!parsed.ok) {
       throw new Error(parsed.reason);
     }
+
     expect(parsed.rows).toHaveLength(7);
     expect(parsed.skipped).toBe(3);
     const [first] = parsed.rows;
@@ -174,9 +177,11 @@ describe(planRaindropImport, () => {
     "reads a created of %s, no instant the library holds, as the import's moment",
     (created) => {
       const [row] = rowsOf(FIXTURE);
+
       if (row === undefined) {
         throw new Error("the fixture holds no row");
       }
+
       const { items } = planRaindropImport([{ ...row, created }], NOW);
       expect(items.map((item) => item.savedMs)).toStrictEqual([NOW]);
     },
@@ -184,9 +189,11 @@ describe(planRaindropImport, () => {
 
   it("leaves a cover past what a url holds to the page's own", () => {
     const [row] = rowsOf(FIXTURE);
+
     if (row === undefined) {
       throw new Error("the fixture holds no row");
     }
+
     const held = `https://example.com/${"c".repeat(ITEM_FIELD_CAPS.url - "https://example.com/".length)}`;
     const [fits] = planRaindropImport([{ ...row, cover: held }], NOW).items;
     const [past] = planRaindropImport([{ ...row, cover: `${held}c` }], NOW).items;
@@ -211,6 +218,7 @@ describe(bookmarkFields, () => {
     const [fields] = fieldsOf(
       "title,excerpt,url,tags,created,favorite\nA post,An excerpt.,https://example.com/a-post,ideas,2023-07-01T09:12:30Z,true\n",
     );
+
     expect(importedFieldsSchema.safeParse(fields).error?.issues).toBeUndefined();
     expect(fields).toMatchObject({
       description: "An excerpt.",
@@ -228,6 +236,7 @@ describe(bookmarkFields, () => {
     const [untitled, long] = fieldsOf(
       `title,url\n,https://example.com/untitled\n${"t".repeat(ITEM_FIELD_CAPS.line + 1)},https://example.com/long\n`,
     );
+
     expect(untitled).toMatchObject({ pinnedAt: null, title: "" });
     expect(long?.title).toHaveLength(ITEM_FIELD_CAPS.line);
   });
@@ -235,8 +244,10 @@ describe(bookmarkFields, () => {
 
 const counter = () => {
   let next = 0;
+
   return () => {
     next += 1;
+
     return `b${String(next)}`;
   };
 };
@@ -281,6 +292,7 @@ describe(highlightBlocks, () => {
       ),
       NOW,
     ).items;
+
     expect(highlightBlocks(item?.highlights ?? [], counter())).toStrictEqual([
       {
         children: [

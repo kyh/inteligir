@@ -6,31 +6,34 @@ import { blankItemFields, importedFields } from "@repo/contract/library/item-mak
 import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 
 import { factsOf, itemFields, readFrontmatter, titleOf, unheldYaml } from "./item-fields";
-import type { FileFacts } from "./item-fields";
 
 const NOW = Date.UTC(2026, 10, 16);
 
-const said = (yaml: string): FileFacts => factsOf(readFrontmatter(yaml));
+const said = (yaml: string) => factsOf(readFrontmatter(yaml));
+
 const fieldsOf = (yaml: string | null, name = "Name") =>
   itemFields(factsOf(readFrontmatter(yaml)), name, NOW);
-const aliasesOf = (yaml: string): string[] => said(yaml).fields.aliases;
-const tagsOf = (yaml: string): string[] => said(yaml).fields.tags;
+
+const aliasesOf = (yaml: string) => said(yaml).fields.aliases;
+const tagsOf = (yaml: string) => said(yaml).fields.tags;
 const keysSchema = z.record(z.string(), z.json());
-const unheldOf = (yaml: string): z.infer<typeof keysSchema> | null => {
+
+const unheldOf = (yaml: string) => {
   const unheld = unheldYaml(readFrontmatter(yaml));
+
   return unheld === null ? null : keysSchema.parse(parse(unheld));
 };
 
 const LINE = ITEM_FIELD_CAPS.line;
-// a name past what a line holds, which no tag, alias or key holds whole
 const PAST_A_LINE = "a".repeat(LINE + 1);
+
 const LONG_ALIASES = Array.from(
   { length: ITEM_FIELD_CAPS.listEntries },
   (_, index) => `${String(index).padStart(3, "0")}${"a".repeat(LINE - 3)}`,
 );
 
-// each list ten of the one before, so the last names ten thousand
-const tenOf = (entry: string): string => `[${Array.from({ length: 10 }, () => entry).join(", ")}]`;
+const tenOf = (entry: string) => `[${Array.from({ length: 10 }, () => entry).join(", ")}]`;
+
 const ALIAS_BOMB = [
   `a: &a ${tenOf("x")}`,
   `b: &b ${tenOf("*a")}`,
@@ -92,6 +95,7 @@ describe("a file's frontmatter, read once", () => {
         "empty:",
       ].join("\n"),
     );
+
     expect(facts.properties).toStrictEqual({
       count: 3,
       due: "2026-07-01",
@@ -143,6 +147,7 @@ describe("the keys an item's fields are read from", () => {
         "lang: en",
       ].join("\n"),
     );
+
     expect(facts.fields).toMatchObject({
       author: "Steph Ango, Kai",
       description: "A page.",
@@ -250,6 +255,7 @@ describe("a file's aliases", () => {
       { length: ITEM_FIELD_CAPS.listEntries + 1 },
       (_, index) => `a${String(index)}`,
     );
+
     expect(said(`aliases: [${names.join(", ")}]\n`)).toMatchObject({
       fields: { aliases: names.slice(0, ITEM_FIELD_CAPS.listEntries) },
       properties: { aliases: names.slice(ITEM_FIELD_CAPS.listEntries) },
@@ -259,7 +265,6 @@ describe("a file's aliases", () => {
   it("takes no more bytes than a list holds, and keeps the rest", () => {
     const yaml = `aliases: [${LONG_ALIASES.join(", ")}]\n`;
     const { aliases } = said(yaml).fields;
-    // each name and its quotes, a comma between, in brackets
     const fit = Math.floor((ITEM_FIELD_CAPS.listBytes - 1) / (LINE + 3));
     expect(aliases).toStrictEqual(LONG_ALIASES.slice(0, fit));
     expect(unheldOf(yaml)).toStrictEqual({ aliases: LONG_ALIASES.slice(fit) });

@@ -1,8 +1,3 @@
-// The assistants a person let into their library, as Settings › Account lists them, and the one way
-// to let one go: its consent and every token minted under it go in one transaction, so its next call
-// is refused and its refresh token is dead. A reset password lets every one go, and housekeeping
-// forgets what an assistant registered a day after nothing of anyone's names it.
-
 import {
   oauthAccessToken,
   oauthClient,
@@ -29,6 +24,7 @@ export const listAssistants = async (userId: string) => {
     .innerJoin(oauthClient, eq(oauthClient.clientId, oauthConsent.clientId))
     .where(eq(oauthConsent.userId, userId))
     .orderBy(desc(oauthConsent.createdAt), desc(oauthConsent.id));
+
   return rows.map((row) => ({
     clientName: assistantIdentity(row).name,
     createdAt: row.createdAt?.getTime() ?? 0,
@@ -37,10 +33,7 @@ export const listAssistants = async (userId: string) => {
   }));
 };
 
-// the person's grants, or the one `grantId` names, locked, then their tokens and the grants
-// themselves, each assistant's registration stamped so housekeeping's day starts again at the
-// disconnect; answers how many went
-const revokeGrants = async (tx: Tx, userId: string, grantId?: string): Promise<number> => {
+const revokeGrants = async (tx: Tx, userId: string, grantId?: string) => {
   const grants = await tx
     .select({ clientId: oauthConsent.clientId, id: oauthConsent.id })
     .from(oauthConsent)
@@ -51,9 +44,11 @@ const revokeGrants = async (tx: Tx, userId: string, grantId?: string): Promise<n
       ),
     )
     .for("update");
+
   for (const grant of grants) {
     const minted = (table: typeof oauthAccessToken | typeof oauthRefreshToken) =>
       and(eq(table.clientId, grant.clientId), eq(table.userId, userId));
+
     await tx.delete(oauthAccessToken).where(minted(oauthAccessToken));
     await tx.delete(oauthRefreshToken).where(minted(oauthRefreshToken));
     await tx.delete(oauthConsent).where(eq(oauthConsent.id, grant.id));
@@ -62,22 +57,19 @@ const revokeGrants = async (tx: Tx, userId: string, grantId?: string): Promise<n
       .set({ updatedAt: new Date() })
       .where(eq(oauthClient.clientId, grant.clientId));
   }
+
   return grants.length;
 };
 
-// false when the person holds no grant by that id
-export const revokeAssistant = async (userId: string, grantId: string): Promise<boolean> =>
+export const revokeAssistant = async (userId: string, grantId: string) =>
   (await db.transaction(async (tx) => await revokeGrants(tx, userId, grantId))) > 0;
 
-// whoever reset the password should not inherit the assistants connected before
-export const revokeAllAssistants = async (userId: string): Promise<void> => {
+export const revokeAllAssistants = async (userId: string) => {
   await db.transaction(async (tx) => {
     await revokeGrants(tx, userId);
   });
 };
 
-// a day outlasts any sign-in and consent between an assistant registering and its first grant, and
-// lets a disconnected assistant connect again on the registration it keeps
 const UNNAMED_REGISTRATION_MS = 24 * 60 * 60 * 1000;
 
 const unnamedBy = (
@@ -90,10 +82,7 @@ const unnamedBy = (
       .where(eq(table.clientId, oauthClient.clientId)),
   );
 
-// Housekeeping's: a registration no consent or token names, a day after it registered, its metadata
-// document was last read or it was last disconnected, deleted. It is filed under no account, so
-// neither a disconnect nor an account's delete reaches it. Answers how many went
-export const pruneUnnamedRegistrations = async (now: number): Promise<number> => {
+export const pruneUnnamedRegistrations = async (now: number) => {
   const pruned = await db
     .delete(oauthClient)
     .where(
@@ -105,5 +94,6 @@ export const pruneUnnamedRegistrations = async (now: number): Promise<number> =>
       ),
     )
     .returning({ clientId: oauthClient.clientId });
+
   return pruned.length;
 };

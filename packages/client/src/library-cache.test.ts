@@ -4,13 +4,12 @@ import { QueryClient } from "@tanstack/query-core";
 import type { QueryKey } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 
 import { invalidateMoved, retryUnlessRefused } from "./library-cache";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
 
-// a device holding two notes and every query a screen reads, once each
 const heldReads = () => {
   const cell = createFakeCell();
   const note = cell.held(cell.seed.item({ title: "Note" }));
@@ -18,6 +17,7 @@ const heldReads = () => {
   const queries = createTanstackQueryUtils(cell.device("tab").client);
   const { agent, items, listing } = queries.library;
   const queryClient = new QueryClient();
+
   const keys = {
     note: items.row.queryKey({ input: { id: note.id } }),
     other: items.get.queryKey({ input: { id: other.id } }),
@@ -27,9 +27,10 @@ const heldReads = () => {
     titles: listing.titles.queryKey(),
     undoable: agent.undoable.queryKey({ input: { threadId: THREAD } }),
   } satisfies Record<string, QueryKey>;
+
   queryClient.setQueryData(keys.note, note);
   queryClient.setQueryData(keys.other, other);
-  // each key as the cache files it, whatever the query reads
+
   const held: readonly QueryKey[] = [
     keys.page,
     keys.scopes,
@@ -37,9 +38,11 @@ const heldReads = () => {
     keys.titles,
     keys.undoable,
   ];
+
   for (const key of held) {
     queryClient.setQueryData(key, "held");
   }
+
   return {
     moved: (moved: Parameters<typeof invalidateMoved>[2]) =>
       invalidateMoved(queries, queryClient, moved),
@@ -56,6 +59,7 @@ const heldReads = () => {
 describe("what an answer of what moved reads again", () => {
   it("reads again an item it holds an older copy of, and what the library lists, and no more", () => {
     const { moved, note, other, staleOf } = heldReads();
+
     const items = moved({
       folders: false,
       items: [
@@ -64,6 +68,7 @@ describe("what an answer of what moved reads again", () => {
       ],
       threads: [],
     });
+
     expect(staleOf()).toStrictEqual(["note", "page", "scopes", "titles"]);
     expect(items).toStrictEqual(new Set([note.id, other.id]));
   });

@@ -1,14 +1,12 @@
 import type { TElement } from "platejs";
 import { describe, expect, it } from "vitest";
 
-import { readValue, writeValue } from "@repo/editor/test-support/markdown-meaning";
+import { readValue, writeValue } from "@repo/editor/test-support/markdown-meaning.test-utils";
 
-const paragraph = (children: TElement["children"]): TElement => ({ children, type: "p" });
+const paragraph = (children: TElement["children"]) => ({ children, type: "p" }) satisfies TElement;
 
-const link = (url: string): TElement => ({ children: [{ text: url }], type: "a", url });
+const link = (url: string) => ({ children: [{ text: url }], type: "a", url }) satisfies TElement;
 
-// gfm reads a bare url off finished text, so the url a hard break follows must not take the
-// break's backslash as its own
 describe("a hard break", () => {
   it("is a backslash, and reads back a break after text, a url and a link alike", () => {
     const rows: [TElement, string][] = [
@@ -22,6 +20,7 @@ describe("a hard break", () => {
         "<https://example.com/a!>\\\nnext\n",
       ],
     ];
+
     for (const [block, written] of rows) {
       expect(writeValue([block])).toBe(written);
       const [read] = readValue(written);

@@ -9,17 +9,17 @@ import { PropertiesPanel } from "./properties-panel";
 const mount = (properties: Properties = {}) => {
   const onWrite = vi.fn<(op: PropertyOp) => void>();
   render(<PropertiesPanel properties={properties} onWrite={onWrite} />);
+
   return onWrite;
 };
 
-// Add property, opened on a type and a name
-const openAdd = (type: string, name: string): void => {
+const openAdd = (type: string, name: string) => {
   fireEvent.click(screen.getByRole("button", { name: "Add property" }));
   fireEvent.click(screen.getByRole("radio", { name: type }));
   fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: name } });
 };
 
-const submitAdd = (): void => {
+const submitAdd = () => {
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
 };
 

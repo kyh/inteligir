@@ -7,11 +7,11 @@ import { ForgotPasswordForm } from "./forgot-password-form";
 
 export const metadata: Metadata = { title: "Reset your password" };
 
-// the way back is the request's, so the form streams in behind the boundary
 const ForgotPasswordEntry = async ({
   searchParams,
 }: Pick<PageProps<"/app/forgot-password">, "searchParams">) => {
   const { next } = authPageSearchSchema.parse(await searchParams);
+
   return <ForgotPasswordForm next={next} />;
 };
 

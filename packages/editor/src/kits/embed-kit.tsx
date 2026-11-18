@@ -1,5 +1,3 @@
-// An embed saves as `![](url)`, so its url is all of it that reaches the file.
-
 import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { TElement } from "platejs";
 import { createPlatePlugin } from "platejs/react";
@@ -14,47 +12,56 @@ import { embedTypeForUrl } from "@repo/editor/headless/lib/embed-url";
 import { FileElement } from "@repo/editor/nodes/pdf-node";
 import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
 
-// null for a url off the web, which would read back as an image
-const embedNodeForUrl = (url: string): TElement | null => {
+const embedNodeForUrl = (url: string) => {
   const type = embedTypeForUrl(url);
-  return type === null ? null : { children: [{ text: "" }], type, url };
+
+  return (type === null ? null : { children: [{ text: "" }], type, url }) satisfies TElement | null;
 };
 
-export const insertEmbedFromUrl = (editor: PlateEditor, url: string): boolean => {
+export const insertEmbedFromUrl = (editor: PlateEditor, url: string) => {
   const embed = embedNodeForUrl(url.trim());
+
   if (embed === null) {
     return false;
   }
+
   insertVoidAndEscape(editor, embed);
+
   return true;
 };
 
-// Only video/tweet URLs auto-embed: a generic URL pasted as a link must stay a link.
 const BARE_URL_RE = /^https?:\/\/\S+$/iu;
 
-const isAutoEmbedUrl = (text: string): boolean =>
+const isAutoEmbedUrl = (text: string) =>
   BARE_URL_RE.test(text) &&
   (parseVideoUrl(text) !== undefined || parseTwitterUrl(text) !== undefined);
 
-const emptyParagraphEntry = (editor: PlateEditor): [TElement, number[]] | null => {
+const emptyParagraphEntry = (editor: PlateEditor) => {
   if (editor.selection === null || !editor.api.isCollapsed()) {
     return null;
   }
+
   const entry = editor.api.block();
+
   if (!entry || !ElementApi.isElement(entry[0])) {
     return null;
   }
+
   const [node, path] = entry;
+
   if (node.type !== editor.getType(KEYS.p)) {
     return null;
   }
+
   if (node.listStyleType !== undefined) {
     return null;
   }
+
   if (NodeApi.string(node) !== "") {
     return null;
   }
-  return [node, path];
+
+  return [node, path] satisfies [TElement, number[]] | null;
 };
 
 const AutoEmbedPlugin = createPlatePlugin({ editOnly: true, key: "embedAutoPill" })
@@ -62,17 +69,19 @@ const AutoEmbedPlugin = createPlatePlugin({ editOnly: true, key: "embedAutoPill"
     transforms: {
       insertData(data) {
         const text = data.getData("text/plain").trim();
+
         if (text !== "" && isAutoEmbedUrl(text) && emptyParagraphEntry(editor) !== null) {
           insertEmbedFromUrl(editor, text);
+
           return;
         }
+
         insertData(data);
       },
     },
   }))
   .extend(() => ({
     handlers: {
-      // Plate runs a plugin's keydown ahead of Slate's own composition check
       onKeyDown: ({ editor, event }) => {
         if (
           event.key !== "Enter" ||
@@ -83,22 +92,30 @@ const AutoEmbedPlugin = createPlatePlugin({ editOnly: true, key: "embedAutoPill"
         ) {
           return;
         }
+
         if (editor.selection === null || !editor.api.isCollapsed()) {
           return;
         }
+
         const entry = editor.api.block();
+
         if (!entry || !ElementApi.isElement(entry[0])) {
           return;
         }
+
         const [node, path] = entry;
+
         if (node.type !== editor.getType(KEYS.p) || node.listStyleType !== undefined) {
           return;
         }
+
         const text = NodeApi.string(node).trim();
         const embed = isAutoEmbedUrl(text) ? embedNodeForUrl(text) : null;
+
         if (embed === null) {
           return;
         }
+
         event.preventDefault();
         editor.tf.withoutNormalizing(() => {
           editor.tf.removeNodes({ at: path });

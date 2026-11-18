@@ -1,7 +1,3 @@
-// The sign-in form's fields as Return moves through them: each field's Return goes to the next, and
-// the last one's sends the form once every field is filled, so nobody reaches past the keyboard
-// for the button.
-
 export type SignInDoor = "sign-in" | "sign-up";
 
 export type SignInField = "name" | "email" | "password" | "inviteCode";
@@ -13,16 +9,16 @@ const FIELDS: Readonly<Record<SignInDoor, readonly SignInField[]>> = {
   "sign-up": ["name", "email", "password", "inviteCode"],
 };
 
-export type ReturnKey =
-  | { readonly kind: "next"; readonly field: SignInField }
-  | { readonly kind: "send" };
+type ReturnKey = { readonly kind: "next"; readonly field: SignInField } | { readonly kind: "send" };
 
-export const returnOf = (door: SignInDoor, field: SignInField): ReturnKey => {
+export const returnOf = (door: SignInDoor, field: SignInField) => {
   const fields = FIELDS[door];
   const next = fields[fields.indexOf(field) + 1];
-  return next === undefined ? { kind: "send" } : { field: next, kind: "next" };
+
+  return (
+    next === undefined ? { kind: "send" } : { field: next, kind: "next" }
+  ) satisfies ReturnKey;
 };
 
-// every field of the door filled, a password as typed and the rest past their spaces
-export const formReady = (door: SignInDoor, form: SignInForm): boolean =>
+export const formReady = (door: SignInDoor, form: SignInForm) =>
   FIELDS[door].every((field) => (field === "password" ? form.password : form[field].trim()) !== "");

@@ -9,6 +9,7 @@ describe("the store a deployment keeps files in", () => {
 
   it("is Blob wherever its key is set", () => {
     const keyed = { ...folder, BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_x" };
+
     for (const onVercel of [true, false]) {
       expect(fileStoreModeOf(keyed, onVercel)).toStrictEqual({
         kind: "blob",

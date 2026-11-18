@@ -1,23 +1,24 @@
 import { uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell.test-utils";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { describe, expect, it } from "vitest";
 
-import { memoryKv } from "@repo/client/test-support/memory-kv";
-import type { MemoryKv } from "@repo/client/test-support/memory-kv";
+import { memoryKv } from "@repo/client/test-support/memory-kv.test-utils";
+import type { MemoryKv } from "@repo/client/test-support/memory-kv.test-utils";
 import { createPhoneSaves } from "./phone-saves";
 import { createShareOutbox } from "./share-outbox";
 
 const PAGE = "https://example.com/later";
 
-// a fresh UUIDv7 each time, as the phone mints its ids
 const idSource = () => {
   let next = 0;
-  return (): string => {
+
+  return () => {
     next += 1;
+
     return `0190a000-0000-7000-8000-${next.toString(16).padStart(12, "0")}`;
   };
 };
@@ -25,6 +26,7 @@ const idSource = () => {
 const phoneOver = (device: FakeDevice, storage: MemoryKv = memoryKv()) => {
   const ended: SessionEnd[] = [];
   let landings = 0;
+
   const saves = createPhoneSaves({
     client: v1Client(device.transport, (end) => {
       ended.push(end);
@@ -42,6 +44,7 @@ const phoneOver = (device: FakeDevice, storage: MemoryKv = memoryKv()) => {
       await uploadBlob(device.transport, file);
     },
   });
+
   const shares = createShareOutbox({
     landed: () => {
       landings += 1;
@@ -49,6 +52,7 @@ const phoneOver = (device: FakeDevice, storage: MemoryKv = memoryKv()) => {
     saves,
     storage,
   });
+
   return { ended, landings: () => landings, shares, storage };
 };
 
@@ -63,9 +67,11 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     device.setOffline(true);
 
     const kept = await shares.keep({ kind: "link", note: "For Tuesday.", title: null, url: PAGE });
+
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
+
     expect(storage.held.has(`share:${kept.opId}`)).toBe(true);
     await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toHaveLength(1);
@@ -97,9 +103,11 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     const device = cell.device("phone");
     const { shares } = phoneOver(device);
     const kept = await shares.keep({ kind: "link", note: null, title: null, url: PAGE });
+
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
+
     device.loseAnswers(1);
     await expect(shares.deliver(kept.opId)).resolves.toBeNull();
 
@@ -111,9 +119,11 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     const cell = createFakeCell();
     const { shares } = phoneOver(cell.device("phone"));
     const kept = await shares.keep({ kind: "text", text: "Call the printer\n\nabout the proofs" });
+
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
+
     await expect(shares.deliver(kept.opId)).resolves.toBe(kept.id);
     expect(cell.item(kept.id)?.fields.title).toBe("Call the printer");
   });
@@ -122,9 +132,11 @@ describe("the shares this phone keeps until the cloud takes them", () => {
     const cell = createFakeCell();
     const { shares, storage } = phoneOver(cell.device("phone"));
     const kept = await shares.keep({ kind: "link", note: null, title: null, url: "ftp://files" });
+
     if (kept === null) {
       throw new Error("the outbox refused a share while signed in");
     }
+
     await expect(shares.deliver(kept.opId)).resolves.toBeNull();
     expect(shares.waiting.get()).toMatchObject([{ refused: WEB_URL_RULE }]);
 

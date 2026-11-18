@@ -1,15 +1,3 @@
-// Who may call `/v1`, said once for the wire and a file's bytes alike: the build floor, the door the
-// request came through, the session that door reads and the session's minute, in that order; a
-// call and a file's read each spend a minute of their own. Each
-// door is a mark no other page can forge (https://orpc.dev/docs/integrations/better-auth):
-//
-// - a bearer is the browser extension's, the browser's own session cookie read from its jar. The
-//   cookie beside it is never read, so a bearer that fails is refused, never retried as the cookie.
-// - a request the site's own page made, which a browser marks same-origin, a header no page script
-//   can set and no install sends, is a tab's or the Mac app's window, on its cookie.
-// - a request naming the phone's app scheme in `expo-origin` is the phone's, on the cookie it
-//   keeps: a page cannot send that header without a preflight, which no route answers.
-
 import {
   CLIENT_BUILD_HEADER,
   meetsBuildFloor,
@@ -30,7 +18,6 @@ import type { RpcRefusal } from "./rpc-refusal";
 
 export type SessionDoor = "page" | "phone" | "extension";
 
-// one of Better Auth's sessions, whichever device signed it in
 export interface AppPrincipal {
   readonly accountId: string;
   readonly actor: {
@@ -44,43 +31,51 @@ type Admission =
   | { readonly kind: "admitted"; readonly principal: AppPrincipal }
   | { readonly kind: "refused"; readonly refusal: RpcRefusal };
 
-const doorOf = (headers: Headers): SessionDoor | null => {
+const doorOf = (headers: Headers) => {
   if (headers.has("authorization")) {
-    return "extension";
+    return "extension" as const;
   }
+
   if (headers.get("sec-fetch-site") === "same-origin") {
-    return "page";
+    return "page" as const;
   }
-  return headers.get("expo-origin") === PHONE_ORIGIN ? "phone" : null;
+
+  return (
+    headers.get("expo-origin") === PHONE_ORIGIN ? "phone" : null
+  ) satisfies SessionDoor | null;
 };
 
-// a wire shape retires by raising the floor past every build that reads it; an absent or unreadable
-// header is refused like a stale build, since every build that sends none is older than the floor
-const isBelowFloor = (headers: Headers): boolean => {
+const isBelowFloor = (headers: Headers) => {
   const build = parseClientBuildHeader(headers.get(CLIENT_BUILD_HEADER));
+
   return build === null || !meetsBuildFloor(build, env.MIN_CLIENT_BUILD);
 };
 
 export const admit = async (
   request: Request,
   budget: Extract<HolderRateFamily, "rpcCall" | "fileRead">,
-): Promise<Admission> => {
+) => {
   const { headers } = request;
   const door = doorOf(headers);
-  // a page this deployment served ships in it, so it is never below the floor
+
   if (door !== "page" && isBelowFloor(headers)) {
-    return { kind: "refused", refusal: new ClientOutdatedError() };
+    return { kind: "refused", refusal: new ClientOutdatedError() } satisfies Admission;
   }
+
   const signedIn = door === null ? null : await readSession(headers);
+
   if (door === null || signedIn === null) {
-    return { kind: "refused", refusal: new UnauthorizedError() };
+    return { kind: "refused", refusal: new UnauthorizedError() } satisfies Admission;
   }
+
   const sessionId = signedIn.session.id;
+
   if (!(await spendHolderBudget(budget, sessionId))) {
-    return { kind: "refused", refusal: new TooManyRequestsError() };
+    return { kind: "refused", refusal: new TooManyRequestsError() } satisfies Admission;
   }
+
   return {
     kind: "admitted",
     principal: { accountId: signedIn.user.id, actor: { door, kind: "session", sessionId } },
-  };
+  } satisfies Admission;
 };

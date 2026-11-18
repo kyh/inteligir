@@ -1,15 +1,30 @@
 import { RPCSerializer } from "@orpc/client";
 import { fileSha } from "@repo/contract/library/file-sha";
-import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response.test-utils";
 import { QuotaError } from "@repo/contract/rpc/v1-errors";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { http } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { cloudOf, sendFile } from "./cloud";
-import { SESSION } from "./test-support/fake-cloud";
+import { SESSION } from "./test-support/fake-cloud.test-utils";
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+const network = setupServer();
+
+beforeAll(() => {
+  network.listen({ onUnhandledRequest: "error" });
+});
+
+afterEach(() => {
+  network.resetHandlers();
+});
+
+afterAll(() => {
+  network.close();
 });
 
 const STORE_URL = "https://vercel.com/api/blob/?pathname=files%2Fa&signature=s";
@@ -27,29 +42,29 @@ const RESERVED = Response.json(
 
 interface Script {
   readonly settle?: () => Response;
-  // what passes while the store takes the bytes it was sent
   readonly storing?: () => Promise<void>;
 }
 
-// the cloud and its store: every request recorded, a reserve answered with the store's URL, the
-// bytes stored, and a settle answered as the case says
 const cloudAnswering = (script: Script = {}) => {
   const asked: Request[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async (input, init) => {
-      const request = new Request(input, init);
-      asked.push(request);
+  network.use(
+    http.all("*", async ({ request }) => {
+      asked.push(request.clone());
+
       if (request.url === STORE_URL) {
         await script.storing?.();
+
         return new Response(null, { status: 200 });
       }
+
       if (request.url.endsWith("/library/files/reserve")) {
         return RESERVED.clone();
       }
+
       return script.settle?.() ?? Response.json(serializer.serialize({ kind: "kept" }));
     }),
   );
+
   return asked;
 };
 
@@ -102,6 +117,7 @@ describe("the extension's calls to its cloud", () => {
     const asked = cloudAnswering({
       settle: () => Response.json({ json: null }, { status: 500 }),
     });
+
     await cloudOf(SESSION, "0.6.0", keepAwake)
       .saveLink({ id: "x", opId: "y", url: "https://example.test" })
       .catch(() => null);

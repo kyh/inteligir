@@ -1,5 +1,3 @@
-// Plate models table > tr > td; the rows need a <tbody> for valid HTML.
-
 import { useRef, useState } from "react";
 import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
@@ -21,10 +19,9 @@ export const TableElement = (props: PlateElementProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // deleteRow/deleteColumn act on the cell holding the cursor; the trigger preventDefaults
-  // mousedown so opening the menu keeps that selection.
   const removeTable = () => {
     const at = editor.api.findPath(element);
+
     if (at) {
       editor.tf.removeNodes({ at });
     }
@@ -32,26 +29,29 @@ export const TableElement = (props: PlateElementProps) => {
 
   const addRow = () => {
     const at = editor.api.findPath(element);
+
     if (at) {
       insertTableRow(editor, { at });
     }
   };
+
   const addColumn = () => {
     const at = editor.api.findPath(element);
+
     if (!at) {
       return;
     }
+
     const [firstRow] = element.children;
+
     const cols =
       firstRow && "children" in firstRow && Array.isArray(firstRow.children)
         ? firstRow.children.length
         : 1;
+
     insertTableColumn(editor, { fromCell: [...at, 0, cols - 1] });
   };
 
-  // max-w-full + inner overflow-x-auto: a wide table scrolls inside its own block instead of
-  // being clipped by the editable's overflow-x-hidden. The add-row bar sits in the block's own
-  // bottom padding, since a run of blocks clips what hangs past its last one (styles.css).
   return (
     <div className="group/table relative w-fit max-w-full pb-2.5">
       <div className="overflow-x-auto">

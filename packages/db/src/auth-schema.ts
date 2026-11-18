@@ -12,10 +12,6 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-// Better Auth's tables as 1.7.25 reads them for auth.ts's plugins, hand-kept as dataembed keeps its
-// own: the generator emits no RLS, no index and no rate_limit. A suite runs its schema check and
-// holds every column's presence and NOT NULL to it (packages/service/src/auth/auth-tables.test.ts).
-
 export const user = pgTable.withRLS("user", {
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
@@ -88,8 +84,6 @@ export const verification = pgTable.withRLS(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-// Better Auth's limiter and the app's own windows (packages/service/src/rate-limit.ts) share it, so
-// Better Auth's prune of a lapsed row reaches both; last_request is epoch milliseconds.
 export const rateLimit = pgTable.withRLS("rate_limit", {
   count: integer("count").notNull(),
   id: text("id").primaryKey(),
@@ -97,9 +91,6 @@ export const rateLimit = pgTable.withRLS("rate_limit", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
-// In the clear: a short string a person types, bounded by the gate's window, which the owner reads
-// back to see which codes are open. redeemed_by is the address the claim was made with, since the
-// claim comes before the account; a deletion forgets it and keeps the code spent.
 export const inviteCode = pgTable.withRLS(
   "invite_code",
   {
@@ -107,7 +98,6 @@ export const inviteCode = pgTable.withRLS(
     redeemedAt: timestamp("redeemed_at"),
     redeemedBy: text("redeemed_by"),
   },
-  // push never alters a check's body, so a changed rule takes a new name
   (table) => [
     check(
       "invite_code_redeemer_check",
@@ -116,11 +106,6 @@ export const inviteCode = pgTable.withRLS(
   ],
 );
 
-// The connector's OAuth provider (@better-auth/oauth-provider with cimd): an assistant registered
-// by its metadata document or by itself, the resource its tokens are for, the person's consent and
-// the tokens minted under it. A grant is the person's one library, so `reference_id` names nothing
-// and carries no key. Tokens are stored hashed, the access token without its prefix.
-
 export const oauthClient = pgTable.withRLS(
   "oauth_client",
   {
@@ -128,7 +113,6 @@ export const oauthClient = pgTable.withRLS(
     backchannelLogoutSessionRequired: boolean("backchannel_logout_session_required"),
     backchannelLogoutUri: text("backchannel_logout_uri"),
     clientCredentialsScopes: text("client_credentials_scopes").array().default([]),
-    // `cimd` for an assistant its metadata document vouches for; null for one that registered itself
     clientDiscoveryId: text("client_discovery_id"),
     clientId: text("client_id").notNull().unique(),
     clientSecret: text("client_secret"),
@@ -202,7 +186,6 @@ export const oauthClientResource = pgTable.withRLS(
   ],
 );
 
-// a person's grant to one assistant; disconnecting it deletes it and every token minted under it
 export const oauthConsent = pgTable.withRLS(
   "oauth_consent",
   {
@@ -288,7 +271,6 @@ export const oauthAccessToken = pgTable.withRLS(
   ],
 );
 
-// a `private_key_jwt` assertion's id, its digest, kept until it expires so none is used twice
 export const oauthClientAssertion = pgTable.withRLS("oauth_client_assertion", {
   expiresAt: timestamp("expires_at").notNull(),
   id: text("id").primaryKey(),

@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { noteFixture } from "@repo/contract/test-support/library-items";
-import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
+import { noteFixture } from "@repo/contract/test-support/library-items.test-utils";
+import { mulberry32, pick } from "@repo/contract/test-support/seeded-random.test-utils";
 import { applyInverse, composeInverse, inverseOpSchema, SCALAR_FIELDS } from "./inverse-ops";
 import type { InverseOp } from "./inverse-ops";
 
-const applied = (fields: LibraryItemFields, ops: readonly InverseOp[]): LibraryItemFields => {
+const applied = (fields: LibraryItemFields, ops: readonly InverseOp[]) => {
   const outcome = applyInverse(fields, ops);
+
   if (outcome.kind !== "applied") {
     throw new Error(`ops did not land: ${JSON.stringify(outcome)}`);
   }
+
   return outcome.fields;
 };
 
@@ -19,6 +21,7 @@ describe(applyInverse, () => {
     const renamed = applied(noteFixture(), [
       { base: "A note", field: "title", op: "set", value: "B" },
     ]);
+
     expect(renamed.title).toBe("B");
     expect(
       applyInverse(renamed, [{ base: "A note", field: "title", op: "set", value: "B" }]),
@@ -32,6 +35,7 @@ describe(applyInverse, () => {
     const tagged = applied(noteFixture({ tags: ["later"] }), [
       { base: [], op: "tags", value: ["mine"] },
     ]);
+
     expect(tagged.tags).toStrictEqual(["later", "mine"]);
     expect(
       applyInverse(noteFixture({ tags: ["Foo"] }), [{ base: ["Foo"], op: "tags", value: ["foo"] }]),
@@ -42,9 +46,11 @@ describe(applyInverse, () => {
     const waiting = { at: 1, state: "pending" } as const;
     const read = { at: 2, state: "read" } as const;
     const link = noteFixture({ kind: "link", reading: { ...read } });
+
     const back: readonly InverseOp[] = [
       { base: { ...read }, field: "reading", op: "set", value: waiting },
     ];
+
     expect(applied(link, back).reading).toStrictEqual(waiting);
     expect(applyInverse({ ...link, reading: { ...waiting } }, back)).toMatchObject({
       changed: false,
@@ -52,7 +58,6 @@ describe(applyInverse, () => {
     });
     const failed = { at: 3, error: "Timed out.", state: "failed" } as const;
     expect(applyInverse({ ...link, reading: failed }, back)).toStrictEqual({ kind: "conflict" });
-    // a landing that reads the same reading anew from its row writes no slot
     expect(composeInverse([], link, { ...link, reading: { ...read } })).toStrictEqual([]);
   });
 });
@@ -61,6 +66,7 @@ describe("an op of the way back", () => {
   it("has a set op for every field that is not a list", () => {
     const fields = noteFixture();
     expect(SCALAR_FIELDS).toHaveLength(Object.keys(fields).length - 3);
+
     for (const field of SCALAR_FIELDS) {
       const value = fields[field];
       expect(
@@ -84,24 +90,27 @@ describe("an op of the way back", () => {
   });
 });
 
-// one landing of a writer's on the fields as they stand, and its way back with the landing in
 const land = (
   inverse: readonly InverseOp[],
   fields: LibraryItemFields,
   change: Partial<LibraryItemFields>,
 ) => {
   const after = { ...fields, ...change };
+
   return { after, inverse: composeInverse(inverse, fields, after) };
 };
 
 const randomLanding = (rand: () => number, fields: LibraryItemFields) => {
   const change: Partial<LibraryItemFields> = {};
+
   if (rand() < 0.5) {
     change.title = `T${String(rand())}`;
   }
+
   if (rand() < 0.4) {
     change.tags = [...fields.tags, `${pick(rand, ["x", "y", "z"])}${String(fields.tags.length)}`];
   }
+
   if (rand() < 0.3) {
     const key = pick(rand, ["a", "b"]);
     const others = Object.entries(fields.properties).filter(([name]) => name !== key);
@@ -109,9 +118,11 @@ const randomLanding = (rand: () => number, fields: LibraryItemFields) => {
       rand() < 0.3 ? others : [...others, [key, Math.floor(rand() * 9)]],
     );
   }
+
   if (rand() < 0.2) {
     change.pinnedAt = fields.pinnedAt === null ? 1 : null;
   }
+
   return change;
 };
 
@@ -119,11 +130,13 @@ describe(composeInverse, () => {
   it("takes several landings back to the fields before the first, one op a slot", () => {
     const x = noteFixture({ tags: ["keep"] });
     const one = land([], x, { tags: ["keep", "one"], title: "B" });
+
     const two = land(one.inverse, one.after, {
       properties: { rating: 5 },
       tags: ["keep", "two"],
       title: "C",
     });
+
     expect(two.inverse).toHaveLength(3);
     expect(applied(two.after, two.inverse)).toStrictEqual(x);
   });
@@ -138,16 +151,19 @@ describe(composeInverse, () => {
       tags: ["keep", "first"],
       title: "The writer's",
     });
+
     const between: LibraryItemFields = {
       ...one.after,
       pinnedAt: 1,
       tags: ["keep", "first", "theirs"],
       title: "Someone's",
     };
+
     const two = land(one.inverse, between, {
       tags: ["keep", "first", "theirs", "second"],
       title: "The writer's again",
     });
+
     expect(applied(two.after, two.inverse)).toStrictEqual({ ...between, tags: ["keep", "theirs"] });
   });
 
@@ -166,12 +182,15 @@ describe(composeInverse, () => {
 
   it("takes any run of one writer's landings back to where it began (seeded)", () => {
     const rand = mulberry32(0x0c_0e_05);
+
     for (let trial = 0; trial < 300; trial += 1) {
       const start = { ...noteFixture(), ...randomLanding(rand, noteFixture()) };
       let { after, inverse } = land([], start, randomLanding(rand, start));
+
       for (let step = 0; step < 3; step += 1) {
         ({ after, inverse } = land(inverse, after, randomLanding(rand, after)));
       }
+
       expect(applied(after, inverse)).toStrictEqual(start);
     }
   });

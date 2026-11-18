@@ -6,21 +6,24 @@ import {
   parseClientBuildHeader,
   parseReleaseVersion,
 } from "./client-build";
-import type { BuildVersion, ClientBuild } from "./client-build";
+import type { ClientBuild } from "./client-build";
 
 const BUILD: ClientBuild = { platform: "mobile", version: "0.7.0" };
 const SENT = "0.7.0+mobile";
 
-const release = (text: string): BuildVersion => {
+const release = (text: string) => {
   const parsed = parseReleaseVersion(text);
+
   if (parsed === null) {
     throw new Error(`${text} is no release`);
   }
+
   return parsed;
 };
 
-const meets = (header: string, floor: string): boolean => {
+const meets = (header: string, floor: string) => {
   const build = parseClientBuildHeader(header);
+
   return build !== null && meetsBuildFloor(build, release(floor));
 };
 

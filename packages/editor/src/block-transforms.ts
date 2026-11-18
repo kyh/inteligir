@@ -1,5 +1,3 @@
-// Lists are indent-based paragraphs (`listStyleType` + `indent`); columns are not a turn-into target.
-
 import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, TElement, TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -9,7 +7,6 @@ import type { AlertVariant } from "@repo/contract/library/library-nodes";
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
 import { alertProp, stringProp } from "@repo/editor/headless/node-props";
 
-// Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.
 export type TurnIntoId =
   | "text"
   | "heading-1"
@@ -71,94 +68,108 @@ const TURN_INTO_ORDER: readonly TurnIntoId[] = [
 
 export const TURN_INTO: readonly TurnIntoOption[] = TURN_INTO_ORDER.map((id) => TURN_INTO_ROWS[id]);
 
-export const turnIntoOption = (id: TurnIntoId): TurnIntoOption => TURN_INTO_ROWS[id];
+export const turnIntoOption = (id: TurnIntoId) => TURN_INTO_ROWS[id];
 
-const elementAt = (editor: PlateEditor, at: Path): TElement | null => {
+const elementAt = (editor: PlateEditor, at: Path) => {
   const entry = editor.api.node(at);
+
   if (!entry || !ElementApi.isElement(entry[0])) {
     return null;
   }
+
   return entry[0];
 };
 
-const parentElement = (editor: PlateEditor, path: Path): [TElement, Path] | null => {
+const parentElement = (editor: PlateEditor, path: Path) => {
   if (path.length < 2) {
     return null;
   }
+
   const parentPath = PathApi.parent(path);
   const parent = elementAt(editor, parentPath);
-  return parent === null ? null : [parent, parentPath];
+
+  return (parent === null ? null : [parent, parentPath]) satisfies [TElement, Path] | null;
 };
 
-// Turn-into names the block the user sees, as the block menu does. A code line stands for its code
-// block: a line converted alone is reverted by the normalizer or nested inside the fence, losing its
-// text. A toggle's summary row (first child) stands for the toggle: "Toggle → Text" must unwrap it,
-// not no-op on the inner paragraph.
-const turnIntoTarget = (editor: PlateEditor, entry: [TElement, Path]): [TElement, Path] => {
+const turnIntoTarget = (editor: PlateEditor, entry: [TElement, Path]) => {
   const [node, path] = entry;
+
   const block =
     node.type === editor.getType(KEYS.codeLine) ? (parentElement(editor, path) ?? entry) : entry;
+
   const [, blockPath] = block;
+
   if (blockPath.at(-1) === 0) {
     const toggle = parentElement(editor, blockPath);
+
     if (toggle !== null && toggle[0].type === editor.getType(KEYS.toggle)) {
       return toggle;
     }
   }
+
   return block;
 };
 
-export const effectiveBlockEntry = (editor: PlateEditor, at?: TRange): [TElement, Path] | null => {
+export const effectiveBlockEntry = (editor: PlateEditor, at?: TRange) => {
   const block = editor.api.block(at ? { at } : {});
+
   if (!block || !ElementApi.isElement(block[0])) {
     return null;
   }
+
   return turnIntoTarget(editor, [block[0], block[1]]);
 };
 
-export const turnIntoOptionFor = (node: TElement): TurnIntoOption => {
+export const turnIntoOptionFor = (node: TElement) => {
   const listStyleType = stringProp(node, "listStyleType");
+
   if (listStyleType !== undefined) {
     return TURN_INTO.find((opt) => opt.listStyleType === listStyleType) ?? TURN_INTO_ROWS.text;
   }
+
   const isAlert = alertProp(node) !== undefined;
+
   const match = TURN_INTO.find(
     (opt) =>
       opt.listStyleType === undefined &&
       opt.type === node.type &&
       (opt.alert !== undefined) === isAlert,
   );
+
   return match ?? TURN_INTO_ROWS.text;
 };
 
-// Plate's quote holds blocks, so a block joins one as a wrapped paragraph, the shape the reader
-// makes. Retyped instead, its bare text is rebuilt by the quote's normalizer, and the caret falls
-// out of the replaced text into the block above. A quote that is an alert already keeps the one
-// it is.
-const quoteAt = (editor: PlateEditor, at: Path, alert: AlertVariant | undefined): void => {
+const quoteAt = (editor: PlateEditor, at: Path, alert: AlertVariant | undefined) => {
   const element = elementAt(editor, at);
+
   if (element === null) {
     return;
   }
+
   if (element.type !== editor.getType(KEYS.blockquote)) {
     editor.tf.setNodes({ type: editor.getType(KEYS.p) }, { at });
     editor.tf.wrapNodes({ children: [], type: editor.getType(KEYS.blockquote) }, { at });
   }
+
   if (alert !== undefined && alertProp(element) === undefined) {
     editor.tf.setNodes({ alert }, { at });
   }
 };
 
-const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void => {
+const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption) => {
   if (opt.type === KEYS.toggle) {
     wrapBlockInToggle(editor, at);
+
     return;
   }
+
   if (opt.type === KEYS.codeBlock) {
     const element = elementAt(editor, at);
+
     if (element === null) {
       return;
     }
+
     const text = NodeApi.string(element);
     editor.tf.removeNodes({ at });
     editor.tf.insertNodes(
@@ -168,31 +179,38 @@ const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void =
           .map((line) => ({ children: [{ text: line }], type: editor.getType(KEYS.codeLine) })),
         type: editor.getType(KEYS.codeBlock),
       },
-      // slash-mermaid seeds its graph through the selection right after converting
       { at, select: true },
     );
+
     return;
   }
+
   if (opt.listStyleType !== undefined) {
-    // without `checked` the serializer emits a plain bullet
     const props =
       opt.listStyleType === "todo"
         ? { checked: false, indent: 1, listStyleType: opt.listStyleType, type: KEYS.p }
         : { indent: 1, listStyleType: opt.listStyleType, type: KEYS.p };
+
     editor.tf.setNodes(props, { at });
+
     return;
   }
+
   editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
+
   if (opt.type === KEYS.blockquote) {
     quoteAt(editor, at, opt.alert);
+
     return;
   }
+
   editor.tf.setNodes({ type: opt.type }, { at });
 };
 
-export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void => {
+export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption) => {
   editor.tf.withoutNormalizing(() => {
     let node = elementAt(editor, at);
+
     if (node === null) {
       return;
     }
@@ -201,20 +219,26 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
       if (opt.type === KEYS.toggle) {
         return;
       }
+
       editor.tf.unwrapNodes({ at });
       const summary = elementAt(editor, at);
+
       if (summary === null) {
         return;
       }
+
       node = summary;
     } else if (node.type === editor.getType(KEYS.codeBlock)) {
       if (opt.type === KEYS.codeBlock) {
         return;
       }
+
       const index = at.at(-1);
+
       if (index === undefined) {
         return;
       }
+
       const lines = node.children.map((line) => NodeApi.string(line));
       editor.tf.removeNodes({ at });
       const texts = lines.length > 0 ? lines : [""];
@@ -222,9 +246,11 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
         texts.map((text) => ({ children: [{ text }], type: editor.getType(KEYS.p) })),
         { at },
       );
+
       for (let i = texts.length - 1; i >= 0; i -= 1) {
         applyTarget(editor, [...at.slice(0, -1), index + i], opt);
       }
+
       return;
     }
 
@@ -236,9 +262,7 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
   });
 };
 
-// Last to first: a code block splitting into lines or a toggle unwrapping shifts every path after
-// it, so a forward walk would convert a promoted child in place of the block the caller named.
-export const turnIntoBlocks = (editor: PlateEditor, paths: Path[], opt: TurnIntoOption): void => {
+export const turnIntoBlocks = (editor: PlateEditor, paths: Path[], opt: TurnIntoOption) => {
   editor.tf.withoutNormalizing(() => {
     for (const path of paths.toSorted(PathApi.compare).toReversed()) {
       turnIntoAt(editor, path, opt);
@@ -246,50 +270,58 @@ export const turnIntoBlocks = (editor: PlateEditor, paths: Path[], opt: TurnInto
   });
 };
 
-// Takes an explicit range so it does not depend on editor.selection being restored after a popover stole focus.
-export const turnIntoSelection = (editor: PlateEditor, opt: TurnIntoOption, at?: TRange): void => {
+export const turnIntoSelection = (editor: PlateEditor, opt: TurnIntoOption, at?: TRange) => {
   const entries = editor.api.blocks(at ? { at, mode: "lowest" } : { mode: "lowest" });
   const targets = new Map<string, Path>();
+
   for (const [node, path] of entries) {
     if (ElementApi.isElement(node)) {
       const [, target] = turnIntoTarget(editor, [node, path]);
       targets.set(target.join("."), target);
     }
   }
+
   turnIntoBlocks(editor, [...targets.values()], opt);
 };
 
-// Moves one run of siblings; a gapped or cross-parent selection is no run, and moving its ends
-// would carry a neighbour across the unselected blocks between them.
-export const moveBlocks = (editor: PlateEditor, paths: Path[], direction: "up" | "down"): void => {
+export const moveBlocks = (editor: PlateEditor, paths: Path[], direction: "up" | "down") => {
   const sorted = paths.toSorted(PathApi.compare);
   const [first] = sorted;
   const last = sorted.at(-1);
   const firstIndex = first?.at(-1);
   const lastIndex = last?.at(-1);
+
   if (!first || !last || firstIndex === undefined || lastIndex === undefined) {
     return;
   }
+
   const parent = PathApi.parent(first);
+
   const isRun = sorted.every(
     (path, i) => PathApi.equals(PathApi.parent(path), parent) && path.at(-1) === firstIndex + i,
   );
+
   if (!isRun) {
     return;
   }
+
   if (direction === "up") {
     if (firstIndex === 0) {
       return;
     }
+
     const prev = [...first.slice(0, -1), firstIndex - 1];
-    // moveNodes' `to` is the post-removal index, so the previous sibling lands just below the group
     const to = [...last.slice(0, -1), lastIndex];
     editor.tf.moveNodes({ at: prev, to });
+
     return;
   }
+
   const next = [...last.slice(0, -1), lastIndex + 1];
+
   if (!editor.api.node(next)) {
     return;
   }
+
   editor.tf.moveNodes({ at: next, to: first });
 };

@@ -9,23 +9,26 @@ import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
-// a row is found by its own words or by its group's name
 const GROUP_OF = new Map(
-  GROUPS.flatMap(({ group, items }) => items.map((item): [SlashItem, string] => [item, group])),
+  GROUPS.flatMap(({ group, items }) =>
+    items.map((item) => [item, group] satisfies [SlashItem, string]),
+  ),
 );
 
-const slashRowMatches = (item: SlashItem, query: string): boolean =>
+const slashRowMatches = (item: SlashItem, query: string) =>
   matchesWords([item.value, item.label, GROUP_OF.get(item), ...(item.keywords ?? [])], query);
 
 const SlashInputElement = (props: PlateElementProps) => {
   const { element } = props;
   const locked = useRichBlocksLocked();
+
   const groups = locked
     ? GROUPS.map(({ group, items }) => ({
         group,
         items: items.filter((item) => item.richBlock !== true),
       }))
     : GROUPS;
+
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox

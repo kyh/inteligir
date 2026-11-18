@@ -16,15 +16,14 @@ beforeAll(() => {
 const mountSwitch = () => {
   const onCheckedChange = vi.fn<(checked: boolean) => void>();
   render(<Switch label="Pinned" checked={false} onCheckedChange={onCheckedChange} />);
+
   return {
-    // the switch's own change carries Base UI's event details after the value
     chosen: () => onCheckedChange.mock.calls.map(([checked]) => checked),
     control: screen.getByRole("switch", { name: "Pinned" }),
   };
 };
 
-// a browser's press: the click follows the release, on the element that held the pointer
-const press = (control: HTMLElement, from: number, to: number): void => {
+const press = (control: HTMLElement, from: number, to: number) => {
   fireEvent.pointerDown(control, { clientX: from, pointerId: 1 });
   fireEvent.pointerMove(control, { clientX: to, pointerId: 1 });
   fireEvent.pointerUp(control, { clientX: to, pointerId: 1 });
@@ -52,22 +51,24 @@ describe("the switch", () => {
   });
 });
 
-// where the thumb stands now, in px from the track's left edge
-const thumbX = (control: HTMLElement): number => {
+const thumbX = (control: HTMLElement) => {
   const thumb = control.querySelector<HTMLElement>("[data-unchecked], [data-checked]");
   const moved = /translateX\((?<x>[\d.-]+)px\)/u.exec(thumb?.style.transform ?? "");
+
   return Number(moved?.groups?.x);
 };
 
-// the thumb's place at each of the next `frames` frames
-const thumbPath = async (control: HTMLElement, frames: number): Promise<number[]> => {
+const thumbPath = async (control: HTMLElement, frames: number) => {
   const path: number[] = [];
-  const watch = (): void => {
+
+  const watch = () => {
     path.push(thumbX(control));
+
     if (path.length < frames) {
       requestAnimationFrame(watch);
     }
   };
+
   requestAnimationFrame(watch);
   await waitFor(
     () => {
@@ -75,6 +76,7 @@ const thumbPath = async (control: HTMLElement, frames: number): Promise<number[]
     },
     { timeout: 5000 },
   );
+
   return path;
 };
 
@@ -82,10 +84,9 @@ const OFF_X = 2;
 const ON_X = 14;
 const SETTLED_FRAMES = 60;
 
-// an owner that takes the side asked or keeps its own, answering after a frame has drawn, as a
-// mutation's notice on a timer can
 const Owner = ({ takes }: { takes: boolean }) => {
   const [checked, setChecked] = useState(false);
+
   return (
     <Switch
       label="Pinned"
@@ -101,8 +102,7 @@ const Owner = ({ takes }: { takes: boolean }) => {
   );
 };
 
-// a drag from the off side to past the middle, let go there
-const dragAcross = async (takes: boolean): Promise<HTMLElement> => {
+const dragAcross = async (takes: boolean) => {
   render(<Owner takes={takes} />);
   const control = screen.getByRole("switch", { name: "Pinned" });
   await thumbPath(control, 2);
@@ -112,6 +112,7 @@ const dragAcross = async (takes: boolean): Promise<HTMLElement> => {
   expect(thumbX(control)).toBeGreaterThan((OFF_X + ON_X) / 2);
   fireEvent.pointerUp(control, { clientX: 20, pointerId: 1 });
   fireEvent.click(control);
+
   return control;
 };
 

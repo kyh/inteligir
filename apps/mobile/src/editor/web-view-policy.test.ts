@@ -3,8 +3,10 @@ import { loadVerdict, openWindowVerdict } from "./web-view-policy";
 
 const PAGE =
   "file:///private/var/containers/Bundle/Application/A/Inteligir.app/www.bundle/0a1b.html";
+
 const UPDATE_PAGE =
   "file:///var/mobile/Containers/Data/Application/B/Library/Application%20Support/.expo-internal/c2d3/www.bundle/0a1b.html";
+
 const DEV_PAGE =
   "http://192.168.1.20:8081/_expo/@dom/note-page.tsx?file=file:///repo/note-page.tsx";
 
@@ -30,6 +32,7 @@ describe("what the note page's web view may load", () => {
     expect(
       loadVerdict({ isTopFrame: false, navigationType: "other", url: "about:srcdoc" }, false),
     ).toStrictEqual({ kind: "allow" });
+
     for (const url of ["https://example.com/", PAGE]) {
       expect(loadVerdict({ isTopFrame: false, navigationType: "other", url }, true)).toStrictEqual({
         kind: "refuse",
@@ -44,6 +47,7 @@ describe("what the note page's web view may load", () => {
         false,
       ),
     ).toStrictEqual({ kind: "open-outside", url: "https://example.com/a" });
+
     for (const url of [
       "about:blank",
       "file:///etc/passwd",
@@ -55,11 +59,13 @@ describe("what the note page's web view may load", () => {
         kind: "refuse",
       });
     }
+
     for (const navigationType of ["formsubmit", "backforward", "formresubmit"] as const) {
       expect(loadVerdict({ isTopFrame: true, navigationType, url: PAGE }, false)).toStrictEqual({
         kind: "refuse",
       });
     }
+
     expect(
       loadVerdict(
         { isTopFrame: true, navigationType: "other", url: "https://example.com/" },

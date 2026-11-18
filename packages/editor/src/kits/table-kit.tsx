@@ -8,7 +8,6 @@ import {
 import { classNameElement } from "@repo/editor/kits/kit-utils";
 import { TableElement } from "@repo/editor/nodes/table-node";
 
-// The grid is styled by `.typeset table` rules; min-w only keeps empty cells clickable.
 const TABLE_CELL_CLASS = "min-w-24";
 const TABLE_HEADER_CELL_CLASS = "min-w-24";
 

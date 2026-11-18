@@ -1,6 +1,3 @@
-// A file block: one the library holds by its bytes' sha, drawn as a card naming it, or a web
-// address, which a note is untrusted content for, so only an http(s) one reaches a clickable href.
-
 import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";

@@ -1,12 +1,3 @@
-// The editor's host inside the phone's DOM component (note-page.tsx). The page reaches the library
-// only through the phone: every read and write is an action native answers (note-actions.ts), each
-// argument and answer JSON and bytes base64, the note read and saved whole among them. Native
-// speaks to the page only through its props, which the page hands the host after every render:
-// whether there is a connection, which items moved, and a leave's ask; a move naming the open note
-// reads where it stands. The page going behind saves the note on its own (`item/note-save.ts`).
-// Expo hands the page new action functions on every native render, so the host calls the ones it
-// was handed last.
-
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
@@ -14,24 +5,18 @@ import type { NoteStanding } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { LibraryActions } from "./library-actions";
 
-// where the page's note stands for a leave: `editing` while an edit made here may not be held
-// yet, and `none` while the page follows no note
 export type NoteState = "none" | "reading" | "editing";
 
-// the page's answer to a leave's ask, by the ask's count
 export interface Settled {
   readonly ask: number;
   readonly holds: boolean;
 }
 
-// what the page tells the phone on its own
 interface NoteReports {
   readonly noteState: (state: NoteState) => void;
   readonly settled: (answer: Settled) => void;
 }
 
-// a signal native moves each time an answer of what moved names items: the ids, or null when any
-// may have
 export interface MovedItems {
   readonly seq: number;
   readonly ids: readonly string[] | null;
@@ -39,61 +24,54 @@ export interface MovedItems {
 
 export interface PageProps extends LibraryActions, NoteReports {
   readonly itemId: string;
-  // no connection. The app going behind is not one: the page's own hidden flush must still send
-  // what is unsaved, and native hears the app go behind before the page does.
   readonly offline: boolean;
   readonly moved: MovedItems;
-  // a leave's ask, a count native moves; the page answers each with `settled`
   readonly settle: number;
-  // the caret goes to the end of the note's body once it opens, and the keyboard comes up
   readonly focus: boolean;
 }
 
-export interface PageHost {
-  // the page's props, handed over after every render
+interface PageHost {
   readonly follow: (props: PageProps) => void;
-  // the open note, as the item editor announces it
   readonly noteIs: (note: OpenNote | null) => void;
 }
 
-const stateOf = (note: OpenNote | null): NoteState => {
+const stateOf = (note: OpenNote | null) => {
   if (note === null) {
-    return "none";
+    return "none" as const;
   }
-  return note.unsaved() ? "editing" : "reading";
+
+  return (note.unsaved() ? "editing" : "reading") satisfies NoteState;
 };
 
-// one read at a time, the last signal it missed read once it ends; a read that fails waits for the
-// next signal, and a link shows the title it was written with meanwhile
-const oneReadAtATime = (read: () => Promise<void>): (() => Promise<void>) => {
+const oneReadAtATime = (read: () => Promise<void>) => {
   let reading = false;
   let readAgain = false;
-  const run = async (): Promise<void> => {
+
+  const run = async () => {
     if (reading) {
       readAgain = true;
+
       return;
     }
+
     reading = true;
-    try {
-      await read();
-    } catch {
-      // the next signal asks again
-    } finally {
-      reading = false;
-    }
+
+    await Promise.allSettled([read()]);
+    reading = false;
+
     if (readAgain) {
       readAgain = false;
       await run();
     }
   };
+
   return run;
 };
 
-const nothingToDo = (): void => {
-  /* the touch profile draws no Ask agent, and a tag chip does nothing on the phone */
-};
+// oxlint-disable-next-line no-empty-function -- the touch profile draws no Ask agent, and a tag chip does nothing on the phone
+const nothingToDo = () => {};
 
-export const installPageHost = (first: PageProps): PageHost => {
+export const installPageHost = (first: PageProps) => {
   let props = first;
   let followed = false;
   let note: OpenNote | null = null;
@@ -102,20 +80,23 @@ export const installPageHost = (first: PageProps): PageHost => {
   const reachListeners = new Set<() => void>();
   const followers = new Set<(standing: NoteStanding) => void>();
 
-  // one address per file for the page's life, so blocks naming one file read its bytes once; a
-  // read that failed is let go, so the next ask reads again
   const fileSrcs = new Map<string, Promise<string>>();
-  const srcOf = async (sha: string): Promise<string> => {
-    try {
-      const file = await props.readFile(sha);
-      if (file !== null) {
-        return URL.createObjectURL(
-          new Blob([bytesFromBase64(file.base64)], { type: file.mediaType }),
-        );
-      }
-    } catch {
-      // native reached no copy either
+
+  const srcOf = async (sha: string) => {
+    const [made] = await Promise.allSettled([
+      (async () => {
+        const file = await props.readFile(sha);
+
+        return file === null
+          ? null
+          : URL.createObjectURL(new Blob([bytesFromBase64(file.base64)], { type: file.mediaType }));
+      })(),
+    ]);
+
+    if (made.status === "fulfilled" && made.value !== null) {
+      return made.value;
     }
+
     fileSrcs.delete(sha);
     throw new Error("the phone holds no copy of this file now");
   };
@@ -126,6 +107,7 @@ export const installPageHost = (first: PageProps): PageHost => {
 
   const readStanding = oneReadAtATime(async () => {
     const standing = await props.noteStanding(props.itemId);
+
     if (standing !== null) {
       for (const follower of followers) {
         follower(standing);
@@ -133,15 +115,16 @@ export const installPageHost = (first: PageProps): PageHost => {
     }
   });
 
-  const report = (): void => {
+  const report = () => {
     const state = stateOf(note);
+
     if (state !== reported) {
       reported = state;
       props.noteState(state);
     }
   };
 
-  const answer = async (ask: number): Promise<void> => {
+  const answer = async (ask: number) => {
     const holds = note === null || (await note.holds());
     props.settled({ ask, holds });
   };
@@ -159,14 +142,15 @@ export const installPageHost = (first: PageProps): PageHost => {
       fileSrc: async (sha) => {
         const src = fileSrcs.get(sha) ?? srcOf(sha);
         fileSrcs.set(sha, src);
+
         return await src;
       },
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
-        // the page shows one item, so every follower follows it
         follow: (_itemId, listener) => {
           followers.add(listener);
+
           return () => {
             followers.delete(listener);
           };
@@ -175,13 +159,13 @@ export const installPageHost = (first: PageProps): PageHost => {
           get: () => !props.offline,
           subscribe: (listener) => {
             reachListeners.add(listener);
+
             return () => {
               reachListeners.delete(listener);
             };
           },
         },
         read: async (itemId) => await props.readNote(itemId),
-        // native's own request outlives the page, so every save does
         save: async (save) => await props.saveNote(save),
       },
       openItem: (itemId) => {
@@ -196,28 +180,33 @@ export const installPageHost = (first: PageProps): PageHost => {
     follow: (next) => {
       const before = props;
       props = next;
+
       if (!followed) {
         followed = true;
         void readTargets();
       }
+
       if (next.offline !== before.offline) {
         for (const listener of reachListeners) {
           listener();
         }
       }
+
       if (next.moved.seq !== before.moved.seq) {
-        // a signal the page never saw may have named any item
         const ids =
           next.moved.seq === before.moved.seq + 1 && next.moved.ids !== null
             ? new Set(next.moved.ids)
             : null;
+
         if (ids === null || [...ids].some((id) => id !== next.itemId)) {
           void readTargets();
         }
+
         if (ids === null || ids.has(next.itemId)) {
           void readStanding();
         }
       }
+
       if (next.settle !== before.settle) {
         void answer(next.settle);
       }
@@ -228,5 +217,5 @@ export const installPageHost = (first: PageProps): PageHost => {
       stopNote = next?.subscribe(report) ?? nothingToDo;
       report();
     },
-  };
+  } satisfies PageHost;
 };

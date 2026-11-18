@@ -8,10 +8,10 @@ import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-// the way back and the session are the request's, so the form streams in behind the boundary
 const SignInEntry = async ({ searchParams }: Pick<PageProps<"/app/sign-in">, "searchParams">) => {
   const { next } = authPageSearchSchema.parse(await searchParams);
   await skipWhenSignedIn(next);
+
   return <SignInForm next={next} />;
 };
 

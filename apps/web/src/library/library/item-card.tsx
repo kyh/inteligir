@@ -1,7 +1,3 @@
-// One item as a card: its cover from the library's files (the cloud's own route), else a tile for
-// its kind; a note shows its first paragraph. The card only reports gestures: the grid owns the
-// selection, the focus and the menu.
-
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { shownTitle } from "@repo/contract/items/item-name";
 import {
@@ -26,7 +22,6 @@ import type { ListedItem } from "./listing";
 export interface ItemCardProps {
   readonly row: ListedItem;
   readonly selected: boolean;
-  // the one card Tab reaches; the grid's arrows move it
   readonly tabStop: boolean;
   readonly nowMs: number;
   readonly onPress: (row: ListedItem, event: MouseEvent<HTMLDivElement>) => void;
@@ -34,17 +29,19 @@ export interface ItemCardProps {
   readonly onMenu: (row: ListedItem, anchor: HTMLElement) => void;
 }
 
-const hueOf = (text: string): number => {
+const hueOf = (text: string) => {
   let hash = 0;
+
   for (const char of text) {
     hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 360;
   }
+
   return hash;
 };
 
-// a site's initial on a tile tinted by its name, so one site's cards read as one
 const MonogramTile = ({ label }: { label: string }) => {
   const hue = hueOf(label);
+
   return (
     <div
       aria-hidden="true"
@@ -67,6 +64,7 @@ const GlyphTile = ({ row }: { row: ListedItem }) => {
       </div>
     );
   }
+
   if (row.fields.kind === "video" || row.fields.kind === "audio") {
     return (
       <div aria-hidden="true" className="flex size-full items-center justify-center">
@@ -78,8 +76,10 @@ const GlyphTile = ({ row }: { row: ListedItem }) => {
       </div>
     );
   }
+
   const name = row.fields.originalName ?? row.card.title;
   const extension = fileExtensionLabel(name);
+
   return (
     <div aria-hidden="true" className="flex size-full flex-col items-center justify-center gap-1">
       <FileKindIcon name={name} className="size-9 text-muted-foreground" strokeWidth={1.25} />
@@ -90,12 +90,13 @@ const GlyphTile = ({ row }: { row: ListedItem }) => {
   );
 };
 
-// the cover, or nothing once the library could not answer it
 const CoverImage = ({ sha }: { sha: string }) => {
   const [failed, setFailed] = useState(false);
+
   if (failed) {
     return null;
   }
+
   return (
     <img
       alt=""
@@ -118,10 +119,13 @@ const CoverArea = ({ row }: { row: ListedItem }) => {
       </div>
     );
   }
+
   const cover = coverOf(row);
+
   if (cover !== null) {
     return <CoverImage key={cover} sha={cover} />;
   }
+
   if (row.fields.kind === "note") {
     return row.card.preview === "" ? (
       <div aria-hidden="true" className="flex size-full items-center justify-center">
@@ -133,9 +137,11 @@ const CoverArea = ({ row }: { row: ListedItem }) => {
       </p>
     );
   }
+
   if (row.fields.kind === "link") {
     return <MonogramTile label={row.fields.site ?? row.card.title} />;
   }
+
   return <GlyphTile row={row} />;
 };
 
@@ -150,24 +156,23 @@ export const ItemCard = ({
 }: ItemCardProps) => {
   const playable =
     (row.fields.kind === "video" || row.fields.kind === "audio") && row.fields.coverSha !== null;
+
   const title = shownTitle(row.card.title);
   const { reading } = row.fields;
+
   return (
     <MediaCard
       selected={selected}
       tabIndex={tabStop ? 0 : -1}
       data-item-id={row.id}
       aria-label={title}
-      // each gesture is the card's only where it landed on the card: the unread reason's popover
-      // is its child in React's tree, and a double-click selecting a word there would open the item
       onClick={(event) => {
         if (!landedInside(event)) {
           return;
         }
+
         onPress(row, event);
-        // a double-click opens on its second click, never on the `dblclick` after it: the click
-        // before it can have re-rendered this card into a new element, where the `dblclick` lands
-        // on a detached one that reaches no handler
+
         if (event.detail === 2) {
           onOpen(row);
         }
@@ -182,6 +187,7 @@ export const ItemCard = ({
         if (!landedInside(event)) {
           return;
         }
+
         event.preventDefault();
         onMenu(row, event.currentTarget);
       }}
@@ -193,8 +199,6 @@ export const ItemCard = ({
           <MediaCardBadge icon={<PinIcon />} position="top-left" aria-label="Pinned" />
         )}
         {reading.state === "failed" ? (
-          // why the page went unread is something to read, so it opens on a hover or a tap, which a
-          // tooltip, off on touch, would not
           <Popover>
             <PopoverTrigger
               openOnHover
