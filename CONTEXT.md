@@ -50,8 +50,8 @@ what is left to take back: an entry goes as an **Undo** settles it.
 Not a version: an undo writes forward and keeps no set of its own.
 
 **block** — one top-level element of a note's **live document**, named by its
-id and its **section**. The agent edits a body by block id, and a change to a
-block that moved since its writer read it is refused with the block as it is.
+id and its **section**. The agent edits a body by passage, made on the body as
+it stands and made again over a save that lands meanwhile (`packages/service/src/body/edit-body.ts`).
 A list item is a block, since lists are flat indent lists. Not a Plate node at
 any depth: a block's children are inside it
 (`packages/editor/src/headless/body/element-block.ts`).
@@ -59,9 +59,16 @@ any depth: a block's children are inside it
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a **fill** wrote. A fill
 and Refresh replace only `article` blocks, so reading a page again never
-touches the person's writing (`packages/service/src/note/article-body.ts`),
+touches the person's writing (`packages/service/src/body/article-body.ts`),
 and an agent's edit writes only `note` blocks. Not a heading's stretch of a
 note, and not a folder.
+
+**body version** — the count of writes an item's body has taken, which a
+device reads with it and saves over: a save over the version the body stands
+at lands and takes the next, and one over an older version answers stale
+for its device to merge (`packages/service/src/body/write-body.ts`). Not the
+item's sequence, which every write to the item moves, and not a history: the
+library keeps the body it holds alone.
 
 **live document** — a note's body as one Yjs document, each top-level
 **block** carrying its **section**, which every device's editor and the agent

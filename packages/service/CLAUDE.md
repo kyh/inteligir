@@ -180,8 +180,8 @@ decisions port with its code from the tag `cloudflare-last`.
   its files' and bodies' rows.** A person never loses a word mid-note and a full
   library can still be tidied; fields and the search rows are small beside them.
   `packages/service/src/library/library-quota.ts`.
-- **Markdown written into a body reads its links in one round of three queries
-  inside its write.** A query per link is a round trip each, and a title index
+- **Markdown written into a body reads its links in one round of three
+  queries.** A query per link is a round trip each, and a title index
   of the whole library reads every item to name a few.
   `packages/service/src/library/library-codec.ts`.
 - **A file is let go a day after its last name went, asked of the rows that
@@ -195,6 +195,22 @@ decisions port with its code from the tag `cloudflare-last`.
   its ids and titles ordered `collate "C"`.** The fake cell answers every
   client's suites by the model, and the database's collation orders case and
   accents apart from it. `packages/service/src/library/library-parity.test.ts`.
+
+## Bodies
+
+- **A body is written whole over the version its writer read, compared and
+  written under the account's lock.** The lock already orders the account's
+  writes, so the compare needs no guard of its own; a body written since
+  answers stale for the device to merge, and a resend of the blocks it holds
+  answers saved. `packages/service/src/body/write-body.ts`.
+- **An agent's edit is made outside any write and written over the version it
+  read; a save landing meanwhile makes it again once, and past that it is
+  refused as busy.** The codec and an editor over a long note would hold the
+  lock every other write of the account waits on.
+  `packages/service/src/body/edit-body.ts`.
+- **A body holds 1 MiB of blocks' JSON.** Every save writes the whole body and
+  derives its search row again, which past it holds a save over a second on a
+  Vercel function. `packages/contract/src/library/library-wire.ts`.
 
 ## Search
 
