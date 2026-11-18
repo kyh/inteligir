@@ -9,7 +9,12 @@ export default defineHook({
         return;
       }
       const { recordEveFact } = await import("@repo/service/agent/eve-agent");
-      await recordEveFact({ auth: ctx.session.auth.current, event, position: ctx.position });
+      await recordEveFact({
+        at: ctx.now.getTime(),
+        auth: ctx.session.auth.current,
+        event,
+        position: ctx.position,
+      });
     },
   },
 });

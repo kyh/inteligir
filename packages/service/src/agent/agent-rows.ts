@@ -1,21 +1,21 @@
 // `library.agent.*`'s rows over the built-in agent's threads: a message sent to eve as the person,
-// their threads and what each recorded, a stop, a delete, and the agent's standing for them.
-
-import { NotFoundError } from "@repo/contract/rpc/v1-errors";
+// their threads and each one followed as it happens, a stop, a delete, and the agent's standing
+// for them.
 
 import { reading, writing } from "../library/library-access";
 import { agentStatus, cancelAgentTurn, deleteAgentThread, sendToAgent } from "./agent-sessions";
-import { listThreads, threadEvents, threadOf } from "./agent-threads";
+import { listThreads } from "./agent-threads";
+import { followThread } from "./relay";
 import { deploymentAgentRuntime } from "./runtime";
 
 export const agentReadRows = {
-  events: reading.agent.events.handler(async ({ context, input }) => {
-    const { accountId } = context.library;
-    if ((await threadOf(accountId, input.threadId)) === null) {
-      throw new NotFoundError();
-    }
-    return await threadEvents(accountId, input);
-  }),
+  events: reading.agent.events.handler(
+    async ({ context, input, lastEventId, signal }) =>
+      await followThread(deploymentAgentRuntime(), context.library.accountId, input.threadId, {
+        lastEventId,
+        signal,
+      }),
+  ),
   list: reading.agent.list.handler(
     async ({ context, input }) => await listThreads(context.library.accountId, input),
   ),

@@ -27,6 +27,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Tidy my library** asks the agent to file and tag what's in Unsorted or untagged, following your filing rules in Settings › Account.
 - **The built-in agent, on every device**: ⌘K opens it, your conversations are your account's, it deletes or saves a link when you ask without asking again, New conversation leaves a conversation for the list, and a day allows a couple of answers.
 - **The agent searches the web and reads public pages** when what you ask reaches past your library.
+- **The agent's reply appears as it is written, and a message you send while it works joins what it is doing**, so you can steer it mid-answer; Stop ends the answer where it is.
 - **Use your library from your own Claude or ChatGPT** by adding `https://inteligir.com/connector` as a connector; Disconnect it in Settings › Account › Connected assistants.
 - **Let an assistant only read your library**: when it asks to read and change it, tick Only let it read the library before you allow it, and it lists only the tools that read.
 - **Resetting your password disconnects every connected assistant**: connect each one again from your assistant afterwards.
@@ -79,7 +80,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **HTML in an imported note is its text**, and text indented four spaces is a code block.
 - **An imported note's `site`, `author` and `published` keep up to 1,000 characters**, an alias longer than that is cut rather than leaving the note unread, an `aliases` list that mixes names with other values keeps its names, and `fetched` or `fetch-error` with no `url` stay properties.
 - **The agent draws diagrams** as Mermaid in the note.
-- **The agent's question says exactly which items it would move to Deleted, or the whole address it would save**, and a request it couldn't carry out is turned down without asking you.
 - **Your devices and the agent edit one note together**, live, and ⌘Z takes back only your own typing.
 - **Callouts in the older form come in as their text**; make them a callout from the `/` menu.
 - **A callout shows its label, never its `[!NOTE]` marker**, with the caret in it or not: click the label to make it a Tip, Important, Warning or Caution (retyping the marker no longer changes it), and type `[!TIP]` where a quote opens to make one.
@@ -108,7 +108,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Your iPhone asks for no device name.**
 - **On your iPhone, a GIF shows a placeholder for its cover in the list**: open the item to see it.
 - **Back on your iPhone leaves a note at once** unless you typed in it or added a file this visit, and the edge swipe goes back the same way.
-- **On your iPhone, Send, Approve, Cancel and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.
+- **On your iPhone, Send and Stop in a conversation with the agent say "Needs a connection" when you're offline**, instead of going through later: try again once you're back online.
 - **A conversation on your iPhone loads only what is new** while the agent works, and Ask the agent lists every conversation at once.
 - **A full library takes nothing new**: past about 1 GB it refuses new items and files, and deleting forever frees room.
 - **A change your library can't take says why**, and puts it back.
@@ -177,7 +177,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Enter on a link pasted into ⌘P saves it**, ahead of any items its words match.
 - **Sign in stays busy until your library opens**, and Back no longer returns to the form you just sent.
 - **The agent's reply stays on screen as it lands**: its text no longer blinks at the end of each message, and the conversation follows the reply as it is written until you scroll up.
-- **Approve and Cancel stay held while your answer to the agent is on its way**, when it asks before deleting or saving a link, and come back if it couldn't be sent, instead of reading Answered.
 - **A finished step in the agent's work no longer draws an empty bar**, and only a failed step opens to say why.
 - **A message typed to the agent stays when you switch the panel to Info and back**, and Send stays held while a message is on its way, after switching the tab and back too.
 - **A question the agent asks is declined for you after ten minutes, every time**: a restart while it waited could leave one waiting with no end.

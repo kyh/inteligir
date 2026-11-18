@@ -1,12 +1,43 @@
 // What eve records, as a thread shows it: each fact mapped into the contract's own event union,
-// never kept raw. A thread outlives its eve sessions and eve's call ids repeat across them, so a
-// call's id carries its session's number. A turn's end names the thread's turn, which the record
-// hook reads from its row (`./eve-agent`).
+// never kept raw, by the record hook as it keeps it (`./eve-agent`) and by the relay as it happens
+// (`./relay`), so both show one event at one position. A thread outlives its eve sessions and eve's
+// call ids repeat across them, so a call's id carries its session's number. A turn's end names the
+// thread's turn, which both read from its row.
 
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import type { agentTurn } from "@repo/db/agent-schema";
 import type { CallSettled, Fact, JsonValue, Progress, TurnSettled } from "eve/events";
 import { z } from "zod";
+
+// where eve recorded a fact: the thread's session by its number, the line, the index in that line
+export interface ThreadPosition {
+  readonly session: number;
+  readonly line: number;
+  readonly index: number;
+}
+
+// a thread event's id, as a device holds it and sends it back to resume
+export const cursorOf = ({ index, line, session }: ThreadPosition): string =>
+  `${String(session)}:${String(line)}:${String(index)}`;
+
+const CURSOR = /^(?<session>\d{1,9}):(?<line>\d{1,9}):(?<index>\d{1,9})$/u;
+
+// null for anything else: no id, or one this cloud never minted
+export const parseCursor = (cursor: string | undefined): ThreadPosition | null => {
+  const groups = cursor === undefined ? undefined : CURSOR.exec(cursor)?.groups;
+  if (groups?.session === undefined || groups.line === undefined || groups.index === undefined) {
+    return null;
+  }
+  return {
+    index: Number(groups.index),
+    line: Number(groups.line),
+    session: Number(groups.session),
+  };
+};
+
+// positive when `a` was recorded after `b`
+export const comparePositions = (a: ThreadPosition, b: ThreadPosition): number =>
+  a.session - b.session || a.line - b.line || a.index - b.index;
 
 // how a turn ended as its row keeps it and its `turn.ended` event says it
 export type TurnOutcome = NonNullable<(typeof agentTurn.$inferSelect)["outcome"]> & TurnEndReason;
@@ -121,4 +152,28 @@ export const turnOutcomeOf = ({ data }: TurnSettled): TurnOutcome => {
     }
     // no default
   }
+};
+
+// the thread's event for a turn eve settled, its number the thread's
+export const turnEndedEvent = (settled: TurnSettled, turn: number): AgentEvent => ({
+  reason: turnOutcomeOf(settled),
+  turn,
+  type: "turn.ended",
+});
+
+// The agent's text as it is written, piece by piece: only a part this stream saw begin, whose first
+// piece names it text, since one begun before the stream opened would show from its middle; its
+// recorded event replaces what its pieces built
+export const draftReader = (): ((event: Fact | Progress) => string | null) => {
+  const drafting = new Set<string>();
+  return function draftOf(event) {
+    if (event.type !== "content.delta") {
+      return null;
+    }
+    const { delta, kind, partId } = event.data;
+    if (kind === "text") {
+      drafting.add(partId);
+    }
+    return drafting.has(partId) ? delta : null;
+  };
 };

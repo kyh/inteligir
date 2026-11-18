@@ -345,8 +345,10 @@ The unpacked store build, against production, with no dev build loaded.
   GIF and an SVG each show the placeholder, and each opens in its viewer or
   refuses with no crash; and every cover draws again on the next launch,
   offline.
-- **The agent on the phone**: approvals, Stop beside a question, thinking shown,
-  and an offline send, approval and Stop each refused with Needs a connection.
+- **The agent on the phone**: a reply drawn as it is written, a message sent
+  mid-reply joining that turn, Stop, thinking shown, the phone locked mid-reply
+  and unlocked picking up where it left off with nothing doubled, and an
+  offline send and Stop each refused with Needs a connection.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
   background, and mid-upload; the app's Library/Caches holds nothing after.
 

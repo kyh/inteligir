@@ -2,6 +2,7 @@ import { COMMON_ERROR_STATUS_MAP, createORPCClient, isDefinedError, safe } from 
 import type { PromiseWithError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { AnyProcedureContract, AnySchema, RouterContract } from "@orpc/contract";
+import { getAsyncIteratorObjectSchemasDetails } from "@orpc/contract";
 import { implement, walkProcedureContractsSync } from "@orpc/server";
 import type { AnyRouter } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -37,8 +38,14 @@ const zodOf = (schema: AnySchema): z.ZodType => {
   return schema;
 };
 
-const schemasOf = (schemas: AnySchema | readonly AnySchema[] | undefined): z.ZodType[] =>
-  (schemas === undefined ? [] : [schemas].flat()).map(zodOf);
+// a stream's schemas are what it yields and returns
+const schemasOf = (schemas: AnySchema | readonly AnySchema[] | undefined): z.ZodType[] => {
+  const listed = schemas === undefined ? [] : [schemas].flat();
+  const streamed = getAsyncIteratorObjectSchemasDetails(listed);
+  return (
+    streamed === undefined ? listed : [...streamed.yieldSchemas, ...streamed.returnSchemas]
+  ).map(zodOf);
+};
 
 const jsonObjectSchema = z.looseObject({
   properties: z.record(z.string(), z.json()).optional(),

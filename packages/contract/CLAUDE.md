@@ -68,8 +68,8 @@ random bytes and fresh ids are injected.
   `packages/contract/src/library/agent-tools.ts`.
 - **A sweep names its items by their scope, in a row no tool carries** (owner
   decision). A device reads a scope a page at a time, so no list of ids it
-  holds is all of it, and an agent's approval counts a delete from the ids its
-  call names. `packages/contract/src/rpc/library-contract.ts`.
+  holds is all of it, and an agent's delete names its ids.
+  `packages/contract/src/rpc/library-contract.ts`.
 
 ## Items and files
 

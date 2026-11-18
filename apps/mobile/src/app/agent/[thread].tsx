@@ -1,9 +1,9 @@
 // One conversation with the built-in agent, drawn natively over the same logic the library's page
-// draws its panel with (`@repo/client`): the thread's stored events as the phone last read them,
-// so it reads offline, the approval waiting with Approve and Cancel, each turn's ending in the
-// person's words, and the composer, whose message carries the item it was asked from. A send, an answer and a stop go to the cell, so each needs a connection
-// and says so rather than wait for one; the day's allowance and an agent switched off are said as
-// the page says them.
+// draws its panel with (`@repo/client`): the thread's events as they happen, held as the phone
+// last read them so it reads offline, the reply as it is written, each turn's ending in the
+// person's words, and the composer, whose message carries the item it was asked from. A send and a
+// stop go to the cloud, so each needs a connection and says so rather than wait for one; the day's
+// allowance and an agent switched off are said as the page says them.
 
 import { useMutation } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -14,21 +14,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
 import {
-  answerWords,
-  approvalWords,
   callRefusalWords,
   conversationOf,
   EMPTY_WORDS,
   endingWords,
-  isUnderWay,
-  isWorking,
   sendRefusalWords,
   statusWords,
   toolWords,
   workWords,
 } from "@repo/client/thread-entries";
-import type { ThreadBlock, WaitingApproval } from "@repo/client/thread-entries";
-import { useLibrary, useThreadEvents, useThreads, useTitles } from "@/lib/library-hooks";
+import type { ThreadBlock } from "@repo/client/thread-entries";
+import { useLibrary, useThreadEvents, useThreads } from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { online } from "@/ui/needs-connection";
@@ -44,6 +40,13 @@ const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
   });
 
 const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
+  if (block.kind === "draft") {
+    return (
+      <Text selectable className="text-16 text-foreground leading-[22px]">
+        {block.text}
+      </Text>
+    );
+  }
   if (block.kind === "work") {
     return (
       <View className="gap-1 rounded-lg border border-border px-3 py-2">
@@ -88,87 +91,31 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
         </Text>
       );
     }
-    case "approval.answered": {
-      return <Text className="text-13 text-muted-foreground">{answerWords(event)}</Text>;
-    }
     case "turn.ended": {
       const words = endingWords(event.reason);
       return words === "" ? null : <Text className="text-13 text-muted-foreground">{words}</Text>;
     }
-    // a run of work and an asked approval draw as blocks of their own
+    // a run of work draws as a block of its own
     case "agent.progress":
     case "agent.tool_use":
-    case "agent.tool_result":
-    case "approval.asked": {
+    case "agent.tool_result": {
       return null;
     }
     // no default
   }
 };
 
-const Approval = ({
-  approval,
-  onAnswer,
-}: {
-  approval: WaitingApproval;
-  onAnswer: (result: "allow" | "deny") => void;
-}) => {
-  const titles = useTitles();
-  const { detail, question } = approvalWords(approval, (id) => titles.get(id) ?? null);
-  return (
-    <View className="gap-2 rounded-lg border border-border bg-card p-3">
-      <Text className="text-15 text-card-foreground">{question}</Text>
-      {detail === null ? null : (
-        <Text selectable className="text-13 text-muted-foreground">
-          {detail}
-        </Text>
-      )}
-      <View className="flex-row gap-6">
-        <TextButton
-          fontSize={16}
-          label="Approve"
-          onPress={() => {
-            onAnswer("allow");
-          }}
-        />
-        <TextButton
-          fontSize={16}
-          label="Cancel"
-          onPress={() => {
-            onAnswer("deny");
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
 const Conversation = ({ threadId }: { threadId: string }) => {
   const { queries } = useLibrary();
-  const rows = useThreadEvents(threadId) ?? [];
-  const thread = useThreads()?.find((row) => row.id === threadId);
-  const { blocks, waiting } = conversationOf(rows);
-  const respond = useMutation(queries.library.agent.respond.mutationOptions());
+  const followed = useThreadEvents(threadId);
+  const { blocks, underWay } = conversationOf(followed?.rows ?? [], followed?.draft ?? "");
   const cancel = useMutation(queries.library.agent.cancel.mutationOptions());
-  const working = thread !== undefined && isWorking(thread.status);
-  const underWay = thread !== undefined && isUnderWay(thread.status);
-  const state = thread === undefined ? "" : statusWords(thread.status);
-  const failure = respond.error ?? cancel.error;
+  const state = statusWords(underWay ? "running" : "idle");
+  const failure = cancel.error;
   return (
     <View className="gap-3">
       {blocks.map((block, index) => (
-        <Block key={block.key} block={block} live={working && index === blocks.length - 1} />
-      ))}
-      {waiting.map((approval) => (
-        <Approval
-          key={approval.eventId}
-          approval={approval}
-          onAnswer={(result) => {
-            if (online()) {
-              respond.mutate({ eventId: approval.eventId, result, threadId });
-            }
-          }}
-        />
+        <Block key={block.key} block={block} live={underWay && index === blocks.length - 1} />
       ))}
       <View className="flex-row flex-wrap items-center gap-4">
         {state === "" ? null : <Text className="text-13 text-muted-foreground">{state}</Text>}

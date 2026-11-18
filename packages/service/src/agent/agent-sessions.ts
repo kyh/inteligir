@@ -10,10 +10,18 @@ import { eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
 import { mintLibraryId } from "../library/library-ids";
+import { errorFields } from "../log";
 import { nextDayAt, turnsLeftToday } from "./agent-limits";
 import type { ThreadRow } from "./agent-threads";
-import { deleteThread, openThread, startedSession, threadOf } from "./agent-threads";
-import type { AgentCaller, AgentMessage } from "./platform";
+import {
+  openThread,
+  purgeThreadRow,
+  retiredThreads,
+  retireThread,
+  startedSession,
+  threadOf,
+} from "./agent-threads";
+import type { AgentCaller, AgentMessage, AgentPlatform } from "./platform";
 import { AgentPlatformError, isSessionEnded } from "./platform";
 import type { AgentRuntime } from "./runtime";
 
@@ -96,9 +104,13 @@ const rotate = async (
       return row;
     }
     const number = row.eveSessionId === null ? row.eveSessionNumber : row.eveSessionNumber + 1;
-    const { sessionId } = await runtime.platform.createSession(callerOf(row, number), message);
+    const caller = callerOf(row, number);
+    const { sessionId } = await runtime.platform.createSession(caller, message);
     const started = await startedSession(tx, row, { id: sessionId, now, number });
     if (started === null) {
+      runtime.background(async () => {
+        await runtime.platform.end(caller, sessionId);
+      }, `end the eve session made for deleted thread ${row.id}`);
       throw new NotFoundError();
     }
     const { eveSessionId } = row;
@@ -196,23 +208,68 @@ export const cancelAgentTurn = async (
   return { status: after?.status ?? "idle", threadId };
 };
 
-// the thread's rows gone at once, and its eve session ended after the response
+// A deleted thread's eve session ended, then its row, its events and turns with it: "kept" while its
+// session can't be ended now, for the agent's cron to retry. A session already gone counts as ended
+type PurgeOutcome = "purged" | "kept" | "failed";
+
+const purgeRetired = async (
+  platform: AgentPlatform | null,
+  row: ThreadRow,
+): Promise<Exclude<PurgeOutcome, "failed">> => {
+  const { eveSessionId } = row;
+  if (eveSessionId !== null) {
+    if (platform === null) {
+      return "kept";
+    }
+    await platform.end(callerOf(row), eveSessionId);
+  }
+  await purgeThreadRow(row);
+  return "purged";
+};
+
+// read by nothing from now, the thread is purged after the response, or by the agent's cron where
+// that fails
 export const deleteAgentThread = async (
   runtime: AgentRuntime | null,
   accountId: string,
   threadId: string,
 ): Promise<{ deleted: true }> => {
-  const row = await deleteThread(accountId, threadId);
+  const row = await retireThread(accountId, threadId, Date.now());
   if (row === null) {
     throw new NotFoundError();
   }
-  const { eveSessionId } = row;
-  if (runtime !== null && eveSessionId !== null) {
+  if (runtime !== null) {
     runtime.background(async () => {
-      await runtime.platform.end(callerOf(row), eveSessionId);
-    }, `end the eve session of deleted thread ${row.id}`);
+      await purgeRetired(runtime.platform, row);
+    }, `purge deleted thread ${row.id}`);
   }
   return { deleted: true };
+};
+
+// the deleted threads a cron run purges, each ending an eve session
+const PURGE_BATCH = 10;
+
+// the deleted threads whose purge after their response failed, each alone: one that fails again is
+// logged and tried by the next run
+export const purgeRetiredThreads = async (
+  runtime: AgentRuntime | null,
+): Promise<Record<PurgeOutcome, number>> => {
+  const rows = await retiredThreads(PURGE_BATCH);
+  const outcomes = await Promise.all(
+    rows.map(async (row): Promise<PurgeOutcome> => {
+      try {
+        return await purgeRetired(runtime?.platform ?? null, row);
+      } catch (error) {
+        console.error({ event: "agent-purge-failed", threadId: row.id, ...errorFields(error) });
+        return "failed";
+      }
+    }),
+  );
+  const tally = { failed: 0, kept: 0, purged: 0 };
+  for (const outcome of outcomes) {
+    tally[outcome] += 1;
+  }
+  return tally;
 };
 
 // whether the person keeps the agent on, and what is left of the day's allowance

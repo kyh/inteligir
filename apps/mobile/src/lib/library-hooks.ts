@@ -80,17 +80,10 @@ export const useThreads = () => {
   return useQuery(threadQueries({ client, orpc: queries }).threads()).data?.threads;
 };
 
-// a thread's stored events, in order
+// a thread's events in order as they happen, and the reply as it is written
 export const useThreadEvents = (threadId: string) => {
   const { client, queries } = useLibrary();
-  return useQuery(threadQueries({ client, orpc: queries }).threadEvents(threadId)).data?.events;
-};
-
-// the title every live item goes by, by id, as an approval names what it would change
-export const useTitles = (): ReadonlyMap<string, string> => {
-  const { queries } = useLibrary();
-  const { data } = useQuery(queries.library.listing.titles.queryOptions());
-  return new Map(data?.targets.map(({ id, title }) => [id, title]));
+  return useQuery(threadQueries({ client, orpc: queries }).threadEvents(threadId)).data;
 };
 
 // where a file draws from on this phone, whole or as a card's cover: undefined while it is asked

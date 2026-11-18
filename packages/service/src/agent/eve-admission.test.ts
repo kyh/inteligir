@@ -12,9 +12,11 @@ import { eveOperationId, mintEveToken } from "./eve-token";
 
 const threadOfOwn = async () => {
   const { accountId } = await personalLibrary();
-  const { runtime } = fakeAgentRuntime(createFakeAgentPlatform(recordEveFact));
+  const platform = createFakeAgentPlatform(recordEveFact);
+  const { runtime, settled } = fakeAgentRuntime(platform);
   const { threadId } = await sendToAgent(runtime, accountId, { text: "Hello" });
-  return { accountId, runtime, threadId };
+  await platform.turnsSettled();
+  return { accountId, runtime, settled, threadId };
 };
 
 dbSuite("the agent's channel admission", () => {
@@ -63,7 +65,7 @@ dbSuite("the agent's channel admission", () => {
   });
 
   it("refuses no token, a forged one, and a deleted thread's but to stop it", async () => {
-    const { accountId, runtime, threadId } = await threadOfOwn();
+    const { accountId, runtime, settled, threadId } = await threadOfOwn();
     const request = { method: "POST", operationId: null, pathname: "/eve/v1/session/sess_A" };
     await expect(admitEveRequest({ ...request, token: null })).resolves.toMatchObject({
       status: 401,
@@ -78,6 +80,7 @@ dbSuite("the agent's channel admission", () => {
       threadId,
     });
     await deleteAgentThread(runtime, accountId, threadId);
+    await settled();
     await expect(admitEveRequest({ ...request, token })).resolves.toMatchObject({ status: 403 });
     await expect(
       admitEveRequest({ ...request, pathname: "/eve/v1/session/sess_A/cancel", token }),

@@ -26,10 +26,10 @@ export const newIdSchema = z.uuidv7();
 // one write's key, kept by the cell so a resend after a lost answer lands once
 export const opIdSchema = z.uuid();
 export const shaSchema = z.string().regex(SHA256_HEX_RE);
-// a thread event's id: `<threadId>:<push>:<index>` for what its conversation's object pushed, by
-// that push's sequence and the event's place in it, and `<threadId>:turn:<turn>` for the person's
-// message that opened a turn
-export const eventIdSchema = z.string().min(1).max(128);
+// a thread event's id: `<session>:<line>:<index>`, where the agent's runtime recorded the fact it
+// shows, by the number of the thread's session it ran in and its place there. Ids only grow, so a
+// reader resumes after the last one it holds
+const eventIdSchema = z.string().min(1).max(128);
 
 const instant = z.number().int().nonnegative();
 export const seqSchema = z.number().int().nonnegative();
@@ -104,10 +104,10 @@ export const folderRowSchema = z.object({
   sort: ordSchema,
 });
 
-// where a thread's built-in agent stands: nothing running, a send waiting for its thread's turn or
-// for one of the account's, a turn running, or a turn waiting on the person's approval. A turn the
-// allowance stopped leaves its thread idle, and the next send goes on with it
-export const THREAD_STATUSES = ["idle", "queued", "running", "awaiting_approval"] as const;
+// where a thread's built-in agent stands: waiting for the next message, or a turn running, which a
+// message sent meanwhile joins. A turn the allowance stopped leaves its thread idle, and the next
+// send goes on with it
+export const THREAD_STATUSES = ["idle", "running"] as const;
 
 export const threadRowSchema = z.object({
   createdAt: instant,
@@ -117,16 +117,25 @@ export const threadRowSchema = z.object({
   updatedAt: instant,
 });
 
-// an event of the thread as the cell stored it, one of `./agent-events`' union kept as JSON: an
-// event this build cannot parse is a row a reader skips, never a page it refuses
+// an event of the thread, one of `./agent-events`' union as JSON: an event this build cannot parse
+// is a row a reader skips, never a stream it refuses
 export const threadEventRowSchema = z.object({
   at: instant,
   event: z.json(),
   eventId: eventIdSchema,
-  idx: z.number().int().nonnegative(),
   threadId: idSchema,
   type: z.string().min(1),
 });
+
+// What following a thread streams, under one id per row, its `eventId`, which a reconnect sends back
+// as its last: the thread's events, then once a connection where those it kept end (`caughtUp`),
+// then each as it happens. A `draft` is a piece of the agent's text as it is written, never kept
+// and carrying no id: it adds to the draft since the last row, and the next row ends the draft
+export const threadStreamEventSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("event"), row: threadEventRowSchema }),
+  z.object({ kind: z.literal("draft"), text: z.string() }),
+  z.object({ kind: z.literal("caughtUp") }),
+]);
 
 // what moved in the library after a head a device holds, so it reads again only what it shows of
 // that: each item at the sequence it now holds, one emptied from Deleted too, whether any folder

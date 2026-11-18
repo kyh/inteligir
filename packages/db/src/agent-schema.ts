@@ -51,12 +51,14 @@ const accountId = () =>
 
 // The thread and the eve session it runs on now, by its number: a thread starts its next session
 // once the one it ran ended or aged, so the number counts up while the session's id is unset until
-// eve answers its create
+// eve answers its create. A deleted thread keeps its row, `deleted_at` set and read by nothing, only
+// until its eve session is ended
 export const agentThread = pgTable.withRLS(
   "agent_thread",
   {
     accountId: accountId(),
     createdAt: ms("created_at").notNull(),
+    deletedAt: ms("deleted_at"),
     eveSessionId: text("eve_session_id"),
     eveSessionNumber: integer("eve_session_number").notNull(),
     eveSessionStartedAt: ms("eve_session_started_at"),
@@ -69,6 +71,9 @@ export const agentThread = pgTable.withRLS(
     primaryKey({ columns: [table.accountId, table.id] }),
     uniqueIndex("agent_thread_eve_session").on(table.eveSessionId),
     index("agent_thread_listed").on(table.accountId, table.updatedAt.desc().nullsFirst()),
+    index("agent_thread_deleted")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} is not null`),
     check(
       "agent_thread_session_started",
       sql`(${table.eveSessionId} is null) = (${table.eveSessionStartedAt} is null)`,
@@ -82,8 +87,8 @@ const threadFk = (name: string, columns: [AnyPgColumn, AnyPgColumn]) =>
   );
 
 // What the thread shows, one of the contract's agent events as JSON, kept where eve recorded the
-// fact it maps: a position never moves, so a hook delivered twice writes one row. `idx` orders a
-// thread's events across its sessions for a device paging after the last one it read
+// fact it maps: a position never moves, so a hook delivered twice writes one row, and positions
+// order a thread's events across its sessions as its relay reads them
 export const agentThreadEvent = pgTable.withRLS(
   "agent_thread_event",
   {
@@ -91,7 +96,6 @@ export const agentThreadEvent = pgTable.withRLS(
     at: ms("at").notNull(),
     event: jsonb("event").notNull(),
     eveSessionNumber: integer("eve_session_number").notNull(),
-    idx: bigint("idx", { mode: "number" }).notNull().generatedAlwaysAsIdentity(),
     index: integer("index").notNull(),
     line: integer("line").notNull(),
     threadId: text("thread_id").notNull(),
@@ -102,7 +106,6 @@ export const agentThreadEvent = pgTable.withRLS(
       columns: [table.accountId, table.threadId, table.eveSessionNumber, table.line, table.index],
     }),
     threadFk("agent_thread_event_thread_fk", [table.accountId, table.threadId]),
-    uniqueIndex("agent_thread_event_paged").on(table.accountId, table.threadId, table.idx),
   ],
 );
 

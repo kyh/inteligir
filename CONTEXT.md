@@ -169,8 +169,10 @@ Not a connected assistant's call, which is no turn.
 **thread** — a conversation with the **built-in agent**, the account's, so
 every device shows it: a row of `agent_thread` over one eve session at a time,
 and its events as rows of `agent_thread_event`
-(`packages/service/src/agent/agent-sessions.ts`). The panel calls it a
-conversation.
+(`packages/service/src/agent/agent-sessions.ts`), which a device follows as one
+stream, the reply drawn as it is written (`packages/service/src/agent/relay.ts`).
+Deleting one hides it at once and ends its eve session after. The panel calls it
+a conversation.
 
 ## The library
 
@@ -296,8 +298,8 @@ the whole of it, the tab's home.
 answers while the device is offline: the open item reads but takes no edit
 (`packages/editor/src/item/item-editor.tsx`), and in the library tab a call
 waits rather than fails (`apps/web/src/library/cloud/needs-connection.tsx`);
-the iPhone says it of a save, a photo, a delete and a message, an approval or
-a Stop to the agent, and keeps only a **waiting save**. Never said of a note that holds its edits back (full, or in
+the iPhone says it of a save, a photo, a delete and a message or a Stop to the
+agent, and keeps only a **waiting save**. Never said of a note that holds its edits back (full, or in
 Deleted): each says its own words, and a hold outranks the connection.
 
 **Undo** — "Undo this turn" under an **answer** and "Undo this conversation"

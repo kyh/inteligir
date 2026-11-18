@@ -1,9 +1,7 @@
 // What a conversation with the built-in agent is made of, as every device reads it: the events a
 // thread's rows carry (`threadEventRowSchema`'s `event`, its `type` beside it). The union is ours,
-// never a model vendor's, so every device reads one shape whatever the agent runs on. A thread's
-// object pushes these to its account's cell, which stores each once; the person's message that
-// opens a turn is the cell's own. A reader skips an event its build cannot parse, so a newer cell
-// may add types.
+// never the agent's runtime's, so every device reads one shape whatever the agent runs on. A
+// reader skips an event its build cannot parse, so a newer cloud may add types.
 
 import { z } from "zod";
 
@@ -13,39 +11,24 @@ import { agentViewContextSchema } from "./library-wire";
 // thread's event row never carries a page
 const TOOL_RESULT_SUMMARY_MAX = 2000;
 
-const instant = z.number().int().nonnegative();
 const toolUseIdSchema = z.string().min(1).max(128);
 const toolNameSchema = z.string().min(1).max(128);
 
-// why a turn ended: Claude ended it; the person stopped it; it reached the steps one turn may take;
-// the account's spend for the day ran out; Claude's reply ran out of room, refused, or outgrew the
-// conversation's window; Claude could not be reached; or the request itself failed
+// why a turn ended: it finished; the person stopped it; the day's turns ran out, or the account's
+// spend, or the steps one turn may take; it failed; or the model could not be reached
 const TURN_END_REASONS = [
   "done",
   "cancelled",
-  "budget",
   "allowance",
-  "max_tokens",
-  "refusal",
-  "model_context_window_exceeded",
-  "unavailable",
+  "budget",
+  "steps",
   "failed",
+  "unavailable",
 ] as const;
 export type TurnEndReason = (typeof TURN_END_REASONS)[number];
 
-// what a call that waits on the person would do, as its row's own input read the call: the items
-// a delete would move, or the address a save names
-const approvalAskSchema = z.discriminatedUnion("kind", [
-  z.object({ ids: z.array(z.string()).min(1), kind: z.literal("delete") }),
-  z.object({ kind: z.literal("save"), url: z.string() }),
-]);
-export type ApprovalAsk = z.infer<typeof approvalAskSchema>;
-
-// who settled an approval: the person, its ten minutes running out, or the turn stopped
-const APPROVAL_DECIDERS = ["person", "timeout", "cancel"] as const;
-
 export const agentEventSchema = z.discriminatedUnion("type", [
-  // what the person sent, and the screen they sent it from
+  // what the person sent, and the screen they sent it from; one sent while a turn runs joins it
   z.object({
     text: z.string(),
     type: z.literal("user.message"),
@@ -68,25 +51,7 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     toolUseId: toolUseIdSchema,
     type: z.literal("agent.tool_result"),
   }),
-  // a call that waits on the person until `until`, when it is denied. An `ask` this build does
-  // not know reads as none, since a reader skips an event it cannot parse, and a skipped approval
-  // is one nobody can answer
   z.object({
-    // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
-    ask: z.catch(approvalAskSchema.optional(), undefined),
-    toolUseId: toolUseIdSchema,
-    type: z.literal("approval.asked"),
-    until: instant,
-  }),
-  z.object({
-    by: z.enum(APPROVAL_DECIDERS),
-    result: z.enum(["allow", "deny"]),
-    toolUseId: toolUseIdSchema,
-    type: z.literal("approval.answered"),
-  }),
-  z.object({
-    // what stopped it, in a word a reader may show: a refusal's category
-    detail: z.string().max(200).optional(),
     reason: z.enum(TURN_END_REASONS),
     turn: z.number().int().positive(),
     type: z.literal("turn.ended"),

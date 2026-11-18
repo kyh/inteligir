@@ -1,7 +1,8 @@
 // What a device shows of the account's library: every read is a TanStack query under oRPC's key, so
 // an answer of what moved (`./library-changes`) marks stale the queries over what it names. An
 // item's read goes again only when the copy held is older than the sequence the answer names, so a
-// note's typing reads its row again only when it changed what a row holds.
+// note's typing reads its row again only when it changed what a row holds. A thread's events follow
+// it as it happens (`./thread-queries`), so nothing here reads them again.
 
 import type { RouterUtils } from "@orpc/tanstack-query";
 import type { QueryClient } from "@tanstack/query-core";
@@ -59,15 +60,6 @@ export const invalidateMoved = (
   if (moved.threads === "all" || moved.threads.length > 0) {
     void queryClient.invalidateQueries({ queryKey: library.agent.list.key() });
     void queryClient.invalidateQueries({ queryKey: library.agent.undoable.key() });
-  }
-  if (moved.threads === "all") {
-    void queryClient.invalidateQueries({ queryKey: library.agent.events.key() });
-  } else {
-    for (const threadId of moved.threads) {
-      void queryClient.invalidateQueries({
-        queryKey: library.agent.events.key({ input: { threadId } }),
-      });
-    }
   }
   return items;
 };

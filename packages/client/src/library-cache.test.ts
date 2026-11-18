@@ -9,7 +9,6 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { invalidateMoved, retryUnlessRefused } from "./library-cache";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
-const OTHER_THREAD = "0199a4c2-0000-7000-8000-0000000000e2";
 
 // a device holding two notes and every query a screen reads, once each
 const heldReads = () => {
@@ -20,10 +19,8 @@ const heldReads = () => {
   const { agent, items, listing } = queries.library;
   const queryClient = new QueryClient();
   const keys = {
-    events: agent.events.queryKey({ input: { threadId: THREAD } }),
     note: items.row.queryKey({ input: { id: note.id } }),
     other: items.get.queryKey({ input: { id: other.id } }),
-    otherEvents: agent.events.queryKey({ input: { threadId: OTHER_THREAD } }),
     page: listing.page.queryKey({ input: { limit: 20, scope: { kind: "all" } } }),
     scopes: listing.scopes.queryKey(),
     threads: agent.list.queryKey({ input: {} }),
@@ -34,8 +31,6 @@ const heldReads = () => {
   queryClient.setQueryData(keys.other, other);
   // each key as the cache files it, whatever the query reads
   const held: readonly QueryKey[] = [
-    keys.events,
-    keys.otherEvents,
     keys.page,
     keys.scopes,
     keys.threads,
@@ -76,17 +71,15 @@ describe("what an answer of what moved reads again", () => {
   it("reads again the rail's scopes for a folder that moved, and a thread for its turn or its undo", () => {
     const { moved, staleOf } = heldReads();
     expect(moved({ folders: true, items: [], threads: [THREAD] })).toStrictEqual(new Set());
-    expect(staleOf()).toStrictEqual(["events", "scopes", "threads", "undoable"]);
+    expect(staleOf()).toStrictEqual(["scopes", "threads", "undoable"]);
   });
 
   it("reads every item and every thread again when more moved than an answer names", () => {
     const { moved, staleOf } = heldReads();
     expect(moved({ folders: false, items: "all", threads: "all" })).toBeNull();
     expect(staleOf()).toStrictEqual([
-      "events",
       "note",
       "other",
-      "otherEvents",
       "page",
       "scopes",
       "threads",

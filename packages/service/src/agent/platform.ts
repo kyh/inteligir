@@ -5,6 +5,7 @@
 
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { Client, ClientError, SessionNotActiveError } from "eve/client";
+import type { ReconnectOptions, SessionStreamEvent } from "eve/client";
 import { z } from "zod";
 
 import { APP_URL } from "../app-url";
@@ -51,6 +52,16 @@ export interface AgentSessionCreated {
   readonly sessionId: string;
 }
 
+// one event of an eve session's stream, where eve recorded it (`meta.position`) and when
+export type AgentStreamEvent = SessionStreamEvent;
+
+// a stream follows its session until the session ends, however many of eve's responses that takes
+interface AgentStreamOptions {
+  // the first line to read
+  readonly startIndex: number;
+  readonly signal: AbortSignal;
+}
+
 export interface AgentPlatform {
   // Creates the caller's numbered eve session and starts its first turn: a retry answers the same
   // session and delivery, never a second one
@@ -64,6 +75,11 @@ export interface AgentPlatform {
   readonly cancel: (caller: AgentCaller, sessionId: string) => Promise<void>;
   // retires the eve session for good: "gone" when it already was
   readonly end: (caller: AgentCaller, sessionId: string) => Promise<"ended" | "gone">;
+  readonly stream: (
+    caller: AgentCaller,
+    sessionId: string,
+    options: AgentStreamOptions,
+  ) => AsyncIterable<AgentStreamEvent>;
 }
 
 const SESSION_ENDED_CODES = new Set(["session_expired", "session_not_active", "session_stranded"]);
@@ -124,6 +140,11 @@ const clientFor = (caller: AgentCaller, eveSessionId: string | null): Client =>
     baseUrl: APP_URL,
     headers: bypassHeaders(),
   });
+
+// eve ends every stream response after a minute, its lease, and its client then opens the next from
+// where it read to. An open is tried again only when the deployment faltered: eve's own list without
+// 404 and 409, which say the session ended and so fail at once
+const STREAM_RECONNECT: ReconnectOptions = { retryableStatuses: [425, 500, 502, 503, 504] };
 
 const createdSchema = z.object({ deliveryId: z.string().min(1), sessionId: z.string().min(1) });
 const deliveredSchema = z.object({ deliveryId: z.string().min(1) });
@@ -212,4 +233,15 @@ export const deploymentAgentPlatform = (): AgentPlatform => ({
       );
       return deliveryId;
     }),
+
+  stream: (caller, sessionId, { signal, startIndex }) => ({
+    [Symbol.asyncIterator]: async function* events() {
+      const session = clientFor(caller, sessionId).sessions.attach(sessionId);
+      try {
+        yield* session.stream({ reconnect: STREAM_RECONNECT, signal, startIndex });
+      } catch (error) {
+        throw platformError(error);
+      }
+    },
+  }),
 });

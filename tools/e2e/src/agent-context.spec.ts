@@ -17,11 +17,18 @@ const sentMessages = async (library: V1Client["library"]) => {
   if (thread === undefined) {
     return [];
   }
-  const { events } = await library.agent.events({ limit: 500, threadId: thread.id });
-  return events.flatMap((row) => {
-    const parsed = UserMessageSchema.safeParse(row.event);
-    return parsed.success ? [parsed.data] : [];
-  });
+  const sent: z.infer<typeof UserMessageSchema>[] = [];
+  for await (const streamed of await library.agent.events({ threadId: thread.id })) {
+    if (streamed.kind === "caughtUp") {
+      break;
+    }
+    const parsed =
+      streamed.kind === "event" ? UserMessageSchema.safeParse(streamed.row.event) : null;
+    if (parsed?.success === true) {
+      sent.push(parsed.data);
+    }
+  }
+  return sent;
 };
 
 const send = async (page: Page, text: string) => {

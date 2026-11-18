@@ -1,8 +1,9 @@
 // A page library for a screen's suite: the page's own oRPC client and TanStack utils over an
 // in-memory link, recording each call, so a screen runs on what it runs on in the tab. A call
 // reaches the fake cell (`@repo/contract/test-support/fake-cell`) unless the suite answers it
-// itself; the account's threads and their events are answered from what the suite hands it, and
-// nothing asks what moved. A screen drawn on it presses spies for commands, so its suite says which
+// itself; the account's threads and their events are answered from what the suite hands it, a
+// thread's events streamed after the last one the screen held, then the reply's draft if the suite
+// hands one, and nothing asks what moved. A screen drawn on it presses spies for commands, so its suite says which
 // press it made and runs none.
 
 import { createORPCClient, DynamicLink } from "@orpc/client";
@@ -47,36 +48,51 @@ const nothingToStop = (): void => {
 // one value, since the layout reads it through useSyncExternalStore
 const LIVE = { kind: "live" } as const;
 
-const eventsInput = z.object({ after: z.number().optional(), threadId: z.string() });
+const eventsInput = z.object({ threadId: z.string() });
 
 export interface FakeLibrary {
   readonly library: PageLibrary;
   readonly calls: CellCall[];
 }
 
+// a thread's events after `lastEventId`, then where they end, then the reply's draft
+const streamed = async function* streamed(
+  rows: readonly ThreadEventRow[],
+  lastEventId: string | undefined,
+  draft: string,
+) {
+  for (const row of rows.slice(rows.findIndex(({ eventId }) => eventId === lastEventId) + 1)) {
+    yield await Promise.resolve({ kind: "event", row });
+  }
+  yield { kind: "caughtUp" };
+  if (draft !== "") {
+    yield { kind: "draft", text: draft };
+  }
+};
+
 export const fakePageLibrary = ({
   cell = createFakeCell(),
   threads = [],
   events = [],
+  draft = "",
   answer = () => {},
 }: {
   cell?: FakeCell;
   threads?: readonly ThreadRow[];
   events?: readonly ThreadEventRow[];
+  draft?: string;
   answer?: (call: CellCall) => Answer | Promise<Answer>;
 } = {}): FakeLibrary => {
   const calls: CellCall[] = [];
-  const answered = (call: CellCall): Answer | Promise<Answer> => {
+  const answered = (call: CellCall, lastEventId: string | undefined): Answer | Promise<Answer> => {
     switch (call.path) {
       case "library.agent.list": {
         return { cursor: null, threads: [...threads] };
       }
       case "library.agent.events": {
-        const { after = -1, threadId } = eventsInput.parse(call.input);
-        return {
-          events: events.filter((row) => row.threadId === threadId && row.idx > after),
-          more: false,
-        };
+        const { threadId } = eventsInput.parse(call.input);
+        const rows = events.filter((row) => row.threadId === threadId);
+        return streamed(rows, lastEventId, draft);
       }
       default: {
         return answer(call);
@@ -85,10 +101,10 @@ export const fakePageLibrary = ({
   };
   const cellLink = cell.device("page").link;
   const client = createORPCClient<V1Client>(
-    new DynamicLink(async (_options, path, input) => {
+    new DynamicLink(async ({ lastEventId }, path, input) => {
       const call = { input, path: path.join(".") };
       calls.push(call);
-      const held = await answered(call);
+      const held = await answered(call, lastEventId);
       return held === undefined ? cellLink : { call: async () => await Promise.resolve(held) };
     }),
   );

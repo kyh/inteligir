@@ -302,10 +302,26 @@ decisions port with its code from the tag `cloudflare-last`.
 - **The mock model answers only with `AGENT_MOCK_MODEL` off Vercel, read at
   each model call.** A deployment that boots with it is refused, and a build
   never bakes it in. `packages/service/src/agent/availability.ts`.
-- **A deleted thread's rows go at once, and its eve session is ended after the
-  response.** No tombstone waits for a sweep, and the channel refuses the
-  session's every route but stop once its thread is gone.
-  `packages/service/src/agent/agent-sessions.ts`.
+- **A thread streams to a device as one event iterator: the rows the record
+  hook kept, `caughtUp`, then its eve session followed live, deduped by
+  position.** An event's id is its `<session>:<line>:<index>`, so a reconnect
+  by `lastEventId` misses and repeats nothing whichever side holds it; a draft
+  is never kept, so it shows only from where its stream picked up.
+  `packages/service/src/agent/relay.ts`.
+- **The stream has its own route, cut at 280 s inside its 300 s
+  `maxDuration`.** A cut reads as a dropped connection, so the device
+  reconnects where it left off; every other call keeps `/v1/rpc`'s default
+  duration. `apps/web/src/app/v1/rpc/library/agent/events/route.ts`.
+- **A message sent mid-turn joins it, and Stop is eve's cancel.** eve steers a
+  running turn by its own caller, so a turn holds every message sent while it
+  ran and ends `cancelled` when stopped. `packages/service/src/agent/agent-sessions.ts`.
+- **A deleted thread is a tombstone at once, purged after the response, and
+  by the agent's cron every 15 minutes where that failed.** Ending its eve
+  session can fail, and a row gone first would leave the session running for
+  nobody; the channel refuses the session's every route but stop once its
+  thread is deleted. `packages/service/src/agent/agent-sessions.ts`.
+- **A cron route answers only Vercel Cron's bearer, and none with no
+  `CRON_SECRET`.** Its address is public. `packages/service/src/cron.ts`.
 
 ## Search
 

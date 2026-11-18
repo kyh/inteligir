@@ -1,12 +1,45 @@
-// The agent's conversations as every device reads them, under oRPC's own keys, so an answer of what
-// moved reads them again by the keys it invalidates (`./library-cache`).
+// The agent's conversations as every device reads them. The threads are a query under oRPC's own
+// key, read again as an answer of what moved names them (`./library-cache`); a thread's events are
+// followed as they happen, from after the last one held, so a stream the cloud cut or the network
+// dropped picks up where it left off, and one a device left (a screen closed, a phone locked) on
+// its next read.
 
-import { PAGE_MAX } from "@repo/contract/library/library-wire";
+import { PAGE_MAX, threadEventRowSchema } from "@repo/contract/library/library-wire";
+import type { threadStreamEventSchema } from "@repo/contract/library/library-wire";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
+import type { QueryFunctionContext } from "@tanstack/query-core";
+import { z } from "zod";
 
 import type { V1Queries } from "./library-cache";
 
-const EVENTS_PAGE = 500;
+// how soon a stream that ended is followed again; a stream still open is never asked twice
+const RECONNECT_MS = 1000;
+
+type ThreadStreamEvent = z.infer<typeof threadStreamEventSchema>;
+
+// what a device holds of a thread: its events in order, and the reply as written since the last
+const followedThreadSchema = z.object({
+  draft: z.string(),
+  rows: z.array(threadEventRowSchema),
+});
+
+type FollowedThread = z.infer<typeof followedThreadSchema>;
+
+// a draft runs from where its stream picked up to the next event, which ends it
+const followedNext = (held: FollowedThread, streamed: ThreadStreamEvent): FollowedThread => {
+  switch (streamed.kind) {
+    case "event": {
+      return { draft: "", rows: [...held.rows, streamed.row] };
+    }
+    case "draft": {
+      return { ...held, draft: held.draft + streamed.text };
+    }
+    case "caughtUp": {
+      return held;
+    }
+    // no default
+  }
+};
 
 export const threadQueries = ({
   client,
@@ -15,27 +48,27 @@ export const threadQueries = ({
   readonly client: V1Client;
   readonly orpc: V1Queries;
 }) => ({
-  // a thread's stored events in order: a thread only grows, so a refetch asks only for what came
-  // after the last one held
-  threadEvents: (threadId: string) => {
-    const held = orpc.library.agent.events.queryKey({ input: { threadId } });
-    return orpc.library.agent.events.queryOptions({
-      input: { threadId },
-      queryFn: async ({ client: queryClient, signal }) => {
-        const events = [...(queryClient.getQueryData(held)?.events ?? [])];
-        for (;;) {
-          const page = await client.library.agent.events(
-            { after: events.at(-1)?.idx, limit: EVENTS_PAGE, threadId },
-            { signal },
-          );
-          events.push(...page.events);
-          if (!page.more || page.events.length === 0) {
-            return { events, more: false };
-          }
-        }
-      },
-    });
-  },
+  threadEvents: (threadId: string) => ({
+    queryFn: async ({
+      client: queryClient,
+      queryKey,
+      signal,
+    }: QueryFunctionContext): Promise<FollowedThread> => {
+      const held = followedThreadSchema.safeParse(queryClient.getQueryData(queryKey));
+      let thread: FollowedThread = { draft: "", rows: held.success ? held.data.rows : [] };
+      const stream = await client.library.agent.events(
+        { threadId },
+        { lastEventId: thread.rows.at(-1)?.eventId, signal },
+      );
+      for await (const streamed of stream) {
+        thread = followedNext(thread, streamed);
+        queryClient.setQueryData(queryKey, thread);
+      }
+      return thread;
+    },
+    queryKey: orpc.library.agent.events.key({ input: { threadId } }),
+    refetchInterval: RECONNECT_MS,
+  }),
 
   // every thread of the account, newest first, since a conversation finds its title and status here
   threads: () =>

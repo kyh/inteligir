@@ -6,6 +6,7 @@
 // it is titled, is the service's to tag (packages/service/src/library/library-tools.ts); nothing
 // here names MCP or OpenAPI.
 
+import { eventIterator } from "@orpc/contract";
 import { z } from "zod";
 
 import { propertyOpSchema } from "../library/field-ops";
@@ -30,7 +31,6 @@ import {
   bodyWriteSchema,
   BULK_ITEMS_MAX,
   cursorSchema,
-  eventIdSchema,
   folderCountSchema,
   folderNameSchema,
   folderOpSchema,
@@ -63,8 +63,8 @@ import {
   bodyBlockSchema,
   tagCountSchema,
   THREAD_STATUSES,
-  threadEventRowSchema,
   threadRowSchema,
+  threadStreamEventSchema,
   WRITE_OPS_MAX,
 } from "../library/library-wire";
 
@@ -105,8 +105,6 @@ const folderTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
   .nullable();
 
-// the inputs of the two rows the built-in agent asks the person about, by name: its thread reads
-// a call through them before it asks (packages/service/src/agent/agent-tools.ts)
 const saveLinkInputSchema = z.strictObject({
   folder: folderTargetSchema.optional(),
   id: newIdSchema.optional(),
@@ -541,8 +539,8 @@ const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSch
 const turnNumber = z.number().int().positive();
 
 const agentContract = {
-  // a message to the built-in agent: a new thread when none is named; it waits behind its thread's
-  // open turn, or while the account runs as many turns at once as it may
+  // a message to the built-in agent: a new thread when none is named; sent while the thread's turn
+  // runs, it joins that turn, which reads it at its next step
   send: signedBase
     .errors({
       [AgentBudgetError.code]: AgentBudgetError,
@@ -559,24 +557,7 @@ const agentContract = {
     )
     .output(threadAnswer),
 
-  // the person's answer to a call that waits on them, by the `approval.asked` event that asked
-  respond: signedBase
-    .errors({
-      [AgentUnavailableError.code]: AgentUnavailableError,
-      [NotFoundError.code]: NotFoundError,
-    })
-    .input(
-      z.strictObject({
-        eventId: eventIdSchema,
-        opId,
-        result: z.enum(["allow", "deny"]),
-        threadId: idSchema,
-      }),
-    )
-    .output(threadAnswer),
-
-  // stops the thread's turn: a call waiting on the person is denied, every call not yet run is
-  // answered that it did not run, and the thread's waiting sends are let go
+  // stops the thread's running turn where it is: what it already wrote stays, Undo's to take back
   cancel: signedBase
     .errors({
       [AgentUnavailableError.code]: AgentUnavailableError,
@@ -589,20 +570,16 @@ const agentContract = {
     .input(z.strictObject({ cursor, limit }))
     .output(z.object({ cursor: nextCursor, threads: z.array(threadRowSchema) })),
 
-  // a thread's stored events after `after`, in order
+  // Follows a thread: its events, then what happens as it happens, until the thread is gone or the
+  // stream is cut, as it is minutes on (apps/web/src/app/v1/rpc/library/agent/events/route.ts). A
+  // reconnect sends the last id it read as its `lastEventId` and resumes after it
   events: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
-    .input(
-      z.strictObject({
-        after: z.number().int().nonnegative().optional(),
-        limit: z.number().int().min(1).max(500).default(PAGE_MAX),
-        threadId: idSchema,
-      }),
-    )
-    .output(z.object({ events: z.array(threadEventRowSchema), more: z.boolean() })),
+    .input(z.strictObject({ threadId: idSchema }))
+    .output(eventIterator(threadStreamEventSchema)),
 
-  // the thread, its events and its conversation, gone from our cloud; nothing of it is kept
-  // anywhere else
+  // the thread, its events and its turns, gone from the library at once, and the agent's session of
+  // it ended, which keeps a record that its runs happened but not what was said
   delete: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ opId, threadId: idSchema }))

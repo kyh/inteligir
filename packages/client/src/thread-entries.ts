@@ -1,18 +1,21 @@
-// A conversation with the built-in agent as every device's panel reads it: the thread's stored
-// events, each parsed by the one union every device reads
-// (`@repo/contract/library/agent-events`), and what they say together (`conversationOf`: the
-// approvals still waiting, how each turn ended, the runs of work between two messages). An event
-// this build cannot parse is skipped, so a newer cell may add kinds. The words for each refusal,
-// each ending and each thread's state are the person's, never the wire's; each device draws them
-// its own way.
+// A conversation with the built-in agent as every device's panel reads it: the thread's events as
+// they stream, each parsed by the one union every device reads
+// (`@repo/contract/library/agent-events`), and what they say together (`conversationOf`: whether a
+// turn is under way, how each turn ended, the runs of work between two messages, the reply as it
+// is written). An event this build cannot parse is skipped, so a newer cloud may add kinds. The
+// words for each refusal, each ending and each thread's state are the person's, never the wire's;
+// each device draws them its own way.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
-import type { AgentEvent, ApprovalAsk, TurnEndReason } from "@repo/contract/library/agent-events";
-import { isLibraryToolName, LIBRARY_TOOLS } from "@repo/contract/library/agent-tools";
-import type { LibraryToolName } from "@repo/contract/library/agent-tools";
+import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
+import {
+  isLibraryToolName,
+  isWebToolName,
+  LIBRARY_TOOLS,
+} from "@repo/contract/library/agent-tools";
+import type { LibraryToolName, WebToolName } from "@repo/contract/library/agent-tools";
 import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
-import { cleanUrl, urlHost } from "@repo/contract/items/item-url";
 import { z } from "zod";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 
@@ -21,21 +24,11 @@ export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 
 // what a thread's state says beside it in a list or under its conversation; "" while it rests
 const STATUS_WORDS = {
-  awaiting_approval: "Waiting for you",
   idle: "",
-  queued: "Waiting its turn…",
   running: "Working…",
 } satisfies Record<ThreadStatus, string>;
 
 export const statusWords = (status: ThreadStatus): string => STATUS_WORDS[status];
-
-// the agent is at work or about to be
-export const isWorking = (status: ThreadStatus): boolean =>
-  status === "running" || status === "queued";
-
-// a turn is open, a turn waiting on the person among them: Stop ends it, turning down what it
-// asked, and the page's Undo waits for it, since its change set seals only as it ends
-export const isUnderWay = (status: ThreadStatus): boolean => status !== "idle";
 
 export interface ThreadEntry {
   readonly eventId: string;
@@ -44,52 +37,10 @@ export interface ThreadEntry {
 }
 
 const entriesOf = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
-  rows
-    .toSorted((a, b) => a.idx - b.idx)
-    .flatMap((row) => {
-      const parsed = agentEventSchema.safeParse(row.event);
-      return parsed.success ? [{ at: row.at, event: parsed.data, eventId: row.eventId }] : [];
-    });
-
-// an approval the person has not answered: the `approval.asked` event `respond` names, and what
-// its call would do, or nothing this build can say
-export interface WaitingApproval {
-  readonly ask: ApprovalAsk | undefined;
-  readonly eventId: string;
-}
-
-// a call that waited on the person: it waits until they answer it or its turn ends, which lapses
-// it, since an ended turn runs nothing more and a card left up would answer nothing
-type Approval =
-  | ({ readonly kind: "waiting" } & WaitingApproval)
-  | { readonly kind: "answered" }
-  | { readonly kind: "lapsed" };
-
-type ApprovalEvent = Extract<
-  AgentEvent,
-  { type: "approval.asked" | "approval.answered" | "turn.ended" }
->;
-
-// the approval an event leaves: asked once, answered only while it waits, lapsed by its turn's
-// end; an answer to a call never asked leaves none
-const approvalNext = (
-  approval: Approval | undefined,
-  event: ApprovalEvent,
-  eventId: string,
-): Approval | undefined => {
-  switch (event.type) {
-    case "approval.asked": {
-      return approval ?? { ask: event.ask, eventId, kind: "waiting" };
-    }
-    case "approval.answered": {
-      return approval?.kind === "waiting" ? { kind: "answered" } : approval;
-    }
-    case "turn.ended": {
-      return approval?.kind === "waiting" ? { kind: "lapsed" } : approval;
-    }
-    // no default
-  }
-};
+  rows.flatMap((row) => {
+    const parsed = agentEventSchema.safeParse(row.event);
+    return parsed.success ? [{ at: row.at, event: parsed.data, eventId: row.eventId }] : [];
+  });
 
 const TOOL_WORDS = {
   create_note: "Wrote a note",
@@ -101,86 +52,26 @@ const TOOL_WORDS = {
   read_item: "Read an item",
   save_link: "Saved a link",
   search_library: "Searched the library",
-} satisfies Record<LibraryToolName, string>;
+  web_fetch: "Read a page",
+  web_search: "Searched the web",
+} satisfies Record<LibraryToolName | WebToolName, string>;
 
-// what a tool's name says to the person; a tool a newer cell names used the library
+// what a tool's name says to the person; a tool a newer cloud names used the library
 export const toolWords = (name: string): string =>
-  isLibraryToolName(name) ? TOOL_WORDS[name] : "Used the library";
+  isLibraryToolName(name) || isWebToolName(name) ? TOOL_WORDS[name] : "Used the library";
 
-// a call that only reads the library, drawn with the read icon; every other one writes
+// a call that changes nothing in the library, drawn with the read icon; every other one writes
 export const readsOnly = (name: string): boolean =>
-  isLibraryToolName(name) && LIBRARY_TOOLS[name].reads;
+  isWebToolName(name) || (isLibraryToolName(name) && LIBRARY_TOOLS[name].reads);
 
-// the most of a delete's items a card names; the rest it counts
-const TITLES_SHOWN = 10;
-
-// the first of a delete's items this device holds a title for, and how many that leaves unnamed
-const namedItems = (
-  ids: readonly string[],
-  titleOf: (id: string) => string | null,
-): string | null => {
-  const titles = ids.slice(0, TITLES_SHOWN).flatMap((id) => {
-    const title = titleOf(id);
-    return title === null || title === "" ? [] : [title];
-  });
-  if (titles.length === 0) {
-    return null;
-  }
-  const rest = ids.length - titles.length;
-  return rest === 0 ? titles.join(", ") : `${titles.join(", ")} and ${String(rest)} more`;
-};
-
-// what a card asks, and what it shows the person before they answer: the one gate on a call a
-// hostile page may have prompted, so it says what the call would do, never what the agent says of it
-interface ApprovalWords {
-  readonly question: string;
-  readonly detail: string | null;
-}
-
-const UNREAD: ApprovalWords = { detail: null, question: "The agent wants to use the library." };
-
-export const approvalWords = (
-  { ask }: WaitingApproval,
-  titleOf: (id: string) => string | null,
-): ApprovalWords => {
-  switch (ask?.kind) {
-    case "delete": {
-      const ids = [...new Set(ask.ids)];
-      return {
-        detail: namedItems(ids, titleOf),
-        question:
-          ids.length === 1
-            ? "The agent wants to move an item to Deleted. You can restore it from there."
-            : `The agent wants to move ${String(ids.length)} items to Deleted. You can restore them from there.`,
-      };
-    }
-    case "save": {
-      // the address as the library would read it
-      const url = cleanUrl(ask.url);
-      const host = url === null ? null : urlHost(url);
-      return url === null || host === null
-        ? UNREAD
-        : {
-            detail: url,
-            question: `The agent wants to save a link from ${host}. Reading its page shows that site this whole address.`,
-          };
-    }
-    case undefined: {
-      return UNREAD;
-    }
-    // no default
-  }
-};
-
+// the day's turns and its spend are one allowance to the person
 const ENDINGS = {
   allowance: "The agent has used today’s allowance.",
-  budget: "Stopped: the agent did as much as one turn may. Ask it to go on.",
+  budget: "The agent has used today’s allowance.",
   cancelled: "Stopped.",
   done: "",
   failed: "The agent ran into a problem and stopped.",
-  max_tokens: "The reply ran out of room and was cut off.",
-  model_context_window_exceeded: "This conversation grew too long to go on. Start a new one.",
-  refusal: "The agent declined to go on with this.",
+  steps: "Stopped: the agent did as much as one turn may. Ask it to go on.",
   unavailable: "The agent couldn't be reached, so nothing was done.",
 } satisfies Record<TurnEndReason, string>;
 
@@ -189,18 +80,6 @@ export const endingWords = (reason: TurnEndReason): string => ENDINGS[reason];
 
 // what a screen with no conversation on it says
 export const EMPTY_WORDS = "Ask the agent to file, tag, find or summarize what you have saved.";
-
-type ApprovalAnswer = Extract<AgentEvent, { type: "approval.answered" }>;
-
-const DENIALS = {
-  cancel: "Stopped before you answered, so it didn't run.",
-  person: "Declined.",
-  timeout: "Not answered in time, so it didn't run.",
-} satisfies Record<ApprovalAnswer["by"], string>;
-
-// how an approval was settled: the person's answer, its time running out, or the turn stopped
-export const answerWords = ({ by, result }: Pick<ApprovalAnswer, "by" | "result">): string =>
-  result === "allow" ? "Allowed." : DENIALS[by];
 
 // a finished run of work in a line, by the calls it made
 export const workWords = (steps: number): string => {
@@ -273,7 +152,7 @@ interface EntryBlock {
 }
 
 // what a conversation draws, in order: a message either way, a run of the agent's work between
-// them (its notes and its calls), an answered approval, and a turn's end
+// them (its notes and its calls), a turn's end, and last the reply as it is written
 export type ThreadBlock =
   | EntryBlock
   | {
@@ -281,7 +160,8 @@ export type ThreadBlock =
       readonly key: string;
       readonly notes: readonly WorkNote[];
       readonly uses: readonly ToolUse[];
-    };
+    }
+  | { readonly kind: "draft"; readonly key: string; readonly text: string };
 
 // a run of work as it is read, its calls named by id until every result is in
 interface Run {
@@ -291,21 +171,21 @@ interface Run {
   readonly useIds: string[];
 }
 
-// a conversation as every device draws it: its blocks, and the approvals still waiting on the
-// person, in the order they were asked
+// a conversation as every device draws it: its blocks, and whether a turn is under way, read off
+// the events, since a message sent mid-turn joins it: Stop ends it, and Undo waits for it, since
+// its change set seals only as it ends
 export interface Conversation {
   readonly blocks: readonly ThreadBlock[];
-  readonly waiting: readonly WaitingApproval[];
+  readonly underWay: boolean;
 }
 
-// a thread's stored events read once, in order. A result lands on its call wherever that call's
-// run is, since a call that waited on the person answers after an asked approval closed its run;
-// an answer or a result before its ask or its call is skipped
-export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation => {
-  const approvals = new Map<string, Approval>();
+// a thread's events read once, in order, with what the agent has written of its reply since the
+// last of them; a result before its call is skipped
+export const conversationOf = (rows: readonly ThreadEventRow[], draft: string): Conversation => {
   const uses = new Map<string, ToolUse>();
   const drafts: (Run | EntryBlock)[] = [];
   let run: Run | null = null;
+  let underWay = false;
   const openRun = (key: string): Run => {
     const opened: Run = { key, kind: "run", notes: [], useIds: [] };
     drafts.push(opened);
@@ -336,29 +216,18 @@ export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation =>
         }
         break;
       }
-      // an asked approval is drawn as the card that answers it, never as a row
-      case "approval.asked":
-      case "approval.answered": {
-        run = null;
-        const before = approvals.get(event.toolUseId);
-        const after = approvalNext(before, event, eventId);
-        if (after !== undefined && after !== before) {
-          approvals.set(event.toolUseId, after);
-          if (event.type === "approval.answered") {
-            drafts.push({ entry, key: eventId, kind: "entry" });
-          }
-        }
-        break;
-      }
       case "turn.ended": {
         run = null;
-        for (const [toolUseId, approval] of approvals) {
-          approvals.set(toolUseId, approvalNext(approval, event, eventId) ?? approval);
-        }
+        underWay = false;
         drafts.push({ entry, key: eventId, kind: "entry" });
         break;
       }
-      case "user.message":
+      case "user.message": {
+        run = null;
+        underWay = true;
+        drafts.push({ entry, key: eventId, kind: "entry" });
+        break;
+      }
       case "agent.message": {
         run = null;
         drafts.push({ entry, key: eventId, kind: "entry" });
@@ -367,22 +236,21 @@ export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation =>
       // no default
     }
   }
+  const blocks: ThreadBlock[] = drafts.map((block) =>
+    block.kind === "entry"
+      ? block
+      : {
+          key: block.key,
+          kind: "work",
+          notes: block.notes,
+          uses: block.useIds.flatMap((toolUseId) => {
+            const use = uses.get(toolUseId);
+            return use === undefined ? [] : [use];
+          }),
+        },
+  );
   return {
-    blocks: drafts.map((draft) =>
-      draft.kind === "entry"
-        ? draft
-        : {
-            key: draft.key,
-            kind: "work",
-            notes: draft.notes,
-            uses: draft.useIds.flatMap((toolUseId) => {
-              const use = uses.get(toolUseId);
-              return use === undefined ? [] : [use];
-            }),
-          },
-    ),
-    waiting: [...approvals.values()].flatMap((approval) =>
-      approval.kind === "waiting" ? [{ ask: approval.ask, eventId: approval.eventId }] : [],
-    ),
+    blocks: draft === "" ? blocks : [...blocks, { key: "draft", kind: "draft", text: draft }],
+    underWay,
   };
 };

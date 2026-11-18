@@ -74,7 +74,7 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an
   accented letter and saves the wrong page. `apps/mobile/src/items/link-in-text.ts`.
 - **The phone asks the account's built-in agent, online only, drawing natively what
-  `@repo/client` says of a conversation.** A send, an approval and a Stop are refused offline as
+  `@repo/client` says of a conversation.** A send and a Stop are refused offline as
   every phone write is, since a turn runs in the cloud, and Undo of a turn is the Mac's or a tab's.
   `apps/mobile/src/app/agent/[thread].tsx`.
 

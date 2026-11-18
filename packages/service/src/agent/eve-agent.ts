@@ -9,41 +9,19 @@ import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema"
 import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Fact, Progress } from "eve/events";
+import type { Fact, Progress, TurnSettled } from "eve/events";
 import type { ToolModelOutput } from "eve/tools";
 
 import { sealTurnSet } from "../library/library-change-sets";
 import type { AgentCallOutcome, AgentTool } from "./agent-tools";
 import { AGENT_TOOLS, callAgentTool } from "./agent-tools";
-import { threadOf } from "./agent-threads";
+import type { TurnAt } from "./agent-threads";
+import { threadOf, turnIs, turnNumberOf } from "./agent-threads";
 import { eveCallerOf } from "./eve-admission";
-import { shownEvent, turnOutcomeOf } from "./thread-events";
+import { shownEvent, turnEndedEvent, turnOutcomeOf } from "./thread-events";
 
 // the session's caller as eve hands it back: `ctx.session.auth.current`
 type EveAuth = Parameters<typeof eveCallerOf>[0];
-
-interface TurnAt {
-  readonly accountId: string;
-  readonly threadId: string;
-  readonly eveSessionNumber: number;
-  readonly eveTurnId: string;
-}
-
-const turnIs = (at: TurnAt) =>
-  and(
-    eq(agentTurn.accountId, at.accountId),
-    eq(agentTurn.threadId, at.threadId),
-    eq(agentTurn.eveSessionNumber, at.eveSessionNumber),
-    eq(agentTurn.eveTurnId, at.eveTurnId),
-  );
-
-const turnNumberOf = async (executor: DbExecutor, at: TurnAt): Promise<number | null> => {
-  const [row] = await executor
-    .select({ number: agentTurn.number })
-    .from(agentTurn)
-    .where(turnIs(at));
-  return row?.number ?? null;
-};
 
 export const agentTools = (): readonly AgentTool[] => AGENT_TOOLS;
 
@@ -85,6 +63,8 @@ interface RecordedFact {
   readonly event: Fact | Progress;
   // where eve recorded it in its session: `ctx.position`
   readonly position: { readonly line: number; readonly index: number };
+  // when eve recorded it, unix milliseconds: `ctx.now`, which the relay reads as its line's time
+  readonly at: number;
 }
 
 interface EventAt {
@@ -130,7 +110,7 @@ const startTurn = async (at: TurnAt, now: number): Promise<void> => {
 const settleTurn = async (
   at: TurnAt,
   position: RecordedFact["position"],
-  outcome: ReturnType<typeof turnOutcomeOf>,
+  settled: TurnSettled,
   now: number,
 ): Promise<void> => {
   const { accountId, threadId } = at;
@@ -141,13 +121,13 @@ const settleTurn = async (
     }
     await tx
       .update(agentTurn)
-      .set({ outcome, settledAt: now })
+      .set({ outcome: turnOutcomeOf(settled), settledAt: now })
       .where(and(turnIs(at), isNull(agentTurn.settledAt)));
     await sealTurnSet(tx, accountId, { threadId, turn }, now);
     await keepEvent(
       tx,
       { accountId, eveSessionNumber: at.eveSessionNumber, threadId, ...position },
-      { reason: outcome, turn, type: "turn.ended" },
+      turnEndedEvent(settled, turn),
       now,
     );
     await tx
@@ -159,12 +139,16 @@ const settleTurn = async (
 
 // One fact of a thread's eve session, kept as the thread shows it at the place eve recorded it, so
 // a hook delivered twice writes once; a turn's start and settle move its row and the thread's
-export const recordEveFact = async ({ auth, event, position }: RecordedFact): Promise<void> => {
+export const recordEveFact = async ({
+  at: now,
+  auth,
+  event,
+  position,
+}: RecordedFact): Promise<void> => {
   const { accountId, eveSessionNumber, threadId } = eveCallerOf(auth);
   if ((await threadOf(accountId, threadId)) === null) {
     return;
   }
-  const now = Date.now();
   switch (event.type) {
     case "turn.started": {
       await startTurn({ accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId }, now);
@@ -174,7 +158,7 @@ export const recordEveFact = async ({ auth, event, position }: RecordedFact): Pr
       await settleTurn(
         { accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId },
         position,
-        turnOutcomeOf(event),
+        event,
         now,
       );
       return;

@@ -1,28 +1,23 @@
 // CLAUDE.md § The agent panel is the account's threads. The built-in agent's conversations, the
-// same on every device: the threads and their stored events come from the cell, read again as an
-// answer of what moved names them, and a send, an answer to an approval, a stop and an undo go to
-// the cell, so each waits for a connection. A message carries the screen it was sent from (the open item, or the grid's scope and
-// selection).
+// same on every device: the threads come from the cloud, read again as an answer of what moved
+// names them, and a thread's events as they happen, the reply as it is written; a send, a stop and
+// an undo go to the cloud, so each waits for a connection. A message carries the screen it was
+// sent from (the open item, or the grid's scope and selection).
 
 import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
 import {
-  answerWords,
-  approvalWords,
   callRefusalWords,
   conversationOf,
   EMPTY_WORDS,
   endingWords,
-  isUnderWay,
-  isWorking,
   readsOnly,
   sendRefusalWords,
   statusWords,
   toolWords,
   workWords,
 } from "@repo/client/thread-entries";
-import type { ThreadBlock, ThreadEntry, WaitingApproval } from "@repo/client/thread-entries";
-import { ApprovalCard } from "@repo/ui/ai/approval-card";
+import type { ThreadBlock, ThreadEntry } from "@repo/client/thread-entries";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipList } from "@repo/ui/ai/tool-chips";
@@ -77,15 +72,11 @@ const EntryRow = ({
         />
       );
     }
-    // a run of work and an asked approval draw as blocks of their own (`conversationOf`)
+    // a run of work draws as a block of its own (`conversationOf`)
     case "agent.progress":
     case "agent.tool_use":
-    case "agent.tool_result":
-    case "approval.asked": {
+    case "agent.tool_result": {
       return null;
-    }
-    case "approval.answered": {
-      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event)}</p>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -137,6 +128,41 @@ const WorkBlock = ({
   </Thinking>
 );
 
+// one block of a conversation: a run of work live only while it is the turn's last, the reply as
+// it is written, or an event
+const Block = ({
+  block,
+  live,
+  undo,
+  undoWaits,
+}: {
+  block: ThreadBlock;
+  live: boolean;
+  undo: (turn: number) => (() => void) | null;
+  undoWaits: boolean;
+}) => {
+  switch (block.kind) {
+    case "work": {
+      return <WorkBlock block={block} live={live} />;
+    }
+    case "draft": {
+      return (
+        <StreamingText
+          className="select-text"
+          text={block.text}
+          streaming
+          animate={false}
+          data-agent-draft
+        />
+      );
+    }
+    case "entry": {
+      return <EntryRow entry={block.entry} undo={undo} undoWaits={undoWaits} />;
+    }
+    // no default
+  }
+};
+
 const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void }) => {
   const threads = useQuery(useLibraryQueries().threads()).data?.threads ?? [];
   const nowMs = useNow();
@@ -177,39 +203,6 @@ const onSendRefused = (cause: unknown): void => {
   toast.error(sendRefusalWords(cause, Date.now()));
 };
 
-const APPROVAL_OPTIONS = [
-  { label: "Approve", value: "allow" },
-  { label: "Cancel", value: "deny" },
-] as const;
-
-// one call waiting on the person, and the answer to it: its options are held from the press until
-// the thread drops the card, and handed back when the answer is refused
-const Approval = ({
-  approval,
-  threadId,
-  titleOf,
-}: {
-  approval: WaitingApproval;
-  threadId: string;
-  titleOf: (id: string) => string | null;
-}) => {
-  const { orpc } = usePageLibrary().wire;
-  const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
-  const { detail, question } = approvalWords(approval, titleOf);
-  return (
-    <ApprovalCard
-      data-approval={approval.eventId}
-      prompt={question}
-      detail={detail}
-      options={APPROVAL_OPTIONS}
-      picked={respond.isPending || respond.isSuccess ? respond.variables.result : null}
-      onPick={(result) => {
-        respond.mutate({ eventId: approval.eventId, result, threadId });
-      }}
-    />
-  );
-};
-
 const Conversation = ({
   threadId,
   flushOpen,
@@ -220,10 +213,8 @@ const Conversation = ({
   const { client, orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
-  const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
-  const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
-  const titles = useQuery(queries.titles()).data?.targets ?? [];
-  const { blocks, waiting } = conversationOf(rows);
+  const followed = useQuery(queries.threadEvents(threadId)).data;
+  const { blocks, underWay } = conversationOf(followed?.rows ?? [], followed?.draft ?? "");
   const undoable = useQuery(queries.undoable(threadId)).data?.turns ?? [];
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   // a press names its conversation, so one that waits offline keeps to it whichever is open when
@@ -252,35 +243,24 @@ const Conversation = ({
           undo.mutate({ threadId, turn });
         }
       : null;
-  const working = thread !== undefined && isWorking(thread.status);
-  const underWay = thread !== undefined && isUnderWay(thread.status);
+  const status = underWay ? "running" : "idle";
   // a reversed column scrolls from its end, so the browser keeps the conversation on the reply as
   // it grows and lets go once the person scrolls up; the auto margin keeps a short one at the top
   return (
     <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto" data-thread={threadId}>
       <div className="mb-auto flex flex-col gap-2 p-3">
-        {blocks.map((block, index) =>
-          block.kind === "work" ? (
-            <WorkBlock
-              key={block.key}
-              block={block}
-              live={working && index === blocks.length - 1}
-            />
-          ) : (
-            <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
-          ),
-        )}
-        {waiting.map((approval) => (
-          <Approval
-            key={approval.eventId}
-            approval={approval}
-            threadId={threadId}
-            titleOf={(id) => titles.find((target) => target.id === id)?.title ?? null}
+        {blocks.map((block, index) => (
+          <Block
+            key={block.key}
+            block={block}
+            live={underWay && index === blocks.length - 1}
+            undo={undoTurn}
+            undoWaits={undoWaits}
           />
         ))}
         <div className="flex flex-wrap items-center gap-1.5">
-          {thread === undefined || statusWords(thread.status) === "" ? null : (
-            <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
+          {statusWords(status) === "" ? null : (
+            <span className="text-caption text-muted-foreground">{statusWords(status)}</span>
           )}
           {underWay ? (
             <Button

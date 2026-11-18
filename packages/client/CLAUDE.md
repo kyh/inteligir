@@ -31,14 +31,11 @@ say one thing of one library.
 - **A conversation's logic is one package, and each device draws it** (owner decision). Pure
   functions over the contract's union, so the Mac, the tab and the phone say one thing of one
   conversation. `packages/client/src/agent-send.ts`.
-- **An approval says what its call would do, as its event carries it.** A card counts what a delete
-  would move and shows the whole address a save would send, since the card is the one gate on a
-  call a hostile page may have prompted; an ask this build does not know claims nothing and still
-  answers. `packages/client/src/thread-entries.ts`.
-- **A conversation is read once, in order, and each approval and call has one state.**
-  `conversationOf` is every device's one way in, since a set of answered calls over the whole thread
-  hides an ask its answer arrives before. `packages/client/src/thread-entries.ts`.
-- **A thread's read is spelled once, under the key an answer of what moved reads it again by.**
-  Its events are one query that asks only for what came after the last one held, since a paged
-  copy downloads the whole conversation each time its thread moves.
+- **A conversation is read once, in order, and each call has one state; a turn is under way from
+  a message until a turn ends.** `conversationOf` is every device's one way in, and reads Stop off
+  the events, since a message sent mid-turn joins the turn and the thread list lags the stream.
+  `packages/client/src/thread-entries.ts`.
+- **A thread's events are one query that follows its stream from after the last one held.** A
+  stream the cloud cut or a device left picks up by `lastEventId`, so nothing reads a whole
+  conversation again, and an answer of what moved never restarts it.
   `packages/client/src/thread-queries.ts`.
