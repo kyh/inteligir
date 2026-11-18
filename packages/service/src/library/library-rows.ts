@@ -53,7 +53,8 @@ export const itemRowOf = (accountId: string, stored: StoredItem): ItemRow => ({
   card: stored.card,
   id: stored.id,
   seq: stored.seq,
-  titleKey: titleKey(stored.fields.title),
+  // an unnamed item's derived title too, since read_item answers it and a `[[link]]` repeats it
+  titleKey: titleKey(stored.card.title),
   // case never orders a listing by title
   titleSort: stored.card.title.toLowerCase(),
   updatedAt: stored.updatedAt,

@@ -77,7 +77,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Search looks at an item's address, site, author, description and tags**, not inside its properties.
 - **Deleting an item on your iPhone moves it to Deleted.**
 - **A link to a note is a link to that item**, so renaming or moving it keeps every link, and pointing at one shows its card's preview.
-- **`[[Title]]` in an imported note or the agent's writing links the one item with that title**, and stays text when none or several have it.
+- **`[[Title]]` in an imported note or an assistant's writing links the one item showing that title**, a link you haven't named by its address and an untitled note by its first words, as the assistant reads them, and stays text when none or several have it.
 - **Some formatting doesn't survive markdown**: what the agent reads, the blocks its edit touches and an imported note keep only what markdown can say.
 - **The agent and connected assistants leave a saved page's article as it was read**: ask for the change in the item's note.
 - **A note the agent or a connected assistant creates takes its title and tags only from what you ask for**: a `---` block at the top of its text stays in the note as a code block, as one at the top of a note saved with a link does.

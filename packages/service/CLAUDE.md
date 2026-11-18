@@ -234,6 +234,11 @@ DOM (`oxlint.config.ts`).
   its files' and bodies' rows.** A person never loses a word mid-note and a full
   library can still be tidied; fields and the search rows are small beside them.
   `packages/service/src/library/library-quota.ts`.
+- **A `[[Title]]` names the one live item whose card shows that title or
+  which holds it as an alias, and a title two items answer to stays text.** An
+  unnamed item goes by the title it derives, the one read_item answers, so an
+  assistant's link by it reaches the item.
+  `packages/service/src/library/library-rows.ts`.
 - **Markdown written into a body reads its links in one round of three
   queries.** A query per link is a round trip each, and a title index
   of the whole library reads every item to name a few.

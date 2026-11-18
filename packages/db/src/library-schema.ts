@@ -67,8 +67,8 @@ export const libraryState = pgTable.withRLS("library_state", {
 
 // an item, in Deleted or not: its fields one column each, and what its row derives, so a listing
 // reads the row alone. `title_sort` is its card's title as the listing orders it; `title_key` and
-// `alias_keys` are its title and aliases as a `[[link]]` names it, keyed in JS, since Postgres's
-// lower() folds neither Unicode form nor case as the library's key does
+// `alias_keys` are its card's title and its aliases as a `[[link]]` names them, keyed in JS, since
+// Postgres's lower() folds neither Unicode form nor case as the library's key does
 export const item = pgTable.withRLS(
   "item",
   {

@@ -1,9 +1,9 @@
 // The markdown codec's ports over the library's rows, read in one round inside the write that
 // uses them, or before it for an agent's edit (`@repo/editor/headless/codec/one-round-lookup`),
 // which is made outside any write (`../body/edit-body`): a `[[Title]]` names the one live
-// item filed under that title or an alias, a page link an item by its id, its card's title the
-// words a link shows, and `assets/<sha>` the library's own file under that sha, its kind read off
-// the type it was uploaded as.
+// item whose card shows that title or which an alias files under it, a page link an item by its
+// id, its card's title the words a link shows, and `assets/<sha>` the library's own file under that
+// sha, its kind read off the type it was uploaded as.
 
 import { randomUUID } from "node:crypto";
 
@@ -23,8 +23,8 @@ import { errorFields } from "../log";
 import { refuse } from "./library-refusal";
 import type { WriteScope } from "./library-store";
 
-// each asked key's one live item, by its title or an alias: a key two items answer to names
-// neither, since a link by that title reaches neither
+// each asked key's one live item, by its card's title or an alias: a key two items answer to
+// names neither, since a link by that title reaches neither
 const titledOf = async (
   db: DbExecutor,
   accountId: string,
