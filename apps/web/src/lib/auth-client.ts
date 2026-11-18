@@ -29,7 +29,7 @@ export type SessionState =
   | { readonly kind: "signed-out" }
   | { readonly kind: "unknown" };
 
-// never rejects: a request that did not reach the Worker is one more read that failed
+// never rejects: a request that did not reach the cloud is one more read that failed
 export const activeSession = async (): Promise<SessionState> => {
   try {
     const { data, error } = await authClient.getSession();

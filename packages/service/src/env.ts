@@ -94,6 +94,13 @@ const envSchema = z
 
     LIBRARY_STORAGE_CAP_BYTES: byteCount(GIB),
 
+    // The next release owes the floor: `/v1` has no `/v1/socket` and no `account.socketTicket`, a
+    // note's body lands by `library.items.saveBody` over the version it read, a file goes up by
+    // `library.files.reserve` and `settle`, the agent's questions (`respond`) are gone, and what
+    // moved comes from `library.changes`; `library.write` takes property ops alone, a CONFLICT
+    // carries no data, an item's row no `kind`, its fields one `reading` where the three `fetch*`
+    // were, Undo is `library.agent.undo` by thread and turn, `listing.page` asks by a scope, and a
+    // list's `cursor` is a number.
     MIN_CLIENT_BUILD: buildFloor("0.7.0"),
 
     // the e2e's stand-in for the web, never taken on Vercel: an assistant's metadata document is
