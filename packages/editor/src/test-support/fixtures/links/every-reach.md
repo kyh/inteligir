@@ -14,8 +14,8 @@ named without the bang [[assets/600456c60420b0c6ddfe3b8d50cb6e63af544fb26c5715ae
 
 ![[assets/9a8363aff25b5ffb5120eeb66d735bfd225d6e27d0a1ce6afc2a6b177bb94336]]
 
-Page links by id: [Shown title](mention:e2e2067e-8cbf-47c8-b936-7353adaeb713) and
-[Gone title](mention:8bf27a6e-d57e-4387-9374-5167e093b845); a page link whose words hold a wiki
+Item links by id: [Shown title](mention:e2e2067e-8cbf-47c8-b936-7353adaeb713) and
+[Gone title](mention:8bf27a6e-d57e-4387-9374-5167e093b845); an item link whose words hold a wiki
 link [See [[Inside Label]]](mention:e2e2067e-8cbf-47c8-b936-7353adaeb713).
 
 Escaped \[\[Escaped\]\], code `[[In code]]`, a web link [label [[Inside link label]]](https://example.com),
