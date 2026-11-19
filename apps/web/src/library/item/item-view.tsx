@@ -1,9 +1,3 @@
-// CLAUDE.md § The library is home, and an item is shown by its kind. An item opens full size in the
-// grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
-// editor (`@repo/editor/item/item-editor`), saved whole a moment after each edit and held while the
-// agent edits them. The header reads the item's row, read again as its card moves. Escape outside
-// the editor goes back to the library.
-
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { jumpToFindMatch, setFindBarAnchor } from "@repo/editor/find-bar";
@@ -30,7 +24,6 @@ export interface ItemViewProps {
   readonly onNote: (note: OpenNote | null) => void;
 }
 
-// `placeholder`: what the field says while the item has no name of its own
 const TitleField = ({
   itemId,
   title,
@@ -42,13 +35,16 @@ const TitleField = ({
 }) => {
   const retitle = useMutation(useLibraryWrites().organize("The title couldn't be changed."));
   const [draft, setDraft] = useState<string | null>(null);
-  const commit = (): void => {
+
+  const commit = () => {
     const next = (draft ?? title).trim();
     setDraft(null);
+
     if (next !== "" && next !== title) {
       retitle.mutate({ ids: [itemId], title: next });
     }
   };
+
   return (
     <input
       aria-label="Title"
@@ -64,6 +60,7 @@ const TitleField = ({
         if (isImeComposing(event)) {
           return;
         }
+
         if (event.key === "Enter") {
           event.preventDefault();
           commit();
@@ -73,11 +70,8 @@ const TitleField = ({
   );
 };
 
-// where the editor's find bar (⌘F) draws, over the item's text
 const FindBarAnchor = () => <div ref={setFindBarAnchor} className="relative" />;
 
-// a far jump, the outline and WebKit's missing scroll anchor are kept against this element
-// (packages/editor/src/run-anchoring.ts, scroll-reveal.ts, toc.tsx)
 const EditorScroller = ({ children }: { children: ReactNode }) => (
   <div className="min-h-0 flex-1 overflow-y-auto" data-editor-scroller="">
     {children}
@@ -93,19 +87,18 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const [note, setNote] = useState<OpenNote | null>(null);
   useAgentHolds(note);
 
-  // the find bar lands on a search's words once the item's editor answers, and the address then
-  // drops them
   useEffect(() => {
     if (find === null) {
       return;
     }
+
     return onLiveEditor(itemId, (editor) => {
       jumpToFindMatch(editor, find, 0);
       libraryGoes.dropFind();
     });
   }, [find, itemId]);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (shortcutFor(event.nativeEvent, "item", modifier)?.action === "back-to-library") {
       event.preventDefault();
       commands.closeItem();
@@ -113,6 +106,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   };
 
   const held = item.data ?? null;
+
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
     <div className="flex h-full min-h-0 flex-col" data-item-id={itemId} onKeyDown={onKeyDown}>

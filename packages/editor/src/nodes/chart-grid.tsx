@@ -1,6 +1,3 @@
-// Every transform preserves what the grid does not show (title, options, colors), so a grid
-// edit never strips a field the raw editor would have kept.
-
 import { useState } from "react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -9,38 +6,41 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 
 import type { ChartPayload } from "./chart-node";
 
-export interface ChartGridView {
+interface ChartGridView {
   labels: string[];
   seriesNames: string[] | null;
   values: number[][];
 }
 
-// misaligned multi-series payloads stay raw-only rather than being quietly realigned.
-export const chartGridView = (chart: ChartPayload): ChartGridView | null => {
+export const chartGridView = (chart: ChartPayload) => {
   if ("data" in chart) {
     return {
       labels: chart.data.map((point) => point.label),
       seriesNames: null,
       values: [chart.data.map((point) => point.value)],
-    };
+    } satisfies ChartGridView | null;
   }
+
   const labels = chart.series[0]?.data.map((point) => point.label) ?? [];
+
   for (const row of chart.series) {
     if (row.data.length !== labels.length) {
       return null;
     }
+
     if (row.data.some((point, i) => point.label !== labels[i])) {
       return null;
     }
   }
+
   return {
     labels,
     seriesNames: chart.series.map((row) => row.name),
     values: chart.series.map((row) => row.data.map((point) => point.value)),
-  };
+  } satisfies ChartGridView | null;
 };
 
-export const emitChartPayload = (chart: ChartPayload): string => JSON.stringify(chart, null, 2);
+export const emitChartPayload = (chart: ChartPayload) => JSON.stringify(chart, null, 2);
 
 const mapPoints = (
   chart: ChartPayload,
@@ -48,14 +48,15 @@ const mapPoints = (
     points: { color?: string | undefined; label: string; value: number }[],
     column: number,
   ) => { color?: string | undefined; label: string; value: number }[],
-): ChartPayload => {
+) => {
   if ("data" in chart) {
-    return { ...chart, data: map(chart.data, 0) };
+    return { ...chart, data: map(chart.data, 0) } satisfies ChartPayload;
   }
+
   return {
     ...chart,
     series: chart.series.map((row, column) => ({ ...row, data: map(row.data, column) })),
-  };
+  } satisfies ChartPayload;
 };
 
 export const chartWithCellValue = (
@@ -63,45 +64,53 @@ export const chartWithCellValue = (
   column: number,
   row: number,
   value: number,
-): ChartPayload =>
+) =>
   mapPoints(chart, (points, pointsColumn) =>
     pointsColumn === column
       ? points.map((point, i) => (i === row ? { ...point, value } : point))
       : points,
   );
 
-export const chartWithRowLabel = (chart: ChartPayload, row: number, label: string): ChartPayload =>
+export const chartWithRowLabel = (chart: ChartPayload, row: number, label: string) =>
   mapPoints(chart, (points) => points.map((point, i) => (i === row ? { ...point, label } : point)));
 
-const chartWithSeriesName = (chart: ChartPayload, column: number, name: string): ChartPayload => {
+const chartWithSeriesName = (chart: ChartPayload, column: number, name: string) => {
   if ("data" in chart) {
     return chart;
   }
+
   return {
     ...chart,
     series: chart.series.map((row, i) => (i === column ? { ...row, name } : row)),
-  };
+  } satisfies ChartPayload;
 };
 
-export const chartWithRowAdded = (chart: ChartPayload): ChartPayload => {
+export const chartWithRowAdded = (chart: ChartPayload) => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
   const label = `Label ${String(count + 1)}`;
+
   return mapPoints(chart, (points) => [...points, { label, value: 0 }]);
 };
 
-export const chartWithRowRemoved = (chart: ChartPayload, row: number): ChartPayload | null => {
+export const chartWithRowRemoved = (chart: ChartPayload, row: number) => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
+
   if (count <= 1) {
     return null;
   }
+
   return mapPoints(chart, (points) => points.filter((_, i) => i !== row));
 };
 
-export const chartWithSeriesAdded = (chart: ChartPayload): ChartPayload | null => {
+export const chartWithSeriesAdded: (chart: ChartPayload) => ChartPayload | null = (
+  chart: ChartPayload,
+) => {
   if ("data" in chart) {
     return null;
   }
+
   const labels = chart.series[0]?.data.map((point) => point.label) ?? [];
+
   return {
     ...chart,
     series: [
@@ -111,23 +120,24 @@ export const chartWithSeriesAdded = (chart: ChartPayload): ChartPayload | null =
         name: `Series ${String(chart.series.length + 1)}`,
       },
     ],
-  };
+  } satisfies ChartPayload | null;
 };
 
-export const chartWithSeriesRemoved = (
-  chart: ChartPayload,
-  column: number,
-): ChartPayload | null => {
+export const chartWithSeriesRemoved = (chart: ChartPayload, column: number) => {
   if ("data" in chart) {
     return null;
   }
+
   if (chart.series.length <= 1) {
     return null;
   }
-  return { ...chart, series: chart.series.filter((_, i) => i !== column) };
+
+  return {
+    ...chart,
+    series: chart.series.filter((_, i) => i !== column),
+  } satisfies ChartPayload | null;
 };
 
-// a refused draft is dropped, so the cell shows the payload's text again.
 const CellInput = ({
   align,
   ariaLabel,
@@ -140,19 +150,21 @@ const CellInput = ({
   text: string;
 }) => {
   const [draft, setDraft] = useState<string | null>(null);
-  // a new `text` from the payload wins over the draft; re-keyed during render (not in an effect)
-  // so the cell never paints a frame of a removed row's value.
   const [shown, setShown] = useState(text);
+
   if (shown !== text) {
     setShown(text);
     setDraft(null);
   }
-  const commit = (): void => {
+
+  const commit = () => {
     if (draft !== null && draft !== text) {
       onCommit(draft);
     }
+
     setDraft(null);
   };
+
   return (
     <input
       aria-label={ariaLabel}
@@ -171,6 +183,7 @@ const CellInput = ({
         if (isImeComposing(event)) {
           return;
         }
+
         if (event.key === "Enter") {
           event.preventDefault();
           event.currentTarget.blur();
@@ -188,6 +201,7 @@ export const ChartGridEditor = ({
   onCommit: (next: ChartPayload) => void;
 }) => {
   const view = chartGridView(chart);
+
   if (view === null) {
     return (
       <div className="px-3 py-2 text-body text-muted-foreground">
@@ -196,8 +210,9 @@ export const ChartGridEditor = ({
       </div>
     );
   }
+
   const columns = view.values.length;
-  // rows and cells keep their elements across a commit, so the cell a Tab moved focus to keeps it.
+
   return (
     <div className="px-2 py-1.5">
       <table className="w-full border-separate border-spacing-0">
@@ -251,7 +266,7 @@ export const ChartGridEditor = ({
                     text={String(view.values[column]?.[row] ?? 0)}
                     onCommit={(text) => {
                       const value = Number(text.trim());
-                      // Infinity and NaN both have no JSON spelling: stringify writes null.
+
                       if (text.trim() !== "" && Number.isFinite(value)) {
                         onCommit(chartWithCellValue(chart, column, row, value));
                       }
@@ -267,6 +282,7 @@ export const ChartGridEditor = ({
                     className="text-body text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
                     onClick={() => {
                       const next = chartWithRowRemoved(chart, row);
+
                       if (next !== null) {
                         onCommit(next);
                       }
@@ -297,6 +313,7 @@ export const ChartGridEditor = ({
               className="hover:text-foreground"
               onClick={() => {
                 const next = chartWithSeriesAdded(chart);
+
                 if (next !== null) {
                   onCommit(next);
                 }
@@ -309,6 +326,7 @@ export const ChartGridEditor = ({
               className="hover:text-foreground"
               onClick={() => {
                 const next = chartWithSeriesRemoved(chart, chart.series.length - 1);
+
                 if (next !== null) {
                   onCommit(next);
                 }

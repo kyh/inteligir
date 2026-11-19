@@ -7,25 +7,24 @@ import type { ShareHandoff } from "./share-payload";
 
 const URL = "https://stephango.com/file-over-app";
 
-// the search `parseShareIntent` runs over shared text, read out of the installed package, whose
-// module needs a native runtime to load: the app is handed the first http match
 const packageBuild = readFileSync(
   createRequire(import.meta.url).resolve("expo-share-intent/build/utils.js"),
   "utf-8",
 );
+
 const ADDRESS_SEARCH = new RegExp(
   /\.text\s+\.match\(\/(?<search>.+)\/gi\)/u.exec(packageBuild)?.groups?.search ?? "",
   "giu",
 );
 
-const textShare = (text: string): ShareHandoff => ({
-  meta: null,
-  text,
-  webUrl: text.match(ADDRESS_SEARCH)?.find((link) => link.startsWith("http")) ?? null,
-});
+const textShare = (text: string) =>
+  ({
+    meta: null,
+    text,
+    webUrl: text.match(ADDRESS_SEARCH)?.find((link) => link.startsWith("http")) ?? null,
+  }) satisfies ShareHandoff;
 
-// `parseShareIntent` hands a page's address over as both
-const pageShare = (url: string): ShareHandoff => ({ meta: null, text: url, webUrl: url });
+const pageShare = (url: string) => ({ meta: null, text: url, webUrl: url }) satisfies ShareHandoff;
 
 describe("what a share asks the phone to save", () => {
   it("takes a page's title from its meta, and the text beside the link as its note", () => {
@@ -99,6 +98,7 @@ describe("what a share asks the phone to save", () => {
   it("keeps the lines of a long note around the link", () => {
     const before = "Read this before the meeting.";
     const after = "It explains why we keep everything in files.";
+
     for (const [text, note] of [
       [`${before}\n${URL}\n${after}`, `${before}\n${after}`],
       [`${before}\n\n${URL}\n\n${after}`, `${before}\n\n${after}`],
@@ -117,6 +117,7 @@ describe("what a share asks the phone to save", () => {
 
   it("takes every spelling of the shared link out of its text", () => {
     const shared = "https://example.com/a";
+
     for (const text of [
       `${shared} ${shared}/`,
       `${shared} (${shared}?utm_source=x).`,
@@ -130,6 +131,7 @@ describe("what a share asks the phone to save", () => {
         url: shared,
       });
     }
+
     expect(sharedSaveOf(textShare(`Breaking: ${shared} and https://t.co/abc`))).toStrictEqual({
       kind: "link",
       note: "Breaking: and https://t.co/abc",
@@ -208,6 +210,7 @@ describe("the share extension's handoff", () => {
         redirectSystemPath({ initial, path: "/item/0190a000-0000-7000-8000-000000000001" }),
       ).toBe("/item/0190a000-0000-7000-8000-000000000001");
     }
+
     expect(isShareHandoff("dataUrl=inteligirShareKey")).toBe(true);
     expect(isShareHandoff("inteligir://item/dataUrl=x")).toBe(false);
   });

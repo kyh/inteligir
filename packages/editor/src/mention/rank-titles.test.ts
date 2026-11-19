@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { foldTitle, rankTitles } from "./rank-titles";
 
-const ranked = (titles: readonly string[], query: string): string[] =>
+const ranked = (titles: readonly string[], query: string) =>
   rankTitles(
     titles.map((title) => ({ folded: foldTitle(title), title })),
     query,

@@ -1,17 +1,11 @@
-// The library's item writes beyond a device's property ops, each landed inside one write's
-// transaction by the rules every write meets (`./library-landing`): a note or a file made whole, an
-// item's fields as a bulk organize, Deleted and back, and Deleted emptied.
-
 import { organized } from "@repo/contract/library/cell-rules";
 import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { withReading } from "@repo/contract/library/item-reading";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
-import type { itemSummarySchema } from "@repo/contract/library/library-wire";
 import { item, purgedItem } from "@repo/db/library-schema";
 import { and, eq, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { z } from "zod";
 
 import { dropItemFiles, fileOf } from "../files/file-names";
 import { stampEntryThreads } from "./library-change-sets";
@@ -30,12 +24,13 @@ import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
 import { anyOf } from "./set-sql";
 
-// an item the write makes, with its body; an id the library made already is a conflict
-export const landNew = async (scope: WriteScope, made: NewItem): Promise<LiveItemRow> => {
+export const landNew = async (scope: WriteScope, made: NewItem) => {
   const [landed] = await landNewItems(scope, [made]);
+
   if (landed === undefined) {
     throw new Error("a landing of one item answered none");
   }
+
   return landed.ok ? landed.value : refuse(landed.refusal);
 };
 
@@ -49,15 +44,13 @@ export interface CreateFileInput {
   readonly savedAt: number;
 }
 
-// a file whose bytes the library holds
-export const createFile = async (
-  scope: WriteScope,
-  input: CreateFileInput,
-): Promise<LiveItemRow> => {
+export const createFile = async (scope: WriteScope, input: CreateFileInput) => {
   const held = await fileOf(scope.tx, scope.accountId, input.sha);
+
   if (held === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
+
   return await landNew(scope, {
     blocks: [],
     fields: fileFields({ ...input, mime: held.mime }),
@@ -72,13 +65,9 @@ export interface CreateNoteInput {
   readonly title?: string | undefined;
 }
 
-// a note written as markdown, as an agent writes one: filed by the folder's id or path, a path's
-// missing folders made, and saved now
-export const createNote = async (
-  scope: WriteScope,
-  input: CreateNoteInput,
-): Promise<LiveItemRow> => {
+export const createNote = async (scope: WriteScope, input: CreateNoteInput) => {
   const folderId = await folderOfTarget(scope, input.folder);
+
   return await landNew(scope, {
     blocks: await noteBlocksOf(scope, input.markdown),
     fields: noteFields({
@@ -91,71 +80,66 @@ export const createNote = async (
   });
 };
 
-// tags, folder, pin and title for each item; an id that names no item refuses the whole change
-export const organizeItems = async (
-  scope: WriteScope,
-  input: OrganizeInput,
-): Promise<LiveItemRow[]> => {
+export const organizeItems = async (scope: WriteScope, input: OrganizeInput) => {
   const folderId = await folderOfTarget(scope, input.folder);
   const landed: LiveItemRow[] = [];
+
   for (const itemId of new Set(input.ids)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
+
     if (held === null) {
       return refuse({ kind: "not-found" });
     }
+
     landed.push(await landFields(scope, held, organized(held.fields, input, folderId, scope.now)));
   }
+
   return landed;
 };
 
-// the items a write landed as a list names them, each with every tag it carries as the write left
-// it, so an organize and a list answer one spelling of an item
-export const landedSummaries = async (
-  scope: WriteScope,
-  rows: readonly LiveItemRow[],
-): Promise<z.infer<typeof itemSummarySchema>[]> => {
+export const landedSummaries = async (scope: WriteScope, rows: readonly LiveItemRow[]) => {
   const tags = await tagsOf(
     scope.tx,
     scope.accountId,
     rows.map(({ id }) => id),
   );
+
   return rows.map((row) => itemSummary(itemListing(row, tags.get(row.id) ?? [])));
 };
 
-export interface BulkAnswer {
+interface BulkAnswer {
   readonly changed: string[];
   readonly missing: string[];
-  // left in Deleted, each address another live item's now
   readonly addressHeld: string[];
 }
 
-// the order `restoreDeleted` ranks an address's items in: deleted last first, and of those deleted
-// at once the lowest id in code-point order
-const deletedLastFirst = (a: StoredItem, b: StoredItem): number =>
+const deletedLastFirst = (a: StoredItem, b: StoredItem) =>
   (b.fields.deletedAt ?? 0) - (a.fields.deletedAt ?? 0) || compareText(a.id, b.id);
 
-// to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
-// no item as missing. A link back from Deleted still waiting for its page asks for it again
 export const setDeleted = async (
   scope: WriteScope,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
-): Promise<BulkAnswer> => {
+) => {
   const changed: string[] = [];
   const missing: string[] = [];
   const addressHeld: string[] = [];
   const read: StoredItem[] = [];
+
   for (const itemId of new Set(input.ids)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
+
     if (held === null) {
       missing.push(itemId);
     } else {
       read.push(held);
     }
   }
-  // a restore tries the item deleted last first, so of several at one address it is the one back
+
   const ordered = input.deleted ? read : read.toSorted(deletedLastFirst);
+
   for (const held of ordered) {
     const itemId = held.id;
+
     if ((held.fields.deletedAt !== null) === input.deleted) {
       changed.push(itemId);
     } else {
@@ -164,44 +148,42 @@ export const setDeleted = async (
           ...held.fields,
           deletedAt: input.deleted ? scope.now : null,
         });
+
         await askFills(scope, [landed]);
         changed.push(itemId);
       } catch (error) {
-        // refused before anything of the item was written: its address is another live item's
         if (!(error instanceof RefusedWriteError) || error.refusal.kind !== "url-held") {
           throw error;
         }
+
         addressHeld.push(itemId);
       }
     }
   }
-  return { addressHeld, changed, missing };
+
+  return { addressHeld, changed, missing } satisfies BulkAnswer;
 };
 
-// a link's page read again: it waits, pending, as a link saved to read later does, and the reading
-// replaces only its article; an item with no address has no page to read
-export const refreshItem = async (scope: WriteScope, itemId: string): Promise<LiveItemRow> => {
+export const refreshItem = async (scope: WriteScope, itemId: string) => {
   const held = await readItem(scope.tx, scope.accountId, itemId);
+
   if (held === null || held.fields.url === null) {
     return refuse({ kind: "not-found" });
   }
+
   const landed = await landFields(scope, held, withReading(held.fields, { kind: "asked" }));
   await askFills(scope, [landed]);
+
   return landed;
 };
 
-// Back from Deleted in a statement, each of `ids` in Deleted but a link whose address a live item
-// holds; of several in Deleted at one address only the one deleted last comes back, as the address
-// takes one live item. A link still waiting for its page asks for it again. Answers those it brought
-// back
-export const restoreDeleted = async (
-  scope: WriteScope,
-  ids: readonly string[],
-): Promise<Set<string>> => {
+export const restoreDeleted = async (scope: WriteScope, ids: readonly string[]) => {
   if (ids.length === 0) {
-    return new Set();
+    return new Set() satisfies Set<string>;
   }
+
   const { accountId, now, tx } = scope;
+
   const ranked = tx
     .select({
       id: item.id,
@@ -213,7 +195,9 @@ export const restoreDeleted = async (
     .from(item)
     .where(and(eq(item.accountId, accountId), isNotNull(item.deletedAt), anyOf(item.id, ids)))
     .as("ranked");
+
   const live = alias(item, "live");
+
   const free = await tx
     .select({ id: ranked.id })
     .from(ranked)
@@ -237,36 +221,40 @@ export const restoreDeleted = async (
         ),
       ),
     );
+
   const restored = new Set(free.map((row) => row.id));
+
   if (restored.size > 0) {
     const seq = await scope.seq();
+
     const back = await tx
       .update(item)
       .set({ deletedAt: null, seq, updatedAt: now })
       .where(and(eq(item.accountId, accountId), anyOf(item.id, [...restored])))
       .returning({ id: item.id, reading: item.reading, url: item.url });
+
     await askFills(
       scope,
       back.map(({ id, reading, url }) => ({ fields: { deletedAt: null, reading, url }, id })),
     );
   }
+
   return restored;
 };
 
-// Deleted emptied of `ids`, in a statement a table: each item goes with every row it holds, its
-// change sets' entries included and their threads stamped, its id kept as purged and its files
-// touched, so each one nothing else names goes a day later. It joins no set, since nothing can take
-// it back; an id naming no item in Deleted is missing
 export const purgeItems = async (scope: WriteScope, ids: readonly string[]) => {
   const { accountId, now, tx } = scope;
   const unique = [...new Set(ids)];
+
   const inDeleted = and(
     eq(item.accountId, accountId),
     isNotNull(item.deletedAt),
     anyOf(item.id, unique),
   );
+
   const rows = await tx.select({ id: item.id }).from(item).where(inDeleted);
   const held = new Set(rows.map((row) => row.id));
+
   if (held.size > 0) {
     const seq = await scope.seq();
     await stampEntryThreads(scope, [...held], seq);
@@ -283,6 +271,7 @@ export const purgeItems = async (scope: WriteScope, ids: readonly string[]) => {
     );
     await tx.delete(item).where(inDeleted);
   }
+
   return {
     missing: unique.filter((id) => !held.has(id)),
     purged: unique.filter((id) => held.has(id)),

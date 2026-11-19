@@ -68,10 +68,13 @@ export const BlockquoteElement = (props: PlateElementProps) => {
   const readOnly = useReadOnly();
   const { editor, element } = props;
   const alert = alertProp(element);
+
   if (alert === undefined) {
     return <PlateElement {...props} as="blockquote" />;
   }
+
   const { Icon, accent, icon, label } = ALERTS[alert];
+
   return (
     <PlateElement
       {...props}
@@ -95,6 +98,7 @@ export const BlockquoteElement = (props: PlateElementProps) => {
             onValueChange={(value) => {
               const picked = alertVariantSchema.safeParse(value);
               const at = editor.api.findPath(element);
+
               if (picked.success && at) {
                 editor.tf.setNodes({ alert: picked.data }, { at });
               }

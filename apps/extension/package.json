@@ -35,6 +35,7 @@
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
+    "msw": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

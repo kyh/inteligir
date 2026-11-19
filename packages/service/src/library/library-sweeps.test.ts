@@ -1,11 +1,7 @@
-// Sweeps over Postgres: a scope's every item, thousands of them, landed by one call as the tab asks
-// it, and a change of tags too large for one write left as lots the drain lands as writes of their
-// own.
-
 import { randomUUID } from "node:crypto";
 
 import { noteFields, stubFields } from "@repo/contract/library/item-makes";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { item, itemTag, job, libraryState, purgedItem } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -14,7 +10,7 @@ import { expect, it } from "vitest";
 import { z } from "zod";
 
 import { drainJobs } from "../jobs/drain-jobs";
-import { personalLibrary } from "../test-support/library-fixture";
+import { personalLibrary } from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
 import { landNewItems } from "./library-landing";
 import type { NewItem } from "./library-landing";
@@ -24,32 +20,33 @@ import { sweepLotSchema } from "./library-sweeps";
 const PERSON = { kind: "person" } as const;
 const SAVED_AT = 1_700_000_000_000;
 
-const noteOf = (text: string, tags: readonly string[] = []): NewItem => {
+const noteOf = (text: string, tags: readonly string[] = []) => {
   const id = mintLibraryId(Date.now());
+
   return {
     blocks: [{ block: paragraph(`${id}-p`, text), section: "note" }],
     fields: noteFields({ folderId: null, savedAt: SAVED_AT, tags: [...tags], title: "" }),
     id,
-  };
+  } satisfies NewItem;
 };
 
-// many items in one write, as an import lands them
-const seed = async (accountId: string, made: readonly NewItem[]): Promise<void> => {
+const seed = async (accountId: string, made: readonly NewItem[]) => {
   const landed = await writeLibrary(
     { accountId, actor: PERSON },
     { answer: z.number(), opId: undefined },
     async (scope) => {
       const outcomes = await landNewItems(scope, made);
+
       return outcomes.filter((outcome) => outcome.ok).length;
     },
   );
+
   expect(landed).toStrictEqual({ ok: true, value: made.length });
 };
 
-const notesOf = (n: number): NewItem[] =>
-  Array.from({ length: n }, (_, at) => noteOf(`Loose ${String(at)}.`));
+const notesOf = (n: number) => Array.from({ length: n }, (_, at) => noteOf(`Loose ${String(at)}.`));
 
-const counted = async (accountId: string, side: "live" | "deleted"): Promise<number> => {
+const counted = async (accountId: string, side: "live" | "deleted") => {
   const [row] = await db
     .select({ n: count() })
     .from(item)
@@ -59,22 +56,25 @@ const counted = async (accountId: string, side: "live" | "deleted"): Promise<num
         side === "live" ? isNull(item.deletedAt) : isNotNull(item.deletedAt),
       ),
     );
+
   return row?.n ?? 0;
 };
 
-const headOf = async (accountId: string): Promise<number> => {
+const headOf = async (accountId: string) => {
   const [row] = await db
     .select({ head: libraryState.head })
     .from(libraryState)
     .where(eq(libraryState.accountId, accountId));
+
   return row?.head ?? 0;
 };
 
-const taggedWith = async (accountId: string, tag: string): Promise<number> => {
+const taggedWith = async (accountId: string, tag: string) => {
   const [row] = await db
     .select({ n: count() })
     .from(itemTag)
     .where(and(eq(itemTag.accountId, accountId), eq(itemTag.tag, tag)));
+
   return row?.n ?? 0;
 };
 
@@ -85,11 +85,13 @@ dbSuite("a sweep over a scope", () => {
     async () => {
       const { accountId, library } = await personalLibrary();
       const url = "https://pages.example/held";
+
       const link: NewItem = {
         blocks: [],
         fields: stubFields({ folderId: null, savedAt: SAVED_AT, tags: [], url }),
         id: mintLibraryId(Date.now()),
       };
+
       await seed(accountId, [link, ...notesOf(4999)]);
       const all = { except: [], scope: { kind: "all" as const } };
       const deleted = { except: [], scope: { kind: "deleted" as const } };
@@ -125,20 +127,24 @@ dbSuite("a sweep over a scope", () => {
         library.items.sweep({ ...deleted, verb: { kind: "purge" } }),
       ).resolves.toStrictEqual({ items: 5001, refused: [] });
       await expect(counted(accountId, "deleted")).resolves.toBe(0);
+
       const [purged] = await db
         .select({ n: count() })
         .from(purgedItem)
         .where(eq(purgedItem.accountId, accountId));
+
       expect(purged?.n).toBe(5001);
     },
   );
 
   it("lands a change of tags over 1,000 items in the call, naming the one a rule left", async () => {
     const { accountId, library } = await personalLibrary();
+
     const full = noteOf(
       "Full of tags.",
       Array.from({ length: 500 }, (_, at) => `t${String(at)}`),
     );
+
     await seed(accountId, [full, ...notesOf(999)]);
     await expect(
       library.items.sweep({
@@ -167,10 +173,12 @@ dbSuite("a sweep over a scope", () => {
           verb: { addTags: ["lot"], kind: "organize", pinned: true },
         }),
       ).resolves.toStrictEqual({ items: 1001, refused: [] });
+
       const [pinned] = await db
         .select({ n: count() })
         .from(item)
         .where(and(eq(item.accountId, accountId), isNotNull(item.pinnedAt)));
+
       expect(pinned?.n).toBe(1001);
       await expect(taggedWith(accountId, "lot")).resolves.toBe(0);
 
@@ -178,6 +186,7 @@ dbSuite("a sweep over a scope", () => {
         .select({ payload: job.payload })
         .from(job)
         .where(and(eq(job.accountId, accountId), eq(job.kind, "sweep")));
+
       const parsed = lots.map(({ payload }) => sweepLotSchema.parse(payload));
       expect(parsed.map((lot) => lot.ids.length).toSorted((a, b) => a - b)).toStrictEqual([
         1, 1000,
@@ -201,6 +210,7 @@ dbSuite("a sweep over a scope", () => {
     const { accountId, library } = await personalLibrary();
     const kept = noteOf("Left out.");
     const swept = noteOf("Swept.");
+
     const link: NewItem = {
       blocks: [],
       fields: stubFields({
@@ -211,6 +221,7 @@ dbSuite("a sweep over a scope", () => {
       }),
       id: mintLibraryId(Date.now()),
     };
+
     await seed(accountId, [kept, swept, link]);
     await expect(
       library.items.sweep({

@@ -1,11 +1,3 @@
-// A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
-// indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu), so a rename lands on both
-// surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
-// In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
-// keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
-// chrome speaks the type roles.
-
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { KEYS } from "platejs";
@@ -58,15 +50,15 @@ const MARK_ICONS = {
   "toggle-underline": UnderlineIcon,
 } satisfies Record<MarkShortcutAction, IconComponent>;
 
-// A row the toolbar names that its table lacks is a wiring error, not a button to drop quietly:
-// thrown while the module loads, as the marks kit does for a mark with no chord.
-const slashRow = (value: string): SlashItem => {
+const slashRow = (value: string) => {
   const item = GROUPS.flatMap((group) => group.items).find(
     (candidate) => candidate.value === value,
   );
+
   if (item === undefined) {
     throw new Error(`the slash menu has no ${value} row`);
   }
+
   return item;
 };
 
@@ -80,8 +72,7 @@ const TOUCH_TURN_INTO_ROWS: readonly SlashItem[] = [
   "blockquote",
 ].map(slashRow);
 
-// the press must not take focus from the editor, or the keyboard drops and the caret with it
-const keepEditorFocus = (event: ReactPointerEvent<HTMLElement>): void => {
+const keepEditorFocus = (event: ReactPointerEvent<HTMLElement>) => {
   event.preventDefault();
 };
 
@@ -96,7 +87,6 @@ const ToolbarButton = ({
   disabled?: boolean;
   label: string;
   onPress: () => void;
-  // only a toggle says whether it is on; a command stays out of the pressed/unpressed pair
   pressed?: boolean;
 }) => (
   <Button
@@ -120,6 +110,7 @@ const MarkButton = ({ row }: { row: MarkShortcut }) => {
   const editor = useEditorRef();
   const { pressed } = useMarkToolbarButtonState({ nodeType: row.mark });
   const Icon = MARK_ICONS[row.action];
+
   return (
     <ToolbarButton
       label={row.label}
@@ -136,6 +127,7 @@ const MarkButton = ({ row }: { row: MarkShortcut }) => {
 const CodeMarkButton = () => {
   const editor = useEditorRef();
   const { pressed } = useMarkToolbarButtonState({ nodeType: KEYS.code });
+
   return (
     <ToolbarButton
       label={CODE_MARK_SHORTCUT.label}
@@ -159,6 +151,7 @@ const ActionButton = ({
   onPress: () => void;
 }) => {
   const { icon: Icon, label } = TOUCH_ACTIONS[action];
+
   return (
     <ToolbarButton label={label} disabled={disabled} onPress={onPress}>
       <Icon />
@@ -166,7 +159,6 @@ const ActionButton = ({
   );
 };
 
-// the link's address takes the row
 const LinkPrompt = ({
   initialValue,
   onCancel,
@@ -177,6 +169,7 @@ const LinkPrompt = ({
   onSubmit: (value: string) => void;
 }) => {
   const [value, setValue] = useState(initialValue);
+
   return (
     <form
       className="flex min-w-0 flex-1 items-center gap-1 px-2"
@@ -214,16 +207,13 @@ const LinkPrompt = ({
 const TouchToolbar = () => {
   const editor = useEditorRef();
   const readOnly = useEditorReadOnly();
-  // where the link field's address lands, held while the field has the row; null is the row of
-  // buttons
   const [prompt, setPrompt] = useState<RangeRef | null>(null);
-  // what the field held when its text went away under it, offered again when it next opens
   const [draft, setDraft] = useState<string | null>(null);
 
-  // `value` null is a cancel, and an empty address links nothing
-  const closePrompt = (at: RangeRef, value: string | null): void => {
+  const closePrompt = (at: RangeRef, value: string | null) => {
     setPrompt(null);
     setDraft(null);
+
     if (value === null || value === "") {
       at.unref();
     } else if (applyLink(editor, at, value) === "moved") {
@@ -231,15 +221,15 @@ const TouchToolbar = () => {
     }
   };
 
-  // a note that turned read-only draws no toolbar and ends the field, lest it come back with the
-  // edits; ended while rendering, as the selection toolbar's mode is
   if (readOnly) {
     if (prompt !== null) {
       prompt.unref();
       setPrompt(null);
     }
+
     return null;
   }
+
   return (
     <div
       role="toolbar"

@@ -1,7 +1,3 @@
-// An item's fields: everything an item is besides its body, one column each in the library's
-// `items` table. Its id, url key, card and sequence number are the row's, never a writer's;
-// `@repo/contract/library/derive-item` computes what is derived and the cell stamps the rest.
-
 import { z } from "zod";
 
 import { isTagName } from "../knowledge/tag-grammar";
@@ -10,18 +6,11 @@ import { isWebUrl } from "../items/item-url";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
 
-// a file's bytes are named by their SHA-256, as the file store keeps them
 export const SHA256_HEX_RE = /^[0-9a-f]{64}$/u;
 const sha256 = z.string().regex(SHA256_HEX_RE);
 
-// unix milliseconds
 const instant = z.number().int().nonnegative();
 
-// An item's row, its card and url key included, travels whole beside its body in one answer, which
-// a Vercel function caps at 4.5 MB (vercel.com/docs/functions/limitations), so every field is
-// capped: the short ones at a line's length (in UTF-16 units, as zod counts), the description at a
-// paragraph's, and each list and the properties by the bytes of their JSON, since a list of short
-// entries can still be long. The largest legal row is about 0.7 MB.
 export const ITEM_FIELD_CAPS = {
   description: 10_000,
   line: 1000,
@@ -31,12 +20,10 @@ export const ITEM_FIELD_CAPS = {
   url: 8192,
 } as const;
 
-const jsonBytes = (value: JsonValue): number => utf8ByteLength(canonicalJson(value));
+const jsonBytes = (value: JsonValue) => utf8ByteLength(canonicalJson(value));
 
 const text = z.string().min(1).max(ITEM_FIELD_CAPS.line);
 
-// a property's key: a line, as a frontmatter key is, but `__proto__`, which zod's record drops as it
-// parses, so a property under it would vanish with no word on its way in
 export const propertyKeySchema = text.refine((key) => key !== "__proto__", {
   error: "is no property's key",
 });
@@ -49,7 +36,6 @@ const listOf = (entry: z.ZodString) =>
       error: `holds more than ${String(ITEM_FIELD_CAPS.listBytes)} bytes`,
     });
 
-// a file's own name as a folder holds it, its extension included: one segment, never `.` or `..`
 const fileNameSchema = text.refine(
   (name) => !/[/\\\0]/u.test(name) && name !== "." && name !== "..",
   { error: "is not a file name" },
@@ -66,13 +52,8 @@ const properties = z
     error: `holds more than ${String(ITEM_FIELD_CAPS.propertiesBytes)} bytes of properties`,
   });
 
-// why a page could not be read, in a sentence
 const readingErrorSchema = text;
 
-// Where a url item's page reading stands: never asked (a note, a file), asked and waiting, read,
-// or tried and failed; a stub is a url item still `pending`. `at` is when the page was last read
-// or tried, which only a read always knows. Its arms are `z.object`, since a row's fields are read
-// through them and a row drops what a newer cell adds.
 const reading = z.discriminatedUnion("state", [
   z.object({ state: z.literal("none") }),
   z.object({ at: instant.nullable(), state: z.literal("pending") }),
@@ -89,12 +70,9 @@ export const libraryItemFieldsSchema = z.strictObject({
   folderId: text.nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
-  // the name the original was saved under (`report.docx`), which an export writes it as and a
-  // download saves it as; null where no name came with it
   originalName: fileNameSchema.nullable(),
   originalSha: sha256.nullable(),
   pinnedAt: instant.nullable(),
-  // what a frontmatter key held that no column names, as any JSON, so an import loses none
   properties,
   published: text.nullable(),
   reading,
@@ -108,13 +86,14 @@ export const libraryItemFieldsSchema = z.strictObject({
     .refine(isWebUrl, { error: "is not a web address" })
     .nullable(),
 });
+
 export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
 
-// the fields an import sends of an item: all but whether it is deleted and where it sits, which
-// the cell sets as it lands the item in the folder the import names by its path
 export const importedFieldsSchema = libraryItemFieldsSchema.omit({
   deletedAt: true,
   folderId: true,
 });
+
 export type ImportedFields = z.infer<typeof importedFieldsSchema>;
+
 export type PropertyValue = LibraryItemFields["properties"][string];

@@ -1,8 +1,6 @@
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 
-// Tailwind's scanner only emits utilities for literal class strings; `bg-surface-${level}` is
-// invisible to it and renders transparent
 const SURFACE_BG = {
   1: "bg-surface-1",
   2: "bg-surface-2",
@@ -25,5 +23,5 @@ const SURFACE_SHADOW = {
   8: "shadow-surface-8",
 } satisfies Record<SurfaceLevel, string>;
 
-export const surfaceClasses = (bg: SurfaceLevel, shadow: SurfaceLevel = bg): string =>
+export const surfaceClasses = (bg: SurfaceLevel, shadow: SurfaceLevel = bg) =>
   `${SURFACE_BG[bg]} ${SURFACE_SHADOW[shadow]}`;

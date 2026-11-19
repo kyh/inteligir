@@ -1,9 +1,7 @@
-// The oracle's own corpus: a verdict change here changes which names the suites call legal.
-
 import { describe, expect, it } from "vitest";
 
-import { checkNoteName } from "./note-name";
-import type { NoteNameVerdict } from "./note-name";
+import { checkNoteName } from "./note-name.test-utils";
+import type { NoteNameVerdict } from "./note-name.test-utils";
 
 type Row =
   | { input: string; ok: true; name?: string }
@@ -28,9 +26,7 @@ const CORPUS: Row[] = [
   { input: "ملاحظات.md", ok: true },
   { input: "🚀 launch plan.md", ok: true },
 
-  // composed stays
   { input: "café.md", name: "café.md", ok: true },
-  // decomposed → NFC
   { input: "cafe\u0301.md", name: "café.md", ok: true },
 
   { input: "", ok: false, reason: reject("empty") },
@@ -52,7 +48,6 @@ const CORPUS: Row[] = [
   { input: "a\u001Fb.md", ok: false, reason: reject("illegal-char") },
   { input: "a\u007Fb.md", ok: false, reason: reject("illegal-char") },
 
-  // a bracket ends a `[[link]]`, so no link could name the note
   { input: "[draft] plan.md", ok: false, reason: reject("bracket") },
   { input: "a]b", ok: false, reason: reject("bracket") },
   { input: "Issue#42.md", ok: true },
@@ -62,7 +57,6 @@ const CORPUS: Row[] = [
   { input: "name.", ok: false, reason: reject("dot-edge") },
   { input: "name.md.", ok: false, reason: reject("dot-edge") },
   { input: "trailing space .md", ok: true },
-  // trims to "name ." → trailing dot
   { input: "name .", ok: false, reason: reject("dot-edge") },
 
   { input: "con", ok: false, reason: reject("reserved") },
@@ -75,9 +69,7 @@ const CORPUS: Row[] = [
   { input: "COM9", ok: false, reason: reject("reserved") },
   { input: "lpt1.md", ok: false, reason: reject("reserved") },
   { input: "LPT9.md", ok: false, reason: reject("reserved") },
-  // Windows ignores the trailing space
   { input: "con .md", ok: false, reason: reject("reserved") },
-  // not reserved: 0-index, longer words, reserved-as-suffix
   { input: "com0.md", ok: true },
   { input: "lpt0.md", ok: true },
   { input: "com10.md", ok: true },
@@ -85,32 +77,27 @@ const CORPUS: Row[] = [
   { input: "aux input.md", ok: true },
   { input: "falcon.md", ok: true },
 
-  // exactly 255 bytes
   { input: `${"a".repeat(252)}.md`, ok: true },
-  // 256 bytes
   { input: `${"a".repeat(253)}.md`, ok: false, reason: reject("too-long") },
-  // astral chars are 4 bytes: 63×4 + 3 = 255
   { input: `${"😀".repeat(63)}.md`, ok: true },
   { input: `${"😀".repeat(64)}.md`, ok: false, reason: reject("too-long") },
-  // CJK is 3 bytes: 84×3 + 3 = 255
   { input: `${"語".repeat(84)}.md`, ok: true },
   { input: `${"語".repeat(85)}.md`, ok: false, reason: reject("too-long") },
 ];
 
-// a row's name in the report: its input, cut at forty characters, and its verdict
-const titleOf = (row: Row): string =>
+const titleOf = (row: Row) =>
   `${JSON.stringify(row.input.length > 40 ? `${row.input.slice(0, 40)}…` : row.input)} → ${row.ok ? "ok" : row.reason}`;
 
-// the verdict a row holds the check to; an accepted row that names no result holds only that the
-// name is accepted
-const verdictOf = (row: Row): Partial<NoteNameVerdict> => {
+const verdictOf = (row: Row) => {
   if (!row.ok) {
-    return { ok: false, reason: row.reason };
+    return { ok: false, reason: row.reason } satisfies Partial<NoteNameVerdict>;
   }
+
   if (row.name === undefined) {
-    return { ok: true };
+    return { ok: true } satisfies Partial<NoteNameVerdict>;
   }
-  return { name: row.name, ok: true };
+
+  return { name: row.name, ok: true } satisfies Partial<NoteNameVerdict>;
 };
 
 describe("checkNoteName — golden corpus", () => {

@@ -21,10 +21,7 @@ import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-// A `listStyleType` block hosts BlockList's <ul> inside it, which inside <p>/<h*> is invalid DOM
-// and React logs a nesting error.
-const hostsBlockContent = (element: TElement): boolean =>
-  stringProp(element, "listStyleType") !== undefined;
+const hostsBlockContent = (element: TElement) => stringProp(element, "listStyleType") !== undefined;
 
 const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
   function Element(props: PlateElementProps) {
@@ -40,11 +37,11 @@ const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
 const heading = (as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
   blockElement(as, "relative px-0.5");
 
-// `[!NOTE]` typed where a quote opens names its alert, as the markdown read does
 const alertInputRule = createBlockStartInputRule<{ alert: AlertVariant }>({
   apply: ({ editor, getBlockEntry }, match) => {
     const line = getBlockEntry()?.[1];
     const quote = line?.at(-1) === 0 ? editor.api.parent(line) : undefined;
+
     if (
       quote === undefined ||
       !ElementApi.isElement(quote[0]) ||
@@ -52,20 +49,22 @@ const alertInputRule = createBlockStartInputRule<{ alert: AlertVariant }>({
     ) {
       return false;
     }
+
     editor.tf.delete({ at: match.range });
     editor.tf.setNodes({ alert: match.alert }, { at: quote[1] });
+
     return true;
   },
   match: /^\[!/u,
   resolveMatch: ({ text }) => {
     const alert = alertVariantSchema.safeParse(text.slice(2).toUpperCase());
+
     return alert.success ? { alert: alert.data } : undefined;
   },
   trigger: "]",
 });
 
-// the trailing paragraph gives the caret a landing spot below the void
-export const insertHorizontalRule = (editor: PlateEditor): void => {
+export const insertHorizontalRule = (editor: PlateEditor) => {
   editor.tf.insertNodes(
     { children: [{ text: "" }], type: HorizontalRulePlugin.key },
     { select: true },
@@ -74,15 +73,12 @@ export const insertHorizontalRule = (editor: PlateEditor): void => {
 };
 
 export const BasicBlocksKit = [
-  // Plate binds ⌘⌥0 and ⌘⇧0 to turning a block into text, which no shortcut table names; nulled
-  // from a function, since an object merges before Plate's own extension puts the chord back
   ParagraphPlugin.extend(() => ({ shortcuts: { toggleParagraph: null } })).withComponent(
     blockElement("p", "px-0.5"),
   ),
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),
-  // read from markdown and stored, though the editor offers none to write
   H4Plugin.withComponent(heading("h4")),
   H5Plugin.withComponent(heading("h5")),
   H6Plugin.withComponent(heading("h6")),

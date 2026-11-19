@@ -30,11 +30,7 @@ import { PickerRaceKit } from "@repo/editor/headless/combobox-input";
 import { ReadOnlyGuardPlugin } from "@repo/editor/edit-guard";
 import { NoteSectionPlugin } from "@repo/editor/headless/body/note-section";
 
-// Everything the document is made of: every node, the dialect's inputs and decorations and the
-// markdown wiring. Every surface composes this whole, so a note reads
-// and serializes alike wherever it is open.
 export const CONTENT_KIT = [
-  // first, so every other insertText override, a picker's trigger included, sees a key before it
   ...PickerRaceKit,
   ...BasicMarksKit,
   ...BasicBlocksKit,
@@ -53,15 +49,12 @@ export const CONTENT_KIT = [
   ...RichBlocksKit,
   ...TabsKit,
   ...FormulaAutocompleteKit,
-  // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,
   ...MarkdownKit,
   NoteSectionPlugin,
-  // last, so it wraps every plugin before it: an op it refuses reaches none of them
   ReadOnlyGuardPlugin,
 ];
 
-// A later plugin's aboveNodes wraps an earlier one's, so the fold stays inside the drag handle.
 export const DESKTOP_CHROME_KIT = [
   ...HeadingCollapseKit,
   ...SlashKit,

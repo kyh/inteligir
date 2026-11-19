@@ -31,16 +31,15 @@ const sees = (url: string, headers: Record<string, string> = {}) =>
 const asked = (path: string, headers: Record<string, string> = {}) =>
   proxy(new NextRequest(`${ORIGIN}${path}`, { headers }));
 
-// what the proxy hands Next as the request's own headers, which the page's render reads
 const forwarded = (response: Response, name: string) =>
   response.headers.get(`x-middleware-request-${name}`);
 
-// what next.config.ts answers before the proxy and the page: its headers and redirects
 const configured = async (path: string) =>
   await unstable_getResponseFromNextConfig({ nextConfig, url: `${ORIGIN}${path}` });
 
 const policyAt = async (path: string) => {
   const response = await configured(path);
+
   return response.headers;
 };
 

@@ -1,8 +1,3 @@
-// The person's standing with the built-in agent over the fake platform, which runs the app's limits
-// hook as eve does: the filing rules a turn is held to, kept as written and answered once under an
-// op id, and the switch, whose off stops what runs, refuses sends and stops a turn begun anyway
-// before its first model call, its threads still readable, until it is on again.
-
 import { randomUUID } from "node:crypto";
 
 import { agentUsage } from "@repo/db/agent-schema";
@@ -11,10 +6,13 @@ import { dbSuite } from "@repo/db/test-database";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
-import { personalLibrary } from "../test-support/library-fixture";
-import { caughtUp, readStream, shownOf } from "../test-support/thread-reads";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
+import { personalLibrary } from "../test-support/library.fixture";
+import { caughtUp, readStream, shownOf } from "../test-support/thread-reads.test-utils";
 import type { LibraryWriter } from "../library/library-store";
 import { filingRulesFor } from "./agent-preference";
 import { sendToAgent, setAgentEnabled } from "./agent-sessions";
@@ -36,7 +34,8 @@ type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 const shownIn = async (library: Library, threadId: string) =>
   shownOf(await readStream(await library.agent.events({ threadId }), caughtUp));
 
-const personOf = (accountId: string): LibraryWriter => ({ accountId, actor: { kind: "person" } });
+const personOf = (accountId: string) =>
+  ({ accountId, actor: { kind: "person" } }) satisfies LibraryWriter;
 
 const refusalOf = async (sent: Promise<unknown>) => {
   try {
@@ -44,6 +43,7 @@ const refusalOf = async (sent: Promise<unknown>) => {
   } catch (error) {
     return error;
   }
+
   throw new Error("the send was let in");
 };
 

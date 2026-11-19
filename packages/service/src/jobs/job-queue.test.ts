@@ -1,6 +1,3 @@
-// The job table over Postgres: drains at once never share a row, a failed job waits longer each time,
-// and an ask made while a job ran outlives that run.
-
 import { deferred } from "@repo/contract/deferred";
 import { db } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
@@ -8,31 +5,34 @@ import { dbSuite } from "@repo/db/test-database";
 import { asc, eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 
-import { makeAccount } from "../test-support/library-fixture";
+import { makeAccount } from "../test-support/library.fixture";
 import { askJobs, finishJob, leaseJobs, retryJob } from "./job-queue";
-import type { JobAsk, Lease } from "./job-queue";
+import type { JobAsk } from "./job-queue";
 
 const SECOND = 1000;
 const START = 1_700_000_000_000;
 
-const sweepAsk = (accountId: string, at: number): JobAsk => ({
-  accountId,
-  id: `sweep:test:${String(at)}`,
-  kind: "sweep",
-  payload: { ids: [String(at)] },
-});
+const sweepAsk = (accountId: string, at: number) =>
+  ({
+    accountId,
+    id: `sweep:test:${String(at)}`,
+    kind: "sweep",
+    payload: { ids: [String(at)] },
+  }) satisfies JobAsk;
 
-const lotOf = (accountId: string, n: number): JobAsk[] =>
+const lotOf = (accountId: string, n: number) =>
   Array.from({ length: n }, (_, at) => sweepAsk(accountId, at));
 
-const leaseSweeps = async (accountId: string, now: number, limit = 1): Promise<Lease[]> =>
+const leaseSweeps = async (accountId: string, now: number, limit = 1) =>
   await leaseJobs(db, { accountId, limit, now });
 
-const leaseNext = async (accountId: string, now: number): Promise<Lease> => {
+const leaseNext = async (accountId: string, now: number) => {
   const [lease] = await leaseSweeps(accountId, now);
+
   if (lease === undefined) {
     throw new Error("no job was due");
   }
+
   return lease;
 };
 
@@ -49,11 +49,13 @@ dbSuite("the job table", () => {
     await askJobs(db, lotOf(accountId, 5), START);
     const holding = deferred();
     const held = deferred<readonly string[]>();
+
     const first = db.transaction(async (tx) => {
       const taken = await leaseJobs(tx, { accountId, limit: 3, now: START });
       held.resolve(taken.map(({ id }) => id));
       await holding.promise;
     });
+
     try {
       const firsts = await held.promise;
       const seconds = await leaseSweeps(accountId, START, 10);
@@ -64,6 +66,7 @@ dbSuite("the job table", () => {
       holding.resolve();
       await first;
     }
+
     const rows = await rowsOf(accountId);
     expect(rows.map(({ attempts }) => attempts)).toStrictEqual([1, 1, 1, 1, 1]);
     await expect(leaseSweeps(accountId, START + 299 * SECOND)).resolves.toStrictEqual([]);
@@ -88,6 +91,7 @@ dbSuite("the job table", () => {
     const runs: number[] = [];
     const waits: number[] = [];
     let now = START;
+
     for (let run = 1; run <= 9; run += 1) {
       const lease = await leaseNext(accountId, now);
       runs.push(lease.attempts);
@@ -98,6 +102,7 @@ dbSuite("the job table", () => {
       waits.push((next - now) / SECOND);
       now = next;
     }
+
     expect(runs).toStrictEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(waits).toStrictEqual([30, 60, 120, 240, 480, 960, 1920, 3600, 3600]);
   });
@@ -115,7 +120,6 @@ dbSuite("the job table", () => {
       { attempts: 0, id: asked.id, payload: { ids: ["again"] }, runAt: again },
     ]);
 
-    // the ask's own run counts 1 again, as the first did, and still outlives the first's end
     const rerun = await leaseNext(accountId, again);
     expect(rerun).toMatchObject({ attempts: lease.attempts, payload: { ids: ["again"] } });
     await finishJob(db, lease);

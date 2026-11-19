@@ -6,27 +6,30 @@ import type { PlateEditor } from "platejs/react";
 import { fileSha } from "@repo/contract/library/file-sha";
 
 import { fileNotKept, fileTooLarge, filesToKeep } from "@repo/editor/kits/image-kit";
-import { FILES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import {
+  FILES_ORIGIN,
+  installFakeEditorHost,
+} from "@repo/editor/test-support/fake-editor-host.test-utils";
+import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
-
-vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn<() => void>(), {
-    error: vi.fn<() => void>(),
-    info: vi.fn<() => void>(),
-    success: vi.fn<() => void>(),
-    warning: vi.fn<() => void>(),
-  }),
-}));
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const { toast } = await import("@repo/ui/components/sonner");
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const picture = (): File => new File([PNG], "shot.png", { type: "image/png" });
-const pdf = (): File => new File(["%PDF-1.7"], "Lecture notes.pdf", { type: "application/pdf" });
+vi.spyOn(toast, "error");
 
-// jsdom has no isContentEditable, without which slate hands no paste on
+vi.spyOn(toast, "info");
+
+vi.spyOn(toast, "success");
+
+vi.spyOn(toast, "warning");
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+const picture = () => new File([PNG], "shot.png", { type: "image/png" }) satisfies File;
+
+const pdf = () =>
+  new File(["%PDF-1.7"], "Lecture notes.pdf", { type: "application/pdf" }) satisfies File;
+
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
     configurable: true,
@@ -47,18 +50,23 @@ afterAll(() => {
 const mount = (options: FakeEditorHostOptions = {}) => {
   const host = installFakeEditorHost(options);
   const ref = createRef<PlateEditor>();
+
   const view = render(
     <EditorHarness
       ref={ref}
       value={[{ children: [{ text: "Before the picture." }], type: "p" }]}
     />,
   );
+
   const editable = view.container.querySelector("[data-slate-editor]");
   const editor = ref.current;
+
   if (!(editable instanceof HTMLElement) || editor === null) {
     throw new Error("the harness drew no editor");
   }
+
   editor.tf.select(editor.api.end([0]));
+
   return { editable, editor, host };
 };
 
@@ -193,6 +201,7 @@ describe("a file dropped into a note's text", () => {
     const { editable, editor } = mount({
       keepFile: async () => await Promise.reject(new Error("the disk is full")),
     });
+
     const before = JSON.stringify(editor.children);
 
     fireEvent.drop(editable, { dataTransfer: transfer([picture()]) });

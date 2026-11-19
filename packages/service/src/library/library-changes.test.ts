@@ -1,22 +1,21 @@
-// What moved after a head, over Postgres and through the contract as a device asks it: the first
-// ask learns the head alone, each later one names the items, folders and threads stamped past the
-// head it sends, a purged item among them, and a library emptied under a device names everything.
-
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
 import { deleteAgentThread, sendToAgent } from "../agent/agent-sessions";
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import { personalLibrary, seedItem } from "../test-support/library-fixture";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import { personalLibrary, seedItem } from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
 
 const SAVED_AT = 1_700_000_000_000;
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
-const note = async (library: Library, text: string): Promise<string> => {
+const note = async (library: Library, text: string) => {
   const id = mintLibraryId(Date.now());
   const blocks: BodyBlock[] = [{ block: paragraph(`${id}-0`, text), section: "note" }];
   await library.items.create({
@@ -27,11 +26,13 @@ const note = async (library: Library, text: string): Promise<string> => {
     tags: [],
     title: text,
   });
+
   return id;
 };
 
-const seqOf = async (library: Library, id: string): Promise<number> => {
+const seqOf = async (library: Library, id: string) => {
   const { seq } = await library.items.row({ id });
+
   return seq;
 };
 
@@ -84,11 +85,14 @@ dbSuite("what moved in the library after a head", () => {
     const platform = createFakeAgentPlatform();
     const { runtime } = fakeAgentRuntime(platform);
     const { accountId, library } = await personalLibrary();
+
     const movedSince = async (after: number) => {
       const { head, moved } = await library.changes({ after });
       const { threads } = await library.agent.list({});
+
       return { head, listed: threads.map(({ status }) => status), threads: moved?.threads };
     };
+
     const { head } = await library.changes({});
 
     const release = platform.holdHooks("turn.settled");
@@ -120,7 +124,7 @@ dbSuite("what moved in the library after a head", () => {
     const { accountId, library } = await personalLibrary();
     await note(library, "Written.");
     const { head } = await library.changes({});
-    // as the write that took the head might have stamped them
+
     for (let at = 0; at < 200; at += 1) {
       await seedItem(accountId, {
         fields: noteFixture({ savedAt: SAVED_AT, title: `Seeded ${String(at)}` }),

@@ -1,44 +1,44 @@
-// Keyed by the id of the item each editor holds, so a consumer never grabs a stale editor serving
-// another item: opening another item mounts a new editor, and the outgoing one must stop answering
-// for the incoming id.
-
 import type { SlateEditor } from "platejs";
 
 const editors = new Map<string, SlateEditor>();
 const waiting = new Map<string, Set<(editor: SlateEditor) => void>>();
 
-export const registerLiveEditor = (itemId: string, editor: SlateEditor): (() => void) => {
+export const registerLiveEditor = (itemId: string, editor: SlateEditor) => {
   editors.set(itemId, editor);
+
   for (const run of waiting.get(itemId) ?? []) {
     run(editor);
   }
+
   waiting.delete(itemId);
-  return () => {
+
+  return (() => {
     if (editors.get(itemId) === editor) {
       editors.delete(itemId);
     }
-  };
+  }) satisfies () => void;
 };
 
-export const getLiveEditor = (itemId: string): SlateEditor | null => editors.get(itemId) ?? null;
+export const getLiveEditor = (itemId: string) => editors.get(itemId) ?? null;
 
-// runs `run` once with the editor answering for the item: now, or as one first answers, which an
-// item's editor does only once its note has synced; the answer stops the wait
-export const onLiveEditor = (itemId: string, run: (editor: SlateEditor) => void): (() => void) => {
+export const onLiveEditor = (itemId: string, run: (editor: SlateEditor) => void) => {
   const editor = editors.get(itemId);
+
   if (editor !== undefined) {
     run(editor);
-    return () => {
-      // it already ran
-    };
+
+    return () => null;
   }
+
   const runs = waiting.get(itemId) ?? new Set();
   runs.add(run);
   waiting.set(itemId, runs);
-  return () => {
+
+  return (() => {
     runs.delete(run);
+
     if (runs.size === 0 && waiting.get(itemId) === runs) {
       waiting.delete(itemId);
     }
-  };
+  }) satisfies () => void;
 };

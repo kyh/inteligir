@@ -14,7 +14,6 @@ import type { LibraryNode } from "./library-nodes";
 const leaf = [{ text: "" }];
 const sha = "a".repeat(64);
 
-// one of every block the vocabulary holds, as the editor's kits write them
 const EVERY_BLOCK = [
   {
     checked: false,
@@ -207,12 +206,13 @@ describe("the persisted node set", () => {
   });
 });
 
-// built bottom up, so a depth no recursion survives can still be made
-const nested = (depth: number): LibraryNode => {
+const nested = (depth: number) => {
   let node: LibraryNode = { text: "deep" };
+
   for (let level = 1; level <= depth; level += 1) {
     node = { children: [node], type: "blockquote" };
   }
+
   return node;
 };
 
@@ -237,9 +237,11 @@ describe(collectFileShas, () => {
   it("finds every file a block names, at any depth, and no web address", () => {
     const other = "b".repeat(64);
     const shas = new Set<string>();
+
     for (const block of EVERY_BLOCK) {
       collectFileShas(libraryBlockSchema.parse(block), shas);
     }
+
     collectFileShas(
       libraryBlockSchema.parse({
         children: [

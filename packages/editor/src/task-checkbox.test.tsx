@@ -1,20 +1,17 @@
-// A task's checkbox carries its own name: an unnamed Base UI checkbox asks the document for the
-// <label>s pointing at it on every render, a walk of the whole note per task, which made a long
-// note with many tasks slow to open (block-list.tsx).
-
 import { render } from "@testing-library/react";
-import type { Value } from "platejs";
 import { describe, expect, it } from "vitest";
 
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
-const valueOf = (md: string): Value => {
+const valueOf = (md: string) => {
   const parsed = parseMarkdown(md);
+
   if (!parsed.ok) {
     throw new Error("the fixture must parse");
   }
+
   return parsed.value;
 };
 
@@ -23,6 +20,7 @@ describe("a task's checkbox", () => {
     const view = render(
       <EditorHarness value={valueOf("- [ ] buy milk\n- [x] water the plants\n")} />,
     );
+
     const boxes = view.getAllByRole("checkbox", { name: "Done" });
     expect(boxes.map((box) => box.getAttribute("aria-checked"))).toStrictEqual(["false", "true"]);
   });

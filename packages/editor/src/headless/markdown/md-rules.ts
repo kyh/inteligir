@@ -1,6 +1,3 @@
-// The rules Plate's own table lacks or gets wrong for the library's nodes. Deserialize routes by
-// mdast type, serialize by the Slate node's plugin key; every other node is Plate's stock rule.
-
 import type {
   Blockquote,
   Code,
@@ -58,15 +55,16 @@ import type { FlowContent } from "./mdast-lists";
 type WideMdRule = NonNullable<MdRules[string]>;
 
 type ContainerDirective = Extract<RootContent, { type: "containerDirective" }>;
+
 type TextDirective = Extract<PhrasingContent, { type: "textDirective" }>;
 
-// the codec's wrapper for an item's article section, which no editor node holds
 export const ARTICLE_SECTION_KEY = "article_section";
 
-const required = <T>(rule: T | null | undefined, key: string): T => {
+const required = <T>(rule: T | null | undefined, key: string) => {
   if (rule === undefined || rule === null) {
     throw new Error(`@platejs/markdown lost its ${key} rule`);
   }
+
   return rule;
 };
 
@@ -80,16 +78,15 @@ const defaultList = required(defaultRules.list?.deserialize, "list");
 const defaultTable = required(defaultRules.table?.deserialize, "table");
 const defaultCell = required(defaultRules.td?.serialize, "td");
 
-const emptyParagraph = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
+const emptyParagraph = () => ({ children: [{ text: "" }], type: KEYS.p }) satisfies TElement;
 
-// Blocks inside a container: a bare leaf (flow html reads as one) goes into a paragraph, since a
-// container holds blocks, and an empty container still holds its one line.
 const blocksOf = (
   children: readonly RootContent[],
   deco: MdDecoration,
   options: DeserializeMdOptions,
-): TElement[] => {
+) => {
   const blocks: TElement[] = [];
+
   for (const node of convertChildrenDeserialize([...children], deco, options)) {
     if (ElementApi.isElement(node)) {
       blocks.push(node);
@@ -97,21 +94,21 @@ const blocksOf = (
       blocks.push({ children: [node], type: KEYS.p });
     }
   }
-  return blocks.length > 0 ? blocks : [emptyParagraph()];
+
+  return (blocks.length > 0 ? blocks : [emptyParagraph()]) satisfies TElement[];
 };
 
-const isEmptyParagraph = (node: Descendant | undefined): boolean =>
+const isEmptyParagraph = (node: Descendant | undefined) =>
   node !== undefined &&
   ElementApi.isElement(node) &&
   node.type === KEYS.p &&
   node.children.every((child) => TextApi.isText(child) && child.text === "");
 
-// the wrapper a block nested in a list item rides to the writer, which no editor node holds
 const LIST_NESTED_KEY = "list_nested";
 
 const LIST_DEPTH_KEY = "listDepth";
 
-const isListLine = (block: TElement): boolean => block.type === KEYS.p && "listStyleType" in block;
+const isListLine = (block: TElement) => block.type === KEYS.p && "listStyleType" in block;
 
 const CONTAINER_TYPES: ReadonlySet<string> = new Set([
   ARTICLE_SECTION_KEY,
@@ -123,37 +120,35 @@ const CONTAINER_TYPES: ReadonlySet<string> = new Set([
   TAB_PANEL_KEY,
 ]);
 
-// whether a block is written in a list: a list line, or a block nested under one
-export const writtenInList = (block: TElement): boolean =>
+export const writtenInList = (block: TElement) =>
   isListLine(block) || numberProp(block, "indent") !== undefined;
 
-// where the block before stands: outside any list, on a list's own run of lines, or nested in a
-// list item or on the lines after such a block
 type ListPlace = "outside" | "run" | "nested";
 
-const markedAt = (block: TElement, depth: number): TElement => ({
-  children: [block],
-  [LIST_DEPTH_KEY]: depth,
-  type: LIST_NESTED_KEY,
-});
+const markedAt = (block: TElement, depth: number) =>
+  ({
+    children: [block],
+    [LIST_DEPTH_KEY]: depth,
+    type: LIST_NESTED_KEY,
+  }) satisfies TElement;
 
-// Plate writes only a paragraph as a list item, so every other block with an indent, which its
-// list rule reads under the item it nests in, is marked here and nested by `nestInLists`. Plate
-// roots a run of list lines at its first line's indent, so each line after such a block is marked
-// with its own depth too, and goes on as the items of the list the block sits in.
-export const markListNesting = (blocks: readonly Descendant[]): Descendant[] => {
+export const markListNesting = (blocks: readonly Descendant[]) => {
   const marked: Descendant[] = [];
   let place: ListPlace = "outside";
+
   for (const block of blocks) {
     if (!ElementApi.isElement(block)) {
       marked.push(block);
       place = "outside";
       continue;
     }
+
     const inner: TElement = CONTAINER_TYPES.has(block.type)
       ? { ...block, children: markListNesting(block.children) }
       : block;
+
     const indent = numberProp(inner, "indent");
+
     if (indent === undefined) {
       marked.push(inner);
       place = "outside";
@@ -166,75 +161,76 @@ export const markListNesting = (blocks: readonly Descendant[]): Descendant[] => 
       place = place === "outside" ? "outside" : "nested";
     }
   }
+
   return marked;
 };
 
-const isEmptyInlineEquation = (node: Descendant): boolean =>
+const isEmptyInlineEquation = (node: Descendant) =>
   ElementApi.isElement(node) &&
   node.type === KEYS.inlineEquation &&
   (stringProp(node, "texExpression") ?? "") === "";
 
-const withoutEmptyEquations = (node: Descendant): Descendant => {
+const withoutEmptyEquations: (node: Descendant) => Descendant = (node: Descendant) => {
   if (!ElementApi.isElement(node)) {
     return node;
   }
+
   const kept = node.children
     .filter((child) => !isEmptyInlineEquation(child))
     .map(withoutEmptyEquations);
-  return { ...node, children: kept.length > 0 ? kept : [{ text: "" }] };
+
+  return { ...node, children: kept.length > 0 ? kept : [{ text: "" }] } satisfies Descendant;
 };
 
-// An empty equation leaves before any text run is converted, so its neighbours join into one run
-// rather than two whose marks collide (`**a**__b__`), and a block it alone filled keeps an empty
-// text. It sits in a heading or a list item as readily as a paragraph, so this walks the value.
-export const pruneEmptyEquations = (value: readonly Descendant[]): Descendant[] =>
+export const pruneEmptyEquations = (value: readonly Descendant[]) =>
   value.map(withoutEmptyEquations);
 
-// a container holding only its empty line writes none, since Plate writes that line as a lone
-// zero-width space
-const flowOf = (children: readonly Descendant[], options: SerializeMdOptions): FlowContent[] => {
+const flowOf = (children: readonly Descendant[], options: SerializeMdOptions) => {
   const [only, ...rest] = children;
+
   if (rest.length === 0 && isEmptyParagraph(only)) {
-    return [];
+    return [] satisfies FlowContent[];
   }
+
   return nestInLists(convertNodesSerialize([...children], options).filter(isFlow));
 };
 
 const isLabel = (node: RootContent | undefined): node is Paragraph =>
   node?.type === "paragraph" && node.data?.directiveLabel === true;
 
-// a label's words, through any emphasis or code a hand-written one holds
-const phrasingText = (children: readonly PhrasingContent[]): string =>
+const phrasingText: (children: readonly PhrasingContent[]) => string = (
+  children: readonly PhrasingContent[],
+) =>
   children
     .map((child) => {
       if ("children" in child) {
         return phrasingText(child.children);
       }
+
       return "value" in child ? child.value : "";
     })
     .join("");
 
-// what would read as a construct inside a label and change its words: an escape, a code span,
-// emphasis, a strikethrough, a bracket, a tag or autolink, an entity, math, a directive, a cell's
-// pipe; a date's hyphens and a number's comma read as themselves
 const LABEL_SYNTAX = /[$&*:<[\\\]_`|~]/gu;
 
-// A label is a string, so what would read as syntax in it is written escaped: the directive writer
-// escapes only what would close the label, and `*y*` would read back as emphasis.
-const labelPhrasing = (label: string): PhrasingContent[] =>
-  label === "" ? [] : [{ type: "html", value: label.replaceAll(LABEL_SYNTAX, String.raw`\$&`) }];
+const labelPhrasing = (label: string) =>
+  (label === ""
+    ? []
+    : [
+        { type: "html", value: label.replaceAll(LABEL_SYNTAX, String.raw`\$&`) },
+      ]) satisfies PhrasingContent[];
 
-const labelOf = (node: ContainerDirective): string => {
+const labelOf = (node: ContainerDirective) => {
   const [head] = node.children;
+
   return isLabel(head) ? phrasingText(head.children) : "";
 };
 
-// what a container holds below its label
-const bodyOf = (node: ContainerDirective): RootContent[] =>
+const bodyOf = (node: ContainerDirective) =>
   isLabel(node.children[0]) ? node.children.slice(1) : node.children;
 
-const labelParagraph = (label: string): Paragraph[] =>
-  label === ""
+const labelParagraph = (label: string) =>
+  (label === ""
     ? []
     : [
         {
@@ -242,67 +238,65 @@ const labelParagraph = (label: string): Paragraph[] =>
           data: { directiveLabel: true },
           type: "paragraph",
         },
-      ];
+      ]) satisfies Paragraph[];
 
 const container = (
   name: ContainerDirectiveName,
   children: FlowContent[],
   attributes: Record<string, string> = {},
-): ContainerDirective => ({ attributes, children, name, type: "containerDirective" });
+) => ({ attributes, children, name, type: "containerDirective" }) satisfies ContainerDirective;
 
 const WIDTH_RE = /^\d+(?:\.\d+)?%$/u;
 
-const columnOf = (
-  node: ContainerDirective,
-  deco: MdDecoration,
-  options: DeserializeMdOptions,
-): TElement => {
+const columnOf = (node: ContainerDirective, deco: MdDecoration, options: DeserializeMdOptions) => {
   const column: TElement = { children: blocksOf(bodyOf(node), deco, options), type: KEYS.column };
   const width = node.attributes?.width;
+
   if (width !== undefined && width !== null && WIDTH_RE.test(width)) {
     column.width = width;
   }
+
   return column;
 };
 
-const panelOf = (
-  node: ContainerDirective,
-  deco: MdDecoration,
-  options: DeserializeMdOptions,
-): TElement => ({
-  children: blocksOf(bodyOf(node), deco, options),
-  label: labelOf(node),
-  type: TAB_PANEL_KEY,
-});
+const panelOf = (node: ContainerDirective, deco: MdDecoration, options: DeserializeMdOptions) =>
+  ({
+    children: blocksOf(bodyOf(node), deco, options),
+    label: labelOf(node),
+    type: TAB_PANEL_KEY,
+  }) satisfies TElement;
 
-// what a group holds that is not one of its own parts goes into the part before it (or a first
-// part made for it), so nothing it held is dropped
 const partsOf = (
   node: ContainerDirective,
   part: ContainerDirectiveName,
   read: (child: ContainerDirective) => TElement,
   deco: MdDecoration,
   options: DeserializeMdOptions,
-): TElement[] => {
+) => {
   const parts: TElement[] = [];
   const strays: TElement[] = [];
+
   for (const child of bodyOf(node)) {
     if (child.type === "containerDirective" && child.name === part) {
       parts.push(read(child));
       continue;
     }
+
     const blocks = blocksOf([child], deco, options);
     const last = parts.at(-1);
+
     if (last === undefined) {
       strays.push(...blocks);
     } else {
       last.children.push(...blocks);
     }
   }
+
   if (strays.length > 0 || parts.length === 0) {
     const first = read(container(part, []));
     parts.unshift({ ...first, children: strays.length > 0 ? strays : first.children });
   }
+
   return parts;
 };
 
@@ -310,62 +304,88 @@ const readContainer = (
   node: ContainerDirective,
   deco: MdDecoration,
   options: DeserializeMdOptions,
-): TElement => {
-  switch (containerDirectiveSchema.parse(node.name)) {
+) => {
+  const containerName = containerDirectiveSchema.parse(node.name);
+
+  switch (containerName) {
     case "toggle": {
-      // a label is the toggle's first line; the writer leaves it unlabelled, since a label holds
-      // only phrasing and the first line may be a heading
       const [head] = node.children;
+
       const children: RootContent[] = isLabel(head)
         ? [{ children: head.children, type: "paragraph" }, ...node.children.slice(1)]
         : node.children;
-      return { children: blocksOf(children, deco, options), type: KEYS.toggle };
+
+      return { children: blocksOf(children, deco, options), type: KEYS.toggle } satisfies TElement;
     }
+
     case "columns": {
       return {
         children: partsOf(node, "column", (child) => columnOf(child, deco, options), deco, options),
         type: KEYS.columnGroup,
-      };
+      } satisfies TElement;
     }
+
     case "column": {
-      return { children: [columnOf(node, deco, options)], type: KEYS.columnGroup };
+      return {
+        children: [columnOf(node, deco, options)],
+        type: KEYS.columnGroup,
+      } satisfies TElement;
     }
+
     case "tabs": {
       return {
         children: partsOf(node, "tab", (child) => panelOf(child, deco, options), deco, options),
         type: TAB_GROUP_KEY,
-      };
+      } satisfies TElement;
     }
+
     case "tab": {
-      return { children: [panelOf(node, deco, options)], type: TAB_GROUP_KEY };
+      return { children: [panelOf(node, deco, options)], type: TAB_GROUP_KEY } satisfies TElement;
     }
+
     case "article": {
-      return { children: blocksOf(bodyOf(node), deco, options), type: ARTICLE_SECTION_KEY };
+      return {
+        children: blocksOf(bodyOf(node), deco, options),
+        type: ARTICLE_SECTION_KEY,
+      } satisfies TElement;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(containerName satisfies never)}`);
+    }
   }
 };
 
-const readTextDirective = (node: TextDirective): TElement => {
+const readTextDirective = (node: TextDirective) => {
   const label = phrasingText(node.children);
-  switch (textDirectiveSchema.parse(node.name)) {
+
+  const directiveName = textDirectiveSchema.parse(node.name);
+
+  switch (directiveName) {
     case "date": {
-      return { children: [{ text: "" }], date: label, type: KEYS.date };
+      return { children: [{ text: "" }], date: label, type: KEYS.date } satisfies TElement;
     }
+
     case "formula": {
       const { name, source } = formulaAttributesSchema.parse(node.attributes);
+
       const pill: TElement = {
         children: [{ text: "" }],
         display: label,
         source,
         type: FORMULA_PILL_KEY,
       };
+
       if (name !== undefined) {
         pill.name = name;
       }
+
       return pill;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(directiveName satisfies never)}`);
+    }
   }
 };
 
@@ -373,36 +393,37 @@ const textDirective = (
   name: TextDirectiveName,
   label: string,
   attributes: Record<string, string>,
-): TextDirective => ({
-  attributes,
-  children: labelPhrasing(label),
-  name,
-  type: "textDirective",
-});
+) =>
+  ({
+    attributes,
+    children: labelPhrasing(label),
+    name,
+    type: "textDirective",
+  }) satisfies TextDirective;
 
-const richFence =
-  (lang: string) =>
-  (node: TElement): Code => ({ lang, type: "code", value: stringProp(node, "value") ?? "" });
+const richFence = (lang: string) => (node: TElement) =>
+  ({ lang, type: "code", value: stringProp(node, "value") ?? "" }) satisfies Code;
 
-// an embed is `![](url)`, the image syntax every markdown reader embeds a url with
 const embedRule: WideMdRule = {
-  serialize: (node: TElement): Paragraph => ({
-    children: [{ type: "image", url: stringProp(node, "url") ?? "" }],
-    type: "paragraph",
-  }),
+  serialize: (node: TElement) =>
+    ({
+      children: [{ type: "image", url: stringProp(node, "url") ?? "" }],
+      type: "paragraph",
+    }) satisfies Paragraph,
 };
 
-const hasCaption = (node: TElement): boolean => {
+const hasCaption = (node: TElement) => {
   const { caption } = node;
+
   return (
     Array.isArray(caption) &&
     caption.some((part) => NodeApi.isNode(part) && NodeApi.string(part) !== "")
   );
 };
 
-// an image on the web with no alt and no title reads back as the embed that wrote it
-const embedFromImage = (block: TElement): TElement => {
+const embedFromImage = (block: TElement) => {
   const url = stringProp(block, "url");
+
   if (
     block.type !== KEYS.img ||
     url === undefined ||
@@ -411,55 +432,57 @@ const embedFromImage = (block: TElement): TElement => {
   ) {
     return block;
   }
+
   const type = embedTypeForUrl(url);
-  return type === null ? block : { children: [{ text: "" }], type, url };
+
+  return (type === null ? block : { children: [{ text: "" }], type, url }) satisfies TElement;
 };
 
 const isTextLeaf = (node: Descendant | undefined): node is TText =>
   node !== undefined && TextApi.isText(node);
 
-// the line break beside an image Plate cut out of a paragraph is the image's own block edge
-const trimEdges = (block: TElement, before: boolean, after: boolean): TElement => {
+const trimEdges = (block: TElement, before: boolean, after: boolean) => {
   const children = [...block.children];
   const [first] = children;
+
   if (before && isTextLeaf(first) && first.text.startsWith("\n")) {
     children[0] = { ...first, text: first.text.slice(1) };
   }
+
   const last = children.at(-1);
+
   if (after && isTextLeaf(last) && last.text.endsWith("\n")) {
     children[children.length - 1] = { ...last, text: last.text.slice(0, -1) };
   }
-  return { ...block, children };
+
+  return { ...block, children } satisfies TElement;
 };
 
-// a line of spaces alone holds no words: beside an image Plate cut out of a paragraph it is the
-// image's own edge, and gfm trims it off a cell's
-const isBlankLine = (node: Descendant | undefined): boolean =>
+const isBlankLine = (node: Descendant | undefined) =>
   node !== undefined &&
   ElementApi.isElement(node) &&
   node.type === KEYS.p &&
   node.children.every((child) => TextApi.isText(child) && child.text.trim() === "");
 
-const readParagraph = (
-  node: Paragraph,
-  deco: MdDecoration,
-  options: DeserializeMdOptions,
-): TElement | TElement[] => {
+const readParagraph = (node: Paragraph, deco: MdDecoration, options: DeserializeMdOptions) => {
   const read: TElement | TElement[] = defaultParagraph(node, deco, options);
+
   if (!Array.isArray(read)) {
     return embedFromImage(read);
   }
+
   const blocks = read.map((block: TElement, index) =>
     block.type === KEYS.p
       ? trimEdges(block, read[index - 1] !== undefined, read[index + 1] !== undefined)
       : embedFromImage(block),
   );
+
   return blocks.filter((block) => !isBlankLine(block));
 };
 
 const MENTION_SCHEME = "mention:";
 
-const decodedKey = (raw: string): string => {
+const decodedKey = (raw: string) => {
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -467,161 +490,180 @@ const decodedKey = (raw: string): string => {
   }
 };
 
-const isPicture = (node: Descendant): boolean =>
-  ElementApi.isElement(node) && node.type === KEYS.img;
+const isPicture = (node: Descendant) => ElementApi.isElement(node) && node.type === KEYS.img;
 
-const isBlankText = (node: Descendant): boolean => TextApi.isText(node) && node.text.trim() === "";
+const isBlankText = (node: Descendant) => TextApi.isText(node) && node.text.trim() === "";
 
-// A picture is a block and a link holds only words, so a picture anywhere in a link's words (whose
-// marks are leaves by now) stands before the link, and a link of pictures alone is those pictures:
-// left inside, the editor drops it and the writer loses it.
-const picturesFirst = (link: TElement): TElement | Descendant[] => {
+const picturesFirst = (link: TElement) => {
   const pictures = link.children.filter(isPicture);
+
   if (pictures.length === 0) {
     return link;
   }
+
   const words = link.children.filter((child) => !isPicture(child));
-  return words.every(isBlankText) ? pictures : [...pictures, { ...link, children: words }];
+
+  return (
+    words.every(isBlankText) ? pictures : [...pictures, { ...link, children: words }]
+  ) satisfies TElement | Descendant[];
 };
 
-// an item link is `[Title](mention:<id>)`, the spelling Plate's mention writes; read here rather
-// than by remarkMention, which also reads every `@word` as one
-const readLink = (
-  node: Link,
-  deco: MdDecoration,
-  options: DeserializeMdOptions,
-): TElement | Descendant[] => {
+const readLink = (node: Link, deco: MdDecoration, options: DeserializeMdOptions) => {
   if (!node.url.startsWith(MENTION_SCHEME)) {
     return picturesFirst(defaultLink(node, deco, options));
   }
+
   const words = convertChildrenDeserialize(node.children, deco, options);
   const key = decodedKey(node.url.slice(MENTION_SCHEME.length));
+
   if (key === "") {
     return words;
   }
+
   const shown = words.map((word) => NodeApi.string(word)).join("");
+
   const mention: TElement = {
     children: [{ text: "" }],
     key,
     type: KEYS.mention,
     value: shown === UNTITLED ? "" : shown,
   };
+
   const pictures = words.filter(isPicture);
-  return pictures.length === 0 ? mention : [...pictures, mention];
+
+  return (pictures.length === 0 ? mention : [...pictures, mention]) satisfies
+    | TElement
+    | Descendant[];
 };
 
-// Plate's own mention spelling, `[value](mention:<key>)`, but an untitled item's link still shows a
-// word, as every surface draws it, since `[](mention:id)` is no link to CommonMark's eye; the read
-// takes that word back to no title
-export const mentionLink = (key: string, title: string): Link => ({
-  children: [{ type: "text", value: title === "" ? UNTITLED : title }],
-  type: "link",
-  url: `${MENTION_SCHEME}${encodeURIComponent(key)}`,
-});
+export const mentionLink = (key: string, title: string) =>
+  ({
+    children: [{ type: "text", value: title === "" ? UNTITLED : title }],
+    type: "link",
+    url: `${MENTION_SCHEME}${encodeURIComponent(key)}`,
+  }) satisfies Link;
 
-const writeMention = (node: TElement): Link => {
+const writeMention = (node: TElement) => {
   const value = stringProp(node, "value") ?? "";
+
   return mentionLink(stringProp(node, "key") ?? value, value);
 };
 
-// the alert the plugins lifted off a quote's first line is the quote's prop
-const readBlockquote = (
-  node: Blockquote,
-  deco: MdDecoration,
-  options: DeserializeMdOptions,
-): TElement => {
+const readBlockquote = (node: Blockquote, deco: MdDecoration, options: DeserializeMdOptions) => {
   const quote: TElement = defaultQuote(node, deco, options);
   const alert = node.data?.alert;
-  return alert === undefined ? quote : { ...quote, alert };
+
+  return (alert === undefined ? quote : { ...quote, alert }) satisfies TElement;
 };
 
-// a quote's lists nest as a container's do, since Plate's quote writes its blocks flat; the marker
-// is a raw line of its own: as text the writer escapes its `[`, and GitHub reads an alert only
-// where the marker stands alone
-const writeBlockquote = (node: TElement, options: SerializeMdOptions): Blockquote => {
+const writeBlockquote = (node: TElement, options: SerializeMdOptions) => {
   const stock = defaultBlockquote(node, options);
   const quote = { ...stock, children: nestInLists(stock.children) };
   const alert = alertProp(node);
+
   if (alert === undefined) {
     return quote;
   }
+
   const marker = `[!${alert}]`;
   const [first, ...others] = quote.children;
+
   if (first?.type !== "paragraph") {
     const line: Paragraph = { children: [{ type: "html", value: marker }], type: "paragraph" };
-    return { ...quote, children: [line, ...quote.children] };
+
+    return { ...quote, children: [line, ...quote.children] } satisfies Blockquote;
   }
+
   const words = first.children.filter(
     (child) => child.type !== "text" || child.value !== ZERO_WIDTH_SPACE,
   );
+
   const lead: Html = { type: "html", value: words.length === 0 ? marker : `${marker}\n` };
-  return { ...quote, children: [{ ...first, children: [lead, ...words] }, ...others] };
+
+  return {
+    ...quote,
+    children: [{ ...first, children: [lead, ...words] }, ...others],
+  } satisfies Blockquote;
 };
 
 const TODO_TEXT_RE = /^\[(?<mark>[ xX])\]$/u;
 
-const headOf = (item: ListItem, head: ListItem["children"][number] | undefined): ListItem => {
+const headOf = (item: ListItem, head: ListItem["children"][number] | undefined) => {
   const [only, ...others] = head?.type === "paragraph" ? head.children : [];
+
   const todo =
     only?.type === "text" && others.length === 0 && (item.checked ?? null) === null
       ? TODO_TEXT_RE.exec(only.value)
       : null;
+
   if (todo === null || head?.type !== "paragraph") {
     return item;
   }
+
   return {
     ...item,
     checked: todo.groups?.mark !== " ",
     children: [{ ...head, children: [] }, ...item.children.slice(1)],
-  };
+  } satisfies ListItem;
 };
 
-// A picture is a block wherever it stands, and Plate's list rule makes every block its line reads
-// as a paragraph, so the line ends at its first picture and the rest nests under it
-const lineBeforeImage = (head: Paragraph): Paragraph[] => {
+const lineBeforeImage = (head: Paragraph) => {
   const at = head.children.findIndex((child) => child.type === "image");
-  return at === -1
-    ? [head]
-    : [
-        { children: head.children.slice(0, at), type: "paragraph" },
-        { children: head.children.slice(at), type: "paragraph" },
-      ];
+
+  return (
+    at === -1
+      ? [head]
+      : [
+          { children: head.children.slice(0, at), type: "paragraph" },
+          { children: head.children.slice(at), type: "paragraph" },
+        ]
+  ) satisfies Paragraph[];
 };
 
-// Plate's list rule makes an item's first child its line and nests the rest. An item that opens
-// with another block keeps an empty line, so the block nests under it rather than turning into a
-// paragraph that holds none of it; a heading's words are the line, and `- [ ]` with nothing after
-// its box, which micromark reads as text, is an empty to-do.
-const itemOf = (item: ListItem, nest: (list: List) => List): ListItem => {
+const itemOf = (item: ListItem, nest: (list: List) => List) => {
   const children = item.children.map((child) => (child.type === "list" ? nest(child) : child));
   const [head, ...rest] = children;
+
   if (head === undefined) {
     return headOf(item, head);
   }
+
   if (head.type === "paragraph") {
     const [line, ...after] = lineBeforeImage(head);
+
     return headOf({ ...item, children: [line ?? head, ...after, ...rest] }, line);
   }
+
   if (head.type === "heading") {
-    return { ...item, children: [{ children: head.children, type: "paragraph" }, ...rest] };
+    return {
+      ...item,
+      children: [{ children: head.children, type: "paragraph" }, ...rest],
+    } satisfies ListItem;
   }
+
   if (head.type === "html") {
-    return { ...item, children: [{ children: [head], type: "paragraph" }, ...rest] };
+    return {
+      ...item,
+      children: [{ children: [head], type: "paragraph" }, ...rest],
+    } satisfies ListItem;
   }
-  return { ...item, children: [{ children: [], type: "paragraph" }, ...children] };
+
+  return {
+    ...item,
+    children: [{ children: [], type: "paragraph" }, ...children],
+  } satisfies ListItem;
 };
 
-// Plate's list rule keeps a list's style at todo from its first to-do on, so a bullet after one
-// reads as a to-do with no box; a to-do always carries its box, so one without is the list's own
-const unstickTodo = (block: TElement): TElement =>
-  block.listStyleType === "todo" && block.checked === undefined
+const unstickTodo = (block: TElement) =>
+  (block.listStyleType === "todo" && block.checked === undefined
     ? { ...block, listStyleType: block.listStart === undefined ? "disc" : "decimal" }
-    : block;
+    : block) satisfies TElement;
 
-const listOf = (list: List): List => ({
-  ...list,
-  children: list.children.map((item) => itemOf(item, listOf)),
-});
+const listOf = (list: List) =>
+  ({
+    ...list,
+    children: list.children.map((item) => itemOf(item, listOf)),
+  }) satisfies List;
 
 const BR_RE = /^<br\s*\/?>$/iu;
 
@@ -629,52 +671,56 @@ const isBreakLeaf = (child: Descendant): child is TText =>
   TextApi.isText(child) &&
   (child.rawHtml === true ? BR_RE.test(child.text) : child.text.includes("\n"));
 
-// Plate joins a cell's blocks with `<br/>` and reads the tag back as raw html, so a cell's blocks
-// are cut at it again; the zero-width space it writes for an empty line, which a cell (no
-// paragraph to Plate's reader) keeps, is no word of the cell's
-const cellBlocks = (block: Descendant): Descendant[] => {
+const cellBlocks = (block: Descendant) => {
   if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
-    return [block];
+    return [block] satisfies Descendant[];
   }
+
   const lines: Descendant[][] = [[]];
+
   for (const child of block.children) {
     if (TextApi.isText(child) && child.text === ZERO_WIDTH_SPACE) {
       continue;
     }
+
     if (!isBreakLeaf(child)) {
       lines.at(-1)?.push(child);
       continue;
     }
+
     const parts = child.rawHtml === true ? ["", ""] : child.text.split("\n");
+
     for (const [index, part] of parts.entries()) {
       if (index > 0) {
         lines.push([]);
       }
+
       if (part !== "") {
         lines.at(-1)?.push({ ...child, text: part });
       }
     }
   }
+
   return lines.map((children) => ({
     ...block,
     children: children.length > 0 ? children : [{ text: "" }],
   }));
 };
 
-const isParagraph = (node: Descendant): boolean =>
-  ElementApi.isElement(node) && node.type === KEYS.p;
+const isParagraph = (node: Descendant) => ElementApi.isElement(node) && node.type === KEYS.p;
 
-// an image is a block wherever it stands in a cell, so the tag beside one, a space between them or
-// not, is the edge it already has
-const cellChildren = (children: readonly Descendant[]): Descendant[] => {
+const cellChildren = (children: readonly Descendant[]) => {
   const out: Descendant[] = [];
+
   for (const [index, child] of children.entries()) {
     const lines = cellBlocks(child);
     const before = children[index - 1];
     const after = children[index + 1];
+
     if (lines.length > 1 && before !== undefined && !isParagraph(before) && isBlankLine(lines[0])) {
       lines.shift();
     }
+
     if (
       lines.length > 0 &&
       after !== undefined &&
@@ -683,69 +729,80 @@ const cellChildren = (children: readonly Descendant[]): Descendant[] => {
     ) {
       lines.pop();
     }
+
     out.push(...lines);
   }
-  return out.length > 0 ? out : [emptyParagraph()];
+
+  return (out.length > 0 ? out : [emptyParagraph()]) satisfies Descendant[];
 };
 
-// GFM pads a short row with empty cells, which remark leaves out of the tree
-const splitCells = (row: Descendant, width: number, rowIndex: number): Descendant => {
+const splitCells = (row: Descendant, width: number, rowIndex: number) => {
   if (!ElementApi.isElement(row)) {
     return row;
   }
+
   const cells = row.children.map((cell) =>
     ElementApi.isElement(cell) ? { ...cell, children: cellChildren(cell.children) } : cell,
   );
+
   const pad = Array.from({ length: Math.max(0, width - cells.length) }, () => ({
     children: [emptyParagraph()],
     type: rowIndex === 0 ? KEYS.th : KEYS.td,
   }));
-  return { ...row, children: [...cells, ...pad] };
+
+  return { ...row, children: [...cells, ...pad] } satisfies Descendant;
 };
 
-// an empty cell is empty, where Plate writes its one line as a lone zero-width space
-const writeCell = (node: TElement, options: SerializeMdOptions): TableCell => {
+const writeCell = (node: TElement, options: SerializeMdOptions) => {
   const cell: TableCell = defaultCell(node, options);
+
   return {
     ...cell,
     children: cell.children.filter(
       (child) => !(child.type === "text" && child.value === ZERO_WIDTH_SPACE),
     ),
-  };
+  } satisfies TableCell;
 };
 
-// YAML no field reads, kept as a code block where the person can see and mend it
-export const yamlCodeBlock = (yaml: string): TElement => ({
-  children: yaml.split("\n").map((line) => ({ children: [{ text: line }], type: KEYS.codeLine })),
-  lang: "yaml",
-  type: KEYS.codeBlock,
-});
+export const yamlCodeBlock = (yaml: string) =>
+  ({
+    children: yaml.split("\n").map((line) => ({ children: [{ text: line }], type: KEYS.codeLine })),
+    lang: "yaml",
+    type: KEYS.codeBlock,
+  }) satisfies TElement;
 
-const footnoteLabel = (node: FootnoteReference | FootnoteDefinition): string =>
+const footnoteLabel = (node: FootnoteReference | FootnoteDefinition) =>
   `[^${node.label ?? node.identifier}]`;
 
-// a footnote is the text it spells: its call `[^1]`, its definition a paragraph led by `[^1]: `
 const readFootnoteDefinition = (
   node: FootnoteDefinition,
   deco: MdDecoration,
   options: DeserializeMdOptions,
-): TElement[] => {
+) => {
   const lead: TText = { text: `${footnoteLabel(node)}: ` };
   const [first, ...rest] = blocksOf(node.children, deco, options);
+
   if (first?.type === KEYS.p) {
-    return [{ ...first, children: [lead, ...first.children] }, ...rest];
+    return [{ ...first, children: [lead, ...first.children] }, ...rest] satisfies TElement[];
   }
-  return [{ children: [lead], type: KEYS.p }, ...(first === undefined ? [] : [first]), ...rest];
+
+  return [
+    { children: [lead], type: KEYS.p },
+    ...(first === undefined ? [] : [first]),
+    ...rest,
+  ] satisfies TElement[];
 };
 
-const columnDirective = (node: TElement, options: SerializeMdOptions): ContainerDirective => {
+const columnDirective = (node: TElement, options: SerializeMdOptions) => {
   const width = stringProp(node, "width");
+
   return container("column", flowOf(node.children, options), width === undefined ? {} : { width });
 };
 
-const writeFormula = (node: TElement): TextDirective => {
+const writeFormula = (node: TElement) => {
   const name = stringProp(node, "name");
   const source = stringProp(node, "source") ?? "";
+
   return textDirective(
     "formula",
     stringProp(node, "display") ?? "",
@@ -753,25 +810,24 @@ const writeFormula = (node: TElement): TextDirective => {
   );
 };
 
-// `MdRules` narrows a keyed rule's return to that key's node, so a rule that reads one mdast node
-// as several, or writes none, is declared against the index signature's wide rule
 const linkRule: WideMdRule = {
   deserialize: readLink,
-  serialize: (node: TElement, options: SerializeMdOptions): Link => ({
-    children: convertNodesSerialize(node.children, options).filter(
-      (child): child is PhrasingContent => !isFlow(child),
-    ),
-    type: "link",
-    url: stringProp(node, "url") ?? "",
-  }),
+  serialize: (node: TElement, options: SerializeMdOptions) =>
+    ({
+      children: convertNodesSerialize(node.children, options).filter(
+        (child): child is PhrasingContent => !isFlow(child),
+      ),
+      type: "link",
+      url: stringProp(node, "url") ?? "",
+    }) satisfies Link,
 };
 
 const blockquoteRule: WideMdRule = { deserialize: readBlockquote, serialize: writeBlockquote };
 
-// markdown has no empty inline math: `$$$$` reads back as text
 const inlineEquationRule: WideMdRule = {
   serialize: (node: TElement) => {
     const value = stringProp(node, "texExpression") ?? "";
+
     return value === "" ? undefined : { type: "inlineMath", value };
   },
 };
@@ -785,12 +841,11 @@ export const MD_RULES: MdRules = {
     serialize: (node: TElement, options: SerializeMdOptions) => {
       const inner = convertNodesSerialize(node.children, options).find(isFlow);
       const listDepth = numberProp(node, LIST_DEPTH_KEY);
+
       return inner === undefined ? undefined : { ...inner, data: { ...inner.data, listDepth } };
     },
   },
 
-  // a link is always a link node: Plate writes a bare url as raw html, and the writer then turns the
-  // hard break before it into a space, and GFM reads the `\\` of one after it into the url
   a: linkRule,
 
   [ARTICLE_SECTION_KEY]: {
@@ -805,15 +860,17 @@ export const MD_RULES: MdRules = {
   [CHART_BLOCK_KEY]: { serialize: richFence(CHART_LANG) },
 
   code_block: {
-    deserialize: (node: Code, deco: MdDecoration, options: DeserializeMdOptions): TElement => {
+    deserialize: (node: Code, deco: MdDecoration, options: DeserializeMdOptions) => {
       const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");
-      return richBlock === undefined
-        ? defaultCodeBlock(node, deco, options)
-        : { children: [{ text: "" }], type: richBlock, value: node.value };
+
+      return (
+        richBlock === undefined
+          ? defaultCodeBlock(node, deco, options)
+          : { children: [{ text: "" }], type: richBlock, value: node.value }
+      ) satisfies TElement;
     },
   },
 
-  // a column outside a group writes a group of one: a column has no spelling of its own
   [KEYS.column]: {
     serialize: (node: TElement, options: SerializeMdOptions) =>
       container("columns", [columnDirective(node, options)]),
@@ -837,8 +894,6 @@ export const MD_RULES: MdRules = {
     serialize: (node: TElement) => textDirective("date", stringProp(node, "date") ?? "", {}),
   },
 
-  // what follows a `$$` on its line is the fence's meta to remark-math, which a person who opens
-  // `$$ E = mc^2` wrote as the expression's first line
   equation: {
     deserialize: (node: MdMath, deco: MdDecoration, options: DeserializeMdOptions) =>
       defaultEquation(
@@ -853,33 +908,36 @@ export const MD_RULES: MdRules = {
   footnoteDefinition: { deserialize: readFootnoteDefinition },
 
   footnoteReference: {
-    deserialize: (node: FootnoteReference, deco: MdDecoration): TText => ({
-      ...deco,
-      text: footnoteLabel(node),
-    }),
+    deserialize: (node: FootnoteReference, deco: MdDecoration) =>
+      ({
+        ...deco,
+        text: footnoteLabel(node),
+      }) satisfies TText,
   },
 
   [FORMULA_PILL_KEY]: { serialize: writeFormula },
 
   [HTML_BLOCK_KEY]: { serialize: richFence(HTML_LANG) },
 
-  // raw html is the text it spells: the persisted set holds no raw leaf, and a `<br>` is the line
-  // break Plate's own rule reads
   html: {
-    deserialize: (node: Html, deco: MdDecoration): TText => ({
-      ...deco,
-      text: BR_RE.test(node.value.trim()) ? "\n" : node.value,
-    }),
+    deserialize: (node: Html, deco: MdDecoration) =>
+      ({
+        ...deco,
+        text: BR_RE.test(node.value.trim()) ? "\n" : node.value,
+      }) satisfies TText,
   },
 
   inline_equation: inlineEquationRule,
 
   list: {
-    deserialize: (node: List, deco: MdDecoration, options: DeserializeMdOptions): Descendant[] => {
+    deserialize: (node: List, deco: MdDecoration, options: DeserializeMdOptions) => {
       const read: unknown = defaultList(listOf(node), deco, options);
-      return Array.isArray(read)
-        ? read.filter((block) => ElementApi.isElement(block)).map(unstickTodo)
-        : [];
+
+      return (
+        Array.isArray(read)
+          ? read.filter((block) => ElementApi.isElement(block)).map(unstickTodo)
+          : []
+      ) satisfies Descendant[];
     },
   },
 
@@ -907,13 +965,14 @@ export const MD_RULES: MdRules = {
   },
 
   table: {
-    deserialize: (node: Table, deco: MdDecoration, options: DeserializeMdOptions): TElement => {
+    deserialize: (node: Table, deco: MdDecoration, options: DeserializeMdOptions) => {
       const table: TElement = defaultTable(node, deco, options);
       const width = Math.max(0, ...node.children.map((row) => row.children.length));
+
       return {
         ...table,
         children: table.children.map((row, index) => splitCells(row, width, index)),
-      };
+      } satisfies TElement;
     },
   },
 
@@ -930,5 +989,5 @@ export const MD_RULES: MdRules = {
 
   video: embedRule,
 
-  yaml: { deserialize: (node: Yaml): TElement => yamlCodeBlock(node.value) },
+  yaml: { deserialize: (node: Yaml) => yamlCodeBlock(node.value) },
 };

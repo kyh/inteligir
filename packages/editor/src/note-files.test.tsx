@@ -3,21 +3,25 @@ import type { Value } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { EditorHarness } from "./test-support/editor-harness";
-import { FILES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
+import {
+  FILES_ORIGIN,
+  installFakeEditorHost,
+} from "@repo/editor/test-support/fake-editor-host.test-utils";
+import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 const SHA = "a".repeat(64);
 const VOID = [{ text: "" }];
 const ADDRESS = `${FILES_ORIGIN}/${SHA}`;
 
-// jsdom has no object URLs, which a Download hands its bytes to the system through
 const saved: Blob[] = [];
+
 beforeAll(() => {
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
     value: (blob: Blob) => {
       saved.push(blob);
+
       return "blob:saved";
     },
   });
@@ -38,6 +42,7 @@ const mount = (
   const host = installFakeEditorHost({ files, ...options });
   const asked = vi.spyOn(getEditorHostIo(), "fileSrc");
   render(<EditorHarness value={value} />);
+
   return { asked, host };
 };
 
@@ -141,6 +146,7 @@ describe("a file in a note's text", () => {
     const { asked } = mount([
       { children: VOID, name: "Lecture notes.pdf", sha: SHA, type: "file" },
     ]);
+
     await expect(screen.findByText("Lecture notes.pdf")).resolves.toBeTruthy();
     expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
     expect(asked).not.toHaveBeenCalled();
@@ -152,7 +158,7 @@ describe("a file in a note's text", () => {
       [{ children: VOID, name: "Lecture notes.pdf", sha: SHA, type: "file" }],
       new Map([[SHA, pdf]]),
     );
-    const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click").mockReturnValue();
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click");
     fireEvent.click(await screen.findByRole("button", { name: "Download" }));
     await waitFor(() => {
       expect(clicked).toHaveBeenCalledOnce();

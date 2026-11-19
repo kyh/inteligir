@@ -14,7 +14,6 @@ import { pageGraph } from "#lib/structured-data";
 
 export const metadata = pageMetadata(PAGES.home);
 
-// themed tokens, not literal hex: the site follows the system's dark mode, where a hardcoded near-black pill vanishes
 const CTA_PILL =
   "inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium shadow-lg";
 
@@ -29,7 +28,6 @@ const HIDDEN_FOOTER_LINKS = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
-// links in sr-only text would otherwise be tab stops a sighted keyboard user cannot see
 const UntabbableAnchor = ({
   node: _node,
   children,

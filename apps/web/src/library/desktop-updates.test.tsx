@@ -19,20 +19,24 @@ type Ask = () => Promise<DesktopUpdateState | null>;
 
 const fakeBridge = (check: Ask) => {
   const pushes: ((state: DesktopUpdateState) => void)[] = [];
+
   const bridge = {
     checkForUpdates: vi.fn<Ask>(check),
     downloadUpdate: vi.fn<Ask>(async () => ({ downloadPercent: 0, status: "downloading" })),
     installUpdate: vi.fn<Ask>(async () => AVAILABLE),
     onUpdateState: (listener: (state: DesktopUpdateState) => void) => {
       pushes.push(listener);
+
       return () => {};
     },
   } satisfies DesktopBridge;
-  const push = (state: DesktopUpdateState): void => {
+
+  const push = (state: DesktopUpdateState) => {
     for (const listener of pushes) {
       listener(state);
     }
   };
+
   return { bridge, push };
 };
 
@@ -74,8 +78,9 @@ describe("the updates store", () => {
     bridge.downloadUpdate.mockResolvedValueOnce(null);
     const store = createUpdatesStore(bridge);
     const { result } = renderHook(store.use);
-    await vi.waitFor(() => {
-      expect(bridge.checkForUpdates).toHaveBeenCalledOnce();
+    expect(bridge.checkForUpdates).toHaveBeenCalledOnce();
+    await act(async () => {
+      await Promise.resolve();
     });
     expect(result.current).toStrictEqual({ status: "idle" });
     bridge.checkForUpdates.mockResolvedValueOnce(AVAILABLE);
@@ -98,6 +103,7 @@ describe("the updates store", () => {
         if (command === "install_update") {
           throw new Error("not allowed");
         }
+
         return answers.get(command) ?? { status: "ready" };
       },
       { shouldMockEvents: true },

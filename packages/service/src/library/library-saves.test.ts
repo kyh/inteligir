@@ -1,10 +1,4 @@
-// Saving a web address over Postgres: a link to read later lands unread and asks for its reading
-// in the same write, a page a device read lands read or onto the item that waited for it, the
-// words saved with either read as a note whose `[[links]]` name the library's own items, and a new
-// item past the library's room is refused, called in process as a principal calls them and once
-// over `/v1/rpc` as the extension does.
-
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 import { item, job, libraryState } from "@repo/db/library-schema";
@@ -13,26 +7,25 @@ import { asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { env } from "../env";
-import { signUpUser, userIdOf } from "../test-support/auth-requests";
-import { personalLibrary, seedFile, seedItem } from "../test-support/library-fixture";
-import { extensionHeaders, v1Link } from "../test-support/v1-link";
+import { signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
+import { personalLibrary, seedFile, seedItem } from "../test-support/library.fixture";
+import { extensionHeaders, v1Link } from "../test-support/v1-link.test-utils";
 import { mintLibraryId } from "./library-ids";
 
 const SAVED_AT = 1_700_000_000_000;
 const PDF_SHA = "b".repeat(64);
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
-const newId = (): string => mintLibraryId(Date.now());
+const newId = () => mintLibraryId(Date.now());
 
-// words nested deeper than an item holds, and what the refusal tells their writer to change
 const TOO_DEEP_NOTE = `${"> ".repeat(12_000)}too deep`;
+
 const NESTS_TOO_DEEP = {
   code: "PAYLOAD_TOO_LARGE",
   message:
     "That new text nests deeper than an item holds. Nest its lists and quotes fewer levels deep.",
 };
 
-// the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {
   try {
     await call;
@@ -40,12 +33,13 @@ const refusalOf = async (call: Promise<unknown>) => {
     if (isOrpcError(error)) {
       return { code: error.code, data: error.data, defined: error.defined };
     }
+
     throw error;
   }
+
   throw new Error("the call landed what the test expected it to refuse");
 };
 
-// a page the extension read itself
 const pageSave = (url: string, words = "The quick brown fox jumps over the lazy dog.") => ({
   article: [paragraph(`p-${newId()}`, words)],
   coverSha: null,
@@ -65,23 +59,23 @@ const fillJobs = async (accountId: string) =>
     .where(eq(job.accountId, accountId))
     .orderBy(asc(job.id));
 
-const headOf = async (accountId: string): Promise<number> => {
+const headOf = async (accountId: string) => {
   const [row] = await db
     .select({ head: libraryState.head })
     .from(libraryState)
     .where(eq(libraryState.accountId, accountId));
+
   return row?.head ?? 0;
 };
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
-// each block's section and words, an item link or a file by what it names
 const bodyOf = async (library: Library, id: string) => {
   const { blocks } = await library.items.get({ id });
+
   return blocks.map(({ block, section }) => ({ children: block.children, section }));
 };
 
-// an item link as a body holds it, its words the item's title
 const mention = (itemId: string, value: string) => ({
   children: [{ text: "" }],
   key: itemId,
@@ -110,11 +104,13 @@ dbSuite("saving a web address", () => {
       ]);
 
       const head = await headOf(accountId);
+
       const again = await library.items.saveLink({
         note: "Nothing of this lands.",
         title: "Another name",
         url: `${url}#a-fragment`,
       });
+
       expect(again).toStrictEqual({ created: false, item: saved.item });
       expect(await headOf(accountId)).toBe(head);
       await expect(fillJobs(accountId)).resolves.toHaveLength(1);
@@ -123,6 +119,7 @@ dbSuite("saving a web address", () => {
     it("keeps the words it was saved with as its note, files it by a folder's path and answers a resend by its op id", async () => {
       const { accountId, library } = await personalLibrary();
       const opId = newId();
+
       const input = {
         folder: { path: "Work / Reading" },
         note: "For Tuesday, before the call.",
@@ -131,6 +128,7 @@ dbSuite("saving a web address", () => {
         title: "A long read",
         url: "https://example.com/words",
       };
+
       const saved = await library.items.saveLink(input);
       expect(saved.item.fields).toMatchObject({ tags: ["later"], title: "A long read" });
       expect(saved.item.fields.folderId).not.toBeNull();
@@ -138,10 +136,12 @@ dbSuite("saving a web address", () => {
         { children: [{ text: "For Tuesday, before the call." }], section: "note" },
       ]);
       await expect(library.items.saveLink(input)).resolves.toStrictEqual(saved);
+
       const items = await db
         .select({ id: item.id })
         .from(item)
         .where(eq(item.accountId, accountId));
+
       expect(items).toHaveLength(1);
     });
 
@@ -164,7 +164,6 @@ dbSuite("saving a web address", () => {
     it("asks for its reading again when it comes back from Deleted still waiting, and not once read", async () => {
       const { accountId, library } = await personalLibrary();
       const saved = await library.items.saveLink({ url: "https://example.com/restored" });
-      // the reading ran, and met the item in Deleted
       await db.delete(job).where(eq(job.accountId, accountId));
       await library.items.delete({ ids: [saved.item.id] });
       await expect(fillJobs(accountId)).resolves.toStrictEqual([]);
@@ -233,6 +232,7 @@ dbSuite("saving a web address", () => {
           url: "https://example.com/refuses",
         }),
       });
+
       const retried = await library.items.save(pageSave("https://example.com/refuses"));
       expect(retried).toMatchObject({
         created: false,
@@ -278,21 +278,27 @@ dbSuite("saving a web address", () => {
   it("links a [[Title]] in a save's words to the one live item filed under it, in any case or form, by its title or an alias", async () => {
     const { accountId, library } = await personalLibrary();
     const titled = await seedItem(accountId, { fields: noteFixture({ title: "Existing Title" }) });
+
     const aliased = await seedItem(accountId, {
       fields: noteFixture({ aliases: ["Nick"], title: "Named otherwise" }),
     });
+
     const accented = await seedItem(accountId, { fields: noteFixture({ title: "Café" }) });
     await seedItem(accountId, { fields: noteFixture({ title: "Twice" }) });
     await seedItem(accountId, { fields: noteFixture({ aliases: ["twice"], title: "Again" }) });
+
     const deleted = await seedItem(accountId, {
       fields: noteFixture({ deletedAt: SAVED_AT, title: "Gone" }),
     });
+
     await seedFile(accountId, PDF_SHA, { mime: "application/pdf" });
+
     const words = [
       "[[existing title]], [[NICK]], [[Café]], [[Twice]], [[Gone]] and [[Missing]].",
       `[Its old name](mention:${deleted.id})`,
       `![[assets/${PDF_SHA}/report.pdf]]`,
     ].join("\n\n");
+
     const saved = await library.items.saveLink({ note: words, url: "https://example.com/links" });
     const { blocks } = await library.items.get({ id: saved.item.id });
     expect(blocks.map(({ block }) => block.children)).toStrictEqual([
@@ -316,8 +322,8 @@ dbSuite("saving a web address", () => {
       const { item: held } = await library.items.saveLink({ url: "https://example.com/kept" });
       const bytesCap = env.LIBRARY_STORAGE_CAP_BYTES;
       await seedFile(accountId, PDF_SHA, { bytes: bytesCap - 4, mime: "application/pdf" });
-      // an empty body is `[]`, two bytes: the stub's and one more fill the library to the byte
       await library.items.saveLink({ url: "https://example.com/the-last-one" });
+
       for (const refused of [
         async () => await library.items.saveLink({ url: "https://example.com/one-more" }),
         async () => await library.items.save(pageSave("https://example.com/a-page-more")),
@@ -337,6 +343,7 @@ dbSuite("saving a web address", () => {
           defined: true,
         });
       }
+
       await library.items.organize({ addTags: ["kept"], ids: [held.id], pinned: true });
       await library.write({
         itemId: held.id,

@@ -12,19 +12,17 @@ import { cn } from "@repo/ui/lib/cn";
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { stringProp } from "@repo/editor/headless/node-props";
 
-// pele loads with the first diagram a note shows, never with the editor
 const MermaidPreview = lazy(async () => await import("@repo/editor/nodes/code-block-mermaid"));
 
 const lowlight = createLowlight(common);
-// lowlight ships no mermaid/math grammar; without the alias CodeSyntaxPlugin logs "not registered" per fence.
+
 lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 
 const CodeSyntaxLeaf = (props: PlateLeafProps) => (
   <PlateLeaf {...props} className={stringProp(props.leaf, "className") ?? ""} />
 );
 
-// NodeApi.string on the block joins code lines with no separator.
-const codeText = (element: PlateElementProps["element"]): string =>
+const codeText = (element: PlateElementProps["element"]) =>
   element.children.map((line) => NodeApi.string(line)).join("\n");
 
 const MermaidCodeBlock = (props: PlateElementProps) => {
@@ -32,10 +30,10 @@ const MermaidCodeBlock = (props: PlateElementProps) => {
   const { editor } = props;
 
   const showPreview = () => {
-    // hiding the fence with the selection inside strands Slate's DOM selection in an invisible subtree.
     if (editor.selection && editor.api.some({ match: (n) => n === props.element })) {
       editor.tf.deselect();
     }
+
     setMode("preview");
   };
 
@@ -72,7 +70,9 @@ const CodeBlockElement = (props: PlateElementProps) => {
   if (props.element.lang === "mermaid") {
     return <MermaidCodeBlock {...props} />;
   }
+
   const lang = stringProp(props.element, "lang");
+
   return (
     <PlateElement {...props} as="pre" className="group/code relative">
       {lang !== undefined && lang !== "" ? (
@@ -90,8 +90,7 @@ const CodeBlockElement = (props: PlateElementProps) => {
 
 const CodeLineElement = (props: PlateElementProps) => <PlateElement {...props} as="div" />;
 
-// Goes through the code-block turn-into so the fence's byte form matches every other code block's.
-export const insertMermaid = (editor: PlateEditor): void => {
+export const insertMermaid = (editor: PlateEditor) => {
   turnIntoSelection(editor, turnIntoOption("code-block"));
   editor.tf.setNodes(
     { lang: "mermaid" },

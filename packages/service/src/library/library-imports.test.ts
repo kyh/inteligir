@@ -1,13 +1,8 @@
-// An import over Postgres, as the device that reads the file asks it: how each note it planned
-// stands, which of its files the library's items name, and its items landed a batch at a time, an
-// item a rule refuses counted while the rest land, a full library refusing the batch, and a folder
-// of a thousand notes read by the editor's own codec landing whole.
-
 import { randomUUID } from "node:crypto";
 
 import { blankItemFields, importedFields } from "@repo/contract/library/item-makes";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import { paragraph, pillParagraph } from "@repo/contract/test-support/library-items";
+import { paragraph, pillParagraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { changeSet, folder, item, itemLink, job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -23,17 +18,18 @@ import {
   personalLibrary,
   seedFile,
   sessionPrincipal,
-} from "../test-support/library-fixture";
+} from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
+
 type ImportedItem = Parameters<Library["imports"]["land"]>[0]["items"][number];
 
 const SHA = "d".repeat(64);
 const ORIGINAL = "e".repeat(64);
 const LOOSE = "f".repeat(64);
 
-const newId = (): string => mintLibraryId(Date.now());
+const newId = () => mintLibraryId(Date.now());
 
 const fieldsOf = (title: string, url: string | null = null) =>
   importedFields({ ...blankItemFields(Date.UTC(2026, 9, 1)), title, url });
@@ -50,12 +46,13 @@ const note = (
   kind: "new" as const,
 });
 
-const titles = async (accountId: string): Promise<string[]> => {
+const titles = async (accountId: string) => {
   const rows = await db
     .select({ title: item.title })
     .from(item)
     .where(and(eq(item.accountId, accountId), isNull(item.deletedAt)))
     .orderBy(asc(item.title));
+
   return rows.map((row) => row.title);
 };
 
@@ -71,6 +68,7 @@ dbSuite("an import", () => {
       await land(library, [held, deleted, note("Linked", { url: "https://a.example/page" })]);
       await library.items.delete({ ids: [deleted.id] });
       const fresh = newId();
+
       const { notes } = await library.imports.settle({
         notes: [
           { id: held.id, url: null },
@@ -79,6 +77,7 @@ dbSuite("an import", () => {
           { id: newId(), url: null },
         ],
       });
+
       expect(notes.slice(0, 2)).toStrictEqual([
         { id: held.id, standing: "held" },
         { id: deleted.id, standing: "deleted" },
@@ -103,18 +102,22 @@ dbSuite("an import", () => {
   describe("a batch", () => {
     it("lands every item it adds, keeping no change set, in the folders its paths name", async () => {
       const { accountId, library } = await personalLibrary();
+
       for (const title of ["Alpha", "Beta"]) {
         await land(library, [note(title, { folder: "Projects/Specs" })]);
       }
+
       await expect(titles(accountId)).resolves.toStrictEqual(["Alpha", "Beta"]);
       await expect(
         db.select().from(changeSet).where(eq(changeSet.accountId, accountId)),
       ).resolves.toStrictEqual([]);
+
       const folders = await db
         .select({ name: folder.name })
         .from(folder)
         .where(eq(folder.accountId, accountId))
         .orderBy(asc(folder.name));
+
       expect(folders.map((row) => row.name)).toStrictEqual(["Projects", "Specs"]);
     });
 
@@ -122,6 +125,7 @@ dbSuite("an import", () => {
       const accountId = await makeAccount();
       const kickJobs = vi.fn<(kicked: string) => void>();
       const library = libraryAs(sessionPrincipal(accountId), kickJobs);
+
       const link = {
         ...note("A page"),
         cover: "https://a.example/cover.png",
@@ -130,6 +134,7 @@ dbSuite("an import", () => {
           reading: { at: null, state: "pending" as const },
         },
       };
+
       await land(library, [link, note("A note")]);
       expect(kickJobs.mock.calls).toStrictEqual([[accountId]]);
       await expect(
@@ -201,9 +206,11 @@ dbSuite("an import", () => {
 
   it("answers which of its files a live item names, and which one holds as its own original", async () => {
     const { accountId, library } = await personalLibrary();
+
     for (const sha of [SHA, ORIGINAL, LOOSE]) {
       await seedFile(accountId, sha);
     }
+
     const covered = note("Covered");
     await land(library, [
       { ...covered, fields: { ...covered.fields, coverSha: SHA } },
@@ -228,6 +235,7 @@ dbSuite("an import", () => {
     { timeout: 120_000 },
     async () => {
       const { accountId, library } = await personalLibrary();
+
       const entries: ImportEntry[] = Array.from({ length: 1000 }, (_, at) => ({
         kind: "doc",
         path: `Vault/Area ${String(at % 10)}/Note ${String(at)}.md`,
@@ -244,32 +252,43 @@ dbSuite("an import", () => {
           "",
         ].join("\n"),
       }));
+
       const texts = new Map(
         entries.map((entry) => [entry.path, entry.kind === "doc" ? entry.text : ""]),
       );
+
       const plan = planImport(entries, { newItemId: () => newId() });
+
       const settle = async () => {
         const settled = [];
+
         for (let at = 0; at < plan.docs.length; at += BULK_ITEMS_MAX) {
           const docs = plan.docs.slice(at, at + BULK_ITEMS_MAX);
+
           const { notes } = await library.imports.settle({
             notes: docs.map((doc) => ({ id: doc.itemId, url: doc.url })),
           });
+
           settled.push(...notes);
         }
+
         return settled;
       };
+
       const standings = await settle();
       expect(standings.every(({ standing }) => standing === "new")).toBe(true);
       const reader = openPlan(plan);
-      const items = plan.docs.map((doc): ImportedItem => {
+
+      const items = plan.docs.map((doc) => {
         const read = importPlannedDoc(reader, doc, texts.get(doc.path) ?? "", {
           newBlockId: () => randomUUID(),
           now: Date.now(),
         });
+
         if (!read.ok) {
           throw new Error(`${doc.path} could not be read`);
         }
+
         return {
           blocks: [...read.read.item.blocks],
           cover: null,
@@ -277,41 +296,51 @@ dbSuite("an import", () => {
           folder: doc.path.split("/").slice(0, -1).join("/"),
           id: doc.itemId,
           kind: "new",
-        };
+        } satisfies ImportedItem;
       });
+
       const counts = { added: 0, alreadySaved: 0, unreadable: 0 };
+
       for (let at = 0; at < items.length; at += BULK_ITEMS_MAX) {
         const landed = await land(library, items.slice(at, at + BULK_ITEMS_MAX));
         counts.added += landed.added;
         counts.alreadySaved += landed.alreadySaved;
         counts.unreadable += landed.unreadable;
       }
+
       expect(counts).toStrictEqual({ added: 1000, alreadySaved: 0, unreadable: 0 });
 
       const [held] = await db
         .select({ n: count() })
         .from(item)
         .where(eq(item.accountId, accountId));
+
       expect(held?.n).toBe(1000);
+
       const [links] = await db
         .select({ n: count() })
         .from(itemLink)
         .where(eq(itemLink.accountId, accountId));
+
       expect(links?.n).toBe(999);
       const folders = await db.select().from(folder).where(eq(folder.accountId, accountId));
       expect(folders).toHaveLength(11);
+
       const tagged = await library.listing.page({
         limit: 1,
         scope: { kind: "tag", tag: "imported" },
       });
+
       expect(tagged.total).toBe(1000);
 
       const again = await settle();
       expect(again.every(({ standing }) => standing === "held")).toBe(true);
       const [first] = items;
+
       if (first === undefined) {
         throw new Error("no item read");
       }
+
       await expect(land(library, [first])).resolves.toStrictEqual({
         added: 0,
         alreadySaved: 1,

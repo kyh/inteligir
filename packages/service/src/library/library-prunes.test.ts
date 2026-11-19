@@ -1,10 +1,7 @@
-// What housekeeping lets go of change sets and op answers over Postgres: each account's on its
-// own clock, and none of an account a write holds.
-
 import { randomUUID } from "node:crypto";
 
 import { deferred } from "@repo/contract/deferred";
-import { noteFixture } from "@repo/contract/test-support/library-items";
+import { noteFixture } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { changeSet, changeSetFile, file, opAnswer } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -19,7 +16,7 @@ import {
   personalLibrary,
   seedFile,
   seedItem,
-} from "../test-support/library-fixture";
+} from "../test-support/library.fixture";
 import { sealTurnSet } from "./library-change-sets";
 import { pruneChangeSets, pruneOpAnswers } from "./library-prunes";
 import { mintLibraryId } from "./library-ids";
@@ -37,11 +34,12 @@ const turnsOf = async (accountId: string) =>
     .where(eq(changeSet.accountId, accountId))
     .orderBy(asc(changeSet.turn));
 
-const touchedAt = async (accountId: string): Promise<number | undefined> => {
+const touchedAt = async (accountId: string) => {
   const [row] = await db
     .select({ touchedAt: file.touchedAt })
     .from(file)
     .where(and(eq(file.accountId, accountId), eq(file.sha256, SHA)));
+
   return row?.touchedAt;
 };
 
@@ -54,32 +52,36 @@ const noteOf = (text: string) => ({
   title: text,
 });
 
-// an ended turn that took an item's cover away, so its set holds the cover's file
 const coverTakenBy = async (accountId: string, threadId: string, turn: number) => {
   const actor = { kind: "agent", threadId, turn } as const;
   const held = await seedItem(accountId, { fields: noteFixture({ coverSha: SHA }) });
+
   const landed = await writeLibrary(
     { accountId, actor },
     { answer: z.object({}), opId: undefined },
     async (scope) => {
       const before = await readItem(scope.tx, accountId, held.id);
+
       if (before === null) {
         throw new Error("the seeded item is gone");
       }
+
       await landItem(scope, {
         before,
         body: null,
         fields: { ...before.fields, coverSha: null },
         itemId: held.id,
       });
+
       return {};
     },
   );
+
   expect(landed.ok).toBe(true);
   await sealTurnSet(db, accountId, { threadId, turn }, Date.now());
 };
 
-const prune = async (now: number): Promise<number> =>
+const prune = async (now: number) =>
   await db.transaction(async (tx) => await pruneChangeSets(tx, now));
 
 dbSuite("housekeeping's prunes", () => {
@@ -91,16 +93,16 @@ dbSuite("housekeeping's prunes", () => {
     expect(
       await db.select().from(changeSetFile).where(eq(changeSetFile.accountId, accountId)),
     ).toHaveLength(1);
-    // a turn whose one change was undone, so nothing of it is left
     const undone = libraryAs({ accountId, actor: { kind: "agent", threadId, turn: 2 } });
     await undone.items.create(noteOf("Undone."));
     await sealTurnSet(db, accountId, { threadId, turn: 2 }, Date.now());
+
     const person = libraryAs({
       accountId,
       actor: { door: "page", kind: "session", sessionId: randomUUID() },
     });
+
     await person.agent.undo({ threadId, turn: 2 });
-    // a turn still open
     await libraryAs({ accountId, actor: { kind: "agent", threadId, turn: 3 } }).items.create(
       noteOf("Open."),
     );
@@ -140,10 +142,12 @@ dbSuite("housekeeping's prunes", () => {
     const later = Date.now() + 8 * DAY_MS;
     const holding = deferred();
     const held = deferred();
+
     const holder = withAccountLock(accountId, async () => {
       held.resolve();
       await holding.promise;
     });
+
     try {
       await held.promise;
       await prune(later);
@@ -152,6 +156,7 @@ dbSuite("housekeeping's prunes", () => {
       holding.resolve();
       await holder;
     }
+
     await prune(later);
     await expect(turnsOf(accountId)).resolves.toStrictEqual([]);
   });
@@ -168,10 +173,12 @@ dbSuite("housekeeping's prunes", () => {
     await expect(
       db.transaction(async (tx) => await pruneOpAnswers(tx, now)),
     ).resolves.toBeGreaterThanOrEqual(1);
+
     const left = await db
       .select({ opId: opAnswer.opId })
       .from(opAnswer)
       .where(eq(opAnswer.accountId, accountId));
+
     expect(left).toStrictEqual([{ opId: "recent" }]);
   });
 });

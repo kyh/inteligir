@@ -14,6 +14,7 @@ import type { CommandRow, CommandRowGroup } from "./command";
 
 const Palette = ({ groups }: { groups: readonly CommandRowGroup[] }) => {
   const [query, setQuery] = useState("");
+
   return (
     <CommandDialog
       open
@@ -43,11 +44,11 @@ const Palette = ({ groups }: { groups: readonly CommandRowGroup[] }) => {
 
 const row = (label: string, action?: string) => {
   const onSelect = vi.fn<() => void>();
+
   return { onSelect, row: { action, label, onSelect, value: label } satisfies CommandRow };
 };
 
-const footer = (): string =>
-  document.querySelector("[data-slot=command-footer]")?.textContent ?? "";
+const footer = () => document.querySelector("[data-slot=command-footer]")?.textContent ?? "";
 
 describe("the palette's parts", () => {
   it("run a picked row's verb and keep the query the person typed", () => {

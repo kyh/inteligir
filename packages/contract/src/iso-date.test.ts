@@ -4,7 +4,6 @@ import { formatIsoDate, isIsoDate, parseIsoDate } from "./iso-date";
 
 describe(formatIsoDate, () => {
   it("zero-pads iso date components (local time)", () => {
-    // Local-time constructor: month index 0 = January, day 5.
     expect(formatIsoDate(new Date(2026, 0, 5))).toBe("2026-01-05");
     expect(formatIsoDate(new Date(2026, 11, 31))).toBe("2026-12-31");
   });
@@ -39,24 +38,27 @@ describe(parseIsoDate, () => {
   );
 });
 
-const pad = (n: number, width: number): string => String(n).padStart(width, "0");
+const pad = (n: number, width: number) => String(n).padStart(width, "0");
 
 describe(isIsoDate, () => {
   it("admits exactly the days the date chip reads and writes back, across the years that bend the calendar", () => {
     const years = [99, 999, 1000, 1004, 1100, 1200, 1900, 2000, 2023, 2024, 2100, 2400, 9996, 9999];
     const mismatches: string[] = [];
+
     for (const year of years) {
       for (let month = 0; month <= 13; month += 1) {
         for (let day = 0; day <= 32; day += 1) {
           const value = `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
           const date = parseIsoDate(value);
           const roundTrips = date !== null && formatIsoDate(date) === value;
+
           if (isIsoDate(value) !== roundTrips) {
             mismatches.push(value);
           }
         }
       }
     }
+
     expect(mismatches).toStrictEqual([]);
   });
 

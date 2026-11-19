@@ -12,12 +12,11 @@ import {
   setFindQuery,
 } from "@repo/editor/find-bar";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const VALUE: Value = [{ children: [{ text: "alpha beta ALPHA gamma" }], type: "p" }];
 
 beforeAll(() => {
-  // jsdom lays nothing out; the cycle's scroll is a no-op there.
   window.HTMLElement.prototype.scrollIntoView = () => {};
 });
 
@@ -27,6 +26,7 @@ describe("find bar", () => {
     const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
     expect(editor).not.toBeNull();
+
     if (editor === null) {
       return;
     }
@@ -36,14 +36,15 @@ describe("find bar", () => {
       setFindQuery(editor, "alpha");
     });
 
-    // the bar's count of the matches
     expect(view.getByText("1/2")).toBeDefined();
 
     const leaves = [...view.container.querySelectorAll('[data-slate-leaf="true"]')];
     const activeLeaves = leaves.filter((leaf) => leaf.outerHTML.includes("orange"));
+
     const plainMatches = leaves.filter(
       (leaf) => leaf.outerHTML.includes("yellow") && !leaf.outerHTML.includes("orange"),
     );
+
     expect(activeLeaves).toHaveLength(1);
     expect(plainMatches).toHaveLength(1);
     expect(activeLeaves[0]?.textContent).toBe("alpha");
@@ -52,9 +53,11 @@ describe("find bar", () => {
     act(() => {
       cycleFindMatch(editor, 1);
     });
+
     const cycled = [...view.container.querySelectorAll('[data-slate-leaf="true"]')].filter((leaf) =>
       leaf.outerHTML.includes("orange"),
     );
+
     expect(cycled).toHaveLength(1);
     expect(cycled[0]?.textContent).toBe("ALPHA");
 
@@ -68,6 +71,7 @@ describe("find bar", () => {
     const holder = createRef<PlateEditor>();
     const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
+
     if (editor === null) {
       throw new Error("the harness mounted no editor");
     }
@@ -78,7 +82,6 @@ describe("find bar", () => {
     });
     expect(view.getByText("1/2")).toBeDefined();
 
-    // Slate announces a change from a microtask, so the act must await it
     await act(async () => {
       editor.tf.insertText(" alpha", { at: { offset: 22, path: [0, 0] } });
     });
@@ -89,6 +92,7 @@ describe("find bar", () => {
     const holder = createRef<PlateEditor>();
     const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
+
     if (editor === null) {
       throw new Error("the harness mounted no editor");
     }

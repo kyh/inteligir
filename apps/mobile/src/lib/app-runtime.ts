@@ -1,11 +1,3 @@
-// The composition root's native half: composeRuntime bound to Better Auth's Expo client over the
-// Keychain, expo-sqlite's key-value store, the file folder, the global fetch and the OS's app state,
-// built once for the app's life. A screen reaches the library through the hooks in
-// library-hooks.ts, over TanStack Query, whose online state is the network's and whose focus is
-// the app's, which is what moved asks by.
-
-// Hermes has no Array.prototype.toSorted, which the shared packages sort with (the lint refuses
-// `sort`), and a phone that cannot sort its waiting saves never opens its library
 import "core-js/actual/array/to-sorted";
 import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
@@ -25,42 +17,37 @@ import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { keychainStorage } from "../auth/keychain-storage";
 import { phoneAuthOver } from "../auth/phone-auth";
-import type { PhoneAuth } from "../auth/phone-auth";
 import { expoFileFolder } from "../files/expo-file-folder";
 import type { FileCachePorts } from "../files/file-cache";
 import type { KvStorage } from "@repo/client/waiting-saves";
-import type { LoginRequest, LoginState } from "../login/login-store";
+import type { LoginRequest } from "../login/login-store";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
-import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
+import type { AppRuntime } from "./compose-runtime";
 
-// the version app.config.js read from the package. a build that carries none says 0.0.0, which
-// the cloud refuses as too old rather than letting a build it cannot place through
-const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
+const appVersion = () => Constants.expoConfig?.version ?? "0.0.0";
 
-// a block's id on this phone: what a thought's paragraphs are named by
-const newBlockId = (): string => Crypto.randomUUID();
+const newBlockId = () => Crypto.randomUUID();
 
-const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
+const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>) =>
   bytesToHex(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
 
-// a kept picture's size by the system's own reader, from its metadata with nothing decoded; React
-// Native answers 0 by 0 for a file it finds no picture in
 const measurePicture: FileCachePorts["measure"] = async (uri) => {
   const size = await Image.getSize(uri);
+
   return size.width > 0 && size.height > 0 ? size : null;
 };
 
-// the store's folder is taken out of the device backup with its first write; expo-sqlite types its
-// default folder as any
-const keptOutOfBackup = (store: SQLiteStorage): KvStorage => {
+const keptOutOfBackup = (store: SQLiteStorage) => {
   let excluded: Promise<void> | null = null;
-  const excludeOnce = async (): Promise<void> => {
+
+  const excludeOnce = async () => {
     const directory = z.string().safeParse(defaultDatabaseDirectory);
     excluded ??= directory.success ? excludeFromBackup(directory.data) : Promise.resolve();
     await excluded;
   };
+
   return {
     getAllKeys: async () => await store.getAllKeys(),
     getItem: async (key) => await store.getItem(key),
@@ -71,13 +58,10 @@ const keptOutOfBackup = (store: SQLiteStorage): KvStorage => {
       await store.setItem(key, value);
       await excludeOnce();
     },
-  };
+  } satisfies KvStorage;
 };
 
-// Better Auth's Expo client: it keeps the session cookie in the Keychain, under keys named
-// `inteligir_…`, and names the app's scheme in `expo-origin` on every call of its own, the origin
-// the cloud trusts for the phone's sign-in
-const phoneAuth = (cloudUrl: string): PhoneAuth =>
+const phoneAuth = (cloudUrl: string) =>
   phoneAuthOver(
     createAuthClient({
       baseURL: cloudUrl,
@@ -94,8 +78,9 @@ const phoneAuth = (cloudUrl: string): PhoneAuth =>
 
 let runtime: AppRuntime | null = null;
 
-const build = (): AppRuntime => {
+const build = () => {
   const cloudUrl = getCloudUrl();
+
   const rt = composeRuntime({
     auth: phoneAuth(cloudUrl),
     build: { platform: "mobile", version: appVersion() },
@@ -108,10 +93,10 @@ const build = (): AppRuntime => {
     sha256Hex,
     storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
   });
-  // never removed: the runtime lives as long as the app. `inactive` is a passing state on iOS (a
-  // pulled-down notification centre), not a departure.
+
   AppState.addEventListener("change", (state) => {
     focusManager.setFocused(state === "active");
+
     if (state === "active" || state === "background") {
       rt.setReach({ front: state === "active" });
     }
@@ -120,6 +105,7 @@ const build = (): AppRuntime => {
     const subscription = addNetworkStateListener((network) => {
       setOnline(network.isInternetReachable ?? network.isConnected ?? false);
     });
+
     return () => {
       subscription.remove();
     };
@@ -127,43 +113,45 @@ const build = (): AppRuntime => {
   onlineManager.subscribe((online) => {
     rt.setReach({ online });
   });
+
   return rt;
 };
 
-export const getRuntime = (): AppRuntime => {
+export const getRuntime = () => {
   runtime ??= build();
+
   return runtime;
 };
 
-export const ensureStarted = async (): Promise<void> => {
+export const ensureStarted = async () => {
   await getRuntime().start();
 };
 
-export const logout = async (options?: { discardWaiting?: boolean }): Promise<LogoutOutcome> =>
+export const logout = async (options?: { discardWaiting?: boolean }) =>
   await getRuntime().logout(options);
 
-export const login = async (request: LoginRequest): Promise<void> => {
+export const login = async (request: LoginRequest) => {
   await getRuntime().login.login(request);
 };
 
-export const signUp = async (request: SignUpRequest): Promise<void> => {
+export const signUp = async (request: SignUpRequest) => {
   await getRuntime().login.signUp(request);
 };
 
-export const useSession = (): PhoneSession => {
+export const useSession = () => {
   const { session } = getRuntime();
+
   return useSyncExternalStore(session.subscribe, session.get);
 };
 
-// whether the phone has a connection, as TanStack Query hears it from the network; the app going
-// behind does not change it
-export const useOnline = (): boolean =>
+export const useOnline = () =>
   useSyncExternalStore(
     (listener) => onlineManager.subscribe(listener),
     () => onlineManager.isOnline(),
   );
 
-export const useLoginState = (): LoginState => {
+export const useLoginState = () => {
   const rt = getRuntime();
+
   return useSyncExternalStore(rt.login.subscribe, rt.login.get);
 };

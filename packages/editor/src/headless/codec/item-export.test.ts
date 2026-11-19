@@ -7,7 +7,7 @@ import { blankItemFields, importedFields } from "@repo/contract/library/item-mak
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibrarySection } from "@repo/contract/library/library-nodes";
 
-import { CODEC_NOW, withoutId } from "../../test-support/codec-ports";
+import { CODEC_NOW, withoutId } from "../../test-support/codec-ports.test-utils";
 import {
   importPathKind,
   importPlannedDoc,
@@ -23,9 +23,8 @@ import { readBody } from "./read-body";
 
 const DAY = 86_400_000;
 
-const shaOf = (hex: string): string => hex.repeat(64);
+const shaOf = (hex: string) => hex.repeat(64) satisfies string;
 
-// each file the library holds, by the name a fixture's markdown embeds it under
 const HELD = {
   "clip.mp4": { sha: shaOf("f"), type: "video/mp4" },
   "deck.pdf": { sha: shaOf("d"), type: "application/pdf" },
@@ -47,7 +46,6 @@ const ODD_ID = "0195f3a0-5c1e-7000-8000-000000000007";
 const TALK_ID = "0195f3a0-5c1e-7000-8000-000000000008";
 const UNHELD_ID = "0195f3a0-5c1e-7000-8000-0000000000ff";
 
-// what each item link's key names as the fixture's markdown is read, an item since deleted among them
 const TITLES = new Map([
   [NOTE_ID, "Launch plan"],
   [LINK_ID, "How to take smart notes"],
@@ -55,42 +53,46 @@ const TITLES = new Map([
 ]);
 
 let blockIds = 0;
-const newBlockId = (): string => {
+
+const newBlockId = () => {
   blockIds += 1;
-  return `block-${String(blockIds)}`;
+
+  return `block-${String(blockIds)}` satisfies string;
 };
 
-// markdown as the stored blocks of one section, its embeds the library's files and its item links
-// the fixture's items
-const blocks = (section: LibrarySection, markdown: string): BodyBlock[] => {
+const blocks = (section: LibrarySection, markdown: string) => {
   const read = readBody(markdown, {
     links: {
       image: (url) => {
         const file = heldFile(url);
+
         return file === undefined
           ? null
           : { kind: fileKindOfMime(file.type), name: url, path: url, sha: file.sha };
       },
       item: (key) => {
         const title = TITLES.get(key);
+
         return title === undefined ? null : { itemId: key, title };
       },
     },
     newBlockId,
   });
+
   if (!read.ok) {
     throw new Error(`the fixture's markdown refused: ${read.reason.kind}`);
   }
-  return read.blocks.map((block) => ({ block, section }));
+
+  return read.blocks.map((block) => ({ block, section })) satisfies BodyBlock[];
 };
 
-const fieldsOf = (fields: Partial<LibraryItemFields>): LibraryItemFields => ({
-  ...blankItemFields(CODEC_NOW - 30 * DAY),
-  ...fields,
-});
+const fieldsOf = (fields: Partial<LibraryItemFields>) =>
+  ({
+    ...blankItemFields(CODEC_NOW - 30 * DAY),
+    ...fields,
+  }) satisfies LibraryItemFields;
 
-// the note's body, its link to an item the export does not hold spelled `unheld`
-const noteBody = (unheld: string): string =>
+const noteBody = (unheld: string) =>
   [
     "# Launch",
     "",
@@ -104,7 +106,7 @@ const noteBody = (unheld: string): string =>
     "",
     "- [ ] ship it",
     "- [x] **write** it",
-  ].join("\n");
+  ].join("\n") satisfies string;
 
 const NOTE: ExportItem = {
   blocks: blocks("note", noteBody(`[the old plan](mention:${UNHELD_ID})`)),
@@ -182,7 +184,6 @@ const BOARD: ExportItem = {
   id: BOARD_ID,
 };
 
-// an address saved and never read: no title, and why its page could not be read
 const GONE: ExportItem = {
   blocks: [],
   fields: fieldsOf({
@@ -195,7 +196,6 @@ const GONE: ExportItem = {
   id: GONE_ID,
 };
 
-// an address saved to read later, its page not yet read
 const TALK: ExportItem = {
   blocks: [],
   fields: fieldsOf({
@@ -208,7 +208,6 @@ const TALK: ExportItem = {
   id: TALK_ID,
 };
 
-// a title another item's file goes by, case aside
 const TWIN: ExportItem = {
   blocks: blocks("note", "The other one."),
   fields: fieldsOf({ title: "launch plan" }),
@@ -216,7 +215,6 @@ const TWIN: ExportItem = {
   id: TWIN_ID,
 };
 
-// a title no disk takes as written
 const ODD: ExportItem = {
   blocks: blocks("note", "Odd."),
   fields: fieldsOf({ title: "Q3: results / next?" }),
@@ -226,31 +224,37 @@ const ODD: ExportItem = {
 
 const LIBRARY = [NOTE, LINK, DECK, BOARD, GONE, TALK, TWIN, ODD];
 
-const typeOf = (sha: string): string =>
-  Object.values(HELD).find((file) => file.sha === sha)?.type ?? UNKNOWN_FILE_TYPE;
+const typeOf = (sha: string) =>
+  (Object.values(HELD).find((file) => file.sha === sha)?.type ??
+    UNKNOWN_FILE_TYPE) satisfies string;
 
 const PORTS: ExportPorts = {
   title: (itemId) => LIBRARY.find((item) => item.id === itemId)?.fields.title ?? null,
   typeOf,
 };
 
-const exported = (items: readonly ExportItem[]): ExportedFile[] => items.map(exportWriter(PORTS));
+const exported = (items: readonly ExportItem[]) =>
+  items.map(exportWriter(PORTS)) satisfies ExportedFile[];
 
 let planned = 0;
+
 const IDS: PlanIds = {
   newItemId: () => {
     planned += 1;
+
     return `0195f3a0-5c1e-7000-8000-${String(planned).padStart(12, "0")}`;
   },
 };
 
-// the export's files as an import lists them: each item's text, and each file's bytes by sha
-const entriesOf = (files: readonly ExportedFile[]): ImportEntry[] => {
+const entriesOf = (files: readonly ExportedFile[]) => {
   const bytes = new Map(files.flatMap((file) => file.files.map((held) => [held.path, held.sha])));
+
   return [
-    ...files.map((file): ImportEntry => ({ kind: "doc", path: file.path, text: file.text })),
-    ...[...bytes].map(([path, sha]): ImportEntry => ({ kind: "file", path, sha })),
-  ];
+    ...files.map(
+      (file) => ({ kind: "doc", path: file.path, text: file.text }) satisfies ImportEntry,
+    ),
+    ...[...bytes].map(([path, sha]) => ({ kind: "file", path, sha }) satisfies ImportEntry),
+  ] satisfies ImportEntry[];
 };
 
 interface Reimported {
@@ -259,22 +263,22 @@ interface Reimported {
   readonly item: ImportedItem;
 }
 
-// the export read back by the import's own two passes
-const reimport = (files: readonly ExportedFile[]): Reimported[] => {
+const reimport = (files: readonly ExportedFile[]) => {
   const plan = planImport(entriesOf(files), IDS);
   const reader = openPlan(plan);
+
   return plan.docs.map((doc) => {
     const text = files.find((file) => file.path === doc.path)?.text ?? "";
     const read = importPlannedDoc(reader, doc, text, { newBlockId, now: CODEC_NOW });
+
     if (!read.ok) {
       throw new Error(`the import refused ${doc.path}: ${read.reason.kind}`);
     }
+
     return { item: read.read.item, itemId: doc.itemId, path: doc.path };
-  });
+  }) satisfies Reimported[];
 };
 
-// an item as the import lands it, ids aside: a file says only that an item is pinned, so a pin
-// reads back as of its save
 const landed = (item: ExportItem) => ({
   blocks: item.blocks.map((body) => ({ ...body, block: withoutId(body.block) })),
   fields: importedFields({
@@ -290,28 +294,29 @@ const contentOf = (item: ImportedItem) => ({
   leftOut: item.leftOut,
 });
 
-const exportedOf = (files: readonly ExportedFile[], id: string): ExportedFile => {
+const exportedOf = (files: readonly ExportedFile[], id: string) => {
   const file = files.find(
     (one) => one.text.includes(`\nid: ${id}\n`) || one.text.startsWith(`---\nid: ${id}\n`),
   );
+
   if (file === undefined) {
     throw new Error(`no file carries ${id}`);
   }
-  return file;
+
+  return file satisfies ExportedFile;
 };
 
 describe("an export read back by the import is the same library", () => {
   const files = exported(LIBRARY);
   const back = reimport(files);
 
-  it.each(LIBRARY.filter((item) => item !== ODD).map((item) => [item.fields.title, item] as const))(
+  it.each(LIBRARY.flatMap((item) => (item === ODD ? [] : [[item.fields.title, item] as const])))(
     "%j: the same fields, folder, body and links",
     (_title, item) => {
       const read = back.find((one) => one.itemId === item.id);
       expect(read?.path).toBe(exportedOf(files, item.id).path);
       expect(dirnamePath(read?.path ?? "")).toBe(item.folder.join("/"));
       expect(read === undefined ? null : contentOf(read.item)).toStrictEqual(
-        // a link to an item the export does not hold reads back as the words it showed
         landed(
           item === NOTE ? { ...item, blocks: blocks("note", noteBody("The old plan")) } : item,
         ),
@@ -322,6 +327,7 @@ describe("an export read back by the import is the same library", () => {
   it("writes every item's file where the import reads a note, and every file where it reads one", () => {
     for (const file of files) {
       expect(importPathKind(file.path)).toBe("doc");
+
       for (const held of file.files) {
         expect(importPathKind(held.path)).toBe("file");
       }
@@ -382,14 +388,16 @@ describe("an export read back by the import is the same library", () => {
   });
 });
 
-// one item alone, exported and read back
 const exportedAlone = (fields: Partial<LibraryItemFields>) => {
   const item: ExportItem = { blocks: [], fields: fieldsOf(fields), folder: [], id: NOTE_ID };
   const [file] = exported([item]);
+
   if (file === undefined) {
     throw new Error("the export wrote nothing");
   }
+
   const [read] = reimport([file]);
+
   return { file, item: read?.item };
 };
 
@@ -399,6 +407,7 @@ describe("a property no key of the file can spell", () => {
       properties: { id: "mine", kept: "yes", url: "https://example.com/not-mine" },
       title: "Keys",
     });
+
     expect(file.leftOut).toBe(2);
     expect(file.text.match(/^id:/gmu)).toHaveLength(1);
     expect(file.text).not.toContain("url:");
@@ -412,6 +421,7 @@ describe("a property no key of the file can spell", () => {
       tags: ["work"],
       title: "Lists",
     });
+
     expect(file.leftOut).toBe(0);
     expect(file.text.match(/^tags:/gmu)).toHaveLength(1);
     expect(item?.fields.tags).toStrictEqual(["work"]);

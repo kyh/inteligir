@@ -1,11 +1,3 @@
-// The library tab's layout, above the workspace and Settings alike, so Settings and back keeps one
-// theme, one toaster, one confirm host, one host of a command's asks, one notice of writes waiting
-// for a connection, one of the Mac app's update and the browser's ask as the tab closes on an
-// import (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and
-// the library the tab opened once (`library-tab.ts`). Settings draws in a full-window layer over a
-// workspace it leaves mounted and inert (CLAUDE.md § Where the tab is rides the URL, and Settings
-// covers a workspace that stays mounted).
-
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
@@ -31,14 +23,13 @@ import type { TabOpening } from "./library-tab";
 import { SettingsPage } from "./settings/settings-page";
 import { Workspace } from "./workspace";
 
-// the floor spares a page the Worker served, so a tab it refuses is a browser too old to mark its
-// calls as that page's, and a sign-in would send it straight back here
 const TOO_OLD =
   "This browser is too old to open your library. Update it, or open the library in another browser.";
 
 const WorkspaceLayout = () => {
   const { kind, openItem, scope, settings } = useLibraryAddress();
   const listed = useQuery(useLibraryQueries().scopes()).data;
+
   return (
     <>
       <Workspace
@@ -59,8 +50,6 @@ const WorkspaceLayout = () => {
 type Opened = Extract<TabOpening, { kind: "open" }>;
 
 const OpenLibrary = ({ library, queryClient }: Opened) => {
-  // installed as the library first renders, ahead of its children: an open item's editor reads the
-  // host as it renders
   // oxlint-disable-next-line react/hook-use-state -- a once-a-mount install: React's lazy initializer, with no value to keep
   useState(() => {
     const { cloud, wire, workspace } = library;
@@ -75,9 +64,11 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
   useImportUnloadAsk(library.session);
   useExportUnloadAsk(library.session);
   const standing = useSyncExternalStore(library.session.subscribe, library.session.get);
+
   if (standing.kind === "ended" && standing.why === "outdated") {
     return TOO_OLD;
   }
+
   return (
     <QueryClientProvider client={queryClient}>
       <PageLibraryProvider library={library}>
@@ -100,7 +91,7 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
   );
 };
 
-const reload = (): void => {
+const reload = () => {
   window.location.reload();
 };
 
@@ -111,7 +102,6 @@ export const LibraryLayout = ({ opening }: { readonly opening: TabOpening }) => 
   </div>
 );
 
-// the page's, over the tab opened once a document
 const OpenedLibrary = () => <LibraryLayout opening={use(pageTab.opening)} />;
 
 export default OpenedLibrary;

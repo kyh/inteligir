@@ -1,8 +1,3 @@
-// The library's rows that write, routed beside the ones that read (`../rpc/library-router`): each
-// side keeps a module of its own, and `items` holds rows of both. Every write lands through the
-// store in one transaction under the account's lock (`./library-store`), answered under its op id
-// when it names one, and every refusal as the error its row declares (`./library-access`).
-
 import { noteFields } from "@repo/contract/library/item-makes";
 import { bodyWriteSchema, folderRowSchema } from "@repo/contract/library/library-wire";
 import { organizedSchema } from "@repo/contract/rpc/library-contract";
@@ -40,20 +35,19 @@ const purgedSchema = z.object({ missing: ids, purged: ids });
 
 export const libraryWriteRows = {
   agent: {
-    // no opId: an undo sent again finds nothing left to take back
     undo: writing.agent.undo.handler(async ({ context, input }) =>
       answer(await undoTurns(context.library, input)),
     ),
   },
-  // a file's two calls: neither lands an item, and a reserve only reads, but each spends the
-  // library's room and a request of its store, which a grant that only reads may not
   files: {
     reserve: writing.files.reserve.handler(async ({ context, input }) => {
       const spent = await spendHolderBudget("fileReserve", context.library.accountId);
+
       if (spent.kind === "refused") {
         const { retryAfterSeconds } = spent;
         throw new TooManyRequestsError({ data: { retryAfterSeconds } });
       }
+
       return answer(await reserveFile(context.library, input));
     }),
     settle: writing.files.settle.handler(async ({ context, input }) =>
@@ -68,6 +62,7 @@ export const libraryWriteRows = {
           { answer: foldersWrittenSchema, opId: input.opId },
           async (scope) => {
             const folders = await writeFolders(scope, input.ops);
+
             return { folders, seq: await libraryHead(scope.tx, scope.accountId) };
           },
         ),
@@ -75,7 +70,6 @@ export const libraryWriteRows = {
     ),
   },
   imports: {
-    // an import is its own actor, whoever runs it, so no turn's change set keeps what it lands
     land: writing.imports.land.handler(async ({ context, input }) =>
       answer(
         await writeLibrary(
@@ -120,7 +114,6 @@ export const libraryWriteRows = {
         ),
       ),
     ),
-    // an agent's edit by passages, made before its write and made again over a save since
     edit: writing.items.edit.handler(async ({ context, input }) =>
       answer(await editBody(context.library, input)),
     ),
@@ -132,6 +125,7 @@ export const libraryWriteRows = {
           async (scope) => await setDeleted(scope, { deleted: true, ids: input.ids }),
         ),
       );
+
       return { deleted: changed, missing };
     }),
     organize: writing.items.organize.handler(async ({ context, input }) =>
@@ -171,6 +165,7 @@ export const libraryWriteRows = {
           async (scope) => await setDeleted(scope, { deleted: false, ids: input.ids }),
         ),
       );
+
       return { addressHeld, missing, restored: changed };
     }),
     save: writing.items.save.handler(async ({ context, input }) =>
@@ -191,7 +186,6 @@ export const libraryWriteRows = {
         ),
       ),
     ),
-    // no opId: the version it was made over keys it
     saveBody: writing.items.saveBody.handler(async ({ context, input }) =>
       answer(
         await writeLibrary(

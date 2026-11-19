@@ -6,18 +6,21 @@ import type { LibrarySection } from "@repo/contract/library/library-nodes";
 
 import { mergeBlocks } from "@repo/editor/headless/body/merge-blocks";
 
-const p = (id: string, text: string, section: LibrarySection = "note"): BodyBlock => ({
-  block: { children: [{ text }], id, type: "p" },
-  section,
-});
+const p = (id: string, text: string, section: LibrarySection = "note") =>
+  ({
+    block: { children: [{ text }], id, type: "p" },
+    section,
+  }) satisfies BodyBlock;
 
 const BASE = [p("one", "1"), p("two", "2"), p("three", "3")];
 
-const merged = (base: BodyBlock[], mine: BodyBlock[], theirs: BodyBlock[]): string[] => {
+const merged = (base: BodyBlock[], mine: BodyBlock[], theirs: BodyBlock[]) => {
   const merge = mergeBlocks(base, mine, theirs);
+
   if (merge.kind !== "merged") {
     throw new Error(`a conflict over ${merge.blockIds.join(", ")}`);
   }
+
   return merge.blocks.map(
     ({ block, section }) => `${block.id}:${NodeApi.string(block)}:${section}`,
   );

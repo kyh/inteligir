@@ -9,18 +9,19 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 
 const showTag = vi.fn<(tag: string) => void>();
+
 beforeEach(() => {
   showTag.mockClear();
   installFakeEditorHost({ agent: { askAboutSelection: vi.fn<(text: string) => void>(), showTag } });
 });
 
-// only TagChipKit: unregistered types still resolve through editor.getType's key fallback, which the suppression checks compare against.
 const renderValue = (value: Value) => {
   const editor = createPlateEditor({ plugins: TagChipKit, value });
+
   return render(
     <Plate editor={editor}>
       <PlateContent />
@@ -28,9 +29,9 @@ const renderValue = (value: Value) => {
   );
 };
 
-const paragraph = (children: Descendant[]): TElement => ({ children, type: "p" });
+const paragraph = (children: Descendant[]) => ({ children, type: "p" }) satisfies TElement;
 
-const chips = (container: HTMLElement): string[] =>
+const chips = (container: HTMLElement) =>
   [...container.querySelectorAll("[title^='Show items tagged']")].map(
     (node) => node.textContent ?? "",
   );
@@ -52,9 +53,11 @@ describe("tag chip rendering", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha" }])]);
     const chip = container.querySelector("[title^='Show items tagged']");
     expect(chip).not.toBeNull();
+
     if (chip === null) {
       return;
     }
+
     fireEvent.click(chip);
     expect(showTag).toHaveBeenCalledWith("alpha");
   });
@@ -68,6 +71,7 @@ describe("tag chip rendering", () => {
       ],
       ["link label", [paragraph([{ children: [{ text: "#alpha" }], type: "a", url: "/x" }])]],
     ];
+
     for (const [label, value] of cases) {
       const { container, unmount } = renderValue(value);
       expect(chips(container), label).toStrictEqual([]);
@@ -90,11 +94,14 @@ describe("byte stability (the decoration never reaches the value)", () => {
       "- [ ] task #beta",
       "",
     ].join("\n");
+
     const parsed = parseMarkdown(src);
     expect(parsed.ok).toBe(true);
+
     if (!parsed.ok) {
       return;
     }
+
     const editor = createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
     const out = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
     expect(out).toBe(src);

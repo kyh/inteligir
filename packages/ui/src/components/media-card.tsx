@@ -1,17 +1,13 @@
 "use client";
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- a card is a cell of the virtualized card grid, a flex column of divs that a <td> would lay out as a table cell */
-// A saved thing as a card: a 16:10 cover over a fixed body, so every card in a row is one height
-// and the grid that draws them measures nothing (`mediaCardHeight`). The card is a grid cell; the
-// grid owns the selection and the focus, and the card only says which it has.
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-// the body under the cover: two lines of title, a line of meta and two of description, clipped
 const MEDIA_CARD_BODY_PX = 92;
 
-export const mediaCardHeight = (cellWidth: number): number =>
+export const mediaCardHeight = (cellWidth: number) =>
   Math.round((cellWidth * 10) / 16) + MEDIA_CARD_BODY_PX;
 
 interface MediaCardProps extends HTMLAttributes<HTMLDivElement> {
@@ -109,7 +105,6 @@ const MediaCardDescription = ({
   />
 );
 
-// a mark over the cover's corner: a play glyph, or a short word about the item's state
 interface MediaCardBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   icon?: ReactNode;
   position?: "top-left" | "top-right" | "bottom-left";
@@ -142,7 +137,6 @@ const MediaCardBadge = ({
   </span>
 );
 
-// a cell whose row has not loaded yet: the card's shape, nothing in it to read
 const MediaCardSkeleton = ({
   className,
   ref,

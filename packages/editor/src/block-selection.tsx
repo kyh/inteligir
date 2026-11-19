@@ -1,4 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import { useBlockSelected } from "@platejs/selection/react";
 
@@ -7,12 +7,10 @@ import { cn } from "@repo/ui/lib/cn";
 export const BlockSelection = ({ pluginKey }: { pluginKey: string }) => {
   const isBlockSelected = Boolean(useBlockSelected());
 
-  // tables carry their own cell-selection UI
   if (!isBlockSelected || pluginKey === "tr" || pluginKey === "table") {
     return null;
   }
 
-  // span, not div: a div inside <p> is invalid nesting
   return (
     <span
       className={cn(

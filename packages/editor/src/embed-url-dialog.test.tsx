@@ -5,24 +5,27 @@ import type { PlateEditor } from "platejs/react";
 import { describe, expect, it } from "vitest";
 
 import { GROUPS } from "@repo/editor/slash-items";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const PAGE = "https://example.com/embed";
 
-const mounted = (): PlateEditor => {
+const mounted = () => {
   const ref = createRef<PlateEditor>();
   render(<EditorHarness ref={ref} value={[{ children: [{ text: "x" }], type: "p" }]} />);
   const editor = ref.current;
+
   if (editor === null) {
     throw new Error("the harness did not hand over its editor");
   }
+
   editor.tf.select(editor.api.end([0]));
+
   return editor;
 };
 
-const embeds = (editor: PlateEditor): number =>
+const embeds = (editor: PlateEditor) =>
   editor.children.filter((node) => node.type === KEYS.mediaEmbed).length;
 
 describe("the Embed row's prompt", () => {

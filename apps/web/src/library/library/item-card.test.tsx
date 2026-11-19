@@ -16,31 +16,33 @@ afterEach(() => {
 const SAVED = 1_700_000_000_000;
 const REASON = "The page answered 404: it may have moved.";
 
-const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  folderId: null,
-  kind: "link",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  reading: { state: "none" },
-  savedAt: SAVED,
-  site: "example.com",
-  tags: [],
-  title: "Moved away",
-  url: "https://example.com/moved",
-  ...patch,
-});
+const fields = (patch: Partial<LibraryItemFields>) =>
+  ({
+    aliases: [],
+    author: null,
+    coverSha: null,
+    deletedAt: null,
+    description: null,
+    folderId: null,
+    kind: "link",
+    lang: null,
+    originalName: null,
+    originalSha: null,
+    pinnedAt: null,
+    properties: {},
+    published: null,
+    reading: { state: "none" },
+    savedAt: SAVED,
+    site: "example.com",
+    tags: [],
+    title: "Moved away",
+    url: "https://example.com/moved",
+    ...patch,
+  }) satisfies LibraryItemFields;
 
-const linkRow = (patch: Partial<LibraryItemFields>): ListedItem => {
+const linkRow = (patch: Partial<LibraryItemFields>) => {
   const itemFields = fields(patch);
+
   return {
     card: { outline: [], preview: "", title: itemFields.title, words: 0 },
     fields: itemFields,
@@ -48,7 +50,7 @@ const linkRow = (patch: Partial<LibraryItemFields>): ListedItem => {
     seq: 1,
     tags: itemFields.tags,
     updatedAt: SAVED,
-  };
+  } satisfies ListedItem;
 };
 
 const drawCard = (row: ListedItem) => {
@@ -66,16 +68,15 @@ const drawCard = (row: ListedItem) => {
       onMenu={onMenu}
     />,
   );
+
   return { onMenu, onOpen, onPress };
 };
 
-const failedRow = (): ListedItem =>
-  linkRow({ reading: { at: SAVED, error: REASON, state: "failed" } });
+const failedRow = () => linkRow({ reading: { at: SAVED, error: REASON, state: "failed" } });
 
-const badge = (): HTMLElement => screen.getByText("Page not read");
+const badge = () => screen.getByText("Page not read");
 
-// Base UI opens a hover popover on its own delay, so the clock runs past it
-const hover = (element: HTMLElement): void => {
+const hover = (element: HTMLElement) => {
   fireEvent.pointerEnter(element, { pointerType: "mouse" });
   fireEvent.mouseEnter(element);
   fireEvent.mouseMove(element);
@@ -84,7 +85,7 @@ const hover = (element: HTMLElement): void => {
   });
 };
 
-const reason = (): HTMLElement => within(screen.getByRole("dialog")).getByText(REASON);
+const reason = () => within(screen.getByRole("dialog")).getByText(REASON);
 
 describe("a card with no title and no words", () => {
   it("is called Untitled, to the eye and to a screen reader", () => {
@@ -106,7 +107,6 @@ describe("a card whose page went unread", () => {
     expect(reason().closest("[data-slot='popover-content']")?.className).toContain("select-text");
   });
 
-  // a tooltip is off on touch, so the reason opens on a tap too
   it("says why on a click, which selects the card as a click anywhere on it does", () => {
     const { onOpen, onPress } = drawCard(failedRow());
     act(() => {
@@ -117,8 +117,6 @@ describe("a card whose page went unread", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  // the popover is the card's child in React's tree, so its events reach the card's handlers
-  // unless the card asks where they landed
   it("keeps a click, a double-click or a right-click in the reason off the card", () => {
     const { onMenu, onOpen, onPress } = drawCard(failedRow());
     hover(badge());

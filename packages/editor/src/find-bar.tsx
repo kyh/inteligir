@@ -37,7 +37,6 @@ import { reveal } from "@repo/editor/scroll-reveal";
 
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace" | "replace-all";
 
-// the replace field's chord alone: in the note, ⌘Enter is not the bar's to take
 const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
   action: "replace-all",
   hotkey: "mod+enter",
@@ -51,19 +50,14 @@ export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[
   REPLACE_ALL_SHORTCUT,
 ];
 
-// the bar's own field has no toggles: any case, anywhere in a word
 const FIELD_MATCHING: TextMatchOptions = { caseSensitive: false, wholeWord: false };
 
-// A jump's options are drawn, since the count answers to them and the field alone would not say
-// so; a chip only drops them, because the bar has no toggle to set one.
 const OPTION_CHIPS: readonly { readonly option: keyof TextMatchOptions; readonly label: string }[] =
   [
     { label: "Match case", option: "caseSensitive" },
     { label: "Whole word", option: "wholeWord" },
   ];
 
-// A jump from the library's search brings that search's options with its query, so the bar lights
-// the matches the palette listed and the ordinal counts among them; typing a query drops them.
 interface FindSearch {
   query: string;
   options: TextMatchOptions;
@@ -72,14 +66,11 @@ interface FindSearch {
 interface FindBarOptions {
   open: boolean;
   search: FindSearch;
-  // a ref, so the match follows the edits around it and an edit that takes it is noticed
   active: RangeRef | null;
   replace: string;
   replaceOpen: boolean;
 }
 
-// Plugin options rather than a module store: each note's editor keeps its own bar, so a match
-// never names a path in the note that replaced it.
 const FindBarPlugin = createTPlatePlugin<PluginConfig<"findBar", FindBarOptions>>({
   key: "findBar",
   options: {
@@ -91,27 +82,23 @@ const FindBarPlugin = createTPlatePlugin<PluginConfig<"findBar", FindBarOptions>
   },
 });
 
-// The element the bar hangs under: the item view's slot above the note, since the editor never
-// reaches the shell, so the shell hands it over. Null only before that view first commits.
 const anchorStore = createStore<HTMLElement | null>()(() => null);
 
-export const setFindBarAnchor = (element: HTMLElement | null): void => {
+export const setFindBarAnchor = (element: HTMLElement | null) => {
   anchorStore.setState(element, true);
 };
 
-export const getFindBarState = (editor: SlateEditor): FindBarOptions =>
-  editor.getOptions(FindBarPlugin);
+export const getFindBarState = (editor: SlateEditor) => editor.getOptions(FindBarPlugin);
 
-// Decorations read the open flag, the search and the active match rather than the document, so
-// a change to one of them must redecorate. The replace field is not among them, so typing into
-// it never re-walks every text leaf.
-const setFindBar = (editor: SlateEditor, next: Partial<FindBarOptions>): void => {
+const setFindBar = (editor: SlateEditor, next: Partial<FindBarOptions>) => {
   const previous = getFindBarState(editor);
   editor.setOptions(FindBarPlugin, next);
   const current = getFindBarState(editor);
+
   if (current.active !== previous.active) {
     previous.active?.unref();
   }
+
   if (
     current.open !== previous.open ||
     current.search !== previous.search ||
@@ -121,61 +108,67 @@ const setFindBar = (editor: SlateEditor, next: Partial<FindBarOptions>): void =>
   }
 };
 
-// inward, so text typed at either edge stays outside the match and text typed inside it joins
-const trackMatch = (editor: SlateEditor, match: TRange | undefined): RangeRef | null =>
+const trackMatch = (editor: SlateEditor, match: TRange | undefined) =>
   match === undefined ? null : editor.api.rangeRef(match, { affinity: "inward" });
 
-const leafMatches = (text: string, path: Path, search: FindSearch): TRange[] =>
+const leafMatches = (text: string, path: Path, search: FindSearch) =>
   findTextOffsets(text, search.query, search.options).map(({ offset, length }) => ({
     anchor: { offset, path },
     focus: { offset: offset + length, path },
   }));
 
-const searchMatches = (editor: SlateEditor, search: FindSearch): TRange[] => {
+const searchMatches = (editor: SlateEditor, search: FindSearch) => {
   if (search.query === "") {
-    return [];
+    return [] satisfies TRange[];
   }
+
   const matches: TRange[] = [];
+
   for (const [node, path] of editor.api.nodes({ at: [], match: (n) => TextApi.isText(n) })) {
     matches.push(...leafMatches(NodeApi.string(node), path, search));
   }
+
   return matches;
 };
 
-const activeIndexIn = (matches: readonly TRange[], active: TRange | null): number =>
+const activeIndexIn = (matches: readonly TRange[], active: TRange | null) =>
   active === null ? -1 : matches.findIndex((match) => RangeApi.equals(match, active));
 
-// where a walk picks up when there is no active match to step from: the first match at or after
-// the point, else the first in the note
-const resumeIndex = (matches: readonly TRange[], from: Point | null): number => {
+const resumeIndex = (matches: readonly TRange[], from: Point | null) => {
   if (from === null) {
     return 0;
   }
+
   const index = matches.findIndex((match) => !PointApi.isBefore(match.anchor, from));
+
   return index === -1 ? 0 : index;
 };
 
-const scrollToMatch = (editor: SlateEditor, match: TRange): void => {
+const scrollToMatch = (editor: SlateEditor, match: TRange) => {
   try {
     const domRange = editor.api.toDOMRange(match);
     const container = domRange?.startContainer;
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
+
     if (target !== null) {
       reveal(target, "center");
     }
+
+    return true;
   } catch {
-    // a leaf the view has not drawn has no DOM range
+    return false;
   }
 };
 
-const activate = (editor: SlateEditor, match: TRange | undefined): void => {
+const activate = (editor: SlateEditor, match: TRange | undefined) => {
   setFindBar(editor, { active: trackMatch(editor, match) });
+
   if (match !== undefined) {
     scrollToMatch(editor, match);
   }
 };
 
-export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }): void => {
+export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }) => {
   const state = getFindBarState(editor);
   const [first] = searchMatches(editor, state.search);
   setFindBar(editor, {
@@ -185,74 +178,77 @@ export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }
   });
 };
 
-// leaves focus where it is, for a surface drawn over the note: moving it to the editor would
-// close a non-modal popup holding it, since those close on focus-out
-const hideFindBar = (editor: SlateEditor): void => {
+const hideFindBar = (editor: SlateEditor) => {
   setFindBar(editor, { active: null, open: false });
 };
 
-const closeFindBar = (editor: SlateEditor): void => {
+const closeFindBar = (editor: SlateEditor) => {
   hideFindBar(editor);
   editor.tf.focus();
 };
 
-const wrap = (index: number, length: number): number => (index + length) % length;
+const wrap = (index: number, length: number) => (index + length) % length;
 
-export const cycleFindMatch = (editor: SlateEditor, direction: 1 | -1): void => {
+export const cycleFindMatch = (editor: SlateEditor, direction: 1 | -1) => {
   const { active, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);
+
   if (matches.length === 0) {
     setFindBar(editor, { active: null });
+
     return;
   }
+
   const from = active?.current ?? null;
   const current = activeIndexIn(matches, from);
   let next = wrap(current + direction, matches.length);
+
   if (current === -1) {
     const resume = resumeIndex(matches, from?.anchor ?? null);
     next = direction === 1 ? resume : wrap(resume - 1, matches.length);
   }
+
   activate(editor, matches[next]);
 };
 
-export const setFindQuery = (editor: SlateEditor, query: string): void => {
+export const setFindQuery = (editor: SlateEditor, query: string) => {
   const search: FindSearch = { options: FIELD_MATCHING, query };
   const [first] = searchMatches(editor, search);
   setFindBar(editor, { active: trackMatch(editor, first), search });
 };
 
-// lands on the nth match in document order; a doc with fewer lands on its last
 export const jumpToFindMatch = (
   editor: SlateEditor,
   query: string,
   ordinal: number,
   options: TextMatchOptions = FIELD_MATCHING,
-): void => {
+) => {
   const search: FindSearch = { options, query };
   const matches = searchMatches(editor, search);
   const match = matches[Math.min(ordinal, matches.length - 1)];
   setFindBar(editor, { active: trackMatch(editor, match), open: true, search });
+
   if (match !== undefined) {
     scrollToMatch(editor, match);
   }
 };
 
-export const setReplaceText = (editor: SlateEditor, replace: string): void => {
+export const setReplaceText = (editor: SlateEditor, replace: string) => {
   setFindBar(editor, { replace });
 };
 
-// The active match, then the next one after what was written, so Enter walks the doc and never
-// rewrites its own replacement. An active match an edit took is not replaced: the press lands on
-// the next match, and the next press replaces what the user can now see.
-export const replaceActiveMatch = (editor: SlateEditor): void => {
+export const replaceActiveMatch = (editor: SlateEditor) => {
   const { active, replace, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);
   const from = active?.current ?? null;
   const target = matches[activeIndexIn(matches, from)];
+
   if (target === undefined) {
     activate(editor, matches[resumeIndex(matches, from?.anchor ?? null)]);
+
     return;
   }
+
   const written = editor.api.pointRef(target.focus, { affinity: "forward" });
   editor.tf.insertText(replace, { at: target });
   const after = written.unref();
@@ -260,8 +256,7 @@ export const replaceActiveMatch = (editor: SlateEditor): void => {
   activate(editor, remaining[resumeIndex(remaining, after)]);
 };
 
-// last to first, so no rewrite moves an offset still to be rewritten
-export const replaceAllMatches = (editor: SlateEditor): number => {
+export const replaceAllMatches = (editor: SlateEditor) => {
   const { replace, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);
   editor.tf.withoutNormalizing(() => {
@@ -270,6 +265,7 @@ export const replaceAllMatches = (editor: SlateEditor): number => {
     }
   });
   setFindBar(editor, { active: null });
+
   return matches.length;
 };
 
@@ -293,28 +289,30 @@ const BAR_BUTTON_CLASS =
 
 interface FindCounter {
   count: number;
-  // -1 while no match is active
   index: number;
 }
 
-const sameCounter = (a: FindCounter, b: FindCounter): boolean =>
-  a.count === b.count && a.index === b.index;
+const sameCounter = (a: FindCounter, b: FindCounter) => a.count === b.count && a.index === b.index;
 
 const OpenFindBar = () => {
   const editor = useEditorRef();
   const search = usePluginOption(FindBarPlugin, "search");
+  const shownChips = OPTION_CHIPS.filter(({ option }) => search.options[option]);
   const active = usePluginOption(FindBarPlugin, "active");
   const replace = usePluginOption(FindBarPlugin, "replace");
-  // a replace is an edit, which a read-only note takes none of
   const replaceOffered = !useEditorReadOnly();
   const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen") && replaceOffered;
   const anchor = useStore(anchorStore);
   const inputRef = useRef<HTMLInputElement>(null);
-  // an edit moves the count and the active match without touching the options
+
   const counter = useEditorSelector(
-    (current): FindCounter => {
+    (current) => {
       const matches = searchMatches(current, search);
-      return { count: matches.length, index: activeIndexIn(matches, active?.current ?? null) };
+
+      return {
+        count: matches.length,
+        index: activeIndexIn(matches, active?.current ?? null),
+      } satisfies FindCounter;
     },
     [search, active],
     { equalityFn: sameCounter },
@@ -326,12 +324,14 @@ const OpenFindBar = () => {
 
   const canReplace = counter.count > 0;
 
-  const onEscape = (event: React.KeyboardEvent): boolean => {
+  const onEscape = (event: React.KeyboardEvent) => {
     if (event.key !== "Escape") {
       return false;
     }
+
     event.preventDefault();
     closeFindBar(editor);
+
     return true;
   };
 
@@ -368,10 +368,13 @@ const OpenFindBar = () => {
             if (isImeComposing(event)) {
               return;
             }
+
             if (onEscape(event)) {
               return;
             }
+
             const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
+
             if (
               event.key === "Enter" ||
               row?.action === "find-next" ||
@@ -383,7 +386,7 @@ const OpenFindBar = () => {
           }}
           className="w-40 bg-transparent text-subtitle outline-none placeholder:text-muted-foreground/60"
         />
-        {OPTION_CHIPS.filter(({ option }) => search.options[option]).map(({ label, option }) => (
+        {shownChips.map(({ label, option }) => (
           <Tooltip key={option} content="Match any case, anywhere in a word">
             <button
               type="button"
@@ -426,14 +429,18 @@ const OpenFindBar = () => {
               if (isImeComposing(event)) {
                 return;
               }
+
               if (onEscape(event)) {
                 return;
               }
+
               if (editorShortcutFor(FIND_BAR_SHORTCUTS, event)?.action === "replace-all") {
                 event.preventDefault();
                 replaceAllMatches(editor);
+
                 return;
               }
+
               if (event.key === "Enter") {
                 event.preventDefault();
                 replaceActiveMatch(editor);
@@ -488,9 +495,7 @@ const OpenFindBar = () => {
         align="end"
         side="bottom"
         sideOffset={6}
-        // the bar sizes to its fields, and it is chrome over the note: not the popover's own card
         className="w-auto gap-1 rounded-md p-0 px-2 py-1 print:hidden"
-        // the editor keeps the caret; the input takes focus from the effect above
         initialFocus={inputRef}
       >
         {body}
@@ -499,9 +504,9 @@ const OpenFindBar = () => {
   );
 };
 
-// mounted only while open, so a closed bar costs a keystroke no walk of the note
 const FindBar = () => {
   const open = usePluginOption(FindBarPlugin, "open");
+
   return open ? <OpenFindBar /> : null;
 };
 
@@ -509,20 +514,26 @@ export const FindBarKit = [
   createPlatePlugin({
     decorate: ({ editor, entry: [node, path] }) => {
       const { active, open, search } = getFindBarState(editor);
+
       if (!open || !TextApi.isText(node)) {
         return;
       }
+
       const current = active?.current ?? null;
+
       const ranges = leafMatches(node.text, path, search).map((match) => {
         const range: DecoratedRange & { findMatch: true; findActive?: true } = {
           ...match,
           findMatch: true,
         };
+
         if (current !== null && RangeApi.equals(match, current)) {
           range.findActive = true;
         }
+
         return range;
       });
+
       return ranges.length > 0 ? ranges : undefined;
     },
     key: "findMatch",
@@ -532,18 +543,25 @@ export const FindBarKit = [
     handlers: {
       onKeyDown: ({ editor, event }) => {
         const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
+
         if (row === null || row.action === "replace-all") {
           return;
         }
+
         event.preventDefault();
+
         if (row.action === "open-replace") {
           openFindBar(editor, { replace: true });
+
           return;
         }
+
         if (!getFindBarState(editor).open) {
           openFindBar(editor);
+
           return;
         }
+
         cycleFindMatch(editor, row.action === "find-previous" ? -1 : 1);
       },
     },

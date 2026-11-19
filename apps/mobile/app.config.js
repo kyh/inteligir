@@ -1,10 +1,6 @@
 // oxlint-disable unicorn/prefer-module -- expo requires this file; the package is not type: module
-// plain JS: expo's config loader needs the compiler JS API that TypeScript 7 dropped
 const { version } = require("../../package.json");
 
-// `eas init` mints both (docs/releasing.md § Once per product: the phone's TestFlight). null until
-// they are committed, and until then a build has no EAS project to belong to and no update to take.
-/** @type {{ owner: string, projectId: string } | null} */
 const easProject = null;
 
 const easFields =
@@ -16,9 +12,6 @@ const easFields =
         updates: { url: `https://u.expo.dev/${easProject.projectId}` },
       };
 
-// Apple refuses a build that calls a required-reason API its own manifest does not declare, and
-// does not reliably read the manifests static pods carry; src/app-config.test.ts holds
-// this list to every autolinked module's.
 const accessedApiTypes = [
   {
     NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryDiskSpace",
@@ -29,22 +22,17 @@ const accessedApiTypes = [
     NSPrivacyAccessedAPITypeReasons: ["0A2A.1", "3B52.1"],
   },
   {
-    // 1C8F.1: the share extension hands what was shared over through the App Group's defaults
     NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
     NSPrivacyAccessedAPITypeReasons: ["CA92.1", "1C8F.1"],
   },
 ];
 
-// what the share sheet offers Save to Inteligir for: a page or a link, and text that may hold one;
-// never a photo or a file, which the phone keeps from its own photo picker
 const shareActivationRules = {
   NSExtensionActivationSupportsText: true,
   NSExtensionActivationSupportsWebPageWithMaxCount: 1,
   NSExtensionActivationSupportsWebURLWithMaxCount: 1,
 };
 
-/** @param {import("expo/config").ConfigContext} ctx the config expo read from app.json
- *  @returns {import("expo/config").ExpoConfig} the config expo builds the app from */
 const appConfig = ({ config }) => ({
   ...config,
   ...easFields,
@@ -81,9 +69,6 @@ const appConfig = ({ config }) => ({
       },
     ],
     ["expo-secure-store", { faceIDPermission: false }],
-    // the share extension only hands what was shared to the app, through the App Group and the
-    // app's own link; the app saves it (src/items/share-inbox.tsx). The App Group and the
-    // extension's id are the plugin's defaults, and EAS signs both.
     [
       "expo-share-intent",
       {
@@ -104,8 +89,6 @@ const appConfig = ({ config }) => ({
       },
     ],
   ],
-  // an update reaches only builds whose native code fingerprints the same, so a JS fix ships
-  // over the air and a native change needs a new build
   runtimeVersion: { policy: "fingerprint" },
   scheme: "inteligir",
   slug: "inteligir",

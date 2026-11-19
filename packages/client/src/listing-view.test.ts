@@ -16,6 +16,7 @@ describe("the pages a device read of a listing", () => {
       { items: rowsOf(["a", "b"]), kindCounts: COUNTS, total: 4 },
       { items: rowsOf(["b", "c"]), kindCounts: { ...COUNTS, note: 3 }, total: 3 },
     ]);
+
     expect(view?.items.map((row) => row.id)).toStrictEqual(["a", "b", "c"]);
     expect(view?.total).toBe(3);
     expect(view?.kindCounts.note).toBe(3);

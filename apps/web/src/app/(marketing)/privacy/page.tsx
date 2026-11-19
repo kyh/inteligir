@@ -5,7 +5,6 @@ import { PAGES, statedDate } from "#lib/page-meta";
 import { pageMetadata } from "#lib/page-metadata";
 import { pageGraph } from "#lib/structured-data";
 
-// dated by the effective date the doc itself states
 const dated = { dateModified: statedDate(LEGAL_DOCS.privacy) };
 
 export const metadata = pageMetadata(PAGES.privacy, dated);

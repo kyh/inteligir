@@ -1,5 +1,5 @@
 "use client";
-// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
+// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 
 import * as React from "react";
 import type { HTMLProps } from "react";
@@ -17,10 +17,9 @@ const PopoverTrigger = ({ ...props }: PopoverPrimitive.Trigger.Props) => (
   <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 );
 
-// the Popup itself is the surface, on the menus' rung, so a popover and a menu are one level;
-// bloom-popup's CSS stays its motion
 const renderSurface = (popupProps: HTMLProps<HTMLDivElement>) => {
   const { style, ...rest } = motionProps(popupProps);
+
   return <Elevated {...rest} offset={2} shadowLevel={3} style={motionStyle(style)} />;
 };
 

@@ -1,21 +1,21 @@
 import { dbSuite } from "@repo/db/test-database";
 import { describe, expect, it, vi } from "vitest";
 
-import { authPost, ORIGIN } from "../test-support/auth-requests";
+import { authPost, ORIGIN } from "../test-support/auth-requests.test-utils";
 
-// Vercel's own address for this deployment, set before ../app-url.ts reads it at import
 const DEPLOYMENT_HOST = vi.hoisted(() => {
   const host = "inteligir-a1b2c3d4e-team.vercel.app";
   process.env.VERCEL_URL = host;
+
   return host;
 });
 
-const signInFrom = async (origin: string): Promise<Response> =>
-  await authPost(
+const signInFrom = async (origin: string) =>
+  (await authPost(
     "/sign-in/email",
     { origin },
     { email: "nobody@example.test", password: "not-the-password" },
-  );
+  )) satisfies Response;
 
 dbSuite("a sign-in's origin", () => {
   describe("Better Auth", () => {

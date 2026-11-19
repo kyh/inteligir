@@ -7,11 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import { LEGAL_DOCS } from "./legal-docs";
 
-// the docs the legal pages render
 const { privacy, terms } = LEGAL_DOCS;
 
-// the pipeline MarkdownPage runs, without the page chrome that needs a router
-const render = (markdown: string): string =>
+const render = (markdown: string) =>
   renderToString(
     createElement(Markdown, { rehypePlugins: [rehypeSlug], remarkPlugins: [remarkGfm] }, markdown),
   );
@@ -19,10 +17,10 @@ const render = (markdown: string): string =>
 const ANCHOR_LINK = /\]\(#(?<anchor>[^)\s]+)\)/gu;
 const ELEMENT_ID = /\bid="(?<id>[^"]+)"/gu;
 
-const anchorsIn = (markdown: string): string[] =>
+const anchorsIn = (markdown: string) =>
   [...markdown.matchAll(ANCHOR_LINK)].flatMap((match) => match.groups?.anchor ?? []);
 
-const idsIn = (html: string): string[] =>
+const idsIn = (html: string) =>
   [...html.matchAll(ELEMENT_ID)].flatMap((match) => match.groups?.id ?? []);
 
 describe("heading ids", () => {

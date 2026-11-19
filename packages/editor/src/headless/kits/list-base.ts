@@ -11,10 +11,8 @@ import {
   TAB_GROUP_KEY,
 } from "@repo/editor/headless/dialect-node-keys";
 
-// The blocks the model lets carry what the plugins target (`library-nodes.ts`), so a normalizer
-// never strips a prop a block stores: a list item's props on text blocks, a toggle (a block nested
-// in its body keeps them) and a code block, and an indent alone on every other block too.
 export const LISTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.toggle];
+
 export const INDENTABLE = [
   ...LISTABLE,
   KEYS.table,
@@ -31,7 +29,6 @@ export const INDENTABLE = [
   HTML_BLOCK_KEY,
 ];
 
-// a Tab past what a block stores would leave one no write can save
 export const INDENT_OPTIONS = { indentMax: LIST_MAX_INDENT, offset: 24 };
 
 export const ListBaseKit = [

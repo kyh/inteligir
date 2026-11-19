@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { AnimatePresence, motion } from "motion/react";
@@ -30,8 +30,6 @@ const CheckMark = () => (
   </motion.svg>
 );
 
-// keepMounted holds the span through the exit so the un-draw is visible; initial={false} skips the
-// draw for a box that mounts already checked.
 const CheckIndicator = () => (
   <CheckboxPrimitive.Indicator
     keepMounted
@@ -44,7 +42,6 @@ const CheckIndicator = () => (
   />
 );
 
-// invisible ::after padding widens the small square's hit target
 const HIT_TARGET = "after:absolute after:-inset-x-3 after:-inset-y-2";
 
 const Checkbox = ({ className, ...props }: CheckboxPrimitive.Root.Props) => (

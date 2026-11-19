@@ -1,21 +1,19 @@
-// A queue of one: each task starts once the one before it has settled, whichever way it settled,
-// and its caller hears its own outcome.
+type SerialLock = <T>(task: () => Promise<T>) => Promise<T>;
 
-export type SerialLock = <T>(task: () => Promise<T>) => Promise<T>;
-
-export const serialLock = (): SerialLock => {
+export const serialLock = () => {
   let tail: Promise<unknown> = Promise.resolve();
-  return async <T>(task: () => Promise<T>): Promise<T> => {
+
+  return (async <T>(task: () => Promise<T>) => {
     const previous = tail;
+
     const next = (async () => {
-      try {
-        await previous;
-      } catch {
-        // that task's caller heard its failure; this one only waited for it to end
-      }
+      await Promise.allSettled([previous]);
+
       return await task();
     })();
+
     tail = next;
+
     return await next;
-  };
+  }) satisfies SerialLock;
 };

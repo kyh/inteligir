@@ -1,6 +1,3 @@
-// styles.css's rules over the kits' hook strings are what make a toggle collapse;
-// a drift on either side silently stops applying. Detection is textual, a lower bound.
-
 import fs from "node:fs";
 import path from "node:path";
 import { CodeBlockPlugin } from "@platejs/code-block/react";
@@ -17,7 +14,6 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 const DECLARED_HOOKS: readonly string[] = Object.values(styleHooks).toSorted();
 
-// Slate stamps these itself; they are not hooks a kit emits
 const SLATE_PREFIX = "data-slate-";
 
 const HLJS_PREFIX = "hljs-";
@@ -29,8 +25,6 @@ interface Rule {
 
 const RULE = /(?<selector>[^{}]+)\{(?<body>[^{}]*)\}/gu;
 
-// the dark palette is the screen's, so a print is light: the one at-rule the sheet holds, whose
-// rules read as top-level ones
 const SCREEN_ONLY = /@media not print\s*\{(?<rules>(?:[^{}]+\{[^{}]*\})*)\s*\}/gu;
 
 const readStylesheet = () => {
@@ -38,72 +32,84 @@ const readStylesheet = () => {
     .readFileSync(STYLES, "utf-8")
     .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
     .replaceAll(SCREEN_ONLY, "$<rules>");
+
   const rules = [...css.matchAll(RULE)].map((match) => ({
     body: match.groups?.body ?? "",
     selector: (match.groups?.selector ?? "").trim(),
   }));
+
   return { rules, unparsed: css.replaceAll(RULE, "").trim() };
 };
 
-const colourOf = (rule: Rule): string | undefined =>
+const colourOf = (rule: Rule) =>
   /(?:^|;)\s*color\s*:\s*(?<colour>[^;]+)/u.exec(rule.body)?.groups?.colour?.trim();
 
-// the theme's own scopes carry the syntax palette, not a hook; a class a kit emits that only sets
-// custom properties (the typeset scope) is still a hook
 const THEME_SCOPES = new Set([":root", ".dark"]);
 
 const selectorHooks = () => {
   const hooks = new Set<string>();
   const themeScopes = new Set<string>();
+
   for (const rule of readStylesheet().rules) {
     if (THEME_SCOPES.has(rule.selector)) {
       continue;
     }
+
     for (const match of rule.selector.matchAll(/\.(?<className>[A-Za-z_][A-Za-z0-9_-]*)/gu)) {
       const className = match.groups?.className ?? "";
+
       if (className.startsWith(HLJS_PREFIX)) {
         themeScopes.add(className.slice(HLJS_PREFIX.length));
       } else {
         hooks.add(className);
       }
     }
+
     for (const match of rule.selector.matchAll(/\[(?<attribute>data-[a-z-]+)/gu)) {
       const attribute = match.groups?.attribute ?? "";
+
       if (!attribute.startsWith(SLATE_PREFIX)) {
         hooks.add(attribute);
       }
     }
   }
+
   return { hooks: [...hooks].toSorted(), themeScopes: [...themeScopes].toSorted() };
 };
 
-const packageSources = (dir: string): string[] =>
+const packageSources: (dir: string) => string[] = (dir: string) =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
+
     if (entry.isDirectory()) {
       return entry.name === "test-support" ? [] : packageSources(full);
     }
+
     if (!/\.tsx?$/u.test(entry.name) || /\.test\.tsx?$/u.test(entry.name)) {
       return [];
     }
+
     return full === path.join(SRC, "style-hooks.ts") ? [] : [full];
   });
 
-// Tailwind's arbitrary-variant spellings split on the bracket, so the token sweep alone cannot see them
-const variantSpellings = (hook: string): string[] => {
+const variantSpellings = (hook: string) => {
   const DATA = "data-";
-  return hook.startsWith(DATA)
-    ? [`${DATA}[${hook.slice(DATA.length)}]`, `[${hook}]`]
-    : [`[.${hook}`];
+
+  return (
+    hook.startsWith(DATA) ? [`${DATA}[${hook.slice(DATA.length)}]`, `[${hook}]`] : [`[.${hook}`]
+  ) satisfies string[];
 };
 
 type Highlighter = ReturnType<typeof createLowlight>;
+
 type HastRoot = ReturnType<Highlighter["highlight"]>;
+
 type HastNode = HastRoot | HastRoot["children"][number];
 
-const collectScopes = (node: HastNode, into: Set<string>): void => {
+const collectScopes = (node: HastNode, into: Set<string>) => {
   if (node.type === "element") {
     const { className } = node.properties;
+
     if (Array.isArray(className)) {
       for (const entry of className) {
         if (entry.startsWith(HLJS_PREFIX)) {
@@ -112,6 +118,7 @@ const collectScopes = (node: HastNode, into: Set<string>): void => {
       }
     }
   }
+
   if ("children" in node) {
     for (const child of node.children) {
       collectScopes(child, into);
@@ -119,7 +126,6 @@ const collectScopes = (node: HastNode, into: Set<string>): void => {
   }
 };
 
-// together these emit every scope the theme names; a grammar that starts emitting a new scope fails the suite
 const HIGHLIGHT_CORPUS = {
   css: "a.b#c[href]:hover::before { color: #fff; margin: 1px !important; }",
   diff: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new",
@@ -165,20 +171,25 @@ describe("editor style hooks", () => {
 
   it("no module re-spells a hook as a raw literal", () => {
     const violations: string[] = [];
+
     for (const file of packageSources(SRC).toSorted()) {
       const stripped = fs
         .readFileSync(file, "utf-8")
         .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
         .replaceAll(/^\s*\/\/.*$/gmu, "");
+
       const tokens = new Set(stripped.split(/[^A-Za-z0-9_-]+/u));
+
       for (const hook of DECLARED_HOOKS) {
         const spelled =
           tokens.has(hook) || variantSpellings(hook).some((variant) => stripped.includes(variant));
+
         if (spelled) {
           violations.push(`  ${path.relative(SRC, file)}  ${hook}`);
         }
       }
     }
+
     expect(
       violations,
       `These spell a style hook as a literal instead of importing it.\n` +
@@ -190,13 +201,17 @@ describe("editor style hooks", () => {
   it("the highlight theme names exactly the scopes the shipped grammars emit", () => {
     const editor = createSlateEditor({ plugins: EDITOR_KIT });
     const { lowlight } = editor.getOptions(CodeBlockPlugin);
+
     if (lowlight === null || lowlight === undefined) {
       throw new Error("the shipped editor kit registers no lowlight highlighter");
     }
+
     const emitted = new Set<string>();
+
     for (const [language, code] of Object.entries(HIGHLIGHT_CORPUS)) {
       collectScopes(lowlight.highlight(language, code), emitted);
     }
+
     expect(
       selectorHooks().themeScopes,
       `The .hljs-* theme in packages/editor/src/styles.css disagrees with what the kit's grammars emit over the corpus in this file.\n` +
@@ -208,11 +223,15 @@ describe("editor style hooks", () => {
     const theme = readStylesheet().rules.filter((rule) =>
       rule.selector.includes(`.${HLJS_PREFIX}`),
     );
+
     const lastInherit = theme.findLastIndex((rule) => colourOf(rule) === "inherit");
+
     const firstColoured = theme.findIndex((rule) => {
       const colour = colourOf(rule);
+
       return colour !== undefined && colour !== "inherit";
     });
+
     expect(
       lastInherit,
       `packages/editor/src/styles.css puts a \`color: inherit\` theme rule after a coloured one.\n` +

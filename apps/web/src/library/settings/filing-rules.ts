@@ -1,8 +1,3 @@
-// The text a library's filing rules start from the first time the person edits them: prose they
-// change, which every conversation with the built-in agent follows over its own taste. Unsorted is
-// where an item with no folder shows, never a folder of its own, so the rules say its items are
-// the ones to file, and that only an item already in a folder stays where it is.
-
 export const FILING_RULES_TEXT = `# Filing rules
 
 How the agent files and tags what you save, when you ask it to tidy your library or to file something. Change anything here: it follows these rules every time.

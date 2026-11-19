@@ -5,10 +5,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { leaveItem, unloadAsks } from "./leave-item";
 
-// an open note that holds every edit made here, or one that lacks an edit it couldn't save
 const noteThat = (holds: boolean) => ({ holds: async () => await Promise.resolve(holds) });
 
-const STAYS = vi.fn<() => Promise<boolean>>(async () => false);
+const STAYS = async () => await Promise.resolve(false);
+
+const asking = (answer: boolean) => {
+  const asked: ConfirmOptions[] = [];
+  const held = { answer };
+
+  const ask = async (options: ConfirmOptions) => {
+    asked.push(options);
+
+    return await Promise.resolve(held.answer);
+  };
+
+  return { ask, asked, held };
+};
 
 describe("leaving the open item", () => {
   it("goes, asking nothing, once the note holds every edit, and with no item open", async () => {
@@ -20,14 +32,14 @@ describe("leaving the open item", () => {
 
   it("asks before giving up an edit the note lacks, and stays unless told to go", async () => {
     const note = noteThat(false);
-    const ask = vi.fn<(options: ConfirmOptions) => Promise<boolean>>(async () => false);
+    const { ask, asked, held } = asking(false);
     await expect(leaveItem(note, ask)).resolves.toBe(false);
-    expect(ask.mock.calls[0]?.[0]).toMatchObject({
+    expect(asked[0]).toMatchObject({
       cancelLabel: "Stay",
       confirmLabel: "Leave anyway",
       title: "Leave without saving?",
     });
-    ask.mockResolvedValue(true);
+    held.answer = true;
     await expect(leaveItem(note, ask)).resolves.toBe(true);
     await expect(leaveItem(note, STAYS)).resolves.toBe(false);
   });
@@ -40,15 +52,15 @@ describe("leaving the open item", () => {
     it("asks as for an edit the note couldn't save once the wait runs out, and not before", async () => {
       vi.useFakeTimers();
       const stalled = { holds: async () => await deferred<boolean>().promise };
-      const ask = vi.fn<(options: ConfirmOptions) => Promise<boolean>>(async () => true);
+      const { ask, asked } = asking(true);
 
       const leaving = leaveItem(stalled, ask);
       await vi.advanceTimersByTimeAsync(HOLDS_ANSWER_MS - 1);
-      expect(ask).not.toHaveBeenCalled();
+      expect(asked).toStrictEqual([]);
       await vi.advanceTimersByTimeAsync(1);
 
       await expect(leaving).resolves.toBe(true);
-      expect(ask.mock.calls[0]?.[0]).toMatchObject({ title: "Leave without saving?" });
+      expect(asked[0]).toMatchObject({ title: "Leave without saving?" });
     });
   });
 });

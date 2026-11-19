@@ -5,7 +5,25 @@
   "description": "The cloud's code, which apps/web serves: the environment it reads, accounts on Better Auth over Postgres behind the invite gate, /v1/rpc, and the library on Postgres.",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    "./agent/agent-cron": "./src/agent/agent-cron.ts",
+    "./agent/agent-model": "./src/agent/agent-model.ts",
+    "./agent/agent-prompt": "./src/agent/agent-prompt.ts",
+    "./agent/availability": "./src/agent/availability.ts",
+    "./agent/eve-admission": "./src/agent/eve-admission.ts",
+    "./agent/eve-agent": "./src/agent/eve-agent.ts",
+    "./agent/mock-directives": "./src/agent/mock-directives.ts",
+    "./app-url": "./src/app-url.ts",
+    "./auth/auth": "./src/auth/auth.ts",
+    "./auth/auth-route": "./src/auth/auth-route.ts",
+    "./auth/consent-request": "./src/auth/consent-request.ts",
+    "./auth/invite": "./src/auth/invite.ts",
+    "./auth/oauth-discovery": "./src/auth/oauth-discovery.ts",
+    "./files/dev-files-route": "./src/files/dev-files-route.ts",
+    "./files/file-read-route": "./src/files/file-read-route.ts",
+    "./jobs/drain-jobs": "./src/jobs/drain-jobs.ts",
+    "./jobs/housekeeping": "./src/jobs/housekeeping.ts",
+    "./mcp/connector-server": "./src/mcp/connector-server.ts",
+    "./rpc/v1-rpc": "./src/rpc/v1-rpc.ts"
   },
   "scripts": {
     "seed": "dotenv -e ../../.env.local -e ../../.env -- tsx src/seed.ts",

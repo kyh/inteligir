@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
 
 import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/headless/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
@@ -16,28 +15,31 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string => serializeNote(editor);
+const out = (editor: Editor) => serializeNote(editor);
 
-const findByType = (editor: Editor, type: string): TElement | null => {
+const findByType = (editor: Editor, type: string) => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
     if (ElementApi.isElement(node)) {
       return node;
     }
   }
+
   return null;
 };
 
-// `{{` typed at `offset` of the first text, or where the caret is, and its picker committed
-const openAndCommitFormulaPicker = (editor: Editor, offset?: number): void => {
+const openAndCommitFormulaPicker = (editor: Editor, offset?: number) => {
   if (offset !== undefined) {
     editor.tf.select({ offset, path: [0, 0] });
   }
+
   editor.tf.insertText("{");
   editor.tf.insertText("{");
   const element = findByType(editor, FORMULA_INPUT_KEY);
+
   if (!element) {
     throw new Error("{{ did not insert the formula input element");
   }
+
   commitComboboxInput(editor, element, false);
 };
 

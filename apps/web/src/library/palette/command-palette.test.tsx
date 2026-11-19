@@ -1,13 +1,17 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { onlineManager } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { fakePageLibrary, renderOnLibrary, spyCommands } from "../test-support/fake-page-library";
-import type { CellCall } from "../test-support/fake-page-library";
+import {
+  fakePageLibrary,
+  renderOnLibrary,
+  spyCommands,
+} from "../test-support/fake-page-library.test-utils";
+import type { CellCall } from "../test-support/fake-page-library.test-utils";
 import { CommandPalette } from "./command-palette";
 
 afterEach(() => {
@@ -16,22 +20,24 @@ afterEach(() => {
 
 const WORDS = z.object({ words: z.string() });
 
-// the cell's full-text search, which answers a listing's page for the words asked: an untitled
-// item for one, a titled one with the passage that matched for another
 const drawPalette = () => {
   const cell = createFakeCell();
   const plans = cell.seed.item({ title: "Plans" });
+
   const hits = new Map([
     ["#todo", [cell.listed(cell.seed.item())]],
     ["spring", [{ ...cell.listed(plans), snippet: "a trip in spring" }]],
     ["https://example.com/spring", [{ ...cell.listed(plans), snippet: "example.com/spring" }]],
   ]);
+
   const { calls, library } = fakePageLibrary({
     answer: (call) => {
       if (call.path !== "library.listing.page") {
         return;
       }
+
       const { words } = WORDS.parse(call.input);
+
       if (words === "broken") {
         throw createORPCErrorFromJson({
           code: "BAD_REQUEST",
@@ -40,13 +46,16 @@ const drawPalette = () => {
           message: "",
         });
       }
+
       return { items: hits.get(words) ?? [], cursor: null, kindCounts: {}, total: 0 };
     },
     cell,
   });
+
   const commands = spyCommands();
   library.workspace.setPaletteOpen(true);
   renderOnLibrary(<CommandPalette />, library, commands);
+
   return {
     commands,
     calls,
@@ -55,20 +64,19 @@ const drawPalette = () => {
   };
 };
 
-const searches = (calls: readonly CellCall[]): unknown[] =>
-  calls.filter((call) => call.path === "library.listing.page").map((call) => call.input);
+const searches = (calls: readonly CellCall[]) =>
+  calls.flatMap((call) => (call.path === "library.listing.page" ? [call.input] : []));
 
-// the field Base UI drives, and the option its active descendant names
-const field = (): HTMLElement => screen.getByRole("combobox", { name: "Search the library" });
+const field = () => screen.getByRole("combobox", { name: "Search the library" });
 
-const lit = (): string => {
+const lit = () => {
   const id = field().getAttribute("aria-activedescendant");
   const option = id === null ? null : document.querySelector(`#${id}`);
+
   return option?.textContent ?? "";
 };
 
-// the words typed, and the line under the field once the palette says it
-const said = async (words: string, line: string): Promise<void> => {
+const said = async (words: string, line: string) => {
   fireEvent.change(field(), { target: { value: words } });
   await waitFor(() => {
     expect(screen.getByRole("status").textContent).toBe(line);
@@ -124,7 +132,6 @@ describe("the palette", () => {
     expect(searches(calls)).toStrictEqual([{ limit: 20, scope: { kind: "all" }, words: "spring" }]);
     expect(hit.dataset.searchHit).toBe(plans);
     expect(within(hit).getByText("a trip in spring")).toBeDefined();
-    // the hits come first, so the light lands on the first of them
     await waitFor(() => {
       expect(lit()).toContain("Plans");
     });
@@ -165,7 +172,6 @@ describe("the palette", () => {
     await said("spring", "");
     await screen.findByRole("option", { name: /Plans/u });
     onlineManager.setOnline(false);
-    // the hits typed before answer other words
     await said("spring trip", NEEDS_CONNECTION);
     expect(screen.queryByRole("option", { name: /Plans/u })).toBeNull();
   });

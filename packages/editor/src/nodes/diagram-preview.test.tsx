@@ -1,42 +1,45 @@
 import { render, screen } from "@testing-library/react";
 import type { Mounted } from "pele";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { deferred } from "@repo/contract/deferred";
 
 import { inertSvg } from "@repo/editor/lib/inert-svg";
 import MermaidPreview from "@repo/editor/nodes/code-block-mermaid";
 import { DIAGRAM_PREVIEW } from "@repo/editor/style-hooks";
 
-// every drawing the preview mounts, so a test can see what the preview asks of it
-const mounted = vi.hoisted((): Mounted[] => []);
+const mounted = vi.hoisted<Mounted[]>(() => []);
+
 vi.mock(import("pele"), async (importOriginal) => {
   const real = await importOriginal();
+
   return {
     ...real,
-    mount: (...args: Parameters<typeof real.mount>): Mounted => {
+    mount: (...args: Parameters<typeof real.mount>) => {
       const drawing = real.mount(...args);
       mounted.push(drawing);
+
       return drawing;
     },
   };
 });
 
 const FLOW = "graph TD;\n  A[Draft]-->B[Review];";
-// line 3 breaks at its seventh character
 const BROKEN = "graph TD;\n  A[Draft]-->B[Review];\n  B-->>>C[";
 
-const host = (container: HTMLElement): HTMLElement => {
+const host = (container: HTMLElement) => {
   const found = container.querySelector(`.${DIAGRAM_PREVIEW}`);
+
   if (!(found instanceof HTMLElement)) {
     throw new TypeError("the preview drew no diagram frame");
   }
+
   return found;
 };
 
-const labels = (frame: HTMLElement): string[] =>
+const labels = (frame: HTMLElement) =>
   [...frame.querySelectorAll("svg text")].map((text) => text.textContent);
 
 describe("a mermaid fence's preview", () => {
-  // jsdom has no canvas and says so on every ask; with none, Pele measures by its own table
   beforeAll(() => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   });
@@ -97,7 +100,6 @@ describe("a mermaid fence's preview", () => {
   });
 
   it("says a drawing the guard cannot read could not be drawn, never an empty frame", () => {
-    // U+FFFE is no character XML takes, so Pele's markup for this label is not well-formed
     render(<MermaidPreview code={"graph TD;\n  A[bad \uFFFE label]-->B;"} />);
     expect(screen.getByText("This diagram could not be drawn.")).toBeTruthy();
   });
@@ -105,14 +107,23 @@ describe("a mermaid fence's preview", () => {
   it("measures again when the appearance on the root element changes, until it unmounts", async () => {
     const view = render(<MermaidPreview code={FLOW} />);
     const drawing = mounted.at(-1);
+
     if (drawing === undefined) {
       throw new TypeError("the preview mounted no drawing");
     }
+
     const refresh = vi.spyOn(drawing, "refresh");
-    document.documentElement.style.setProperty("--editor-font", "monospace");
-    await vi.waitFor(() => {
-      expect(refresh).toHaveBeenCalledOnce();
+    const changed = deferred();
+
+    const watching = new MutationObserver(() => {
+      changed.resolve();
     });
+
+    watching.observe(document.documentElement, { attributes: true });
+    document.documentElement.style.setProperty("--editor-font", "monospace");
+    await changed.promise;
+    watching.disconnect();
+    expect(refresh).toHaveBeenCalledOnce();
     view.unmount();
     document.documentElement.style.removeProperty("--editor-font");
     await Promise.resolve();
@@ -133,13 +144,14 @@ describe("a mermaid fence's preview", () => {
         }
       />,
     );
+
     const frame = host(container);
     expect(frame.querySelector("svg")).not.toBeNull();
     expect(frame.querySelectorAll("a, image, [href]")).toHaveLength(0);
   });
 });
 
-const svg = (inner: string, attributes = ""): string =>
+const svg = (inner: string, attributes = "") =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ${attributes}>${inner}</svg>`;
 
 describe("the markup a drawing becomes nodes through", () => {
@@ -150,6 +162,7 @@ describe("the markup a drawing becomes nodes through", () => {
         'style="max-width:100%"',
       ),
     );
+
     expect(drawn?.getAttribute("style")).toBe("max-width:100%");
     expect(drawn?.querySelector("path")?.getAttribute("marker-end")).toBe("url(#m)");
     expect(drawn?.querySelector("use")?.getAttribute("href")).toBe("#m");
@@ -163,6 +176,7 @@ describe("the markup a drawing becomes nodes through", () => {
         'onload="z()"',
       ),
     );
+
     expect(drawn?.querySelectorAll("script, foreignObject, style, set, animate")).toHaveLength(0);
     expect(drawn?.getAttributeNames()).not.toContain("onload");
     expect(drawn?.querySelector("rect")?.getAttributeNames()).toStrictEqual([]);
@@ -174,6 +188,7 @@ describe("the markup a drawing becomes nodes through", () => {
         '<a href="https://example.com/"><text>t</text></a><image xlink:href="https://example.com/i.png"/><rect fill="url(https://example.com/p.svg#g)" style="fill: url( \'//example.com/x\')"/>',
       ),
     );
+
     expect(drawn?.querySelector("a")?.hasAttribute("href")).toBe(false);
     expect(drawn?.querySelector("image")?.getAttributeNames()).toStrictEqual([]);
     expect(drawn?.querySelector("rect")?.getAttributeNames()).toStrictEqual([]);
@@ -186,6 +201,7 @@ describe("the markup a drawing becomes nodes through", () => {
         'xmlns:h="http://www.w3.org/1999/xhtml"',
       ),
     );
+
     expect(drawn?.querySelectorAll("*")).toHaveLength(2);
     expect(drawn?.querySelector("g")?.firstElementChild?.localName).toBe("rect");
   });

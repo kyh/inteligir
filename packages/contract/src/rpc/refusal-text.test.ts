@@ -13,17 +13,20 @@ describe("what a failed cell call says", () => {
       defined: true,
       message: "Your library is full.",
     });
+
     expect(refusalText(refused, FALLBACK)).toBe("Your library is full.");
   });
 
   it("says the screen's fallback for no answer, a fault and anything else, never its words", () => {
     expect(refusalText(new TypeError("Failed to fetch"), FALLBACK)).toBe(FALLBACK);
+
     const fault = createORPCErrorFromJson({
       code: "INTERNAL_SERVER_ERROR",
       data: undefined,
       defined: false,
       message: "Internal server error",
     });
+
     expect(refusalText(fault, FALLBACK)).toBe(FALLBACK);
     expect(refusalText(undefined, FALLBACK)).toBe(FALLBACK);
   });

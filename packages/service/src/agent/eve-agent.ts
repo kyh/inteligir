@@ -1,10 +1,3 @@
-// What the eve agent (apps/web/agent) asks of the app, keyed by its session's caller as the channel
-// admitted it (`./eve-admission`): its library tools, run as the turn, what its record hook keeps
-// of each fact and what its limits hook books and charges. A turn's row is written as eve starts
-// it, before its first model call, so every tool call of the turn finds its number, which its change
-// set is keyed by; its settle seals that set and ends the turn in the thread, and the agent's cron
-// settles one whose settle never came.
-
 import type { AgentEvent } from "@repo/contract/library/agent-events";
 import type { WebToolName } from "@repo/contract/library/agent-tools";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
@@ -30,12 +23,10 @@ import { keepTurn, moveThread, stampTurnStop, threadOf, turnIs, turnOf } from ".
 import { eveCallerOf } from "./eve-admission";
 import { shownEvent, turnEndedEvent, turnOutcomeOf } from "./thread-events";
 
-// the session's caller as eve hands it back: `ctx.session.auth.current`
 type EveAuth = Parameters<typeof eveCallerOf>[0];
 
-export const agentTools = (): readonly AgentTool[] => AGENT_TOOLS;
+export const agentTools = () => AGENT_TOOLS;
 
-// a call as eve hands it to the tool, its input as the model wrote it
 interface ToolCall {
   readonly auth: EveAuth;
   readonly eveSessionId: string;
@@ -44,23 +35,20 @@ interface ToolCall {
   readonly input: unknown;
 }
 
-// read afresh at every call, so a deleted thread's turn changes nothing more
-export const runAgentTool = async (
-  toolCall: ToolCall,
-  tool: AgentTool,
-): Promise<AgentCallOutcome> => {
+export const runAgentTool = async (toolCall: ToolCall, tool: AgentTool) => {
   const { accountId, eveSessionNumber, threadId } = eveCallerOf(toolCall.auth);
+
   const turn = await turnOf(db, {
     accountId,
     eveSessionNumber,
     eveTurnId: toolCall.turnId,
     threadId,
   });
+
   if (turn === null || (await threadOf(accountId, threadId)) === null) {
-    return { kind: "failed", text: "This conversation was deleted." };
+    return { kind: "failed", text: "This conversation was deleted." } satisfies AgentCallOutcome;
   }
-  // no kick: a tool runs in eve's step, which no request's after() keeps alive, so what its write
-  // asks waits for the per-minute cron
+
   return await callAgentTool(
     { principal: { accountId, actor: { kind: "agent", threadId, turn: turn.number } } },
     tool,
@@ -68,21 +56,18 @@ export const runAgentTool = async (
   );
 };
 
-// the filing rules the session's caller holds its turns to, none while they keep none
-export const callerFilingRules = async (auth: EveAuth): Promise<string | null> =>
+export const callerFilingRules = async (auth: EveAuth) =>
   await filingRulesFor(eveCallerOf(auth).accountId);
 
-// what the model reads of a call: its text, as an error's unless the call ran
-export const agentCallModelOutput = ({ kind, text }: AgentCallOutcome): ToolModelOutput =>
-  kind === "ran" ? { type: "text", value: text } : { type: "error-text", value: text };
+export const agentCallModelOutput = ({ kind, text }: AgentCallOutcome) =>
+  (kind === "ran"
+    ? { type: "text", value: text }
+    : { type: "error-text", value: text }) satisfies ToolModelOutput;
 
 interface RecordedFact {
   readonly auth: EveAuth;
-  // a `*` hook gets a fact's progress too, which a thread never keeps
   readonly event: Fact | Progress;
-  // where eve recorded it in its session: `ctx.position`
   readonly position: { readonly line: number; readonly index: number };
-  // when eve recorded it, unix milliseconds: `ctx.now`, which the relay reads as its line's time
   readonly at: number;
 }
 
@@ -101,7 +86,7 @@ const keepEvent = async (executor: DbExecutor, at: EventAt, event: AgentEvent, n
     .onConflictDoNothing();
 };
 
-const startTurn = async (at: TurnAt, now: number): Promise<void> => {
+const startTurn = async (at: TurnAt, now: number) => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
     await moveThread(tx, accountId, threadId, { status: "running", updatedAt: now });
@@ -109,30 +94,31 @@ const startTurn = async (at: TurnAt, now: number): Promise<void> => {
   });
 };
 
-// The turn ended in its thread by whichever settle reaches it first, its own or the cron's
-// (`settleStrandedTurns`): a settle that finds it settled keeps nothing, so a thread shows a turn's
-// end once
 const settleTurn = async (
   at: TurnAt,
   position: RecordedFact["position"],
   settled: TurnSettled,
   now: number,
-): Promise<void> => {
+) => {
   const { accountId, threadId } = at;
   await db.transaction(async (tx) => {
     await moveThread(tx, accountId, threadId, { status: "idle", updatedAt: now });
     const turn = await turnOf(tx, at);
+
     if (turn === null) {
       return;
     }
+
     const [settledNow] = await tx
       .update(agentTurn)
       .set({ outcome: turnOutcomeOf(settled, turn), settledAt: now })
       .where(and(turnIs(at), isNull(agentTurn.settledAt)))
       .returning({ number: agentTurn.number });
+
     if (settledNow === undefined) {
       return;
     }
+
     await sealTurnSet(tx, accountId, { threadId, turn: turn.number }, now);
     await keepEvent(
       tx,
@@ -143,23 +129,20 @@ const settleTurn = async (
   });
 };
 
-// One fact of a thread's eve session, kept as the thread shows it at the place eve recorded it, so
-// a hook delivered twice writes once; a turn's start and settle move its row and the thread's
-export const recordEveFact = async ({
-  at: now,
-  auth,
-  event,
-  position,
-}: RecordedFact): Promise<void> => {
+export const recordEveFact = async ({ at: now, auth, event, position }: RecordedFact) => {
   const { accountId, eveSessionNumber, threadId } = eveCallerOf(auth);
+
   if ((await threadOf(accountId, threadId)) === null) {
     return;
   }
+
   switch (event.type) {
     case "turn.started": {
       await startTurn({ accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId }, now);
+
       return;
     }
+
     case "turn.settled": {
       await settleTurn(
         { accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId },
@@ -167,10 +150,13 @@ export const recordEveFact = async ({
         event,
         now,
       );
+
       return;
     }
+
     default: {
       const shown = shownEvent(event, eveSessionNumber);
+
       if (shown !== null) {
         await keepEvent(db, { accountId, eveSessionNumber, threadId, ...position }, shown, now);
       }
@@ -178,10 +164,8 @@ export const recordEveFact = async ({
   }
 };
 
-// a turn runs at most 20 model calls and their tools: one still open this long lost its settle
 const TURN_STRANDED_MS = 60 * 60 * 1000;
 
-// a thread's open turn, or the one numbered `number` while it is open
 const openTurnOf = (accountId: AnyColumn, threadId: AnyColumn, number?: AnyColumn) =>
   db
     .select({ number: agentTurn.number })
@@ -195,15 +179,9 @@ const openTurnOf = (accountId: AnyColumn, threadId: AnyColumn, number?: AnyColum
       ),
     );
 
-// the most turns, and threads, one cron run settles: stranding is rare, and the next run takes more
 const STRANDED_BATCH = 100;
 
-// where the cron keeps the end of a turn it settled, which eve recorded nowhere: past everything
-// the thread kept of that session
-const pastKept = async (
-  tx: Tx,
-  at: TurnAt,
-): Promise<{ readonly line: number; readonly index: number }> => {
+const pastKept = async (tx: Tx, at: TurnAt) => {
   const [last] = await tx
     .select({ index: agentThreadEvent.index, line: agentThreadEvent.line })
     .from(agentThreadEvent)
@@ -216,23 +194,27 @@ const pastKept = async (
     )
     .orderBy(desc(agentThreadEvent.line), desc(agentThreadEvent.index))
     .limit(1);
-  return last === undefined ? { index: 0, line: 0 } : { index: last.index + 1, line: last.line };
+
+  return (
+    last === undefined ? { index: 0, line: 0 } : { index: last.index + 1, line: last.line }
+  ) satisfies { readonly line: number; readonly index: number };
 };
 
-// a turn stranded open settled failed and its end kept, unless its own settle came meanwhile; the
-// sweep after seals its set
-const settleStranded = async (at: TurnAt, now: number): Promise<boolean> =>
+const settleStranded = async (at: TurnAt, now: number) =>
   await db.transaction(async (tx) => {
     const { accountId, threadId } = at;
     await moveThread(tx, accountId, threadId, { status: "idle", updatedAt: now });
+
     const [settled] = await tx
       .update(agentTurn)
       .set({ outcome: "failed", settledAt: now })
       .where(and(turnIs(at), isNull(agentTurn.settledAt)))
       .returning({ number: agentTurn.number });
+
     if (settled === undefined) {
       return false;
     }
+
     const ended: AgentEvent = { reason: "failed", turn: settled.number, type: "turn.ended" };
     await keepEvent(
       tx,
@@ -240,11 +222,11 @@ const settleStranded = async (at: TurnAt, now: number): Promise<boolean> =>
       ended,
       now,
     );
+
     return true;
   });
 
-// a thread still marked running whose turns all settled, idled
-const idleUnheld = async (accountId: string, threadId: string, now: number): Promise<void> => {
+const idleUnheld = async (accountId: string, threadId: string, now: number) => {
   await db.transaction(async (tx) => {
     const seq = await takeLibraryHead(tx, accountId);
     await tx
@@ -261,13 +243,7 @@ const idleUnheld = async (accountId: string, threadId: string, now: number): Pro
   });
 };
 
-// The agent's cron's backstop for a settle eve recorded but couldn't deliver: a turn stranded open
-// settles failed, its end kept in its thread, and a thread running no turn goes idle. Every set
-// whose turn no longer runs is sealed, as is one a landing made after its turn settled or whose
-// conversation went, which Undo and the prune would otherwise never reach
-export const settleStrandedTurns = async (
-  now: number,
-): Promise<{ readonly settled: number; readonly idled: number; readonly sealed: number }> => {
+export const settleStrandedTurns = async (now: number) => {
   const stranded = await db
     .select({
       accountId: agentTurn.accountId,
@@ -278,12 +254,15 @@ export const settleStrandedTurns = async (
     .from(agentTurn)
     .where(and(isNull(agentTurn.settledAt), lt(agentTurn.startedAt, now - TURN_STRANDED_MS)))
     .limit(STRANDED_BATCH);
+
   let settled = 0;
+
   for (const at of stranded) {
     if (await settleStranded(at, now)) {
       settled += 1;
     }
   }
+
   const unheld = await db
     .select({ accountId: agentThread.accountId, id: agentThread.id })
     .from(agentThread)
@@ -295,9 +274,11 @@ export const settleStrandedTurns = async (
       ),
     )
     .limit(STRANDED_BATCH);
+
   for (const { accountId, id } of unheld) {
     await idleUnheld(accountId, id, now);
   }
+
   const sealed = await db
     .update(changeSet)
     .set({ sealedAt: now })
@@ -308,7 +289,12 @@ export const settleStrandedTurns = async (
       ),
     )
     .returning({ id: changeSet.id });
-  return { idled: unheld.length, sealed: sealed.length, settled };
+
+  return { idled: unheld.length, sealed: sealed.length, settled } satisfies {
+    readonly settled: number;
+    readonly idled: number;
+    readonly sealed: number;
+  };
 };
 
 interface LimitedFact {
@@ -316,78 +302,87 @@ interface LimitedFact {
   readonly event: Fact;
   readonly position: { readonly line: number; readonly index: number };
   readonly at: number;
-  // the session as eve folded it with the fact: `ctx.view`
   readonly view: SessionView;
 }
 
-// the turn stopped by `stop`, stamped first, since eve settles a hook's cancel with no cause
-const stopping = async (at: TurnAt | null, stop: TurnStop | null): Promise<boolean> => {
+const stopping = async (at: TurnAt | null, stop: TurnStop | null) => {
   if (stop === null) {
     return false;
   }
+
   if (at !== null) {
     await stampTurnStop(db, at, stop);
   }
+
   return true;
 };
 
-// What a turn may still spend, as eve records each fact that spends it: a turn booked as it
-// starts, each model call counted as the turn asks for it, its tokens and each web search charged
-// as eve records them. True when a limit stops the turn, which the hook then cancels; a cancel from
-// `turn.started` or `model.requested` lands before that model call. A turn the person's switch
-// finds off stops there too, cancelled as a stop is, and books nothing
-export const limitEveFact = async ({
-  at: now,
-  auth,
-  event,
-  position,
-  view,
-}: LimitedFact): Promise<boolean> => {
+export const limitEveFact = async ({ at: now, auth, event, position, view }: LimitedFact) => {
   const { accountId, eveSessionNumber, threadId } = eveCallerOf(auth);
   const spentAt: UsageAt = { accountId, eveSessionNumber, threadId, ...position };
-  const turnAt = (eveTurnId: string | undefined): TurnAt | null =>
-    eveTurnId === undefined ? null : { accountId, eveSessionNumber, eveTurnId, threadId };
+
+  const turnAt = (eveTurnId: string | undefined) =>
+    (eveTurnId === undefined
+      ? null
+      : { accountId, eveSessionNumber, eveTurnId, threadId }) satisfies TurnAt | null;
+
   switch (event.type) {
     case "turn.started": {
       const at = { accountId, eveSessionNumber, eveTurnId: event.data.turnId, threadId };
+
       return await db.transaction(async (tx) => {
         await keepTurn(tx, at, now);
+
         if (!(await agentEnabled(accountId, tx))) {
           return true;
         }
+
         const stop = await bookTurn(tx, spentAt, now);
+
         if (stop !== null) {
           await stampTurnStop(tx, at, stop);
         }
+
         return stop !== null;
       });
     }
+
     case "model.requested": {
       const { owner } = event.data;
+
       if (!("turnId" in owner)) {
         return false;
       }
+
       if (runs(view, { turnId: owner.turnId }).length > AGENT_TURN_STEPS) {
         return await stopping(turnAt(owner.turnId), "steps");
       }
+
       return !(await agentEnabled(accountId));
     }
+
     case "usage.recorded": {
       if (event.data.kind !== "model") {
         return false;
       }
+
       const costMicroUsd = costMicroUsdOf(event.data.usage);
       const stop = await chargeSpend(spentAt, { costMicroUsd, kind: "model" }, now);
+
       return await stopping(turnAt(activeTurn(view)?.turnId), stop);
     }
+
     case "call.settled": {
       if (call(view, event.data.callId)?.name !== ("web_search" satisfies WebToolName)) {
         return false;
       }
+
       const costMicroUsd = WEB_SEARCH_MICRO_USD;
       const stop = await chargeSpend(spentAt, { costMicroUsd, kind: "search" }, now);
+
       return await stopping(turnAt(activeTurn(view)?.turnId), stop);
     }
+
     default: {
       return false;
     }

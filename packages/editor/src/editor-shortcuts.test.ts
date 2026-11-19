@@ -1,6 +1,3 @@
-// jsdom cannot host Plate's editable (slate's hasEditableTarget needs a real
-// isContentEditable), so the plugin's onKeyDown body is driven with a structural event.
-
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
@@ -22,7 +19,7 @@ const press = (
   modifiers: { shift?: boolean } = {},
 ) => {
   let claimed = false;
-  // is-hotkey resolves "mod" to ctrl where no Mac platform is detectable (node has no navigator).
+
   const event: ShortcutKeyEvent = {
     altKey: false,
     ctrlKey: true,
@@ -35,15 +32,18 @@ const press = (
     shiftKey: modifiers.shift === true,
     which: keyCode,
   };
+
   handleEditorShortcut(editor, event);
+
   return { claimed };
 };
 
 const PARAGRAPH: Value = [{ children: [{ text: "hello world" }], type: "p" }];
 
-const mount = (value: Value): PlateEditor => {
+const mount = (value: Value) => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
   editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 5, path: [0, 0] } });
+
   return editor;
 };
 
@@ -66,6 +66,7 @@ describe("editor shortcuts", () => {
         },
       ],
     });
+
     editor.tf.select({
       anchor: { offset: 0, path: [0, 0, 0] },
       focus: { offset: 5, path: [0, 0, 0] },
@@ -94,14 +95,13 @@ describe("editor shortcuts", () => {
   });
 });
 
-// is-hotkey matches a named key by its own code, not its name's first letter
 const NAMED_KEY_CODES = new Map([["enter", 13]]);
 
-// the chord a row spells, pressed: "mod" is ctrl where no Mac platform is detectable
-const chordEvent = (hotkey: string): ShortcutKeyEvent => {
+const chordEvent = (hotkey: string) => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
   const keyCode = NAMED_KEY_CODES.get(key) ?? key.toUpperCase().codePointAt(0) ?? Number.NaN;
+
   return {
     altKey: parts.includes("alt"),
     ctrlKey: parts.includes("mod"),
@@ -111,7 +111,7 @@ const chordEvent = (hotkey: string): ShortcutKeyEvent => {
     preventDefault: () => {},
     shiftKey: parts.includes("shift"),
     which: keyCode,
-  };
+  } satisfies ShortcutKeyEvent;
 };
 
 describe("the shortcut tables", () => {
@@ -120,6 +120,7 @@ describe("the shortcut tables", () => {
       EDITOR_SHORTCUTS,
       FIND_BAR_SHORTCUTS,
     ];
+
     for (const rows of tables) {
       for (const row of rows) {
         expect(editorShortcutFor(rows, chordEvent(row.hotkey))?.action).toBe(row.action);

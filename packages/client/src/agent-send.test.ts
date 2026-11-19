@@ -7,7 +7,7 @@ import { composerPlaceholder, sendInput, viewContextOf } from "./agent-send";
 const ITEM = "0199a4c2-0000-7000-8000-0000000000a1";
 const THREAD = "0199a4c2-0000-7000-8000-000000000001";
 
-const ids = (count: number): string[] =>
+const ids = (count: number) =>
   Array.from(
     { length: count },
     (_, index) => `0199a4c2-0000-7000-8000-${String(index).padStart(12, "0")}`,
@@ -32,6 +32,7 @@ describe("the screen a message leaves from", () => {
       scope: { kind: "unsorted" },
       selected: { count: 8512, ids: ids(LIBRARY_SELECTION_MAX + 3) },
     });
+
     expect(context).toStrictEqual({
       itemIds: ids(LIBRARY_SELECTION_MAX),
       kinds: ["link"],

@@ -3,10 +3,9 @@ import type { Metadata } from "next";
 import type { PageMeta } from "#lib/page-meta";
 import { siteConfig } from "#lib/site-config";
 
-// the pathname alone, so a query string never splits one page into several canonical URLs
-export const absoluteUrl = (path: string): string => `${siteConfig.url}${path === "/" ? "" : path}`;
+export const absoluteUrl = (path: string) => `${siteConfig.url}${path === "/" ? "" : path}`;
 
-export const pageTitle = (page: PageMeta): string =>
+export const pageTitle = (page: PageMeta) =>
   page.kind === "home" ? `${siteConfig.name}: ${page.title}` : `${page.title} · ${siteConfig.name}`;
 
 /**
@@ -16,15 +15,17 @@ export const pageTitle = (page: PageMeta): string =>
 export const pageMetadata = (
   page: PageMeta,
   { dateModified }: { dateModified?: string | null } = {},
-): Metadata => {
+) => {
   const title = pageTitle(page);
   const url = absoluteUrl(page.path);
+
   const image = {
     alt: page.image.alt,
     height: page.image.height,
     url: absoluteUrl(page.image.path),
     width: page.image.width,
   };
+
   const card = {
     description: page.description,
     images: [image],
@@ -33,6 +34,7 @@ export const pageMetadata = (
     title,
     url,
   };
+
   return {
     alternates: { canonical: url },
     description: page.description,
@@ -48,5 +50,5 @@ export const pageMetadata = (
       images: [image],
       title,
     },
-  };
+  } satisfies Metadata;
 };

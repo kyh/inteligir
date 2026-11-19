@@ -43,8 +43,6 @@ export const LinkElement = (props: PlateElementProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
-  // only an http(s) url is handed to the browser: an item is linked by `[[…]]`, never by an
-  // address, so any other url offers no Open
   const url = stringProp(element, "url") ?? "";
 
   const close = () => {
@@ -55,23 +53,26 @@ export const LinkElement = (props: PlateElementProps) => {
   const applyDraft = () => {
     const next = draft.trim();
     const at = editor.api.findPath(element);
+
     if (next && at) {
       editor.tf.setNodes({ url: next }, { at });
     }
+
     close();
     editor.tf.focus();
   };
 
   const removeLink = () => {
     const at = editor.api.findPath(element);
+
     if (at) {
       unwrapLink(editor, { at });
     }
+
     close();
     editor.tf.focus();
   };
 
-  // the edit row is a div, not a <form>: swapping it in while the Edit click resolves fired a spurious submit.
   return (
     <PlateElement
       {...props}
@@ -92,6 +93,7 @@ export const LinkElement = (props: PlateElementProps) => {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
+
           if (!next) {
             setEditing(false);
           }
@@ -110,10 +112,12 @@ export const LinkElement = (props: PlateElementProps) => {
                   if (isImeComposing(e)) {
                     return;
                   }
+
                   if (e.key === "Enter") {
                     e.preventDefault();
                     applyDraft();
                   }
+
                   if (e.key === "Escape") {
                     setEditing(false);
                   }

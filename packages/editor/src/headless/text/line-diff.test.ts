@@ -2,18 +2,17 @@ import { describe, expect, it } from "vitest";
 import { diffLines } from "./line-diff";
 import type { DiffHunk, DiffLinesOptions } from "./line-diff";
 
-const apply = (
-  base: readonly string[],
-  side: readonly string[],
-  hunks: readonly DiffHunk[],
-): string[] => {
+const apply = (base: readonly string[], side: readonly string[], hunks: readonly DiffHunk[]) => {
   const out: string[] = [];
   let at = 0;
+
   for (const hunk of hunks) {
     out.push(...base.slice(at, hunk.baseStart), ...side.slice(hunk.sideStart, hunk.sideEnd));
     at = hunk.baseEnd;
   }
+
   out.push(...base.slice(at));
+
   return out;
 };
 
@@ -21,59 +20,65 @@ const expectTrueDiff = (
   base: readonly string[],
   side: readonly string[],
   hunks: readonly DiffHunk[],
-): void => {
+) => {
   expect(apply(base, side, hunks)).toStrictEqual(side);
+
   for (let i = 1; i < hunks.length; i += 1) {
     const prev = hunks[i - 1];
     const next = hunks[i];
+
     if (prev && next) {
       expect(next.baseStart).toBeGreaterThan(prev.baseEnd);
     }
   }
 };
 
-const expectRoundTrip = (baseText: string, sideText: string): void => {
+const expectRoundTrip = (baseText: string, sideText: string) => {
   const base = baseText.split("\n");
   const side = sideText.split("\n");
   expectTrueDiff(base, side, diffLines(base, side).hunks);
 };
 
-const editCount = (hunks: readonly DiffHunk[]): number =>
+const editCount = (hunks: readonly DiffHunk[]) =>
   hunks.reduce(
     (sum, hunk) => sum + (hunk.baseEnd - hunk.baseStart) + (hunk.sideEnd - hunk.sideStart),
     0,
   );
 
-// the independent oracle for minimality: a Myers walk is shortest iff it deletes and inserts
-// exactly the lines outside a longest common subsequence.
-const shortestEditCount = (a: readonly string[], b: readonly string[]): number => {
+const shortestEditCount = (a: readonly string[], b: readonly string[]) => {
   let previous = Array.from({ length: b.length + 1 }, () => 0);
+
   for (const line of a) {
     const row = [0];
+
     for (const [j, other] of b.entries()) {
       row.push(
         line === other ? (previous[j] ?? 0) + 1 : Math.max(previous[j + 1] ?? 0, row[j] ?? 0),
       );
     }
+
     previous = row;
   }
+
   return a.length + b.length - 2 * (previous[b.length] ?? 0);
 };
 
-// a fixed-seed Lehmer generator, so every run draws the same cases.
 const seededLines = (seed: number) => {
   let state = seed;
-  const next = (bound: number): number => {
+
+  const next = (bound: number) => {
     state = (state * 48_271) % 2_147_483_647;
+
     return state % bound;
   };
-  return (): string[] => Array.from({ length: next(9) }, () => "abc".charAt(next(3)));
+
+  return () => Array.from({ length: next(9) }, () => "abc".charAt(next(3)));
 };
 
-const distinctLines = (count: number, label: string): string[] =>
+const distinctLines = (count: number, label: string) =>
   Array.from({ length: count }, (_, index) => `${label} ${String(index)}`);
 
-const within = (maxEditDistance: number): DiffLinesOptions => ({ maxEditDistance });
+const within = (maxEditDistance: number) => ({ maxEditDistance }) satisfies DiffLinesOptions;
 
 describe(diffLines, () => {
   it("answers no hunks for identical input", () => {
@@ -100,7 +105,6 @@ describe(diffLines, () => {
     expect(hunks).toStrictEqual([{ baseEnd: 2, baseStart: 1, sideEnd: 2, sideStart: 1 }]);
   });
 
-  // equal-cost inputs: the walk's tie-break is pinned so a merge's hunks stay stable
   it.each<[string[], string[], DiffHunk[]]>([
     [
       ["x", "y"],
@@ -143,6 +147,7 @@ describe(diffLines, () => {
 
   it("answers a shortest true diff for every small input", () => {
     const draw = seededLines(7);
+
     for (let round = 0; round < 2000; round += 1) {
       const base = draw();
       const side = draw();
@@ -181,8 +186,6 @@ describe("the edit budget", () => {
     });
   });
 
-  // the package's suites run under a heap ceiling (vitest.config.ts): a trace that copied the
-  // whole frontier every round would need over a gigabyte here.
   it("walks 20k lines with a thousand scattered edits inside the heap ceiling", () => {
     const base = distinctLines(20_000, "line");
     const side = base.map((line, index) => (index % 20 === 10 ? `${line} edited` : line));

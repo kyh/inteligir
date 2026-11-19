@@ -2,14 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MentionChip } from "@repo/editor/mention/mention-chip";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
+import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 const ROADMAP = "0190a000-0000-7000-8000-000000000001";
 
 const mountChip = (itemId: string, title: string, options?: FakeEditorHostOptions) => {
   const { calls } = installFakeEditorHost(options ?? {});
   render(<MentionChip itemId={itemId} title={title} />);
+
   return calls;
 };
 

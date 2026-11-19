@@ -1,20 +1,11 @@
-// The one tokenizer and the one search policy: an item's search vector, a query's terms and a
-// passage's matches are all cut by it, so none of them can disagree on what a word is. Stopwords
-// are dropped, not OR-ed in (a note would match on `i` alone); a query left with nothing keeps its
-// tokens as a conjunction, since an empty match expression is every item in the library. The
-// prefix term is the last raw token, not the last surviving one: a term followed by a stopword was
-// already finished typing.
-
 import { stemmer } from "stemmer";
 
-// marks folded away, so `acción` and `accion` are one word wherever they are written
-const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");
+const foldDiacritics = (text: string) => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");
 
-export const tokenize = (text: string): string[] =>
-  foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
+export const tokenize = (text: string) =>
+  (foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? []) satisfies string[];
 
-// `stemmer` is imported here and nowhere else, so the vector's stems and a query's cannot diverge
-export const stemToken = (token: string): string => stemmer(token);
+export const stemToken = (token: string) => stemmer(token);
 
 export interface SearchQueryTerm {
   readonly token: string;
@@ -27,13 +18,10 @@ export interface SearchQueryPlan {
   readonly match: "all" | "any";
 }
 
-// at or below, the query is a lookup and every term is required; above, a sentence the ranking decides
 const CONJUNCTION_MAX_TERMS = 2;
 
-// below this a conjunction and a disjunction ask the same question
 const RELAXABLE_MIN_TERMS = 2;
 
-// shorter than the published lists: words with a topical reading ("other", "more", "few") stay searchable
 const STOPWORDS = new Set(
   `a about above after again against all am an and any are as at
    be because been before being below between both but by
@@ -52,16 +40,17 @@ const STOPWORDS = new Set(
     .filter((word) => word !== ""),
 );
 
-// a query is a box still being typed into, so its last word also matches as a prefix
-export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
+export const planSearchQuery = (query: string) => {
   const raw = tokenize(query);
   const typing = raw.at(-1);
+
   if (typing === undefined) {
-    return [];
+    return [] satisfies readonly SearchQueryPlan[];
   }
 
   const unique = [...new Set(raw)];
   const content = unique.filter((token) => !STOPWORDS.has(token));
+
   const terms = (content.length > 0 ? content : unique).map((token) => ({
     prefix: token === typing,
     stem: stemToken(token),
@@ -69,13 +58,15 @@ export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
   }));
 
   if (content.length > CONJUNCTION_MAX_TERMS) {
-    return [{ match: "any", terms }];
+    return [{ match: "any", terms }] satisfies readonly SearchQueryPlan[];
   }
+
   if (content.length < RELAXABLE_MIN_TERMS) {
-    return [{ match: "all", terms }];
+    return [{ match: "all", terms }] satisfies readonly SearchQueryPlan[];
   }
+
   return [
     { match: "all", terms },
     { match: "any", terms },
-  ];
+  ] satisfies readonly SearchQueryPlan[];
 };

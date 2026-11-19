@@ -4,13 +4,15 @@ import { displaysOf } from "./displays";
 import { evaluateExpression, isPillName, namesIn, parseExpression, renameIn } from "./expression";
 import { formatResult } from "./format-result";
 
-const evaluate = (source: string): number | null => {
+const evaluate = (source: string) => {
   const tree = parseExpression(source);
+
   return tree === null ? null : evaluateExpression(tree, () => null);
 };
 
-const names = (source: string): string[] | null => {
+const names = (source: string) => {
   const tree = parseExpression(source);
+
   return tree === null ? null : namesIn(tree);
 };
 
@@ -62,7 +64,6 @@ describe("the formula grammar (the prompt's own examples)", () => {
     expect(parseExpression("sum(1,2)")).toBeNull();
     expect(parseExpression("2^3")).toBeNull();
     expect(parseExpression("price qty")).toBeNull();
-    // malformed thousands group
     expect(parseExpression("1,23")).toBeNull();
     expect(parseExpression("")).toBeNull();
   });

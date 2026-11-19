@@ -11,17 +11,19 @@ import {
   railWindow,
   TOC_RAIL_CAP,
 } from "@repo/editor/toc";
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const h = (type: "h1" | "h2" | "h3", text: string) => ({ children: [{ text }], type });
 const p = (text: string) => ({ children: [{ text }], type: "p" });
 
-const mountValue = (value: Value): PlateEditor => {
+const mountValue = (value: Value) => {
   const ref = createRef<PlateEditor>();
   render(<EditorHarness value={value} ref={ref} />);
+
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }
+
   return ref.current;
 };
 
@@ -33,27 +35,32 @@ describe("outline targets", () => {
     expect(headings.map((row) => row.title)).toStrictEqual(["Real"]);
 
     const [first] = headings;
+
     if (first === undefined) {
       throw new Error("the outline lost its only row");
     }
+
     expect(document.querySelectorAll("h1, h2, h3")[0]?.textContent).not.toBe("Real");
     expect(headingElement(editor, first)?.textContent).toBe("Real");
   });
 
   it("ignores heading elements the editor does not own", () => {
     const editor = mountValue([h("h2", "Mine"), p("body")]);
-    // a heading in the editable that is no node of the document
     const editable = document.querySelector('[data-slate-editor="true"]');
+
     if (editable === null) {
       throw new Error("no editable mounted");
     }
+
     editable.insertAdjacentHTML("afterbegin", "<h2>Embedded</h2>");
 
     const headings = collectHeadings(editor);
     const [first] = headings;
+
     if (first === undefined) {
       throw new Error("the outline lost its only row");
     }
+
     expect(first.title).toBe("Mine");
     expect(document.querySelectorAll("h2")[0]?.textContent).toBe("Embedded");
     expect(headingElement(editor, first)?.textContent).toBe("Mine");
@@ -65,6 +72,7 @@ describe("outline targets", () => {
       { children: [h("h2", "Quoted")], type: "blockquote" },
       h("h2", "Tail"),
     ]);
+
     const rows = () => collectHeadings(editor).map(({ id, title }) => `${id} ${title}`);
     expect(rows()).toStrictEqual(["0 Top", "1.0 Quoted", "2 Tail"]);
 
@@ -90,6 +98,7 @@ describe("outline targets", () => {
         type: "h2",
       },
     ]);
+
     expect(collectHeadings(editor).map((row) => row.title)).toStrictEqual([
       "Notes on Plan for 2026-08-22 at 4",
     ]);
@@ -101,27 +110,31 @@ describe("outline targets", () => {
   });
 });
 
-// the scroller's own top at 0, so the scanner line sits at 72px
-const spyScroller = (): Element => {
+const spyScroller = () => {
   const el = document.createElement("div");
   el.getBoundingClientRect = () => DOMRect.fromRect({ height: 800, width: 800, x: 0, y: 0 });
+
   return el;
 };
 
-// each heading's top 100px below the last, the note scrolled by `scrolledBy`; counts the measures
 const placeHeadings = (editor: PlateEditor, scrolledBy: number) => {
   const reads = { count: 0 };
+
   for (const [index, heading] of collectHeadings(editor).entries()) {
     const el = headingElement(editor, heading);
+
     if (el === null) {
       throw new Error("every heading draws");
     }
+
     const rect = DOMRect.fromRect({ height: 20, width: 100, x: 0, y: index * 100 - scrolledBy });
     el.getBoundingClientRect = () => {
       reads.count += 1;
+
       return rect;
     };
   }
+
   return reads;
 };
 
@@ -130,12 +143,12 @@ describe("the scroll spy", () => {
     const value: Value = Array.from({ length: 64 }, (_, index) =>
       h("h2", `Section ${String(index)}`),
     );
+
     const editor = mountValue(value);
     const headings = collectHeadings(editor);
 
     const reads = placeHeadings(editor, 0);
     expect(activeHeadingAt(editor, headings, spyScroller())).toBe(0);
-    // bisection over 64 headings asks about seven of them, never all
     expect(reads.count).toBeLessThanOrEqual(7);
 
     placeHeadings(editor, 2000);
@@ -146,7 +159,7 @@ describe("the scroll spy", () => {
   });
 });
 
-const runBox = (el: Element | undefined, top: number, height: number): void => {
+const runBox = (el: Element | undefined, top: number, height: number) => {
   if (el !== undefined) {
     el.getBoundingClientRect = () => DOMRect.fromRect({ height, width: 800, x: 0, y: top });
   }
@@ -154,36 +167,39 @@ const runBox = (el: Element | undefined, top: number, height: number): void => {
 
 describe("the scroll spy over a long note's runs", () => {
   it("places the line by the runs' boxes, where a run not yet drawn measures its headings past it", () => {
-    // a first run of 100 headings, then a run that alternates a heading and a paragraph
     const value: Value = [
       ...Array.from({ length: 100 }, (_, index) => h("h2", `Early ${String(index)}`)),
       ...Array.from({ length: 100 }, (_, index) =>
         index % 2 === 0 ? h("h2", `Late ${String(index / 2)}`) : p("body"),
       ),
     ];
+
     const ref = createRef<PlateEditor>();
     render(<EditorHarness value={value} ref={ref} chunkSize={100} />);
     const editor = ref.current;
+
     if (editor === null) {
       throw new Error("the editor did not mount");
     }
+
     const runs = [...document.querySelectorAll("[data-slate-chunk]")];
     expect(runs).toHaveLength(2);
     const [early, late] = runs;
-    // the first run sits above the view at its estimate, the second holds the scanner line at 72px
     runBox(early, -10_000, 9000);
     runBox(late, -1000, 2000);
     const headings = collectHeadings(editor);
+
     for (const [index, heading] of headings.entries()) {
       const el = headingElement(editor, heading);
+
       if (el === null) {
         throw new Error("every heading draws");
       }
-      // a heading measured inside the undrawn run lays out at its real height, past the run's box
+
       const top = index < 100 ? 5000 : -1000 + (index - 100) * 40;
       el.getBoundingClientRect = () => DOMRect.fromRect({ height: 20, width: 100, x: 0, y: top });
     }
-    // Late 26 sits at 40px, Late 27 at 80px, under the line
+
     expect(headings[activeHeadingAt(editor, headings, spyScroller())]?.title).toBe("Late 26");
   });
 });

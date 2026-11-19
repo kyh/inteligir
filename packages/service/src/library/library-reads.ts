@@ -1,9 +1,3 @@
-// What the library answers an agent's reads with: a list and a search through the listing
-// (`./library-listing`), the folder tree and tags as the rail counts them, and an item as its
-// markdown view, paged by block position and cut to a page an agent's tool result can carry. Times
-// an agent reads are ISO 8601. An id the account holds no item under reads as none, which its row
-// answers as NOT_FOUND.
-
 import { itemSummary } from "@repo/contract/library/library-index";
 import type { ItemListing } from "@repo/contract/library/library-index";
 import type {
@@ -29,15 +23,14 @@ import { readItemWhole } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
+
 type SearchHit = z.infer<typeof searchHitSchema>;
+
 type ItemRead = z.infer<typeof itemReadSchema>;
 
-const isoOf = (ms: number): string => new Date(ms).toISOString();
+const isoOf = (ms: number) => new Date(ms).toISOString();
 
-// the most of the markdown one page of a read carries: twice over (as text and as structured
-// content) a page stays well inside what an agent's tool result may carry whole
 const READ_PAGE_MAX_CHARS = 16_000;
-// the items a read names as linking in or out, the first by title
 const READ_LINKS_MAX = 50;
 
 interface Linked {
@@ -54,10 +47,9 @@ const LINKED_COLUMNS = {
   titleSort: item.titleSort,
 };
 
-const byTitle = (a: Linked, b: Linked): number =>
+const byTitle = (a: Linked, b: Linked) =>
   compareText(a.titleSort, b.titleSort) || compareText(a.id, b.id);
 
-// the first live items of `linked` by title, the item itself aside
 const shownLinks = (linked: readonly Linked[], self: string) =>
   linked
     .filter(({ deletedAt, id }) => deletedAt === null && id !== self)
@@ -65,8 +57,6 @@ const shownLinks = (linked: readonly Linked[], self: string) =>
     .slice(0, READ_LINKS_MAX)
     .map(({ id, title }) => ({ id, title }));
 
-// every item the body links to by id, in Deleted or not, which its rows name: an item link in the
-// view is written under its item's title as it stands
 const linkedFrom = async (db: DbExecutor, accountId: string, sourceId: string) =>
   await db
     .select(LINKED_COLUMNS)
@@ -89,7 +79,6 @@ const linkedFrom = async (db: DbExecutor, accountId: string, sourceId: string) =
       ),
     );
 
-// the live items linking to the item, by its id or by its address
 const linkingTo = async (db: DbExecutor, accountId: string, target: StoredItem) =>
   await db
     .select(LINKED_COLUMNS)
@@ -117,50 +106,65 @@ const linkingTo = async (db: DbExecutor, accountId: string, target: StoredItem) 
       ),
     );
 
-// where its page reading stands, its times as instants
-const readingOf = (reading: StoredItem["fields"]["reading"]): ItemRead["fields"]["reading"] => {
+const readingOf = (reading: StoredItem["fields"]["reading"]) => {
   switch (reading.state) {
     case "none": {
       return reading;
     }
+
     case "pending": {
-      return { at: reading.at === null ? null : isoOf(reading.at), state: reading.state };
+      return {
+        at: reading.at === null ? null : isoOf(reading.at),
+        state: reading.state,
+      } satisfies ItemRead["fields"]["reading"];
     }
+
     case "read": {
-      return { at: isoOf(reading.at), state: reading.state };
+      return {
+        at: isoOf(reading.at),
+        state: reading.state,
+      } satisfies ItemRead["fields"]["reading"];
     }
+
     case "failed": {
       return {
         at: reading.at === null ? null : isoOf(reading.at),
         error: reading.error,
         state: reading.state,
-      };
+      } satisfies ItemRead["fields"]["reading"];
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(reading satisfies never)}`);
+    }
   }
 };
 
-// the item's markdown from its body's blocks, a page of them, beside the items it links with
 export const readItemView = async (
   db: DbExecutor,
   accountId: string,
   input: z.output<typeof readInputSchema>,
-): Promise<ItemRead | null> => {
+) => {
   const whole = await readItemWhole(db, accountId, input.id);
+
   if (whole === null) {
     return null;
   }
+
   const { blocks, item: stored } = whole;
   const out = await linkedFrom(db, accountId, input.id);
   const titles = new Map(out.map(({ id, title }) => [id, title]));
+
   const page = viewPage(
     blocks,
     { title: (id) => titles.get(id) ?? null },
     { count: input.count, from: input.from, maxChars: READ_PAGE_MAX_CHARS },
   );
+
   const into = await linkingTo(db, accountId, stored);
   const { fields } = stored;
   const detailed = input.responseFormat === "detailed";
+
   return {
     fields: {
       aliases: detailed ? fields.aliases : undefined,
@@ -182,17 +186,15 @@ export const readItemView = async (
     id: input.id,
     links: { in: shownLinks(into, input.id), out: shownLinks(out, input.id) },
     view: { from: page.from, markdown: page.markdown, to: page.to, total: page.total },
-  };
+  } satisfies ItemRead | null;
 };
 
-// ---- an agent's lists ----
-
-// an item as a list names it in detail: its summary, and what a person reads on its card
-const detailedSummary = (row: ItemListing): ItemSummary => ({
-  ...itemSummary(row),
-  preview: row.card.preview,
-  site: row.fields.site,
-});
+const detailedSummary = (row: ItemListing) =>
+  ({
+    ...itemSummary(row),
+    preview: row.card.preview,
+    site: row.fields.site,
+  }) satisfies ItemSummary;
 
 export const listItems = async (
   db: DbExecutor,
@@ -209,6 +211,7 @@ export const listItems = async (
     pinned: input.pinned,
     tag: input.tag,
   });
+
   return {
     cursor: page.next,
     items: page.items.map((row) =>
@@ -217,7 +220,6 @@ export const listItems = async (
   };
 };
 
-// how much of a hit's text a concise answer keeps
 const CONCISE_SNIPPET_CHARS = 160;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -228,6 +230,7 @@ export const searchItems = async (
   input: z.output<typeof searchInputSchema>,
 ) => {
   const hits = await searchHits(db, accountId, input.query, "live");
+
   const page = await listingItems(db, accountId, {
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,
@@ -239,11 +242,14 @@ export const searchItems = async (
     sinceMs: input.savedAfter === undefined ? undefined : Date.parse(input.savedAfter),
     tag: input.tag,
   });
+
   const passages = await hits.passages(page.items);
+
   return {
     cursor: page.next,
-    hits: page.items.map((row): SearchHit => {
+    hits: page.items.map((row) => {
       const snippet = passages.get(row.id) ?? row.title;
+
       return {
         id: row.id,
         kind: row.kind,
@@ -252,14 +258,14 @@ export const searchItems = async (
           input.responseFormat === "concise" ? snippet.slice(0, CONCISE_SNIPPET_CHARS) : snippet,
         title: row.title,
         url: row.url,
-      };
+      } satisfies SearchHit;
     }),
   };
 };
 
-// the folder tree and every tag as the rail counts them, a folder's order key left out
 export const libraryOutline = async (db: DbExecutor, accountId: string) => {
   const { folders, tags } = await listingScopes(db, accountId);
+
   return {
     folders: folders.map(({ id, items, name, parentId }) => ({ id, items, name, parentId })),
     tags,

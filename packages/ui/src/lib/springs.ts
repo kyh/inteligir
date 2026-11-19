@@ -1,6 +1,4 @@
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-// each tier is the enter spring and `.exit` its matching tween, one tier quicker; never hand-write
-// a duration, reach for a tier
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 export const spring = {
   fast: {
     bounce: 0,

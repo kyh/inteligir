@@ -1,35 +1,31 @@
-// The phone's runtime as the app composes it, over a key-value store and a folder in memory, an
-// auth the suite holds, and the contract's fake cell for the account: every move between signed in
-// and signed out, what each one keeps and clears, what an answer of what moved asks again, and a
-// conversation followed over the phone's own wire.
-
 import { createHash } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
+
 import { dehydrate, focusManager, QueryObserver } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell.test-utils";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { afterEach, describe, expect, it } from "vitest";
 import { deferred } from "@repo/contract/deferred";
-import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
-import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
-import { memoryFolder } from "../test-support/memory-folder";
-import type { MemoryFolder } from "../test-support/memory-folder";
-import { memoryKv } from "@repo/client/test-support/memory-kv";
+import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth.test-utils";
+import type { FakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
+import { memoryFolder } from "../test-support/memory-folder.test-utils";
+import type { MemoryFolder } from "../test-support/memory-folder.test-utils";
+import { memoryKv } from "@repo/client/test-support/memory-kv.test-utils";
 import { threadQueries } from "@repo/client/thread-queries";
-import type { MemoryKv } from "@repo/client/test-support/memory-kv";
+import type { MemoryKv } from "@repo/client/test-support/memory-kv.test-utils";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
+import { nextTask } from "../test-support/async.test-utils";
 
 const SIGN_IN = { email: "ada@example.com", password: "a long password" };
 
 const PAGE = "https://example.com/later";
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
 
-// a folder that refuses the next clear once told to, as a full disk refuses a wipe's
 const refusingOnce = (folder: MemoryFolder) => {
   let armed = false;
+
   const port: MemoryFolder = {
     ...folder,
     clear: async () => {
@@ -37,9 +33,11 @@ const refusingOnce = (folder: MemoryFolder) => {
         armed = false;
         throw new Error("database or disk is full");
       }
+
       await folder.clear();
     },
   };
+
   return {
     port,
     refuseNext: () => {
@@ -48,11 +46,12 @@ const refusingOnce = (folder: MemoryFolder) => {
   };
 };
 
-// a fresh UUIDv7 each time, as the phone mints its ids
 const idSource = () => {
   let next = 0;
-  return (): string => {
+
+  return () => {
     next += 1;
+
     return `0190a000-0000-7000-8000-${next.toString(16).padStart(12, "0")}`;
   };
 };
@@ -67,6 +66,7 @@ interface PhoneOptions {
 const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
   const network = cell.device("phone");
   const storage = options.storage ?? memoryKv();
+
   const runtime = composeRuntime({
     auth: options.keys.auth,
     build: { platform: "mobile", version: "1.0.0" },
@@ -80,22 +80,24 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
       await Promise.resolve(createHash("sha256").update(bytes).digest("hex")),
     storage,
   });
+
   return { network, runtime, storage };
 };
 
-const signedIn = (runtime: AppRuntime): PhoneLibrary => {
+const signedIn = (runtime: AppRuntime) => {
   const session = runtime.session.get();
+
   if (session.kind !== "signed-in") {
     throw new Error(`the phone is ${session.kind}`);
   }
+
   return session.library;
 };
 
-const sharesKept = (storage: MemoryKv): string[] =>
+const sharesKept = (storage: MemoryKv) =>
   [...storage.held.keys()].filter((key) => key.startsWith("share:"));
 
-// a note the account holds, written by another device
-const noteOnTheMac = async (cell: FakeCell): Promise<void> => {
+const noteOnTheMac = async (cell: FakeCell) => {
   await cell.device("mac").client.library.items.create({
     blocks: [{ block: paragraph("p1", "first"), section: "note" }],
     folderId: null,
@@ -107,13 +109,14 @@ const noteOnTheMac = async (cell: FakeCell): Promise<void> => {
   });
 };
 
-// a share kept while the cloud cannot be reached, so it waits
-const shareWaiting = async (library: PhoneLibrary, network: FakeDevice): Promise<void> => {
+const shareWaiting = async (library: PhoneLibrary, network: FakeDevice) => {
   network.setOffline(true);
   const kept = await library.shares.keep({ kind: "link", note: null, title: null, url: PAGE });
+
   if (kept === null) {
     throw new Error("the outbox refused a share while signed in");
   }
+
   await expect(library.shares.deliver(kept.opId)).resolves.toBeNull();
 };
 
@@ -265,10 +268,10 @@ describe("the phone's runtime", () => {
 
   it("signs out at once though the cloud never answers", async () => {
     const { runtime } = runtimeOver(createFakeCell(), {
-      // the cloud never answers
       fetch: async () => await deferred<Response>().promise,
       keys: fakePhoneAuth(KEPT_SESSION),
     });
+
     await runtime.start();
 
     await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
@@ -289,7 +292,6 @@ describe("the phone's runtime", () => {
       kind: "failed",
       message: "database or disk is full",
     });
-    // the phone is still the account's, and its library opened again over what the phone holds
     expect(keys.calls).not.toContain("signOut");
     expect(keys.held()).toBe(KEPT_SESSION);
     const after = signedIn(runtime);
@@ -298,7 +300,6 @@ describe("the phone's runtime", () => {
       runtime.queryClient.query(after.queries.library.listing.titles.queryOptions()),
     ).resolves.toStrictEqual({ targets: [{ id: NOTE, title: "Plans" }] });
 
-    // and a refusal it hears later still ends the sign-in
     cell.signOut();
     await expect(after.client.library.changes({})).rejects.toThrow(/sign/u);
     await expect
@@ -347,7 +348,7 @@ describe("the phone's runtime", () => {
     await runtime.start();
     runtime.setReach({ front: false });
     runtime.setReach({ front: true });
-    await delay(20);
+    await nextTask();
     expect(keys.calls).toStrictEqual([]);
     expect(cell.calls).toStrictEqual([]);
   });
@@ -373,7 +374,6 @@ describe("the phone's runtime", () => {
     expect(keys.held()).toBe(KEPT_SESSION);
     expect(memory.held()).toStrictEqual(["cached"]);
 
-    // what moved is the next launch's first call, which hears the refusal
     const again = runtimeOver(cell, { folder: memory, keys });
     await again.runtime.start();
     await expect
@@ -385,6 +385,7 @@ describe("the phone's runtime", () => {
 
   it("fails the launch when the phone's store will not read", async () => {
     const storage = memoryKv();
+
     const { runtime } = runtimeOver(createFakeCell(), {
       keys: fakePhoneAuth(KEPT_SESSION),
       storage: {
@@ -395,6 +396,7 @@ describe("the phone's runtime", () => {
         },
       },
     });
+
     await runtime.start();
     expect(runtime.session.get()).toStrictEqual({ kind: "failed", message: "disk I/O error" });
   });
@@ -404,26 +406,23 @@ afterEach(() => {
   focusManager.setFocused(undefined);
 });
 
-// a phone open on the account's library, a note's read held, the items each answer named, and how
-// often it asked what moved
 const askingPhone = async () => {
   const cell = createFakeCell();
   await noteOnTheMac(cell);
   const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION) });
-  // the root's provider mounts the client, which is what lets a return to the front ask
   runtime.queryClient.mount();
   await runtime.start();
-  const asks = (): number => cell.calls.filter((call) => call === "phone library/changes").length;
+  const asks = () => cell.calls.filter((call) => call === "phone library/changes").length;
   await expect.poll(asks).toBe(1);
   const library = signedIn(runtime);
   const moved: (ReadonlySet<string> | null)[] = [];
   library.onItems((items) => {
     moved.push(items);
   });
-  // a note's read, filed as the cache files it whatever the query reads
   const read: QueryKey = library.queries.library.items.get.queryKey({ input: { id: NOTE } });
   runtime.queryClient.setQueryData(read, "held");
-  const asked = (): boolean => runtime.queryClient.getQueryState(read)?.isInvalidated === true;
+  const asked = () => runtime.queryClient.getQueryState(read)?.isInvalidated === true;
+
   return { asked, asks, cell, moved, runtime };
 };
 
@@ -445,7 +444,7 @@ describe("what moved, as the phone asks it", () => {
     await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
     focusManager.setFocused(false);
     focusManager.setFocused(true);
-    await delay(20);
+    await nextTask();
     expect(asks()).toBe(1);
   });
 });
@@ -458,37 +457,41 @@ describe("a conversation, as the phone follows it", () => {
     cell.threadEvent(THREAD, { text: "File my reading.", type: "user.message" });
     const network = cell.device("phone");
     const followed: Request[] = [];
+
     const { runtime } = runtimeOver(cell, {
       fetch: async (request) => {
         if (request.url.endsWith("/library/agent/events")) {
           followed.push(request.clone());
         }
+
         return await network.transport.fetch(request);
       },
       keys: fakePhoneAuth(KEPT_SESSION),
     });
+
     await runtime.start();
     const { client, queries } = signedIn(runtime);
+
     const shown = new QueryObserver(
       runtime.queryClient,
       threadQueries({ client, orpc: queries }).threadEvents(THREAD),
     );
+
     const types = () => shown.getCurrentResult().data?.rows.map((row) => row.type) ?? [];
-    const stop = shown.subscribe(() => {
-      // the thread's screen draws what it holds
-    });
+
+    const stop = shown.subscribe(() => {});
+
     await expect.poll(types).toStrictEqual(["user.message"]);
     expect(followed[0]?.headers.get("cookie")).toBe(KEPT_SESSION);
 
     cell.threadEvent(THREAD, { text: "Filed 3 items.", type: "agent.message" });
     await expect.poll(types).toStrictEqual(["user.message", "agent.message"]);
 
-    // the screen closes, the turn ends meanwhile, and the screen opens again
     stop();
     cell.threadEvent(THREAD, { reason: "done", turn: 1, type: "turn.ended" });
-    const reopened = shown.subscribe(() => {
-      // the thread's screen draws what it holds
-    });
+
+    const reopened = shown.subscribe(() => {});
+
     await expect.poll(types).toStrictEqual(["user.message", "agent.message", "turn.ended"]);
     expect(followed.at(-1)?.headers.get("last-event-id")).toBe("1:1:0");
     reopened();

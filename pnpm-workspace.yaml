@@ -110,15 +110,17 @@ catalog:
   mdast-util-to-markdown: ^2.2.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
+  # the suites' network: a test answers a request it names, and an unnamed one fails it
+  msw: ^2.15.0
   # exact: the patch below keys this release
   next: 16.4.6
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0
   react-native-css: 3.1.0-rc.0
-  # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2005, and its
+  # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2007, and its
   # major tracks the TypeScript it embeds, the 7 every program here checks under
-  oxlint-tsgolint: ^7.0.2005
+  oxlint-tsgolint: ^7.0.2007
   # the editor and the note object, whose headless editor applies the agent's changes, run one Plate;
   # exact, as the @platejs/core override is: the patch below keys its core at this release
   platejs: 53.5.2
@@ -197,6 +199,7 @@ minimumReleaseAge: 1440
 # an exclusion admits one version still inside the cooldown and is deleted once that version is a
 # day old; an install drops by itself one the lockfile no longer resolves
 minimumReleaseAgeExcludePrune: true
+minimumReleaseAgeExclude:
 
 # an install drops a catalog entry no manifest spells any more
 catalogPrune: true
@@ -210,6 +213,8 @@ allowBuilds:
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
   esbuild: true
+  # a postinstall that copies the browser's service worker, which the suites, on node, never load
+  msw: false
   # eas-cli's centrifuge: a postinstall that only prints a version notice
   protobufjs: false
 

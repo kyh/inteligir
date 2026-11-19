@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
 
 import {
   absorbRacedComboboxText,
@@ -21,28 +20,33 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string => serializeNote(editor);
+const out = (editor: Editor) => serializeNote(editor);
 
-const findByType = (editor: Editor, type: string): TElement | null => {
+const findByType = (editor: Editor, type: string) => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
     if (ElementApi.isElement(node)) {
       return node;
     }
   }
+
   return null;
 };
 
-const openCombobox = (editor: Editor, trigger: string, type: string): TElement => {
+const openCombobox = (editor: Editor, trigger: string, type: string) => {
   const end = editor.api.end([0]);
+
   if (!end) {
     throw new Error("no end point");
   }
+
   editor.tf.select(end);
   editor.tf.insertText(trigger);
   const element = findByType(editor, type);
+
   if (!element) {
     throw new Error(`trigger '${trigger}' did not insert a ${type} element`);
   }
+
   return element;
 };
 
@@ -91,9 +95,11 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("cancel after an undo removed the element is a strict no-op", () => {
     const editor = makeEditor("hello ");
     const element = openCombobox(editor, "/", KEYS.slashInput);
+
     while (findByType(editor, KEYS.slashInput)) {
       editor.undo();
     }
+
     const before = out(editor);
     expect(() => {
       cancelComboboxInput(editor, element, { cause: "deselect", restoreText: "/tada" });
@@ -114,15 +120,18 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     const element = openCombobox(editor, "/", KEYS.slashInput);
     commitComboboxInput(editor, element, false);
     const end = editor.api.end([0]);
+
     if (!end) {
       throw new Error("no end point");
     }
+
     editor.tf.insertText("done", { at: end });
     expect(out(editor)).toBe("hello done\n");
     expect(() => {
       for (let i = 0; i < 10; i += 1) {
         editor.undo();
       }
+
       for (let i = 0; i < 10; i += 1) {
         editor.redo();
       }
@@ -133,9 +142,11 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("commit after external removal is a no-op", () => {
     const editor = makeEditor("hello ");
     const element = openCombobox(editor, "/", KEYS.slashInput);
+
     while (findByType(editor, KEYS.slashInput)) {
       editor.undo();
     }
+
     expect(() => {
       commitComboboxInput(editor, element, false);
     }).not.toThrow();
@@ -148,10 +159,11 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   ])("lands a key typed after %s, before its input has focus, in the element", (trigger, type) => {
     const editor = makeEditor("");
     editor.tf.select({ offset: 0, path: [0, 0] });
-    // each key as slate-react inserts one typed into the editor: no `voids`
+
     for (const char of `${trigger}h2`) {
       editor.tf.insertText(char);
     }
+
     const element = findByType(editor, type);
     expect(element ? racedComboboxText(element) : null).toBe("h2");
   });
@@ -160,29 +172,35 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     const editor = makeEditor("");
     const element = openCombobox(editor, "/", KEYS.slashInput);
     const path = editor.api.findPath(element);
+
     if (!path) {
       throw new Error("element path missing");
     }
+
     editor.tf.select({ offset: 0, path: [...path, 0] });
-    // a key as slate-react inserts one typed into the editor, as one is before the input has focus
     editor.tf.insertText("t");
     const raced = findByType(editor, KEYS.slashInput);
     expect(raced ? racedComboboxText(raced) : "").toBe("t");
+
     if (!raced) {
       throw new Error("element missing");
     }
+
     expect(absorbRacedComboboxText(editor, raced)).toBe("t");
     const cleared = findByType(editor, KEYS.slashInput);
     expect(cleared ? racedComboboxText(cleared) : "?").toBe("");
+
     if (!cleared) {
       throw new Error("element missing");
     }
+
     cancelComboboxInput(editor, cleared, { cause: "escape", restoreText: "/tada" });
     expect(out(editor)).toBe("/tada\n");
     expect(() => {
       for (let i = 0; i < 10; i += 1) {
         editor.undo();
       }
+
       for (let i = 0; i < 10; i += 1) {
         editor.redo();
       }
@@ -201,12 +219,14 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
     for (const word of ["deep", "tada"]) {
       let value = "";
       let caret = 0;
+
       for (const [i, char] of [...word].entries()) {
         const next = value.slice(0, caret) + char + value.slice(caret);
         const reported = i === 0 ? caret : caret + 1;
         caret = reconcileInsertionCaret(value, next, reported) ?? reported;
         value = next;
       }
+
       expect(value).toBe(word);
       expect(caret).toBe(word.length);
     }

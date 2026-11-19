@@ -1,5 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Re-paints the model selection while a menu or popover holds DOM focus.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import { useCursorOverlay } from "@platejs/selection/react";
 import type { CursorOverlayState } from "@platejs/selection/react";
@@ -19,9 +18,9 @@ const Cursor = ({
   const editor = useEditorRef();
   const isCursor = selection ? RangeApi.isCollapsed(selection) : false;
 
-  // multi-cell table selections have their own selection UI
   if (id === "selection" && selection) {
     const cellEntries = getTableGridAbove(editor, { at: selection, format: "cell" });
+
     if (cellEntries.length > 1) {
       return null;
     }

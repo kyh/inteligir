@@ -1,25 +1,21 @@
-// Undo over Postgres: the built-in agent's turns written through the rows as its principal calls
-// them, and taken back as the person's tab asks; its edits of a body are `../body/body-undo.test.ts`'s.
-
 import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
 import { openThread } from "../agent/agent-threads";
-import { libraryAs, personalLibrary, seedItem } from "../test-support/library-fixture";
+import { libraryAs, personalLibrary, seedItem } from "../test-support/library.fixture";
 import { sealTurnSet } from "./library-change-sets";
 import { mintLibraryId } from "./library-ids";
 
-// an undo's answer when nothing of what it named is left to take back
 const NOTHING_LEFT = { kept: [], next: null, refused: [], reverted: [] };
 
-const blocksOf = (lines: readonly string[]): BodyBlock[] =>
+const blocksOf: (lines: readonly string[]) => BodyBlock[] = (lines: readonly string[]) =>
   lines.map((text) => ({ block: paragraph(randomUUID(), text), section: "note" }));
 
 const noteOf = (lines: readonly string[], title = "") => ({
@@ -31,9 +27,9 @@ const noteOf = (lines: readonly string[], title = "") => ({
   title,
 });
 
-// one turn of one thread, its writes through the rows
 const turnOf = (accountId: string, threadId: string, turn: number) => {
   const actor = { kind: "agent", threadId, turn } as const;
+
   return {
     end: async () => {
       await sealTurnSet(db, accountId, { threadId, turn }, Date.now());
@@ -43,15 +39,17 @@ const turnOf = (accountId: string, threadId: string, turn: number) => {
   };
 };
 
-const codeOf = async (call: Promise<unknown>): Promise<string> => {
+const codeOf = async (call: Promise<unknown>) => {
   try {
     await call;
   } catch (error) {
     if (isOrpcError(error)) {
       return error.code;
     }
+
     throw error;
   }
+
   throw new Error("the call landed what the test expected it to refuse");
 };
 
@@ -63,11 +61,9 @@ dbSuite("Undo of the built-in agent's turns", () => {
     const turn = turnOf(accountId, threadId, 1);
     const made = noteOf(["Before."]);
     await turn.library.items.create(made);
-    // a turn still open is not yet one to undo, and an undo of it takes nothing back
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
     await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual(NOTHING_LEFT);
     await turn.end();
-    // an ended turn takes no more writes
     expect(await codeOf(turn.library.items.create(noteOf(["Late."])))).toBe("FORBIDDEN");
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
     await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual({
@@ -77,10 +73,8 @@ dbSuite("Undo of the built-in agent's turns", () => {
     const { fields } = await library.items.row({ id: made.id });
     expect(fields.deletedAt).not.toBeNull();
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
-    // a second press, or another device's, finds nothing left, and is refused nothing
     await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual(NOTHING_LEFT);
     await expect(library.agent.undo({ threadId })).resolves.toStrictEqual(NOTHING_LEFT);
-    // one turn, or the conversation from a turn down, never both
     expect(await codeOf(library.agent.undo({ before: 2, threadId, turn: 1 }))).toBe("BAD_REQUEST");
   });
 
@@ -105,19 +99,24 @@ dbSuite("Undo of the built-in agent's turns", () => {
     const { accountId, library } = await personalLibrary();
     const perTurn = BULK_ITEMS_MAX / 2 + 1;
     const ids: string[] = [];
+
     for (let at = 0; at < 2 * perTurn; at += 1) {
       const seeded = await seedItem(accountId, {
         fields: noteFixture({ title: `Note ${String(at)}` }),
       });
+
       ids.push(seeded.id);
     }
+
     const [older, newer] = [ids.slice(0, perTurn), ids.slice(perTurn)];
     const threadId = randomUUID();
+
     for (const [at, lot] of [older, newer].entries()) {
       const turn = turnOf(accountId, threadId, at + 1);
       await turn.library.items.delete({ ids: lot });
       await turn.end();
     }
+
     await expect(library.agent.undo({ threadId })).resolves.toStrictEqual({
       ...NOTHING_LEFT,
       next: 2,
@@ -133,17 +132,22 @@ dbSuite("Undo of the built-in agent's turns", () => {
   it("takes back a turn of more changes than a lot holds a write at a time, in one call", async () => {
     const { accountId, library } = await personalLibrary();
     const ids: string[] = [];
+
     for (let at = 0; at < 2 * BULK_ITEMS_MAX + 1; at += 1) {
       const seeded = await seedItem(accountId, {
         fields: noteFixture({ title: `Note ${String(at)}` }),
       });
+
       ids.push(seeded.id);
     }
+
     const threadId = randomUUID();
     const turn = turnOf(accountId, threadId, 1);
+
     for (let at = 0; at < ids.length; at += BULK_ITEMS_MAX) {
       await turn.library.items.delete({ ids: ids.slice(at, at + BULK_ITEMS_MAX) });
     }
+
     await turn.end();
 
     const sorted = ids.toSorted();
@@ -151,13 +155,15 @@ dbSuite("Undo of the built-in agent's turns", () => {
       ...NOTHING_LEFT,
       reverted: sorted,
     });
-    // a write takes one sequence, so each window of the set, in item order, landed in its own
+
     const seqs = await Promise.all(
       [0, BULK_ITEMS_MAX - 1, BULK_ITEMS_MAX, 2 * BULK_ITEMS_MAX].map(async (at) => {
         const { seq } = await library.items.row({ id: sorted[at] ?? "" });
+
         return seq;
       }),
     );
+
     expect(new Set(seqs).size).toBe(3);
     expect(seqs).toStrictEqual(seqs.toSorted((a, b) => a - b));
     await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });

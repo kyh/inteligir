@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type {
@@ -27,10 +27,10 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 const SIDEBAR_WIDTH = "16rem";
 export const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_COLLAPSE_SLOP = 56;
-// Tailwind's md, so the shell is hidden by CSS before hydration and by the sheet branch after
 const MOBILE = { below: 768, hidden: "max-md:hidden" } as const;
 
 export type SidebarSide = "left" | "right";
+
 export type SidebarVariant = "sidebar" | "floating";
 
 interface SidebarContextValue {
@@ -50,33 +50,36 @@ interface SidebarContextValue {
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
-export const useSidebar = (): SidebarContextValue => {
+export const useSidebar = () => {
   const ctx = useContext(SidebarContext);
+
   if (!ctx) {
     throw new Error("useSidebar must be used within a SidebarProvider");
   }
+
   return ctx;
 };
 
-// starts undefined so the server and first client render agree; the media query corrects it in an effect
-const useIsMobile = (): boolean => {
+const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState<boolean | undefined>();
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE.below - 1}px)`);
+
     const onChange = () => {
       setIsMobile(mql.matches);
     };
+
     onChange();
     mql.addEventListener("change", onChange);
+
     return () => {
       mql.removeEventListener("change", onChange);
     };
   }, []);
+
   return isMobile === true;
 };
 
-// what an owner may ask of its sidebar: to open, and the toggle a click on the rail runs. Below
-// the mobile breakpoint both act on the sheet, which nothing else reaches
 export interface SidebarActions {
   open: () => void;
   toggle: () => void;
@@ -85,10 +88,7 @@ export interface SidebarActions {
 interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
-  // the chord that toggles this sidebar, spelled for the keyboard in use, for the rail's tooltip
-  // alone: the app's own key table owns the binding, so no provider listens for a key
   shortcut?: string | null;
-  // once per resize, when the drag ends or collapses the sidebar, never per frame
   onWidthCommitted?: (px: number) => void;
   actionsRef?: RefObject<SidebarActions | null>;
   defaultWidth?: string;
@@ -169,7 +169,6 @@ const SidebarProvider = ({
   );
 };
 
-// Motion's own prop type: a DOM-typed HTMLAttributes spread cannot satisfy motion.div
 type MotionSafeDivProps = Omit<HTMLMotionProps<"div">, "ref" | "children"> & {
   children?: ReactNode;
 };
@@ -199,7 +198,9 @@ const SidebarRail = ({
     setIsResizing,
     shortcut,
   } = useSidebar();
+
   const railRef = useRef<HTMLButtonElement | null>(null);
+
   const dragRef = useRef<{
     startX: number;
     startWidth: number;
@@ -210,9 +211,11 @@ const SidebarRail = ({
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     const closest = railRef.current?.closest('[data-slot="sidebar"]');
     const panel = closest instanceof HTMLElement ? closest : null;
+
     if (!panel) {
       return;
     }
+
     dragRef.current = {
       moved: false,
       startWidth: panel.offsetWidth,
@@ -224,19 +227,25 @@ const SidebarRail = ({
 
   const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
+
     if (!drag) {
       return;
     }
+
     const dx = event.clientX - drag.startX;
+
     if (!drag.moved && Math.abs(dx) < 4) {
       return;
     }
+
     if (!drag.moved) {
       drag.moved = true;
       setIsResizing(true);
     }
+
     const delta = side === "left" ? dx : -dx;
     const raw = drag.startWidth + delta;
+
     if (raw < SIDEBAR_MIN_WIDTH - SIDEBAR_COLLAPSE_SLOP) {
       dragRef.current = null;
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -244,19 +253,20 @@ const SidebarRail = ({
       setWidth(`${SIDEBAR_MIN_WIDTH}px`);
       onWidthCommitted?.(SIDEBAR_MIN_WIDTH);
       onOpenChange?.(false);
+
       return;
     }
+
     const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, raw));
     drag.width = next;
     setWidth(`${next}px`);
   };
 
-  // A cancelled drag, or one whose capture the browser took back, still lands the width it
-  // reached; only a press let go where it began is a click.
-  const endDrag = (toggleOnClick: boolean): void => {
+  const endDrag = (toggleOnClick: boolean) => {
     const drag = dragRef.current;
     dragRef.current = null;
     setIsResizing(false);
+
     if (drag?.moved === true) {
       onWidthCommitted?.(drag.width);
     } else if (toggleOnClick && drag !== null) {
@@ -264,20 +274,19 @@ const SidebarRail = ({
     }
   };
 
-  // ended before the release, which may report the lost capture before it returns
   const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
     endDrag(true);
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  const onDragInterrupted = (): void => {
+  const onDragInterrupted = () => {
     endDrag(false);
   };
 
   const semibold = { fontVariationSettings: fontWeights.semibold };
+
   const railClasses = cn(
     "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-none",
-    // positioned from the prop, not group-data selectors, so a className offset can win the merge
     side === "left" ? "right-0" : "left-0",
     "after:absolute after:inset-y-0 after:w-px after:bg-transparent hover:after:bg-foreground/25 after:transition-colors after:duration-80",
     side === "left" ? "after:right-0" : "after:left-0",
@@ -342,8 +351,7 @@ const SidebarPanel = ({
   widthTransition,
 }: SidebarPanelProps) => {
   const closedX = side === "left" ? "-100%" : "100%";
-  // closed, the panel is slid off-screen rather than unmounted, so inert is what takes its
-  // controls out of the tab order and the accessibility tree
+
   return (
     <motion.div
       inert={!open}
@@ -414,10 +422,9 @@ const SidebarShell = ({
   const floatingLevel = useRaisedSurface(1);
   const openTransition = open ? spring.moderate : spring.moderate.exit;
   const widthTransition = isResizing ? { duration: 0 } : openTransition;
+
   const shellClasses = cn(
-    // no bare `group`: it would fire every descendant's group-hover on rail hover
     "peer shrink-0 sticky top-0 h-svh overflow-hidden",
-    // flex order decides the side, so Sidebar can stay before SidebarInset in the DOM
     side === "right" && "order-last",
     MOBILE.hidden,
     className,
@@ -494,8 +501,6 @@ const SidebarFooter = ({
   />
 );
 
-// A titled run of rows: the label, its actions overlaid at the label's trailing edge, then a
-// menu or any list.
 const SidebarGroup = ({
   className,
   ref,
@@ -509,11 +514,8 @@ const SidebarGroup = ({
   />
 );
 
-// HTMLElement, not HTMLDivElement: with an onClick the label is a <button>
 type SidebarGroupLabelProps = HTMLAttributes<HTMLElement>;
 
-// The group's title on the rows' text axis. Given an onClick it is a button, for a group whose
-// title is also its switch.
 const SidebarGroupLabel = ({
   className,
   children,
@@ -522,6 +524,7 @@ const SidebarGroupLabel = ({
   ...props
 }: SidebarGroupLabelProps & RefAttributes<HTMLElement>) => {
   const { text, rest } = splitLeadingText(children);
+
   const labelContent = text ? (
     <>
       <span className="min-w-0 truncate">{text}</span>
@@ -530,6 +533,7 @@ const SidebarGroupLabel = ({
   ) : (
     children
   );
+
   if (onClick !== undefined) {
     return (
       <button
@@ -551,6 +555,7 @@ const SidebarGroupLabel = ({
       </button>
     );
   }
+
   return (
     <div
       ref={composeRefs(ref)}
@@ -567,7 +572,6 @@ const SidebarGroupLabel = ({
   );
 };
 
-// the cluster over the label's trailing edge, inset to the rows' action axis
 const SidebarGroupActions = ({
   className,
   ref,
@@ -583,7 +587,6 @@ const SidebarGroupActions = ({
 
 type SidebarGroupActionProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
-// a 24px icon button: the one rhythm every action in the sidebar keeps
 const SidebarGroupAction = ({
   className,
   ref,
@@ -605,8 +608,6 @@ const SidebarGroupAction = ({
   />
 );
 
-// The scrolling region between the header and whatever sits under it: a plain column, so a
-// consumer's list keeps its own height and the column scrolls.
 const SidebarContent = ({
   className,
   ref,

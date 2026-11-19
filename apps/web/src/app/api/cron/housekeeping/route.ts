@@ -1,7 +1,5 @@
 import { serveHousekeeping } from "@repo/service/jobs/housekeeping";
 
-export const GET = async (request: Request): Promise<Response> => await serveHousekeeping(request);
+export const GET = async (request: Request) => await serveHousekeeping(request);
 
-// a large library's hour of deletions is released in one run, and deleted accounts' files are
-// emptied for what is left of it
 export const maxDuration = 300;

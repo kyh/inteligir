@@ -1,6 +1,3 @@
-// The kit's chords are the table's by construction; this pins, on a RESOLVED editor, that no
-// plugin fell back to Plate's own default and that every row names a mark the kit registers.
-
 import { KEYS } from "platejs";
 import { createPlateEditor } from "platejs/react";
 import { describe, expect, it } from "vitest";
@@ -11,11 +8,11 @@ import { BasicMarksKit } from "./kits/basic-marks-kit";
 import { EDITOR_KIT } from "./kits/editor-kit";
 import { MARK_SHORTCUTS, markPluginShortcuts, markShortcut } from "./mark-shortcuts";
 
-// the chord as Plate holds it after resolution: ours is a string, a default of Plate's is a key list
 const toggleShortcutSchema = z.object({ keys: z.string() }).nullish();
 
 const resolvedToggle = (mark: string) => {
   const editor = createPlateEditor({ plugins: BasicMarksKit });
+
   return toggleShortcutSchema.parse(editor.getPlugin({ key: mark }).shortcuts.toggle);
 };
 

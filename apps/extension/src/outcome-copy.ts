@@ -1,14 +1,9 @@
-// what the popup and the toolbar's badge say of how a save went, in one place. A refusal of the
-// extension's own says what the person can do about it, and links where that is done; one the
-// library made is said in the library's words.
-
 import type { WaitsFor } from "@repo/contract/rpc/call-outcome";
 
 import type { Outcome, OutcomeReason } from "./messages";
 
-export interface OutcomeLine {
+interface OutcomeLine {
   readonly text: string;
-  // the line links the site's page that signs this browser in, where signing in helps
   readonly signIn: boolean;
 }
 
@@ -24,25 +19,33 @@ const REFUSAL_COPY = {
 
 const SAVED = "Saved to Unsorted";
 const ALREADY_SAVED = "Already in your library";
+
 const WAITING_COPY = {
   connection: { signIn: false, text: "Saved when you're back online" },
   "sign-in": { signIn: true, text: "Saved once you sign in to Inteligir again" },
   update: { signIn: false, text: "Saved once this extension updates" },
 } satisfies Record<WaitsFor, OutcomeLine>;
 
-export const outcomeLine = (outcome: Outcome): OutcomeLine => {
+export const outcomeLine = (outcome: Outcome) => {
   switch (outcome.kind) {
     case "saved": {
-      return { signIn: false, text: outcome.created ? SAVED : ALREADY_SAVED };
+      return { signIn: false, text: outcome.created ? SAVED : ALREADY_SAVED } satisfies OutcomeLine;
     }
+
     case "queued": {
       return WAITING_COPY[outcome.waitsFor];
     }
+
     case "refused": {
-      return outcome.reason === "library"
-        ? { signIn: false, text: outcome.message }
-        : REFUSAL_COPY[outcome.reason];
+      return (
+        outcome.reason === "library"
+          ? { signIn: false, text: outcome.message }
+          : REFUSAL_COPY[outcome.reason]
+      ) satisfies OutcomeLine;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(outcome satisfies never)}`);
+    }
   }
 };

@@ -145,9 +145,9 @@
     "./slash-items": "./src/slash-items.tsx",
     "./slash-menu": "./src/slash-menu.tsx",
     "./style-hooks": "./src/style-hooks.ts",
-    "./test-support/fake-editor-host": "./src/test-support/fake-editor-host.ts",
-    "./test-support/markdown-meaning": "./src/test-support/markdown-meaning.ts",
-    "./test-support/memory-notes": "./src/test-support/memory-notes.ts",
+    "./test-support/fake-editor-host.test-utils": "./src/test-support/fake-editor-host.test-utils.ts",
+    "./test-support/markdown-meaning.test-utils": "./src/test-support/markdown-meaning.test-utils.ts",
+    "./test-support/memory-notes.test-utils": "./src/test-support/memory-notes.test-utils.ts",
     "./toc": "./src/toc.tsx",
     "./touch-toolbar": "./src/touch-toolbar.tsx",
     "./styles.css": "./src/styles-entry.css"

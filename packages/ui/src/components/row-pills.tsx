@@ -36,12 +36,9 @@ interface RowPillsProps {
   active?: RowBox | null;
   hover: RowBox | null;
   focus: RowBox | null;
-  // keys the hover pill so re-entering fades in at the current row instead of sliding from the last
   session: number;
 }
 
-// The pills a list draws behind its lit rows, positioned in the list's own layout space: the list
-// is their offset parent.
 export const RowPills = ({ active = null, hover, focus, session }: RowPillsProps) => (
   <>
     <AnimatePresence>

@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
@@ -16,8 +16,6 @@ import { spring } from "@repo/ui/lib/springs";
 const OPEN_DELAY = 200;
 const SKIP_DELAY_TIMEOUT = 300;
 
-// groups the tooltips under it, so one opens at once after its neighbour; each trigger carries
-// its own delay, so a tooltip with no provider above it waits the same
 const TooltipProvider = ({ children }: { children: React.ReactNode }) => (
   <TooltipPrimitive.Provider timeout={SKIP_DELAY_TIMEOUT}>{children}</TooltipPrimitive.Provider>
 );
@@ -52,12 +50,13 @@ const Tooltip = ({
 
   const slideOffset = slideOffsets[side];
 
-  // a motion value, not state, so per-move updates skip React re-renders
   const followOffset = useMotionValue(0);
+
   const handleFollowMove = (event: React.PointerEvent) => {
     if (!followCursor) {
       return;
     }
+
     const rect = event.currentTarget.getBoundingClientRect();
     followOffset.set(
       followCursor === "y"
@@ -81,14 +80,13 @@ const Tooltip = ({
                 render={(props) => {
                   const { style: baseStyle, ...rest } = motionProps(props);
                   let followStyle: MotionStyle | undefined;
+
                   if (followCursor === "y") {
                     followStyle = { y: followOffset };
                   } else if (followCursor === "x") {
                     followStyle = { x: followOffset };
                   }
-                  // the enter/exit slide rides the Popup element, the one Base UI waits on before
-                  // it unmounts; the cursor-follow transform sits on the child so the two do not
-                  // fight
+
                   return (
                     <motion.div
                       {...rest}

@@ -6,6 +6,7 @@ import { InputMessage } from "./input-message";
 const renderField = () => {
   const onSend = vi.fn<(value: string) => void>();
   render(<InputMessage value="日本語" onValueChange={() => {}} onSend={onSend} />);
+
   return { field: screen.getByRole("textbox", { name: "Message" }), onSend };
 };
 

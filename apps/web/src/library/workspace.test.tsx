@@ -1,7 +1,7 @@
 import { deferred } from "@repo/contract/deferred";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { toast } from "@repo/ui/components/sonner";
@@ -14,10 +14,10 @@ import { z } from "zod";
 import { forgetAccountStorage } from "./cloud/account-storage";
 import { newId } from "./library/new-id";
 import { windowLayout } from "./prefs";
-import { layOutCardGrids } from "./test-support/card-grid-layout";
-import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page";
-import { fakePageLibrary } from "./test-support/fake-page-library";
-import type { CellCall } from "./test-support/fake-page-library";
+import { layOutCardGrids } from "./test-support/card-grid-layout.test-utils";
+import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page.test-utils";
+import { fakePageLibrary } from "./test-support/fake-page-library.test-utils";
+import type { CellCall } from "./test-support/fake-page-library.test-utils";
 
 afterEach(() => {
   onlineManager.setOnline(true);
@@ -28,7 +28,6 @@ afterEach(() => {
 const ADDRESS = "The page's address";
 const NOTE = "Field notes";
 
-// the whole page at an address, over the fake cell, unless the suite answers a call itself
 const pageAt = async (
   entry: string,
   cell: FakeCell,
@@ -37,44 +36,43 @@ const pageAt = async (
   forgetAccountStorage();
   const { calls, library } = fakePageLibrary({ answer, cell });
   renderLibraryAt(entry, await openedOver(library));
+
   return { calls };
 };
 
-// a key under the platform's modifier
 const chord = (key: string) =>
   platformShortcutModifier() === "meta" ? { key, metaKey: true } : { ctrlKey: true, key };
 
-const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
-  calls.filter((call) => call.path === path).map((call) => call.input);
+const callsTo = (calls: readonly CellCall[], path: string) =>
+  calls.flatMap((call) => (call.path === path ? [call.input] : []));
 
-// the whole page with a note open
-const pageOverANote = async (): Promise<void> => {
+const pageOverANote = async () => {
   const cell = createFakeCell();
   await pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
 };
 
-// the whole page with a note open over its saved body, once the note's line has drawn
 const pageOverASavedNote = async (
   alsoInAddress = "",
   answer?: (call: CellCall) => object | undefined,
 ) => {
   const cell = createFakeCell();
+
   const id = cell.seed.item({ title: NOTE }, [
     {
       block: { children: [{ text: "Typed on the Mac." }], id: "p1", type: "p" },
       section: "note",
     },
   ]);
+
   await pageAt(`/library?item=${id}${alsoInAddress}`, cell, answer);
-  // read whole, since a find in the address marks its words in the commit that draws them
   await waitFor(() => {
     expect(document.querySelector("[data-slate-editor]")?.textContent).toBe("Typed on the Mac.");
   });
+
   return { cell, id };
 };
 
-// what is typed at the end of the open note's first block
-const typeInto = async (id: string, text: string): Promise<void> => {
+const typeInto = async (id: string, text: string) => {
   await act(async () => {
     const editor = getLiveEditor(id);
     editor?.tf.insertText(text, { at: editor.api.end([0]) });
@@ -82,16 +80,16 @@ const typeInto = async (id: string, text: string): Promise<void> => {
   });
 };
 
-// the whole page at the library, with Save a link's dialog open
 const askedToSaveALink = async (answer?: (call: CellCall) => object | undefined) => {
   const { calls } = await pageAt("/library", createFakeCell(), answer);
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Save a link…" }));
   await screen.findByRole("textbox", { name: ADDRESS });
+
   return calls;
 };
 
-const submit = (address: string): void => {
+const submit = (address: string) => {
   fireEvent.change(screen.getByRole("textbox", { name: ADDRESS }), {
     target: { value: address },
   });
@@ -115,9 +113,8 @@ describe("Save a link", () => {
 
     submit("https://example.com/page");
 
-    await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe("Saved.");
-    });
+    await screen.findByText("Saved.");
+    expect(said.mock.lastCall?.[0]).toBe("Saved.");
     expect(screen.queryByRole("textbox", { name: ADDRESS })).toBeNull();
     expect(callsTo(calls, "library.items.saveLink")).toMatchObject([
       { url: "https://example.com/page" },
@@ -134,11 +131,10 @@ describe("Save a link", () => {
 
     submit("https://example.com/page");
 
-    await vi.waitFor(() => {
-      expect(failed.mock.lastCall?.[0]).toBe(
-        "That link couldn't be saved. The library didn't answer.",
-      );
-    });
+    await screen.findByText("That link couldn't be saved. The library didn't answer.");
+    expect(failed.mock.lastCall?.[0]).toBe(
+      "That link couldn't be saved. The library didn't answer.",
+    );
   });
 });
 
@@ -205,7 +201,6 @@ describe("Empty Deleted", () => {
     const said = vi.spyOn(toast, "success");
     const { calls } = await pageAt("/library?scope=deleted&kind=video", cell);
 
-    // offered once the listing answered
     const empty = await screen.findByRole("button", { name: "Empty Deleted…" });
     await waitFor(() => {
       expect(empty).toHaveProperty("disabled", false);
@@ -214,9 +209,8 @@ describe("Empty Deleted", () => {
     await screen.findByText("Delete 2 items forever?");
     fireEvent.click(screen.getByRole("button", { name: "Delete forever" }));
 
-    await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe("Deleted 2 items forever.");
-    });
+    await screen.findByText("Deleted 2 items forever.");
+    expect(said.mock.lastCall?.[0]).toBe("Deleted 2 items forever.");
     expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
       { except: [], scope: { kind: "deleted" }, verb: { kind: "purge" } },
     ]);
@@ -226,12 +220,13 @@ describe("Empty Deleted", () => {
 
 describe("⌘A", () => {
   it("selects the scope past the cards read, and its verb asks the cell for all of it", async () => {
-    // one more than the grid's first page reads
     const listed = 201;
     const cell = createFakeCell();
+
     for (let at = 0; at < listed; at += 1) {
       cell.seed.item({ title: `Note ${String(at)}` });
     }
+
     const said = vi.spyOn(toast, "success");
     const { calls } = await pageAt("/library", cell);
 
@@ -241,9 +236,8 @@ describe("⌘A", () => {
     await screen.findByText("Delete 201 items?");
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    await vi.waitFor(() => {
-      expect(said.mock.lastCall?.[0]).toBe("Moved 201 items to Deleted.");
-    });
+    await screen.findByText("Moved 201 items to Deleted.");
+    expect(said.mock.lastCall?.[0]).toBe("Moved 201 items to Deleted.");
     expect(callsTo(calls, "library.items.sweep")).toStrictEqual([
       { except: [], scope: { kind: "all" }, verb: { kind: "delete" } },
     ]);
@@ -291,9 +285,8 @@ describe("an open item's title", () => {
     fireEvent.change(title, { target: { value: "Field journal" } });
     fireEvent.blur(title);
 
-    await vi.waitFor(() => {
-      expect(failed).toHaveBeenCalledWith("The title couldn't be changed.");
-    });
+    await screen.findByText("The title couldn't be changed.");
+    expect(failed).toHaveBeenCalledWith("The title couldn't be changed.");
     await vi.waitFor(() => {
       expect(title).toHaveProperty("value", NOTE);
     });
@@ -303,11 +296,13 @@ describe("an open item's title", () => {
 describe("an open link nobody named", () => {
   it("leaves its title empty, the address it goes by as the placeholder", async () => {
     const cell = createFakeCell();
+
     const id = cell.seed.item({
       kind: "link",
       title: "",
       url: "https://example.com/posts/a-long-read",
     });
+
     await pageAt(`/library?item=${id}`, cell);
 
     const title = await screen.findByRole("textbox", { name: "Title" });
@@ -351,8 +346,7 @@ describe("an open item's body", () => {
   });
 });
 
-// every save of a note dropped on its way, the cell answering every other call
-const dropsSaves = (call: CellCall): undefined => {
+const dropsSaves: (call: CellCall) => undefined = (call: CellCall) => {
   if (call.path === "library.items.saveBody") {
     throw new Error("the network dropped the save");
   }
@@ -361,7 +355,7 @@ const dropsSaves = (call: CellCall): undefined => {
 describe("an open item holding typing it couldn't save", () => {
   const LEAVE = { name: "Leave without saving?" };
 
-  const answer = async (label: string): Promise<void> => {
+  const answer = async (label: string) => {
     const ask = await screen.findByRole("alertdialog", LEAVE);
     fireEvent.click(within(ask).getByRole("button", { name: label }));
     await waitFor(() => {
@@ -385,7 +379,6 @@ describe("an open item holding typing it couldn't save", () => {
   });
 });
 
-// the whole page at the library, with New note chosen from the Add menu and its item open
 const madeANote = async () => {
   const cell = createFakeCell();
   await pageAt("/library", cell);
@@ -393,6 +386,7 @@ const madeANote = async () => {
   fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
   const title = await screen.findByRole("textbox", { name: "Title" });
   const id = z.string().parse(addressed("item"));
+
   return { cell, id, title };
 };
 
@@ -448,15 +442,15 @@ describe("what the editor asks of the page", () => {
 const shows = async (title: string) =>
   await screen.findByRole("heading", { level: 1, name: title });
 
-const railRow = (list: string, name: RegExp): HTMLElement =>
+const railRow = (list: string, name: RegExp) =>
   within(screen.getByRole("list", { name: list })).getByRole("link", { name });
 
-// a folder of a tagged note and an image, so the folder offers a kind to narrow by
 const readingFolder = () => {
   const cell = createFakeCell();
   const folderId = cell.seed.folder("Reading");
   cell.seed.item({ folderId, tags: ["field"], title: NOTE });
   cell.seed.item({ folderId, kind: "image", title: "Pier" });
+
   return { cell, folderId };
 };
 
@@ -525,12 +519,14 @@ describe("where the tab is", () => {
 
   it("opens every scope with nothing selected, Back's too, though both scopes list the item", async () => {
     const NOTHING_SELECTED = "Select an item to see it here.";
-    const selectAll = async (): Promise<void> => {
+
+    const selectAll = async () => {
       fireEvent.keyDown(await screen.findByRole("grid", { name: "Library" }), chord("a"));
       await waitFor(() => {
         expect(screen.queryByText(NOTHING_SELECTED)).toBeNull();
       });
     };
+
     const cell = createFakeCell();
     cell.seed.item({ tags: ["field"], title: NOTE });
     await pageAt("/library", cell);
@@ -550,19 +546,20 @@ describe("where the tab is", () => {
   });
 });
 
-// the whole page over a cell whose listing pages answer only once `land` is called, from the
-// moment `hold` is: the listing of a scope or kind the tab moves to
 const pageHoldingListings = async (entry: string, cell: FakeCell) => {
   const held = deferred();
   const holding = { now: false };
+
   const { calls } = await pageAt(entry, cell, async (call) => {
     if (call.path === "library.listing.page" && holding.now) {
       await held.promise;
     }
+
     return call.path === "library.agent.send"
       ? { status: "running", threadId: newId() }
       : undefined;
   });
+
   return {
     calls,
     hold: () => {
@@ -572,10 +569,11 @@ const pageHoldingListings = async (entry: string, cell: FakeCell) => {
   };
 };
 
-const kindChips = (): HTMLElement | null => screen.queryByLabelText("Kind");
-// the count the header gives beside the scope's title
-const headerCount = (count: string): HTMLElement | null => {
+const kindChips = () => screen.queryByLabelText("Kind");
+
+const headerCount = (count: string) => {
   const bar = screen.getByRole("heading", { level: 1 }).parentElement;
+
   return bar === null ? null : within(bar).queryByText(count);
 };
 
@@ -674,8 +672,9 @@ describe("a scope or kind whose listing is on its way", () => {
   });
 });
 
-const railState = (): string | undefined => {
+const railState = () => {
   const shell = document.querySelector('[data-slot="sidebar"][data-side="left"]');
+
   return shell instanceof HTMLElement ? shell.dataset.state : undefined;
 };
 

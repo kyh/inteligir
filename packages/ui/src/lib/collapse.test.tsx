@@ -10,6 +10,7 @@ describe(Collapse, () => {
         <button type="button">inside</button>
       </Collapse>,
     );
+
     const fold = screen.getByText("inside").parentElement?.parentElement;
     expect(fold).not.toBeNull();
     expect(fold?.hasAttribute("inert")).toBe(true);

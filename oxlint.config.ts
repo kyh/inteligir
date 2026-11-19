@@ -1,14 +1,15 @@
 import { defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
+import landmines from "ultracite/oxlint/landmines";
 import react from "ultracite/oxlint/react";
 import tanstack from "ultracite/oxlint/tanstack";
 
-const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts"];
+const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 
-// regexes, not groups: a group matches gitignore-style, so "react" would also refuse "@platejs/react"
 const NODE = "^node:";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
+
 const CLIENT_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
@@ -16,112 +17,162 @@ type ImportPattern =
   | { readonly message: string; readonly regex: string; readonly allowTypeImports?: boolean }
   | { readonly message: string; readonly group: readonly string[] };
 
-// a client reaching the tools' decoration bundles the MCP SDK's node shims, which Metro keeps
 const SERVER_ONLY = {
   message: "MCP and OpenAPI meta live in @repo/service alone",
   regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
-// what only a page loads: React, a package's React half (`platejs/react`, `@base-ui/react`,
-// `lucide-react`), @repo/ui, a stylesheet and the renderers katex and pele
+
 const PAGE_ONLY =
   "^(?:react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react(?:/|$)|\\.css$";
+
 const SERVICE_PLATFORM = {
   message: "@repo/service runs on the server: no DOM, no React half and no stylesheet",
   regex: PAGE_ONLY,
 };
-// Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
+
 const NO_ORPC_IN_PAGE = {
   message: "the editor, @repo/ui and the phone's note page reach no oRPC module",
   regex: "^(?:@orpc/|@repo/contract/rpc/)",
 };
-// a page loads the rest of the contract, so a module that reaches oRPC, itself or through
-// another, sits in rpc/
+
 const RPC_FOLDER = "packages/contract/src/rpc/**";
+
 const ORPC_IN_RPC_FOLDER = {
   message: "only packages/contract/src/rpc/ reaches oRPC: a page loads the rest of the contract",
   regex: "^@orpc/|(?:^|/)rpc/",
 };
-// every row but the suites' refuses it, test-support/ itself among the suites: its fakes reach
-// oRPC and node, which one import from a page's module would bring onto the page
+
 const SUITES_ONLY = {
   message: "only a suite imports test-support/: its fakes reach oRPC and node",
   regex: "(?:^|/)test-support/",
 };
+
 const CONTRACT_PLATFORM = {
   message: "@repo/contract loads on every client and the server",
   regex: NODE_OR_REACT,
 };
+
 const EDITOR_PLATFORM = {
   message: "@repo/editor runs in pages and headless on the server",
   regex: NODE,
 };
-// the server and the page reader load the editor's headless folder; a `platejs/react` import from a
-// .ts file type-checks and drags React onto the server
+
 const HEADLESS_FOLDER = "packages/editor/src/headless/**";
+
 const HEADLESS_PLATFORM = {
   message: "packages/editor/src/headless/ runs on the server: no React half, stylesheet or node",
   regex: `^node:|${PAGE_ONLY}`,
 };
-// a regex cannot count a climb's depth, so a headless file names another folder's by name
+
 const HEADLESS_WALL = {
   message: "a headless file reaches another folder by @repo/editor/headless/, never by a climb",
   regex: "(?:^|/)\\.\\./",
 };
-// a group, for its negation
+
 const HEADLESS_ALONE = {
   group: ["@repo/editor/**", "!@repo/editor/headless/**"],
   message:
     "the server, the page reader and the import and export workers load @repo/editor/headless/ alone",
 };
-// the phone's note page runs in its web view and reaches the phone only through its props
+
 const NOTE_PAGE_PLATFORM = {
   allowTypeImports: true,
   message: "the phone's note page has only the browser: no React Native, Expo module or node",
   regex: "^(?:node:|react-native(?:-[^/]+)?(?:/|$)|@react-native/|expo(?:-[^/]+)?(?:/|$)|@expo/)",
 };
+
 const NOTE_PAGE_WALL = {
   message: "the phone's note page imports nothing of the app outside page/ (page-host.ts)",
   regex: "^(?:\\.\\./|@/)",
 };
-// Tauri answers only inside the Mac app's window, so one module checks for it and speaks the shell
+
 const DESKTOP_BRIDGE = "apps/web/src/library/shell/desktop-bridge.ts";
+
 const SHELL_API = {
   message: "only the library's shell/desktop-bridge.ts reaches the Mac app",
   regex: "^@tauri-apps/",
 };
+
 const LIBRARY_IMPORTS = [
   { message: "the library runs in a browser, where no node module loads", regex: NODE },
 ];
-// an import and an export each run in a module worker, which has no DOM; import-run.ts and
-// export-run.ts start them from the page
+
 const IMPORT_RUN = "apps/web/src/library/import/import-run.ts";
 const EXPORT_RUN = "apps/web/src/library/export/export-run.ts";
+
 const WORKER_PLATFORM = {
   message: "an import and an export run in a module worker: no React half, @repo/ui or stylesheet",
   regex: PAGE_ONLY,
 };
-// a row reads a file's own imports, not theirs, so the worker reaches the app outside import/ only
-// through new-id.ts, which takes the worker's row too and imports none of the app's modules
+
 const NEW_ID = "apps/web/src/library/library/new-id.ts";
+
 const IMPORT_WORKER_WALL = {
   group: ["../**", "!../library/new-id", "./import-run"],
   message:
     "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
 };
+
 const EXPORT_WORKER_WALL = {
   group: ["../**", "./export-run"],
   message: "the export worker reaches nothing of the app outside export/, and never export-run.ts",
 };
+
 const NEW_ID_LEAF = {
   message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
   regex: "^\\.",
 };
 
-// an override's options replace the base's, so each restates the repo-wide rows
+// WARNING: an override's options replace the base's, so each no-restricted-imports row restates the repo-wide rows
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
   "error",
   { patterns: [SERVER_ONLY, SUITES_ONLY, ...patterns] },
 ];
+
+const BROWSER_STAND_INS = [
+  "apps/extension/src/background/worker.test.ts",
+  "apps/web/src/library/desktop-update-banner.test.tsx",
+  "apps/web/src/library/desktop-updates.test.tsx",
+  "apps/web/src/library/item/item-stages.test.tsx",
+  "apps/web/src/library/shell/desktop-bridge.test.tsx",
+  "apps/web/src/library/test-support/card-grid-layout.test-utils.ts",
+  "apps/web/src/library/workspace.test.tsx",
+  "packages/editor/src/block-draggable.test.tsx",
+  "packages/editor/src/headless/markdown/parse-cost.test.ts",
+  "packages/editor/src/item/note-save.test.ts",
+  "packages/editor/src/nodes/diagram-preview.test.tsx",
+  "packages/editor/src/run-anchoring.test.tsx",
+  "packages/editor/src/scroll-reveal.test.tsx",
+  "packages/editor/src/typing-budget.test.tsx",
+  "packages/service/src/files/file-release.test.ts",
+  "packages/service/src/rpc/v1-rpc.test.ts",
+  "packages/ui/src/components/row-pills.test.tsx",
+  "packages/ui/src/components/sidebar-rail.test.tsx",
+];
+
+const HARNESS_DRIVEN_SUITES = [
+  "apps/mobile/src/styles.test.ts",
+  "packages/editor/src/formulas/formula-edit.test.tsx",
+  "packages/editor/src/formulas/formula-picker.test.tsx",
+];
+
+const SLOW_SUITES = {
+  "apps/web/src/library/library-layout.test.tsx": 3,
+  "packages/editor/src/headless/codec/item-edit.test.ts": 1,
+  "packages/editor/src/headless/codec/item-markdown.test.ts": 3,
+  "packages/editor/src/headless/codec/link-resolve-oracle.test.ts": 1,
+  "packages/editor/src/long-note-chunks.test.tsx": 1,
+  "packages/service/src/files/file-store.contract.test.ts": 1,
+  "packages/service/src/library/library-imports.test.ts": 1,
+  "packages/service/src/library/library-parity.test.ts": 1,
+  "packages/service/src/library/library-sweeps.test.ts": 2,
+};
+
+const WAITED_OUT = {
+  "apps/web/src/library/test-support/dom-cleanup.test-utils.ts": 2,
+  "packages/service/src/agent/relay.test.ts": 2,
+};
+
 const platformPurity = (dir: string, regex: string, message: string, ...more: ImportPattern[]) => ({
   excludeFiles: tests,
   files: [`${dir}/src/**`],
@@ -129,12 +180,12 @@ const platformPurity = (dir: string, regex: string, message: string, ...more: Im
 });
 
 export default defineConfig({
-  extends: [core, react, tanstack, antiSlop],
+  extends: [core, react, tanstack, antiSlop, landmines],
+  jsPlugins: landmines.jsPlugins,
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
   ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".codex", ".wxt"],
   overrides: [
     {
-      // no tsconfig program includes the few JS files a tool loads by name, so every value is `any`
       files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
       rules: {
         "typescript/no-unsafe-argument": "off",
@@ -147,24 +198,29 @@ export default defineConfig({
       },
     },
     {
-      // eve names a tool after its file, and its built-in search and fetch fill only their own
-      // snake_case slots; a disable directive can't reach a rule about the file's path
       files: ["apps/web/agent/tools/web_fetch.ts", "apps/web/agent/tools/web_search.ts"],
       rules: { "unicorn/filename-case": "off" },
     },
     {
-      // Playwright reads a fixture's needs from its `{}` destructure, and its `use` is no React hook
       files: ["tools/e2e/**"],
       rules: { "no-empty-pattern": "off", "react-hooks/rules-of-hooks": "off" },
     },
     {
-      // the editor's suites stub platejs/react and the host-io singleton: the seam is the subject
-      files: ["packages/editor/src/**/*.test.ts", "packages/editor/src/**/*.test.tsx"],
+      files: [
+        "packages/editor/src/nodes/diagram-preview.test.tsx",
+        "packages/editor/src/typing-budget.test.tsx",
+      ],
       rules: { "anti-slop/no-module-mocking": "off" },
     },
     {
-      // an icon-only button shows the product's Tooltip, never the OS's; @repo/ui's Button drops
-      // the native title itself
+      files: BROWSER_STAND_INS,
+      rules: { "landmines-testing/no-test-doubles": "off" },
+    },
+    {
+      files: HARNESS_DRIVEN_SUITES,
+      rules: { "landmines-structure/colocated-tests": "off" },
+    },
+    {
       files: ["packages/editor/**"],
       rules: {
         "react/forbid-dom-props": [
@@ -182,14 +238,10 @@ export default defineConfig({
       },
     },
     {
-      // the two per-block handles keep the native title: one Tooltip root per block in a long
-      // note is a cost nobody measured
       files: ["packages/editor/src/block-draggable.tsx"],
       rules: { "react/forbid-dom-props": "off" },
     },
     {
-      // a stub is `async` to match its port, vitest types its asymmetric matchers `any`, and a
-      // suite reaches its fakes
       files: tests,
       rules: {
         "no-restricted-imports": ["error", { patterns: [SERVER_ONLY] }],
@@ -315,7 +367,6 @@ export default defineConfig({
       },
     },
     {
-      // MCP and OpenAPI meta are this package's, so that repo-wide row is left out
       excludeFiles: tests,
       files: ["packages/service/src/**"],
       rules: {
@@ -326,7 +377,6 @@ export default defineConfig({
       },
     },
     {
-      // the model ships to runtimes without crypto
       excludeFiles: tests,
       files: [
         "packages/contract/src/iso-date.ts",
@@ -358,24 +408,21 @@ export default defineConfig({
     },
   ],
   rules: {
+    "anti-slop/require-safety-comment-for-type-assertion": "off",
+    "landmines-testing/no-fixed-sleep": ["error", { allow: WAITED_OUT }],
+    "landmines-testing/no-flake-masking": ["error", { allow: SLOW_SUITES }],
     "no-restricted-imports": restrictedImports([]),
-    // ordered awaits are deliberate: the outbox sends oldest first, an import lands a batch at a time
     "no-await-in-loop": "off",
-    // it flags the exhaustive switch with no default, whose fall-through is what tsc checks
     "typescript/consistent-return": "off",
     "typescript/switch-exhaustiveness-check": [
       "error",
       { considerDefaultExhaustiveForUnions: true },
     ],
-    // the React Compiler memoizes a context's value, as it does every value it compiles
     "react/jsx-no-constructed-context-values": "off",
-    // a string spread here means its code points
     "typescript/no-misused-spread": ["error", { allow: [{ from: "lib", name: "string" }] }],
     "require-await": "off",
     "typescript/require-await": "error",
-    // owner decision: no type assertion, and no escape comment
     "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
-    // anti-slop owns `typeof`, so `instanceof Function` narrows a `string | (() => T)`
     "unicorn/no-instanceof-builtins": ["error", { exclude: ["Function"] }],
   },
 });

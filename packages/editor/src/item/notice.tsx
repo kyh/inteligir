@@ -5,8 +5,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { editorColumnPx } from "@repo/editor/editor-chrome";
 import type { EditorProfile } from "@repo/editor/editor-profile";
 
-// what the text below says of itself, held at the top of the scroll, with what the person can do
-// about it
 export const Notice = ({
   profile,
   text,

@@ -1,10 +1,6 @@
-// The item surface as a host mounts it: one note and one editor per item, drawn once the note is
-// read, over notes held in memory as the cloud answers them.
-
 import { setTimeout as delay, setImmediate as nextTask } from "node:timers/promises";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { SlateEditor } from "platejs";
 import { Node } from "slate";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,51 +11,52 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { openFindBar } from "@repo/editor/find-bar";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
+import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { memoryNotes } from "../test-support/memory-notes";
-import type { MemoryNotes } from "../test-support/memory-notes";
+import { memoryNotes } from "../test-support/memory-notes.test-utils";
+import type { MemoryNotes } from "../test-support/memory-notes.test-utils";
 import { ItemEditor, KEEP_MINE, MISSING_ITEM, NOTICES, SHOW_LATEST } from "./item-editor";
 import type { OpenNote } from "./item-editor";
 import { SAVE_PAUSE_MS } from "./note-save";
 import { PASTE_MAX_BYTES, PASTE_REFUSED } from "./paste-cap";
 
-vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn<() => void>(), {
-    error: vi.fn<() => void>(),
-    info: vi.fn<() => void>(),
-    success: vi.fn<() => void>(),
-    warning: vi.fn<() => void>(),
-  }),
-}));
-
 const { toast } = await import("@repo/ui/components/sonner");
+
+vi.spyOn(toast, "error");
+
+vi.spyOn(toast, "info");
+
+vi.spyOn(toast, "success");
+
+vi.spyOn(toast, "warning");
 
 const A = "0190a000-0000-7000-8000-00000000000a";
 const B = "0190a000-0000-7000-8000-00000000000b";
 
-const p = (id: string, text: string): BodyBlock => ({
-  block: { children: [{ text }], id, type: "p" },
-  section: "note",
-});
+const p = (id: string, text: string) =>
+  ({
+    block: { children: [{ text }], id, type: "p" },
+    section: "note",
+  }) satisfies BodyBlock;
 
-// the library's notes, each seeded with its blocks, and the host installed over them
 const serve = (
   seeded: Record<string, readonly BodyBlock[]>,
   options: Omit<FakeEditorHostOptions, "notes"> & { readonly deleted?: boolean } = {},
 ) => {
   const notes = memoryNotes();
+
   for (const [itemId, blocks] of Object.entries(seeded)) {
     notes.seed(itemId, blocks, { deleted: options.deleted ?? false, title: "Plans" });
   }
+
   return { ...installFakeEditorHost({ ...options, notes }), notes };
 };
 
 const oneNote = (options: Parameters<typeof serve>[1] = {}) =>
   serve({ [A]: [p("a1", "A one")] }, options);
 
-const textsOf = (notes: MemoryNotes, itemId: string): string[] =>
+const textsOf = (notes: MemoryNotes, itemId: string) =>
   (notes.note(itemId)?.blocks ?? []).map(({ block }) => Node.string(block));
 
 const announced: (OpenNote | null)[] = [];
@@ -73,25 +70,29 @@ const Host = ({ itemId }: { itemId: string }) => (
   />
 );
 
-const editable = (): Element | null => document.querySelector('[contenteditable="true"]');
+const editable = () => document.querySelector('[contenteditable="true"]');
 
-const editorOf = (itemId: string): SlateEditor => {
+const editorOf = (itemId: string) => {
   const editor = getLiveEditor(itemId);
+
   if (editor === null) {
     throw new Error("the surface drew no editor");
   }
+
   return editor;
 };
 
-const lastNote = (): OpenNote => {
+const lastNote = () => {
   const note = announced.findLast((one) => one !== null);
+
   if (note === undefined || note === null) {
     throw new Error("no note followed the item");
   }
+
   return note;
 };
 
-const typeInto = (itemId: string, text: string): void => {
+const typeInto = (itemId: string, text: string) => {
   act(() => {
     const editor = editorOf(itemId);
     editor.tf.insertText(text, { at: editor.api.end([0]) });
@@ -99,7 +100,6 @@ const typeInto = (itemId: string, text: string): void => {
 };
 
 beforeAll(() => {
-  // jsdom has no isContentEditable, without which slate hands no paste on
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
     configurable: true,
     get(this: HTMLElement) {
@@ -167,7 +167,6 @@ describe("an item's surface", () => {
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     expect(screen.getByText(NOTICES.deleted)).toBeDefined();
     expect(editable()).toBeNull();
-    // what a node's own button would write, which no read-only editable stops
     typeInto(A, " more");
     expect(Node.string(editorOf(A))).toBe("A one");
   });
@@ -178,9 +177,11 @@ describe("an item's surface", () => {
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     const editor = editorOf(A);
     const target = editable();
+
     if (target === null) {
       throw new Error("the surface drew no editor");
     }
+
     const text = "x".repeat(PASTE_MAX_BYTES + 1);
     act(() => {
       editor.tf.select(editor.api.end([0]));
@@ -243,17 +244,15 @@ describe("an item's surface", () => {
   });
 });
 
-// slate-react reads the page's selection on this throttle, which these suites hold open on fake
-// timers; jsdom fires selectionchange on a real task
 const SELECTION_READ_MS = 100;
 
-// the page's caret put at `offset` in the drawn text `text`, as a click or a key puts it, and its
-// selectionchange heard
-const putCaret = async (text: string, offset: number): Promise<void> => {
+const putCaret = async (text: string, offset: number) => {
   const shown = screen.getByText(text).firstChild;
+
   if (!(shown instanceof Text)) {
     throw new TypeError(`"${text}" is drawn as no text`);
   }
+
   getSelection()?.collapse(shown, offset);
   await act(async () => {
     await nextTask();
@@ -271,10 +270,11 @@ describe("the caret in an open item", () => {
     render(<Host itemId={A} />);
     await expect(screen.findByText("Line two.")).resolves.toBeDefined();
     const target = editable();
+
     if (!(target instanceof HTMLElement)) {
       throw new TypeError("the surface drew no editor");
     }
-    // jsdom focuses only an element with a tab stop
+
     target.tabIndex = 0;
     act(() => {
       target.focus();
@@ -325,7 +325,6 @@ describe("the caret in an open item", () => {
   });
 });
 
-// what is typed here meets a body saved elsewhere since, its first block changed apart
 const conflicted = async () => {
   const host = oneNote();
   render(<Host itemId={A} />);
@@ -338,6 +337,7 @@ const conflicted = async () => {
     await expect(lastNote().holds()).resolves.toBe(false);
   });
   await expect(screen.findByText(NOTICES.conflict)).resolves.toBeDefined();
+
   return host;
 };
 
@@ -383,7 +383,6 @@ describe("an item's surface over a block changed here and elsewhere apart", () =
 
 describe("an item's surface with no connection", () => {
   beforeAll(() => {
-    // jsdom lays nothing out; the find bar's scroll to a match is a no-op there
     window.HTMLElement.prototype.scrollIntoView = () => {};
   });
 
@@ -469,7 +468,7 @@ describe("an item's surface with no connection", () => {
 
 const SHA = "a".repeat(64);
 
-const pastePicture = (target: Element): void => {
+const pastePicture = (target: Element) => {
   fireEvent.paste(target, {
     clipboardData: {
       files: [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })],
@@ -479,7 +478,6 @@ const pastePicture = (target: Element): void => {
   });
 };
 
-// the note open with a picture pasted into it, its bytes not yet kept
 const pasteHeld = async () => {
   const kept = deferred<{ readonly sha: string }>();
   const host = oneNote({ keepFile: async () => await kept.promise });
@@ -487,17 +485,20 @@ const pasteHeld = async () => {
   await screen.findByText("A one");
   const editor = editorOf(A);
   const target = editable();
+
   if (target === null) {
     throw new Error("the surface drew no editor");
   }
+
   editor.tf.select(editor.api.end([0]));
   const heard = vi.fn<() => void>();
   lastNote().subscribe(heard);
   pastePicture(target);
+
   return { heard, host, kept, view };
 };
 
-const storedShas = (notes: MemoryNotes): unknown[] =>
+const storedShas = (notes: MemoryNotes) =>
   (notes.note(A)?.blocks ?? []).flatMap(({ block }) => (block.type === "img" ? [block.sha] : []));
 
 describe("a file still being kept in an open note", () => {
@@ -508,11 +509,14 @@ describe("a file still being kept in an open note", () => {
     });
     expect(lastNote().unsaved()).toBe(true);
     let left = false;
+
     const leaving = (async () => {
       const holds = await lastNote().holds();
       left = true;
+
       return holds;
     })();
+
     await act(async () => {
       await delay(0);
     });
@@ -573,9 +577,11 @@ describe("a file still being kept in an open note", () => {
       host.goOffline(true);
     });
     const target = document.querySelector('[data-slate-editor="true"]');
+
     if (target === null) {
       throw new Error("the surface drew no editor");
     }
+
     pastePicture(target);
     await act(async () => {
       await delay(0);

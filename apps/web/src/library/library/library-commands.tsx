@@ -1,9 +1,3 @@
-// What a press does to the library: every verb a menu row, a button, a chord or the palette asks
-// for is one function here, which asks or confirms first where it must (`./ask.ts`), runs its verb
-// (`./library-verbs.ts`) and goes where it leads (`../library-history.ts`). Made once under the
-// library's layout and read by context, so a screen calls a command and is handed none. A press
-// waits for nothing: each run says its own outcome.
-
 import { saveFolderOf } from "@repo/client/library-labels";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
@@ -30,7 +24,6 @@ import { useLibraryVerbs } from "./library-verbs";
 import type { LibraryVerbs } from "./library-verbs";
 import { saveTagsOf } from "./listing";
 
-// a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
 const DELETE_ASKS_OVER = 50;
 
 interface CommandPorts {
@@ -40,46 +33,45 @@ interface CommandPorts {
   >;
   readonly verbs: LibraryVerbs;
   readonly workspace: Pick<WorkspaceStore, "compose" | "revealPanel" | "setPaletteOpen">;
-  // the rail's scopes as the page last read them, which say whether an addressed folder is listed
   readonly queryClient: Pick<QueryClient, "getQueryData">;
   readonly wire: Pick<CloudWire, "orpc">;
 }
 
 const FOLDER_NAME = { initial: "", label: "Folder name" };
 
-// a press starts its flow and waits for nothing
 const press =
   <Args extends unknown[]>(flow: (...args: Args) => Promise<void>) =>
-  (...args: Args): void => {
+  (...args: Args) => {
     void flow(...args);
   };
 
 export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: CommandPorts) => {
-  // where a save lands: the folder and the tag the grid shows now
-  const into = (): SaveInto => {
+  const into = () => {
     const listed = queryClient.getQueryData(wire.orpc.library.listing.scopes.queryKey());
     const scope = shownScope(goes.now().scope, listed);
-    return { folderId: saveFolderOf(scope), tags: saveTagsOf(scope) };
+
+    return { folderId: saveFolderOf(scope), tags: saveTagsOf(scope) } satisfies SaveInto;
   };
 
-  const saveLink = (url: string): void => {
+  const saveLink = (url: string) => {
     void verbs.saveLinks([{ title: null, url }], into(), goes.openItem);
   };
 
-  const purge = async (target: Target): Promise<void> => {
+  const purge = async (target: Target) => {
     const sure = await confirm({
       body: "Their text and files are gone for good. This can't be undone.",
       confirmLabel: "Delete forever",
       destructive: true,
       title: `Delete ${plural(targetCount(target), "item")} forever?`,
     });
+
     if (sure) {
       await verbs.purge(target);
     }
   };
 
   return {
-    askAgent: (): void => {
+    askAgent: () => {
       workspace.revealPanel("agent");
     },
     askSaveLink: press(async () => {
@@ -91,11 +83,12 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
           isWebUrl(typed) ? null : "Type the whole address, starting with https://",
         title: "Save a link",
       });
+
       if (address !== null) {
         saveLink(address);
       }
     }),
-    closeItem: (): void => {
+    closeItem: () => {
       goes.closeItem();
     },
     deleteFolder: press(async (folderId: string, name: string) => {
@@ -105,26 +98,29 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         destructive: true,
         title: `Delete the folder “${name}”?`,
       });
+
       if (sure) {
         verbs.deleteFolder(folderId);
       }
     }),
-    // all of Deleted, as the rail counts it, whatever kind the grid is narrowed to
     emptyDeleted: press(async () => {
       const scopes = queryClient.getQueryData(wire.orpc.library.listing.scopes.queryKey());
       const count = scopes?.deleted ?? 0;
+
       if (count > 0) {
         await purge({ count, kind: "scope", swept: { except: [], scope: { kind: "deleted" } } });
       }
     }),
     move: press(async (target: Target) => {
       const picked = await askFolder({ count: targetCount(target) });
+
       if (picked !== null) {
         await verbs.move(target, picked.folderId);
       }
     }),
     newFolder: press(async (parentId: string | null) => {
       const name = await askName({ ...FOLDER_NAME, confirm: "Create", title: "New folder" });
+
       if (name !== null) {
         verbs.createFolder(name, parentId);
       }
@@ -137,17 +133,16 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
       }
     }),
     openItem: goes.openItem,
-    openPalette: (): void => {
+    openPalette: () => {
       workspace.setPaletteOpen(true);
     },
     openSettings: goes.openSettings,
     pin: press(verbs.pin),
     purge: press(purge),
-    // a saved page read again by the cloud's fill
     refresh: verbs.refresh,
-    // to Deleted; one this large asks first
     remove: press(async (target: Target) => {
       const count = targetCount(target);
+
       if (count > DELETE_ASKS_OVER) {
         const sure = await confirm({
           body: "They wait in Deleted, where you can restore them.",
@@ -155,15 +150,18 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
           destructive: true,
           title: `Delete ${plural(count, "item")}?`,
         });
+
         if (!sure) {
           return;
         }
       }
-      // deleted on the person's word, so its leave asks nothing
+
       const { openItem } = goes.now();
+
       if (openItem !== null && target.kind === "ids" && target.ids.includes(openItem)) {
         goes.closeItem({ unasked: true });
       }
+
       await verbs.remove(target);
     }),
     renameFolder: press(async (folderId: string, name: string) => {
@@ -173,33 +171,32 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         initial: name,
         title: "Rename folder",
       });
+
       if (next !== null) {
         verbs.renameFolder(folderId, next);
       }
     }),
     restore: press(verbs.restore),
-    // what a paste, a drop or the file picker handed over: each file and each link saved where the
-    // grid's scope saves, and what could not be taken said
-    save: (payload: CapturePayload): void => {
+    save: (payload: CapturePayload) => {
       for (const sentence of payload.refused) {
         toast.error(sentence);
       }
+
       void verbs.saveLinks(payload.urls, into(), goes.openItem);
       void verbs.addFiles(payload.files, into());
     },
     saveLink,
     showKind: goes.showKind,
     showScope: goes.showScope,
-    startTidy: (): void => {
+    startTidy: () => {
       workspace.compose({ kind: "tidy" });
       workspace.revealPanel("agent");
     },
-    // `carried`: the tags of each item of the target the screen read
     tag: press(async (target: Target, carried: readonly (readonly string[])[]) => {
-      // the tags every one of them carries, which the ask offers to take off
       const [first = [], ...rest] = carried;
       const held = first.filter((tag) => rest.every((tags) => tags.includes(tag)));
       const change = await askTags({ count: targetCount(target), held });
+
       if (change !== null) {
         await verbs.tag(target, change);
       }
@@ -215,6 +212,7 @@ export const LibraryCommandsProvider = ({ children }: { children: ReactNode }) =
   const { wire, workspace } = usePageLibrary();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
+
   const commands = libraryCommands({
     goes: libraryGoes,
     queryClient,
@@ -222,13 +220,16 @@ export const LibraryCommandsProvider = ({ children }: { children: ReactNode }) =
     wire,
     workspace,
   });
+
   return <LibraryCommandsContext value={commands}>{children}</LibraryCommandsContext>;
 };
 
-export const useLibraryCommands = (): LibraryCommands => {
+export const useLibraryCommands = () => {
   const commands = useContext(LibraryCommandsContext);
+
   if (commands === null) {
     throw new Error("useLibraryCommands must be used inside LibraryCommandsProvider");
   }
+
   return commands;
 };

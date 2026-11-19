@@ -6,15 +6,16 @@ import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
 import type { LibraryPrincipal } from "../library/library-principal";
-import { makeAccount } from "../test-support/library-fixture";
+import { makeAccount } from "../test-support/library.fixture";
 import { AGENT_TOOLS, agentOpId, callAgentTool } from "./agent-tools";
-import type { AgentTool } from "./agent-tools";
 
-const toolNamed = (name: LibraryToolName): AgentTool => {
+const toolNamed = (name: LibraryToolName) => {
   const tool = AGENT_TOOLS.find((each) => each.name === name);
+
   if (tool === undefined) {
     throw new Error(`the agent has no ${name} tool`);
   }
+
   return tool;
 };
 
@@ -24,10 +25,12 @@ it("calls the library's tools its rows route, by name, each written without an o
   expect(names.every((name) => Object.hasOwn(LIBRARY_TOOLS, name))).toBe(true);
   expect(names).toContain("create_note");
   expect(names).not.toContain("read_guide");
+
   for (const tool of AGENT_TOOLS) {
     expect(JSON.stringify(tool.input), tool.name).not.toContain('"opId"');
     expect(tool.input).toMatchObject({ type: "object" });
   }
+
   expect(AGENT_TOOLS.find(({ name }) => name === "create_note")).toMatchObject({
     input: { required: ["markdown"] },
     writes: true,
@@ -44,10 +47,12 @@ it("keeps one op id for a call however often its step runs, and another for any 
 dbSuite("a library tool the agent calls", () => {
   it("tells it a new note nests too deep, not that it is too large", async () => {
     const accountId = await makeAccount();
+
     const turn: LibraryPrincipal = {
       accountId,
       actor: { kind: "agent", threadId: randomUUID(), turn: 1 },
     };
+
     await expect(
       callAgentTool({ principal: turn }, toolNamed("create_note"), {
         callId: "call_1",

@@ -1,11 +1,3 @@
-// The library's rows as tools: a row tagged `mcp.tool()` carries its tool name, title,
-// description and every hint, and a row without the tag is no tool. The built-in agent and the
-// connector both list the rows tagged here, so a tool is added by tagging its row, never by a
-// list kept beside it. The rows keep their schemas, so the library implements this decorated
-// contract (`./library-access`) while every client types against @repo/contract's plain one.
-// Every tool reaches only the person's library, so none is open-world but save_link, whose page
-// the cloud reads from the web.
-
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import { libraryContract } from "@repo/contract/rpc/library-contract";
 import { getMcpToolMeta, mcp } from "@orpc/mcp";
@@ -14,7 +6,6 @@ import { walkProcedureContractsSync } from "@orpc/server";
 
 const { guide, items, organize, search } = libraryContract;
 
-// MCP's defaults (destructive, open-world) are wrong for most tools, so every hint is stated
 const READ = { openWorldHint: false, readOnlyHint: true } as const;
 const ADDS = { destructiveHint: false, openWorldHint: false } as const;
 const CHANGES = { destructiveHint: true, openWorldHint: false } as const;
@@ -26,8 +17,6 @@ const tagTool = ({ annotations, ...meta }: ToolTag) =>
 
 export const libraryTools = {
   ...libraryContract,
-  // the one tool under no name of the contract's table: the built-in agent's prompt holds this
-  // text, so only a connected assistant lists it
   guide: guide.meta(
     mcp.tool({
       annotations: { ...READ, title: "Read the writing guide" },
@@ -86,8 +75,6 @@ export const libraryTools = {
     ),
     read: items.read.meta(
       tagTool({
-        // a long item still pages, so a read stays well under this; it keeps Claude Code from
-        // writing a page to a file before the model sees it
         _meta: { "anthropic/maxResultSizeChars": 100_000 },
         annotations: READ,
         description:
@@ -98,7 +85,6 @@ export const libraryTools = {
     ),
     saveLink: items.saveLink.meta(
       tagTool({
-        // the only tool that reaches the web: the cloud reads the page it saves
         annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
         description:
           "Saves a web address as an item, optionally titled, tagged, filed and with a note; the page is read in the background. A link the library already holds answers that item unchanged; tag or file it with organize_items.",
@@ -134,14 +120,15 @@ export interface TaggedRow {
   readonly tool: McpToolMeta;
 }
 
-// every row tagged a tool, in the contract's order
 export const TAGGED_ROWS: readonly TaggedRow[] = (() => {
   const rows: TaggedRow[] = [];
   walkProcedureContractsSync(libraryTools, (contract, path) => {
     const tool = getMcpToolMeta(contract);
+
     if (tool !== undefined) {
       rows.push({ path, tool });
     }
   });
+
   return rows;
 })();

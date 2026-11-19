@@ -1,15 +1,11 @@
-// `/v1/blobs/<sha>` end to end: a file uploaded at the sha its bytes hash to, read back whole, by
-// range and by revalidation, under the policy its kind is served with and the name an item holds
-// it by, and out of every other account's reach.
-
 import { CLIENT_BUILD_HEADER } from "@repo/contract/client-build";
 import { V1_BLOBS_NAME_PARAM } from "@repo/contract/library/library-blobs";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { signInPhone, signUpUser } from "../test-support/auth-requests";
-import { blobUrlOf, fileOf, sendFile, sha256Hex } from "../test-support/file-uploads";
+import { signInPhone, signUpUser } from "../test-support/auth-requests.test-utils";
+import { blobUrlOf, fileOf, sendFile, sha256Hex } from "../test-support/file-uploads.test-utils";
 import {
   buildHeaders,
   extensionHeaders,
@@ -17,47 +13,40 @@ import {
   pageHeaders,
   phoneHeaders,
   v1Link,
-} from "../test-support/v1-link";
+} from "../test-support/v1-link.test-utils";
 import { mintLibraryId } from "../library/library-ids";
 import { fileReadRoute } from "./file-read-route";
 
 const TEN = "0123456789";
 
-// the site's sign-up, and the phone signed in beside it, whose calls are `auth`
 const signedIn = async (email: string) => {
   const { cookie } = await signUpUser(email);
   const phone = await signInPhone(email);
+
   return { auth: phoneHeaders(phone), cookie, phone };
 };
 
-const read = async (
-  sha: string,
-  headers: Record<string, string>,
-  method = "GET",
-): Promise<Response> => await fileReadRoute(new Request(blobUrlOf(sha), { headers, method }));
+const read = async (sha: string, headers: Record<string, string>, method = "GET") =>
+  await fileReadRoute(new Request(blobUrlOf(sha), { headers, method }));
 
-// a read that asks for the file under `name`, as the tab's viewer does
-const readNamed = async (
-  sha: string,
-  name: string,
-  headers: Record<string, string>,
-): Promise<Response> => {
+const readNamed = async (sha: string, name: string, headers: Record<string, string>) => {
   const url = new URL(blobUrlOf(sha));
   url.searchParams.set(V1_BLOBS_NAME_PARAM, name);
+
   return await fileReadRoute(new Request(url, { headers }));
 };
 
-// an answer whose body was read to the end, so nothing of it is held open
-const drained = async (answer: Promise<Response>): Promise<Response> => {
+const drained = async (answer: Promise<Response>) => {
   const response = await answer;
   await response.arrayBuffer();
+
   return response;
 };
 
-// a file of `text` in the library of whoever `auth` signs in
 const uploaded = async (auth: Record<string, string>, text = TEN, mime = "image/png") => {
   const file = fileOf(text);
   await sendFile(auth, file, mime);
+
   return file.sha;
 };
 
@@ -104,7 +93,6 @@ dbSuite("a file's read", () => {
     expect(open.status).toBe(206);
     await expect(open.text()).resolves.toBe("89");
 
-    // a range that spans the file is still the range asked for, as a media loader's probe needs
     for (const whole of ["bytes=0-", "bytes=0-9", "bytes=0-99"]) {
       const answer = await ranged(whole);
       expect(answer.status, whole).toBe(206);
@@ -122,7 +110,6 @@ dbSuite("a file's read", () => {
       expect(answer.headers.get("content-range"), past).toBe("bytes */10");
     }
 
-    // a multi-part ask is answered whole, as a server may
     const parts = await ranged("bytes=0-1,4-5");
     expect(parts.status).toBe(200);
     expect(parts.headers.get("content-range")).toBeNull();
@@ -159,7 +146,6 @@ dbSuite("a file's read", () => {
     const stale = await drained(read(sha, { ...auth, "if-none-match": '"other"' }));
     expect(stale.status).toBe(200);
 
-    // a media loader revalidates every range it reads; it is answered its range
     const rangedHeld = await read(sha, { ...auth, "if-none-match": etag, range: "bytes=0-1" });
     expect(rangedHeld.status).toBe(206);
     await expect(rangedHeld.text()).resolves.toBe("01");
@@ -172,11 +158,13 @@ dbSuite("a file's read", () => {
 
   it("serves an html file under a sandbox with no script, and a PDF under its viewer's policy", async () => {
     const { auth } = await signedIn("blob-policies@example.test");
+
     const page = await uploaded(
       auth,
       "<html><script>alert(1)</script></html>",
       "text/html; charset=utf-8",
     );
+
     const html = await drained(read(page, auth));
     expect(html.headers.get("content-type")).toBe("text/html");
     expect(html.headers.get("content-security-policy")).toContain("sandbox");
@@ -193,10 +181,13 @@ dbSuite("a file's read", () => {
     const { auth, cookie } = await signedIn("blob-named@example.test");
     const { library } = v1Link(auth);
     const pdf = await uploaded(auth, "%PDF-1.7 named", "application/pdf");
+
     const nameOf = async (answer: Promise<Response>) => {
       const response = await drained(answer);
+
       return response.headers.get("content-disposition");
     };
+
     const saved = async (name: string, savedAt: number) =>
       await library.items.createFile({
         folderId: null,
@@ -230,10 +221,10 @@ dbSuite("a file's read", () => {
       disposition,
     );
 
-    // the name leaves the bytes' own headers as an unnamed read answers them
     const unnamed = await drained(
       read(await uploaded(auth, "%PDF-1.7 other", "application/pdf"), pageHeaders(cookie)),
     );
+
     for (const header of [
       "cache-control",
       "content-security-policy",
@@ -280,9 +271,11 @@ dbSuite("a file's read", () => {
     const { sha } = fileOf(TEN);
     const [major = "0", minor = "0"] = FLOOR_VERSION.split(".");
     const old = `${major}.${String(Number(minor) - 1)}.99+mobile`;
+
     const outdated = await drained(
       read(sha, { [CLIENT_BUILD_HEADER]: old, cookie: phone, "expo-origin": PHONE_ORIGIN }, "PUT"),
     );
+
     expect(outdated.status).toBe(426);
     await expect(drained(read(sha, buildHeaders()))).resolves.toMatchObject({ status: 401 });
     await expect(drained(read("not-a-sha", auth))).resolves.toMatchObject({ status: 404 });

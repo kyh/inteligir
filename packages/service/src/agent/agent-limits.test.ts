@@ -1,9 +1,3 @@
-// The built-in agent's day and a turn's reach over the fake platform, which runs the app's limits
-// hook as eve does: a send past the day's turns answers the allowance, a turn begun past them
-// stops before its first model call, a model call past the account's dollars stops its turn before
-// the next, every account's dollars spent refuse every send, and a turn stops at its 21st model
-// call.
-
 import { randomUUID } from "node:crypto";
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
@@ -13,10 +7,13 @@ import { dbSuite } from "@repo/db/test-database";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
-import { makeAccount, personalLibrary } from "../test-support/library-fixture";
-import { caughtUp, readStream, shownOf } from "../test-support/thread-reads";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
+import { makeAccount, personalLibrary } from "../test-support/library.fixture";
+import { caughtUp, readStream, shownOf } from "../test-support/thread-reads.test-utils";
 import { costMicroUsdOf } from "./agent-model";
 import { deleteAgentThread, sendToAgent } from "./agent-sessions";
 import { threadOf } from "./agent-threads";
@@ -38,10 +35,10 @@ type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 const shownIn = async (library: Library, threadId: string) =>
   shownOf(await readStream(await library.agent.events({ threadId }), caughtUp));
 
-// a turn of its own thread, run to its end
-const turnIn = async (accountId: string, text: string): Promise<string> => {
+const turnIn = async (accountId: string, text: string) => {
   const { threadId } = await sendToAgent(runtime, accountId, { opId: randomUUID(), text });
   await platform.turnsSettled();
+
   return threadId;
 };
 
@@ -51,6 +48,7 @@ const refusalOf = async (sent: Promise<unknown>) => {
   } catch (error) {
     return error;
   }
+
   throw new Error("the send was let in");
 };
 
@@ -153,6 +151,7 @@ dbSuite("the built-in agent's limits", () => {
 
   it("refuses every account's sends while every account's dollars are spent", async () => {
     const spender = await makeAccount();
+
     const spent = {
       accountId: spender,
       at: Date.now(),
@@ -163,7 +162,9 @@ dbSuite("the built-in agent's limits", () => {
       line: 0,
       threadId: randomUUID(),
     } as const;
+
     await db.insert(agentUsage).values(spent);
+
     try {
       const { accountId } = await personalLibrary();
       expect(await refusalOf(sendToAgent(runtime, accountId, { text: "Hello" }))).toMatchObject({

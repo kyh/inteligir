@@ -1,5 +1,3 @@
-// No rdp stylesheet: every class is supplied here.
-
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import type { ChevronProps, DayPickerProps } from "react-day-picker";
@@ -7,7 +5,6 @@ import type { ChevronProps, DayPickerProps } from "react-day-picker";
 import { cn } from "@repo/ui/lib/cn";
 import { buttonVariants } from "@repo/ui/components/button";
 
-// DayPicker renders its own <button>s, so Button styling arrives as class strings.
 const NAV_BUTTON = cn(
   buttonVariants({ size: "icon-compact", variant: "tertiary" }),
   "rounded-md bg-transparent opacity-60 hover:opacity-100 disabled:opacity-30",

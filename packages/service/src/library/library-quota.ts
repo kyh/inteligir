@@ -1,7 +1,3 @@
-// What an account's library may hold: `LIBRARY_STORAGE_CAP_BYTES`, 1 GiB unless set, of its files'
-// bytes and its bodies' together, each a sum of the rows that hold them. Only a create past the
-// cap is refused, so a person never loses a word mid-note and a full library can still be tidied.
-
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { file, itemBody } from "@repo/db/library-schema";
 import { eq, sql } from "drizzle-orm";
@@ -11,7 +7,7 @@ import { refuse } from "./library-refusal";
 import type { LibraryRefusal } from "./library-refusal";
 import type { WriteScope } from "./library-store";
 
-const bytesUsed = async (tx: DbExecutor, accountId: string): Promise<number> => {
+const bytesUsed = async (tx: DbExecutor, accountId: string) => {
   const [files, bodies] = await Promise.all([
     tx
       .select({ bytes: sql`coalesce(sum(${file.bytes}), 0)`.mapWith(Number) })
@@ -22,27 +18,26 @@ const bytesUsed = async (tx: DbExecutor, accountId: string): Promise<number> => 
       .from(itemBody)
       .where(eq(itemBody.accountId, accountId)),
   ]);
+
   return (files[0]?.bytes ?? 0) + (bodies[0]?.bytes ?? 0);
 };
 
-// the refusal `growth` more bytes would meet once they pass the cap, or null while they fit; read
-// outside a write, it is a guess the write's own check settles
-export const roomRefusalFor = async (
-  tx: DbExecutor,
-  accountId: string,
-  growth: number,
-): Promise<Extract<LibraryRefusal, { kind: "quota" }> | null> => {
+export const roomRefusalFor = async (tx: DbExecutor, accountId: string, growth: number) => {
   if (growth <= 0) {
     return null;
   }
+
   const bytesCap = env.LIBRARY_STORAGE_CAP_BYTES;
   const used = await bytesUsed(tx, accountId);
-  return used + growth > bytesCap ? { bytesCap, bytesUsed: used, kind: "quota" } : null;
+
+  return (
+    used + growth > bytesCap ? { bytesCap, bytesUsed: used, kind: "quota" } : null
+  ) satisfies Extract<LibraryRefusal, { kind: "quota" }> | null;
 };
 
-// refuses `growth` more bytes once they would pass the cap
-export const holdRoomFor = async ({ accountId, tx }: WriteScope, growth: number): Promise<void> => {
+export const holdRoomFor = async ({ accountId, tx }: WriteScope, growth: number) => {
   const refusal = await roomRefusalFor(tx, accountId, growth);
+
   if (refusal !== null) {
     refuse(refusal);
   }

@@ -1,24 +1,23 @@
-// What a `[[Title]]` an assistant writes names, over Postgres: the title read_item answers an item
-// by, its address's name for an unnamed link and its first words for an untitled note, reaches that
-// item through the agent's edit, and a title two live items show reaches neither.
-
 import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { libraryAs, personalLibrary } from "../test-support/library-fixture";
+import { libraryAs, personalLibrary } from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
 
 type Library = ReturnType<typeof libraryAs>;
 
 const untitledNote = (...texts: string[]) => ({
-  blocks: texts.map((text): BodyBlock => ({
-    block: paragraph(randomUUID(), text),
-    section: "note",
-  })),
+  blocks: texts.map(
+    (text) =>
+      ({
+        block: paragraph(randomUUID(), text),
+        section: "note",
+      }) satisfies BodyBlock,
+  ),
   folderId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
@@ -26,11 +25,9 @@ const untitledNote = (...texts: string[]) => ({
   title: "",
 });
 
-// the built-in agent in an open turn of a thread of its own
 const agentOf = (accountId: string) =>
   libraryAs({ accountId, actor: { kind: "agent", threadId: randomUUID(), turn: 1 } });
 
-// what an assistant's link by `title` lands as in a note of its own: the first block's children
 const linkedBy = async (library: Library, accountId: string, title: string) => {
   const hub = untitledNote("Links go here.");
   await library.items.create(hub);
@@ -40,6 +37,7 @@ const linkedBy = async (library: Library, accountId: string, title: string) => {
   });
   const { blocks } = await library.items.get({ id: hub.id });
   const [first] = blocks;
+
   return first !== undefined && "children" in first.block ? first.block.children : [];
 };
 
@@ -53,9 +51,11 @@ const mention = (itemId: string, value: string) => ({
 dbSuite("a [[Title]] written from outside the editor", () => {
   it("reaches a link saved with no title by the name of its address that read_item answers", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { item: link } = await library.items.saveLink({
       url: "https://example.com/notes/quarterly-review",
     });
+
     const { fields } = await library.items.read({ id: link.id });
     expect(link.fields.title).toBe("");
     expect(fields.title).not.toBe("");
@@ -100,6 +100,7 @@ dbSuite("a [[Title]] written from outside the editor", () => {
     const second = untitledNote("Weekly sync", "Thursday's.");
     await library.items.create(first);
     await library.items.create(second);
+
     for (const { id } of [first, second]) {
       await expect(library.items.read({ id })).resolves.toMatchObject({
         fields: { title: "Weekly sync" },

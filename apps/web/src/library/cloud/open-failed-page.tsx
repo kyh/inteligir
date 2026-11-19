@@ -1,6 +1,3 @@
-// The page when the library could not open at all, with nothing else drawn yet: the site or the
-// connection failed, and the page holds nothing to let go, so it says so and offers Try again.
-
 import { Button } from "@repo/ui/components/button";
 
 const HEADING = "Your library didn't open";

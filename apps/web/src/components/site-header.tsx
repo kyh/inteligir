@@ -26,9 +26,7 @@ const ThemeToggle = () => {
   const mounted = useHydrated();
 
   const isDark = resolved === "dark";
-  // invisible before mount: the icon depends on localStorage, which the server render cannot see.
-  // Disabled until then, so a click waits for its handler; undimmed, since the hidden icon already
-  // says so and a dimmed fill would flash at hydration
+
   return (
     <Button
       variant="secondary"
@@ -49,9 +47,6 @@ const ThemeToggle = () => {
   );
 };
 
-// a plain anchor, so the library opens on a document of its own, under its own stylesheet and
-// headers; it sends a signed-out tab to sign in and back, so one link serves someone signed in and
-// someone not
 export const SiteHeader = () => (
   <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
     <a

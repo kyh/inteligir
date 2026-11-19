@@ -1,24 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { fakePhoneAuth } from "../test-support/fake-phone-auth";
-import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
+import { fakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
+import type { FakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
 import { createLoginStore } from "./login-store";
 
 const REQUEST = { email: "ada@example.com", password: "a long password" };
 const NEW_ACCOUNT = { ...REQUEST, inviteCode: "INVITE-1", name: "Ada" };
 
-// the sign-in over the suite's auth; `opens` is whether the library opens
 const storeOver = (fake: FakePhoneAuth, opens = true) => {
   let opened = 0;
+
   const store = createLoginStore({
     auth: fake.auth,
     signedIn: async () => {
       if (!opens) {
         throw new Error("The library on this iPhone couldn't be opened.");
       }
+
       opened += 1;
       await Promise.resolve();
     },
   });
+
   return { opened: () => opened, store };
 };
 
@@ -62,6 +64,7 @@ describe("the phone's sign-in", () => {
   it("says a request the cloud would refuse in its own words, and sends nothing", async () => {
     const fake = fakePhoneAuth();
     const { store } = storeOver(fake);
+
     for (const request of [
       { ...REQUEST, password: "7 chars" },
       { ...REQUEST, email: "ada@" },
@@ -72,6 +75,7 @@ describe("the phone's sign-in", () => {
         message: "Check your email and password.",
       });
     }
+
     expect(fake.calls).toStrictEqual([]);
   });
 

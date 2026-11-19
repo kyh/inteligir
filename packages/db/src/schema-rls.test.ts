@@ -4,7 +4,6 @@ import { db } from "./drizzle-client";
 import { dbSuite } from "./test-database";
 
 dbSuite("the pushed schema", () => {
-  // Supabase's API roles read a table only through a policy, and no table here has one
   test("turns row-level security on for every table", async () => {
     const open = await db.execute<{ relname: string }>(
       sql`
@@ -14,6 +13,7 @@ dbSuite("the pushed schema", () => {
       `,
       "objects",
     );
+
     expect(open.map((row) => row.relname)).toEqual([]);
   });
 });

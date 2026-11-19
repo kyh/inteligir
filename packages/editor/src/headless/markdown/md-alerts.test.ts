@@ -3,19 +3,25 @@ import type { TElement } from "platejs";
 
 import { ALERT_VARIANTS } from "@repo/contract/library/library-nodes";
 
-import { meaningOf, readValue, rewrite, writeValue } from "../../test-support/markdown-meaning";
+import {
+  meaningOf,
+  readValue,
+  rewrite,
+  writeValue,
+} from "../../test-support/markdown-meaning.test-utils";
 import { headlessEditor } from "./markdown-doc";
 import { readMarkdown } from "./md-read";
 
-const quote = (text: string): TElement => ({
-  children: [{ children: [{ text }], type: "p" }],
-  type: "blockquote",
-});
+const quote = (text: string) =>
+  ({
+    children: [{ children: [{ text }], type: "p" }],
+    type: "blockquote",
+  }) satisfies TElement;
 
-// GitHub's alert is the one callout: a quote whose first line is its marker
 describe("an alert", () => {
   it.each(ALERT_VARIANTS)("reads `[!%s]` in either case as the quote's alert", (variant) => {
     const md = `> [!${variant}]\n> Body.\n`;
+
     for (const written of [md, `> [!${variant.toLowerCase()}]\n> Body.\n`]) {
       expect(readValue(written)).toStrictEqual([{ ...quote("Body."), alert: variant }]);
       expect(rewrite(written)).toBe(md);

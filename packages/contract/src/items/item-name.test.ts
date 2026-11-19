@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { checkNoteName } from "../test-support/note-name";
+import { checkNoteName } from "../test-support/note-name.test-utils";
 import { itemNameFromTitle, itemNameFromUrl, shownTitle, UNTITLED } from "./item-name";
-import { mulberry32, pick } from "../test-support/seeded-random";
+import { mulberry32, pick } from "../test-support/seeded-random.test-utils";
 
 describe(shownTitle, () => {
   it.each([
@@ -100,13 +100,16 @@ const NASTY = [
 describe("the seeded property", () => {
   it("every name a title or an address yields is one checkNoteName accepts as written", () => {
     const rand = mulberry32(0x0a_11_7e);
+
     for (let i = 0; i < 5000; i += 1) {
       const length = Math.floor(rand() * (i % 10 === 0 ? 200 : 12));
       const title = Array.from({ length }, () => pick(rand, NASTY)).join("");
+
       for (const name of [itemNameFromTitle(title), itemNameFromUrl(`https://h.com/${title}`)]) {
         if (name === null) {
           continue;
         }
+
         const verdict = checkNoteName(name);
         expect(verdict, JSON.stringify(title)).toStrictEqual({ name, ok: true });
         expect([...name].length, JSON.stringify(title)).toBeLessThanOrEqual(120);

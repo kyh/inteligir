@@ -1,29 +1,22 @@
-// An account's signed-in devices are Better Auth's own session rows: `account.devices.*` lists them,
-// each named from the user agent it signed in with, and ends one by its id; a sign-in past the cap
-// ends the longest unused. A session's token never leaves this module: a list selects none, and an
-// end looks it up only to hand Better Auth.
-
-import type { Device } from "@repo/contract/account/account-schema";
 import { session } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { InternalAdapter } from "better-auth";
 import { and, asc, eq, gt } from "drizzle-orm";
 
-// a sign-in past this many ends one rather than being refused, which would lock out a person who
-// lost track of an old device
 export const MAX_SESSIONS_PER_ACCOUNT = 20;
 
-// `databaseHooks.session.create.before`: oldest by last use, which slides daily, so a device in use
-// outlives one left in a drawer
-export const capSessions = async (adapter: InternalAdapter, userId: string): Promise<void> => {
+export const capSessions = async (adapter: InternalAdapter, userId: string) => {
   const live = await adapter.listSessions(userId, { onlyActiveSessions: true });
   const over = live.length - (MAX_SESSIONS_PER_ACCOUNT - 1);
+
   if (over <= 0) {
     return;
   }
+
   const oldest = live
     .toSorted((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
     .slice(0, over);
+
   await adapter.deleteSessions(oldest.map((row) => row.token));
 };
 
@@ -47,35 +40,31 @@ const SYSTEMS = [
   ["Linux", "Linux"],
 ] as const;
 
-const firstNamed = (
-  userAgent: string,
-  table: readonly (readonly [string, string])[],
-): string | null => table.find(([token]) => userAgent.includes(token))?.[1] ?? null;
+const firstNamed = (userAgent: string, table: readonly (readonly [string, string])[]) =>
+  table.find(([token]) => userAgent.includes(token))?.[1] ?? null;
 
-// read at list time from what Better Auth stored, so a name follows the reading and no column holds
-// it. The phone's own requests carry the system's networking stack (CFNetwork) and no browser's;
-// the Mac app's window is the system's web view, which names no browser
-export const deviceNameOf = (userAgent: string | null): string => {
+export const deviceNameOf = (userAgent: string | null) => {
   if (userAgent === null || userAgent.trim() === "") {
     return "Unknown device";
   }
+
   if (!userAgent.startsWith("Mozilla/") && userAgent.includes("CFNetwork/")) {
     return "iPhone";
   }
+
   const browser = firstNamed(userAgent, BROWSERS);
   const system = firstNamed(userAgent, SYSTEMS);
+
   if (browser === null) {
     return system === "Mac" && userAgent.includes("AppleWebKit/")
       ? "Mac app"
       : (system ?? "Unknown device");
   }
+
   return system === null ? browser : `${browser} on ${system}`;
 };
 
-export const listSessionDevices = async (
-  userId: string,
-  currentSessionId: string,
-): Promise<Device[]> => {
+export const listSessionDevices = async (userId: string, currentSessionId: string) => {
   const rows = await db
     .select({
       createdAt: session.createdAt,
@@ -86,6 +75,7 @@ export const listSessionDevices = async (
     .from(session)
     .where(and(eq(session.userId, userId), gt(session.expiresAt, new Date())))
     .orderBy(asc(session.createdAt), asc(session.id));
+
   return rows.map((row) => ({
     createdAt: row.createdAt.getTime(),
     current: row.id === currentSessionId,
@@ -95,18 +85,20 @@ export const listSessionDevices = async (
   }));
 };
 
-// false when the account holds no such session: another account's, or one already ended
 export const revokeSessionDevice = async (
   adapter: InternalAdapter,
   target: { readonly id: string; readonly userId: string },
-): Promise<boolean> => {
+) => {
   const [row] = await db
     .select({ token: session.token })
     .from(session)
     .where(and(eq(session.id, target.id), eq(session.userId, target.userId)));
+
   if (row === undefined) {
     return false;
   }
+
   await adapter.deleteSession(row.token);
+
   return true;
 };

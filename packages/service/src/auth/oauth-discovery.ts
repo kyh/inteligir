@@ -1,7 +1,3 @@
-// What an assistant reads before it holds a credential: the connector's protected resource metadata
-// (RFC 9728), which names the authorization server, and that server's metadata (RFC 8414) at the
-// path-inserted form of the issuer `<origin>/api/auth`.
-
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 
@@ -13,7 +9,6 @@ const DISCOVERY_HEADERS = {
   "cache-control": "public, max-age=3600",
 };
 
-// a browser assistant sends the protocol version header, which needs a preflight
 export const discoveryPreflightResponse = () =>
   new Response(null, {
     headers: {

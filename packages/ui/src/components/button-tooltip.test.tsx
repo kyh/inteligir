@@ -11,7 +11,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const hover = (element: HTMLElement): void => {
+const hover = (element: HTMLElement) => {
   fireEvent.pointerEnter(element, { pointerType: "mouse" });
   fireEvent.mouseEnter(element);
   fireEvent.mouseMove(element);

@@ -1,19 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { item, itemBody, itemLink, itemTag } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { makeAccount, seedItem } from "../test-support/library-fixture";
+import { makeAccount, seedItem } from "../test-support/library.fixture";
 import { linkRowsOf, readItem } from "./library-rows";
 
 dbSuite("an item's rows", () => {
   it("read back as the item they were written from, times and JSON whole", async () => {
     const accountId = await makeAccount();
+
     const fields = noteFixture({
       aliases: ["Other name"],
       deletedAt: 1_700_000_000_123,
@@ -22,17 +23,20 @@ dbSuite("an item's rows", () => {
       tags: ["Work"],
       title: "Ünïcode Title",
     });
+
     const stored = await seedItem(accountId, {
       blocks: [{ block: paragraph("p1", "the first line"), section: "note" }],
       fields,
       seq: 7,
     });
+
     expect(await readItem(db, accountId, stored.id)).toStrictEqual(stored);
 
     const [row] = await db
       .select({ pinned: item.pinned, titleSort: item.titleSort })
       .from(item)
       .where(eq(item.id, stored.id));
+
     expect(row).toStrictEqual({ pinned: true, titleSort: "ünïcode title" });
   });
 
@@ -46,6 +50,7 @@ dbSuite("an item's rows", () => {
   it("keep the body's bytes, its tags by their lowercased key and each link once", async () => {
     const accountId = await makeAccount();
     const target = randomUUID();
+
     const blocks: readonly BodyBlock[] = [
       {
         block: {
@@ -60,12 +65,14 @@ dbSuite("an item's rows", () => {
         section: "note",
       },
     ];
+
     const stored = await seedItem(accountId, { blocks, fields: noteFixture({ tags: ["Work"] }) });
 
     const [body] = await db
       .select({ bytes: itemBody.bytes })
       .from(itemBody)
       .where(eq(itemBody.itemId, stored.id));
+
     expect(body?.bytes).toBe(Buffer.byteLength(JSON.stringify(blocks)));
     expect(
       await db

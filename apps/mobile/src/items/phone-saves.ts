@@ -1,11 +1,3 @@
-// Saving from the phone, each one create the cloud answers: a link is a save the cloud reads (its
-// fill), a thought a note named by its first line, a photo or a file an item of its own whose bytes
-// go up first, each where the Library's scope saves. A link whose address an item already holds
-// answers that item and changes nothing. Every save names its item's id and an op id minted before
-// its first call, so a resend after a lost answer lands once. A file a note's text names is sent up
-// by its sha the same way, before the write naming it. A save never throws: it answers what became
-// of it. Platform-free: its suites run it under node.
-
 import type { SaveStamp } from "@repo/client/waiting-saves";
 import { outcomeOf } from "@repo/contract/rpc/call-outcome";
 import type { CallOutcome } from "@repo/contract/rpc/call-outcome";
@@ -16,13 +8,10 @@ import type { FileCache, HeldFile } from "../files/file-cache";
 import { linkInText } from "./link-in-text";
 import type { ShareSave } from "./share-payload";
 
-// where a save lands: the scope's folder, or Unsorted
 interface SaveTarget {
   readonly folderId: string | null;
 }
 
-// the item a save landed as. `created` false: an item already held the address, and is answered as
-// it stands
 export type SaveOutcome = CallOutcome<{ readonly id: string; readonly created: boolean }>;
 
 type SharedLink = Omit<Extract<ShareSave, { kind: "link" }>, "kind">;
@@ -34,14 +23,9 @@ export interface PhoneSaves {
     target: SaveTarget,
     stamp?: SaveStamp,
   ) => Promise<SaveOutcome>;
-  // a web link inside is saved as that link, the rest of the text its note; any other text is a
-  // note named by its first line
   readonly saveText: (text: string, target: SaveTarget, stamp?: SaveStamp) => Promise<SaveOutcome>;
-  // an empty note, its title to be typed
   readonly newNote: (target: SaveTarget) => Promise<SaveOutcome>;
-  // a file's bytes up by their sha, which it answers, and kept on the phone as they went
   readonly keepFile: (file: HeldFile) => Promise<CallOutcome<string>>;
-  // a photo or a file: its bytes kept, then its item
   readonly addFile: (
     file: HeldFile & { readonly name: string },
     target: SaveTarget,
@@ -50,10 +34,8 @@ export interface PhoneSaves {
 
 export interface PhoneSavesArgs {
   readonly client: V1Client;
-  // a file's bytes up by their sha, thrown as a call's failure when the cloud keeps none
   readonly upload: (file: HeldFile & { readonly sha: string }) => Promise<void>;
   readonly files: Pick<FileCache, "keep">;
-  // a fresh UUIDv7, which an item's id and an op id both are
   readonly newId: () => string;
   readonly newBlockId: () => string;
   readonly now: () => number;
@@ -62,13 +44,10 @@ export interface PhoneSavesArgs {
 
 const NOTHING_TO_SAVE = "Type a link or a thought to save.";
 
-// a title is one line, and a card's title at most this long
 const TITLE_MAX = 120;
 
-const firstLine = (text: string): string =>
-  text.split(/\r?\n/u).find((line) => line.trim() !== "") ?? "";
+const firstLine = (text: string) => text.split(/\r?\n/u).find((line) => line.trim() !== "") ?? "";
 
-// a thought's paragraphs, one block each, in order; each line break inside one kept
 const paragraphsOf = (text: string, newBlockId: () => string) =>
   text
     .split(/\r?\n\s*\r?\n/u)
@@ -76,30 +55,33 @@ const paragraphsOf = (text: string, newBlockId: () => string) =>
     .filter((paragraph) => paragraph !== "")
     .map((paragraph) => ({ children: [{ text: paragraph }], id: newBlockId(), type: "p" }));
 
-// a save the phone refuses before any call, as the cloud would its input
-const refused = (message: string): SaveOutcome => ({
-  code: "BAD_REQUEST",
-  kind: "refused",
-  message,
-});
+const refused = (message: string) =>
+  ({
+    code: "BAD_REQUEST",
+    kind: "refused",
+    message,
+  }) satisfies SaveOutcome;
 
 const answered = async (
   call: () => Promise<{ readonly item: { readonly id: string }; readonly created?: boolean }>,
-): Promise<SaveOutcome> =>
+) =>
   await outcomeOf(async () => {
     const { created = true, item } = await call();
+
     return { created, id: item.id };
   });
 
-export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
+export const createPhoneSaves = (args: PhoneSavesArgs) => {
   const { library } = args.client;
 
-  const stamp = (): SaveStamp => ({ id: args.newId(), opId: args.newId(), savedAt: args.now() });
+  const stamp = () =>
+    ({ id: args.newId(), opId: args.newId(), savedAt: args.now() }) satisfies SaveStamp;
 
   const saveLink: PhoneSaves["saveLink"] = async (link, { folderId }, ids = stamp()) => {
     if (!isWebUrl(link.url)) {
       return refused(WEB_URL_RULE);
     }
+
     return await answered(
       async () =>
         await library.items.saveLink({
@@ -116,13 +98,17 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
 
   const keepFile: PhoneSaves["keepFile"] = async ({ bytes, mime }) => {
     const sha = await args.sha256Hex(bytes);
+
     const sent = await outcomeOf(async () => {
       await args.upload({ bytes, mime, sha });
+
       return sha;
     });
+
     if (sent.kind === "landed") {
       await args.files.keep(sha, { bytes, mime });
     }
+
     return sent;
   };
 
@@ -130,9 +116,11 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
     addFile: async ({ bytes, mime, name }, { folderId }) => {
       const ids = stamp();
       const kept = await keepFile({ bytes, mime });
+
       if (kept.kind !== "landed") {
         return kept;
       }
+
       return await answered(
         async () =>
           await library.items.createFile({
@@ -149,6 +137,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
     keepFile,
     newNote: async ({ folderId }) => {
       const ids = stamp();
+
       return await answered(
         async () =>
           await library.items.create({
@@ -165,10 +154,13 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
     saveLink,
     saveText: async (text, target, ids = stamp()) => {
       const trimmed = text.trim();
+
       if (trimmed === "") {
         return refused(NOTHING_TO_SAVE);
       }
+
       const link = linkInText(trimmed);
+
       if (link !== null) {
         return await saveLink(
           { note: link.rest === "" ? null : link.rest, title: null, url: link.url },
@@ -176,6 +168,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
           ids,
         );
       }
+
       return await answered(
         async () =>
           await library.items.create({
@@ -193,5 +186,5 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
       );
     },
     stamp,
-  };
+  } satisfies PhoneSaves;
 };

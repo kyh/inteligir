@@ -8,32 +8,32 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { AUTH_RATE_WINDOW_SECONDS, callerRateKey, RATE_WINDOWS } from "../rate-limit";
-import { authFetch, authPost, CALLER_IP_HEADER, ORIGIN } from "../test-support/auth-requests";
+import {
+  authFetch,
+  authPost,
+  CALLER_IP_HEADER,
+  ORIGIN,
+} from "../test-support/auth-requests.test-utils";
 import { clientIpOptions } from "./client-ip";
 import { OAUTH_REGISTER_WINDOW_SECONDS } from "./oauth";
 
-// past the ceiling of any window the auth routes set
 const ATTEMPT_CAP = 20;
 
-// ./auth.ts's window for every route, and Better Auth's own stricter one for a sign-in
 const AUTH_MAX = 10;
 const SIGN_IN_MAX = 3;
-// ./oauth.ts's window for an assistant registering itself
 const REGISTER_MAX = 10;
 
-const signInFrom = async (callerIp: string): Promise<Response> =>
+const signInFrom = async (callerIp: string) =>
   await authPost(
     "/sign-in/email",
     { [CALLER_IP_HEADER]: callerIp, origin: ORIGIN },
     { email: "nobody@example.test", password: "not-the-password" },
   );
 
-// a route under ./auth.ts's window alone, which answers with no session
-const signOutFrom = async (callerIp: string): Promise<Response> =>
+const signOutFrom = async (callerIp: string) =>
   await authPost("/sign-out", { [CALLER_IP_HEADER]: callerIp, origin: ORIGIN });
 
-// an assistant registering itself, under ./oauth.ts's window
-const registerFrom = async (callerIp: string): Promise<Response> =>
+const registerFrom = async (callerIp: string) =>
   await authFetch("/oauth2/register", {
     body: JSON.stringify({
       client_name: "Probe",
@@ -44,12 +44,14 @@ const registerFrom = async (callerIp: string): Promise<Response> =>
     method: "POST",
   });
 
-const statusesOf = async (times: number, call: () => Promise<Response>): Promise<number[]> => {
+const statusesOf = async (times: number, call: () => Promise<Response>) => {
   const statuses = [];
+
   for (let attempt = 0; attempt < times; attempt += 1) {
     const response = await call();
     statuses.push(response.status);
   }
+
   return statuses;
 };
 
@@ -76,12 +78,13 @@ dbSuite("Better Auth's limiter", () => {
   });
 
   it("prunes the app's lapsed rows beside its own when one of its windows rolls over", async () => {
-    // past the longest window Better Auth keeps a row for, the connector's registration hour
     const lapsed = Date.now() - 2 * OAUTH_REGISTER_WINDOW_SECONDS * 1000;
+
     const appKey = callerRateKey(
       "inviteSignUp",
       new Request(ORIGIN, { headers: { [CALLER_IP_HEADER]: "203.0.113.30" } }),
     );
+
     await db.insert(rateLimit).values([
       { count: 1, id: randomUUID(), key: appKey, lastRequest: lapsed },
       { count: 1, id: randomUUID(), key: "203.0.113.31|/sign-in/email", lastRequest: lapsed },
@@ -101,6 +104,7 @@ dbSuite("Better Auth's limiter", () => {
       const response = await authFetch("/get-session", {
         headers: { [CALLER_IP_HEADER]: "203.0.113.20", origin: ORIGIN },
       });
+
       expect(response.status).toBe(200);
     }
   });
@@ -129,6 +133,7 @@ describe("the caller's address on Vercel", () => {
         "x-vercel-forwarded-for": "203.0.113.40",
       },
     });
+
     expect(getIP(request, onVercel)).toBe("203.0.113.40");
   });
 

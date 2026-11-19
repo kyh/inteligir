@@ -21,27 +21,29 @@ interface Row {
   readonly contract: AnyProcedureContract;
 }
 
-const rowsOf = (router: RouterContract): Row[] => {
+const rowsOf = (router: RouterContract) => {
   const rows: Row[] = [];
   walkProcedureContractsSync(router, (contract, path) => {
     rows.push({ contract, path: path.join(".") });
   });
+
   return rows;
 };
 
 const ROWS = rowsOf(v1Contract);
 
-const zodOf = (schema: AnySchema): z.ZodType => {
+const zodOf = (schema: AnySchema) => {
   if (!(schema instanceof z.ZodType)) {
     throw new TypeError("every /v1 schema is zod");
   }
+
   return schema;
 };
 
-// a stream's schemas are what it yields and returns
-const schemasOf = (schemas: AnySchema | readonly AnySchema[] | undefined): z.ZodType[] => {
+const schemasOf = (schemas: AnySchema | readonly AnySchema[] | undefined) => {
   const listed = schemas === undefined ? [] : [schemas].flat();
   const streamed = getAsyncIteratorObjectSchemasDetails(listed);
+
   return (
     streamed === undefined ? listed : [...streamed.yieldSchemas, ...streamed.returnSchemas]
   ).map(zodOf);
@@ -52,7 +54,6 @@ const jsonObjectSchema = z.looseObject({
   required: z.array(z.string()).optional(),
 });
 
-// the library rows that write nothing, so take no opId
 const LIBRARY_READS = new Set([
   "agent.events",
   "agent.list",
@@ -60,7 +61,6 @@ const LIBRARY_READS = new Set([
   "agent.status",
   "agent.undoable",
   "changes",
-  // where a file's bytes go: what lands is `files.settle`'s
   "files.reserve",
   "guide",
   "imports.named",
@@ -76,14 +76,12 @@ const LIBRARY_READS = new Set([
   "search",
 ]);
 
-// the writes that take none: an undo names turns, and a turn already taken back has nothing left;
-// a body's save names the version it was made over, which a save landed before has moved; a
-// file's settle names its upload, which a settle landed before kept
 const RESENT_UNKEYED = new Set(["agent.undo", "files.settle", "items.saveBody"]);
 
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";
 const SHA = "a".repeat(64);
+
 const FILE = {
   folderId: null,
   id: UUID_V7,
@@ -93,11 +91,11 @@ const FILE = {
   tags: [],
 };
 
-// a paragraph of a thousand two-byte letters
-const heavyBlock = (at: number): BodyBlock => ({
-  block: { children: [{ text: "é".repeat(1000) }], id: `b${String(at)}`, type: "p" },
-  section: "note",
-});
+const heavyBlock = (at: number) =>
+  ({
+    block: { children: [{ text: "é".repeat(1000) }], id: `b${String(at)}`, type: "p" },
+    section: "note",
+  }) satisfies BodyBlock;
 
 interface ErrorCase {
   readonly code: keyof typeof V1_CUSTOM_ERROR_STATUS;
@@ -111,34 +109,39 @@ interface Refusal {
   readonly data: unknown;
 }
 
-// what a call was refused with, when it was refused with an error its row declares
-const refusalOf = async <T, E>(promise: PromiseWithError<T, E>): Promise<Refusal | null> => {
+const refusalOf = async <T, E>(promise: PromiseWithError<T, E>) => {
   const { error } = await safe(promise);
-  return isDefinedError(error) ? { code: error.code, data: error.data } : null;
+
+  return (
+    isDefinedError(error) ? { code: error.code, data: error.data } : null
+  ) satisfies Refusal | null;
 };
 
-// a client over a real RPCHandler answering from `router`, the bytes each call sent and the status
-// each answer carried
 const served = (router: AnyRouter) => {
   const handler = new RPCHandler(router, { errorStatusMap: V1_ERROR_STATUS_MAP });
   const sent: number[] = [];
   const statuses: number[] = [];
+
   const link = new RPCLink({
     fetch: async (url, init) => {
       const request = new Request(url, init);
       const body = await request.clone().arrayBuffer();
       sent.push(body.byteLength);
+
       const { response } = await handler.handle(request, {
         context: {},
         prefix: V1_RPC_PATH,
       });
+
       const answer = response ?? new Response(null, { status: 404 });
       statuses.push(answer.status);
+
       return answer;
     },
     origin: "http://v1.test",
     url: V1_RPC_PATH,
   });
+
   return { client: createORPCClient<V1Client>(link), sent, statuses };
 };
 
@@ -158,14 +161,14 @@ describe("/v1's error statuses", () => {
 
   it("answers an outage 5xx and every refusal at least 4xx", () => {
     expect(V1_ERROR_STATUS_MAP.SERVICE_UNAVAILABLE).toBeGreaterThanOrEqual(500);
+
     for (const status of Object.values(V1_CUSTOM_ERROR_STATUS)) {
       expect(status).toBeGreaterThanOrEqual(400);
     }
   });
 
-  // each custom code thrown by a real handler and read by a real link: the status the handler
-  // answers, and the typed refusal the client narrows to with its data
   const os = implement(v1Contract);
+
   const cases: readonly ErrorCase[] = [
     {
       code: "AGENT_BUDGET",
@@ -259,12 +262,16 @@ describe("/v1's rows", () => {
     const writes = rowsOf(v1Contract.library).filter(
       (row) => !LIBRARY_READS.has(row.path) && !RESENT_UNKEYED.has(row.path),
     );
+
     expect(writes.length).toBeGreaterThan(0);
+
     for (const row of writes) {
       const [input] = schemasOf(row.contract["~orpc"].inputSchemas);
+
       const json = jsonObjectSchema.parse(
         input === undefined ? {} : z.toJSONSchema(input, { io: "input" }),
       );
+
       expect({ opId: Object.hasOwn(json.properties ?? {}, "opId"), row: row.path }).toStrictEqual({
         opId: true,
         row: row.path,
@@ -290,9 +297,11 @@ describe("/v1's rows", () => {
   it("converts every input and output to JSON Schema, as the connector and its tools need", () => {
     for (const row of ROWS) {
       const { inputSchemas, outputSchemas } = row.contract["~orpc"];
+
       for (const schema of schemasOf(inputSchemas)) {
         expect(() => z.toJSONSchema(schema, { io: "input" }), row.path).not.toThrow();
       }
+
       for (const schema of schemasOf(outputSchemas)) {
         expect(() => z.toJSONSchema(schema, { io: "output" }), row.path).not.toThrow();
       }
@@ -329,11 +338,13 @@ describe("the library's wire", () => {
       seq: 3,
       updatedAt: 1,
     };
+
     const parsed = liveItemRowSchema.parse({
       ...row,
       fields: { ...row.fields, rating: 5, reading: { state: "none", tries: 2 } },
       later: true,
     });
+
     expect(parsed).toStrictEqual(row);
   });
 
@@ -346,29 +357,31 @@ describe("the library's wire", () => {
     expect(reading.validate({ at: null, error: "Timed out.", state: "failed" })).toBe(true);
   });
 
-  // a Vercel function takes 4.5 MB in a request (vercel.com/docs/functions/limitations), the call
-  // around the blocks included
   it("carries a body as heavy as a body may be in a save a function takes", async () => {
     const blocks = [];
-    // the array's JSON: its two brackets, each block, and a comma after every block but the last
+
     for (let bytes = 1; bytes < BODY_MAX_BYTES; bytes += 1) {
       const next = heavyBlock(blocks.length);
       blocks.push(next);
       bytes += utf8ByteLength(JSON.stringify(next));
     }
+
     expect(utf8ByteLength(JSON.stringify(blocks))).toBeGreaterThanOrEqual(BODY_MAX_BYTES);
     const os = implement(v1Contract);
     const received: number[] = [];
+
     const { client, sent } = served({
       library: {
         items: {
           saveBody: os.library.items.saveBody.handler(({ input }) => {
             received.push(input.blocks.length);
+
             return { kind: "full", maxBytes: BODY_MAX_BYTES };
           }),
         },
       },
     });
+
     await expect(
       client.library.items.saveBody({ baseVersion: 1, blocks, id: UUID_V7 }),
     ).resolves.toStrictEqual({ kind: "full", maxBytes: BODY_MAX_BYTES });
@@ -389,6 +402,7 @@ describe("the library's wire", () => {
 
   it("takes a property's op alone on a write, so no device sets a field the cell's verbs move", () => {
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
+
     const ops = [
       { key: "status", op: "property", value: "draft" },
       {
@@ -400,6 +414,7 @@ describe("the library's wire", () => {
       { base: 1, field: "deletedAt", op: "set", value: null },
       { base: [], op: "tags", value: ["later"] },
     ];
+
     expect(ops.map((op) => write?.validate({ itemId: UUID_V7, ops: [op] }))).toStrictEqual([
       true,
       false,

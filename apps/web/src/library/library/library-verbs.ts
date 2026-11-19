@@ -1,9 +1,3 @@
-// What a command does to the cell (`./library-commands.tsx`), over the writes
-// `../cloud/library-writes.ts` holds. A verb over several items or several saves is one run that
-// says how it went (`./bulk-actions.ts`), and one over a scope the grid read only in part is one
-// ask the cell lands in the call; a new note answers its caller, and a folder's write says its own
-// refusal.
-
 import type { InferClientInputs } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { ordBetween } from "@repo/contract/library/order-key";
@@ -46,48 +40,53 @@ export const useLibraryVerbs = () => {
   const folders = () =>
     queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.folders ?? [];
 
-  // A verb over its target, answering how many items a rule left as they were. Items by id go in
-  // the chunks their route takes, as one run; a scope is one ask (`sweep`), which lands in the call
-  // and names the items it left
   const bulk = async (
     target: Target,
     job: Omit<BulkRun<string>, "chunk" | "items"> & { readonly sweep: SweepVerb },
-  ): Promise<number> => {
+  ) => {
     if (target.kind === "ids") {
       await runBulk({ ...job, chunk: BULK_ITEMS_MAX, items: target.ids });
+
       return 0;
     }
+
     try {
       const { items, refused } = await sweep.mutateAsync({ ...target.swept, verb: job.sweep });
       toast.success(job.done(items - refused.length));
+
       return refused.length;
     } catch (error) {
       toast.error(refusalText(error, `Those items couldn't be ${job.past}.`));
+
       return 0;
     }
   };
 
-  const restoreItems = async (target: Target): Promise<void> => {
+  const restoreItems = async (target: Target) => {
     let held = 0;
+
     const sweptHeld = await bulk(target, {
       done: (count) => `Restored ${plural(count, "item")}.`,
       past: "restored",
       run: async (chunk) => {
         const { addressHeld, restored } = await restore.mutateAsync({ ids: [...chunk] });
         held += addressHeld.length;
+
         return restored.length;
       },
       sweep: { kind: "restore" },
       verb: "Restoring",
     });
+
     held += sweptHeld;
+
     if (held > 0) {
       toast.info(`${plural(held, "item")} stayed in Deleted: another item holds the same address.`);
     }
   };
 
   return {
-    addFiles: async (files: readonly File[], into: SaveInto): Promise<void> => {
+    addFiles: async (files: readonly File[], into: SaveInto) => {
       await runBulk({
         chunk: 1,
         done: (count) => `Added ${plural(count, "file")}.`,
@@ -98,53 +97,55 @@ export const useLibraryVerbs = () => {
           for (const file of chunk) {
             await addFile.mutateAsync({ file, into });
           }
+
           return chunk.length;
         },
         show: "always",
         verb: "Adding",
       });
     },
-    // an empty note made, answering its id
-    createNote: async (into: SaveInto): Promise<string> => await createNote.mutateAsync({ into }),
-    move: async (target: Target, folderId: string | null): Promise<void> => {
+    createNote: async (into: SaveInto) => await createNote.mutateAsync({ into }),
+    move: async (target: Target, folderId: string | null) => {
       const folder = folderId === null ? null : { id: folderId };
       await bulk(target, {
         done: (count) => `Moved ${plural(count, "item")}.`,
         past: "moved",
         run: async (chunk) => {
           const { items } = await organize.mutateAsync({ folder, ids: [...chunk] });
+
           return items.length;
         },
         sweep: { folder, kind: "organize" },
         verb: "Moving",
       });
     },
-    pin: async (target: Target, pinned: boolean): Promise<void> => {
+    pin: async (target: Target, pinned: boolean) => {
       await bulk(target, {
         done: (count) => `${pinned ? "Pinned" : "Unpinned"} ${plural(count, "item")}.`,
         past: pinned ? "pinned" : "unpinned",
         run: async (chunk) => {
           const { items } = await organize.mutateAsync({ ids: [...chunk], pinned });
+
           return items.length;
         },
         sweep: { kind: "organize", pinned },
         verb: pinned ? "Pinning" : "Unpinning",
       });
     },
-    purge: async (target: Target): Promise<void> => {
+    purge: async (target: Target) => {
       await bulk(target, {
         done: (count) => `Deleted ${plural(count, "item")} forever.`,
         past: "deleted",
         run: async (chunk) => {
           const { purged } = await purge.mutateAsync({ ids: [...chunk] });
+
           return purged.length;
         },
         sweep: { kind: "purge" },
         verb: "Deleting",
       });
     },
-    // to Deleted, with an Undo of what went when the device named it
-    remove: async (target: Target): Promise<void> => {
+    remove: async (target: Target) => {
       const went: string[] = [];
       await bulk(target, {
         action: () => ({
@@ -158,6 +159,7 @@ export const useLibraryVerbs = () => {
         run: async (chunk) => {
           const { deleted } = await remove.mutateAsync({ ids: [...chunk] });
           went.push(...deleted);
+
           return deleted.length;
         },
         sweep: { kind: "delete" },
@@ -165,20 +167,19 @@ export const useLibraryVerbs = () => {
       });
     },
     restore: restoreItems,
-    // a saved page read again by the cloud's fill
-    refresh: (id: string): void => {
+    refresh: (id: string) => {
       refresh.mutate({ id });
     },
-    // each link where `into` saves, a lone one offering to open what it saved
     saveLinks: async (
       links: readonly CapturedLink[],
       into: SaveInto,
       open: (id: string) => void,
-    ): Promise<void> => {
+    ) => {
       const made: { readonly created: boolean; readonly id: string }[] = [];
       await runBulk({
         action: () => {
           const [only, ...more] = made;
+
           return only === undefined || more.length > 0
             ? undefined
             : {
@@ -193,6 +194,7 @@ export const useLibraryVerbs = () => {
           if (count > 1) {
             return `Saved ${plural(count, "link")}.`;
           }
+
           return made[0]?.created === false ? "Your library already holds that link." : "Saved.";
         },
         items: links,
@@ -205,23 +207,27 @@ export const useLibraryVerbs = () => {
               tags: [...into.tags],
               url,
             };
+
             const { created, item } = await saveLink.mutateAsync(
               title === null ? link : { ...link, title },
             );
+
             made.push({ created, id: item.id });
           }
+
           return chunk.length;
         },
         verb: "Saving",
       });
     },
-    tag: async (target: Target, change: TagChange): Promise<void> => {
+    tag: async (target: Target, change: TagChange) => {
       const tags = { addTags: [...change.add], removeTags: [...change.remove] };
       await bulk(target, {
         done: (count) => `Tagged ${plural(count, "item")}.`,
         past: "tagged",
         run: async (chunk) => {
           const { items } = await organize.mutateAsync({ ...tags, ids: [...chunk] });
+
           return items.length;
         },
         sweep: { ...tags, kind: "organize" },
@@ -229,11 +235,12 @@ export const useLibraryVerbs = () => {
       });
     },
 
-    createFolder: (name: string, parentId: string | null): void => {
+    createFolder: (name: string, parentId: string | null) => {
       const siblings = folders()
         .filter((folder) => folder.parentId === parentId)
         .map((folder) => folder.sort)
         .toSorted();
+
       writeFolders.mutate({
         ops: [
           {
@@ -246,11 +253,12 @@ export const useLibraryVerbs = () => {
         ],
       });
     },
-    deleteFolder: (folderId: string): void => {
+    deleteFolder: (folderId: string) => {
       writeFolders.mutate({ ops: [{ id: folderId, op: "delete" }] });
     },
-    renameFolder: (folderId: string, name: string): void => {
+    renameFolder: (folderId: string, name: string) => {
       const held = folders().find((folder) => folder.id === folderId);
+
       if (held !== undefined && held.name !== name) {
         writeFolders.mutate({ ops: [{ base: held.name, id: folderId, name, op: "rename" }] });
       }

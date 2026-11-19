@@ -2,17 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { buildResolver, wikiNameKeys } from "./link-resolve";
 import { basenamePath, extnamePath, normalizePath } from "@repo/contract/knowledge/folder-path";
-import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
+import { mulberry32, pick } from "@repo/contract/test-support/seeded-random.test-utils";
 
-// must match link-resolve's pickBest
-const pickBest = (candidates: readonly string[]): string | null => {
+const pickBest = (candidates: readonly string[]) => {
   if (candidates.length === 0) {
     return null;
   }
+
   let best: string | null = null;
   let bestSegments = Number.POSITIVE_INFINITY;
+
   for (const path of candidates) {
     const segments = path.split("/").length;
+
     if (
       best === null ||
       segments < bestSegments ||
@@ -23,20 +25,23 @@ const pickBest = (candidates: readonly string[]): string | null => {
       bestSegments = segments;
     }
   }
+
   return best;
 };
 
-// mirrors how buildResolver keys byName
-const nameMatches = (p: string, name: string): boolean => {
+const nameMatches = (p: string, name: string) => {
   const base = basenamePath(p);
+
   if (base === name) {
     return true;
   }
+
   return extnamePath(base).toLowerCase() === ".md" && base.slice(0, -3) === name;
 };
 
-const oracleResolveWiki = (all: readonly string[], target: string): string | null => {
+const oracleResolveWiki = (all: readonly string[], target: string) => {
   const clean = normalizePath(target);
+
   if (clean === "" || clean.startsWith("..")) {
     return null;
   }
@@ -45,8 +50,10 @@ const oracleResolveWiki = (all: readonly string[], target: string): string | nul
     if (all.includes(candidate)) {
       return candidate;
     }
+
     const lower = candidate.toLowerCase();
     const ci = pickBest(all.filter((p) => p.toLowerCase() === lower));
+
     if (ci !== null) {
       return ci;
     }
@@ -54,54 +61,65 @@ const oracleResolveWiki = (all: readonly string[], target: string): string | nul
 
   if (!clean.includes("/")) {
     const cs = pickBest(all.filter((p) => nameMatches(p, clean)));
+
     if (cs !== null) {
       return cs;
     }
+
     const lower = clean.toLowerCase();
+
     return pickBest(all.filter((p) => nameMatches(p.toLowerCase(), lower)));
   }
 
   const suffixes = [`/${clean}`, `/${clean}.md`];
   const cs = pickBest(all.filter((p) => suffixes.some((s) => p.endsWith(s))));
+
   if (cs !== null) {
     return cs;
   }
+
   const lowerSuffixes = suffixes.map((s) => s.toLowerCase());
+
   return pickBest(all.filter((p) => lowerSuffixes.some((s) => p.toLowerCase().endsWith(s))));
 };
 
-const buildSyntheticFolder = (rand: () => number, count: number): string[] => {
+const buildSyntheticFolder = (rand: () => number, count: number) => {
   const dirs = ["", "notes", "wiki", "projects/alpha", "projects/beta", "Deep/Nested/Dir", "sub"];
   const stems = ["note", "Note", "roadmap", "digest", "Plan", "tasks", "readme", "Ideas"];
   const exts = [".md", ".md", ".md", ".png", ".txt"];
   const seen = new Set<string>();
   const paths: string[] = [];
+
   while (paths.length < count) {
     const dir = pick(rand, dirs);
     const stem = `${pick(rand, stems)}${Math.floor(rand() * 400)}`;
     const ext = pick(rand, exts);
     const path = dir === "" ? `${stem}${ext}` : `${dir}/${stem}${ext}`;
+
     if (seen.has(path)) {
       continue;
     }
+
     seen.add(path);
     paths.push(path);
   }
+
   return paths;
 };
 
-const caseMangle = (rand: () => number, s: string): string => {
+const caseMangle = (rand: () => number, s: string) => {
   if (rand() < 0.5) {
     return s.toLowerCase();
   }
+
   if (rand() < 0.5) {
     return s.toUpperCase();
   }
+
   return s;
 };
 
 describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
-  // ~5s under a contended full-repo run; the default 5s timeout is too tight
   it("matches on 1,000 path-style targets over 5,000 synthetic paths", { timeout: 20_000 }, () => {
     const rand = mulberry32(0xc0_ff_ee);
     const paths = buildSyntheticFolder(rand, 5000);
@@ -112,12 +130,15 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
       const segments = source.split("/");
       const take = Math.min(segments.length, 1 + Math.floor(rand() * 3));
       let target = segments.slice(segments.length - take).join("/");
+
       if (target.endsWith(".md") && rand() < 0.5) {
         target = target.slice(0, -3);
       }
+
       if (rand() < 0.4) {
         target = caseMangle(rand, target);
       }
+
       if (rand() < 0.1) {
         target = `missing-dir/${target}`;
       }
@@ -138,7 +159,9 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
       "z/sub/note.md.md",
       "sub/note.md",
     ];
+
     const resolver = buildResolver(paths);
+
     const targets = [
       "sub/note",
       "sub/note.md",
@@ -150,6 +173,7 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
       "nope/note",
       "sub/missing",
     ];
+
     for (const target of targets) {
       expect(resolver.resolveWiki(target), `target: ${JSON.stringify(target)}`).toBe(
         oracleResolveWiki(paths, target),
@@ -158,11 +182,10 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
   });
 });
 
-// a rename proves a short name unambiguous by reading the paths filed under its key, which holds
-// only while a bare name reaches exactly those
 describe("link-resolve — a bare name answers to exactly the paths filed under its key", () => {
   it("over synthetic paths and every edge shape of a name", () => {
     const rand = mulberry32(0xba_5e);
+
     const paths = [
       ...buildSyntheticFolder(rand, 300),
       "note",
@@ -171,6 +194,7 @@ describe("link-resolve — a bare name answers to exactly the paths filed under 
       "y/sub/note.png",
       "dotted.name.md",
     ];
+
     const names = [
       ...paths.slice(0, 100).flatMap((path) => wikiNameKeys(path)),
       "note",

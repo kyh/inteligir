@@ -2,15 +2,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
 import type { EditorHost, EditorHostActions } from "@repo/editor/host-io";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-
-vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn<() => void>(), {
-    error: vi.fn<() => void>(),
-    success: vi.fn<() => void>(),
-    warning: vi.fn<() => void>(),
-  }),
-}));
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 describe("installing the editor's host", () => {
   it("takes no host that leaves a capability out", () => {

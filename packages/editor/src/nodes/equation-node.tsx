@@ -1,4 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { RadicalIcon } from "lucide-react";
@@ -17,9 +17,8 @@ import { useEditPopover } from "./edit-popover";
 
 const KatexView = lazy(async () => await import("@repo/editor/nodes/equation-katex"));
 
-const tex = (element: TElement): string => stringProp(element, "texExpression") ?? "";
+const tex = (element: TElement) => stringProp(element, "texExpression") ?? "";
 
-// re-derives @platejs/math's useEquationInput; the package eagerly imports katex (math-kit.tsx).
 const EquationEditor = ({
   isInline,
   onClose,
@@ -31,10 +30,13 @@ const EquationEditor = ({
 }) => {
   const editor = useEditorRef();
   const element = useElement();
+
   const [draft, setDraft] = useState(() => {
     const initial = tex(element);
+
     return { initial, value: initial };
   });
+
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ const EquationEditor = ({
   const write = (next: string) => {
     setDraft((prior) => ({ ...prior, value: next }));
     const at = editor.api.findPath(element);
+
     if (at) {
       editor.tf.setNodes({ texExpression: next }, { at });
     }
@@ -52,9 +55,11 @@ const EquationEditor = ({
 
   const dismiss = () => {
     const at = editor.api.findPath(element);
+
     if (at) {
       editor.tf.setNodes({ texExpression: draft.initial }, { at });
     }
+
     onClose();
   };
 
@@ -74,6 +79,7 @@ const EquationEditor = ({
           if (isImeComposing(e)) {
             return;
           }
+
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             onClose();
@@ -99,6 +105,7 @@ const useEquationPopover = () => {
     setOpen(false);
     editor.tf.select(element, { focus: true, next: true });
   };
+
   return { close, open, setOpen };
 };
 

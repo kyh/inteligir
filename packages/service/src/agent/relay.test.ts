@@ -1,18 +1,16 @@
-// A thread followed through the relay over the fake platform: what it kept, then what happens live,
-// the reply's draft before its message, a turn's end once its settle is kept, however late, and a
-// reconnect by the last id read that resumes with nothing missed or repeated, wherever the stream
-// was cut.
-
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { dbSuite } from "@repo/db/test-database";
 import { beforeEach, expect, it } from "vitest";
 
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
-import { personalLibrary } from "../test-support/library-fixture";
-import type { Streamed } from "../test-support/thread-reads";
-import { caughtUp, readStream, rowsOf, shownOf } from "../test-support/thread-reads";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
+import { personalLibrary } from "../test-support/library.fixture";
+import type { Streamed } from "../test-support/thread-reads.test-utils";
+import { caughtUp, readStream, rowsOf, shownOf } from "../test-support/thread-reads.test-utils";
 import { deleteAgentThread, sendToAgent } from "./agent-sessions";
 import { followThread } from "./relay";
 import type { AgentRuntime } from "./runtime";
@@ -35,11 +33,13 @@ const follow = async (
   lastEventId?: string,
 ) => {
   const stop = new AbortController();
+
   const stream = await followThread(runtime, accountId, threadId, {
     lastEventId,
     pollMs: 10,
     signal: stop.signal,
   });
+
   try {
     return await readStream(stream, done);
   } finally {
@@ -50,7 +50,7 @@ const follow = async (
 const endsTurn = (turn: number) => (read: readonly Streamed[]) =>
   shownOf(read).some((event) => event.type === "turn.ended" && event.turn === turn);
 
-const idsOf = (read: readonly Streamed[]): string[] => rowsOf(read).map(({ eventId }) => eventId);
+const idsOf = (read: readonly Streamed[]) => rowsOf(read).map(({ eventId }) => eventId);
 
 dbSuite("a thread followed as it happens", () => {
   it("streams what the thread kept, then caughtUp, then the turn live with its reply's draft", async () => {
@@ -68,13 +68,16 @@ dbSuite("a thread followed as it happens", () => {
 
     const drafts = read.flatMap(({ event }) => (event.kind === "draft" ? [event.text] : []));
     expect(drafts.join("")).toBe("x".repeat(300));
+
     const kept = read.findIndex(
       ({ event }) => event.kind === "event" && event.row.type === "agent.message",
     );
+
     const replied = read.findIndex(
       (each, index) =>
         index > caughtAt && each.event.kind === "event" && each.event.row.type === "agent.message",
     );
+
     expect(kept).toBeLessThan(caughtAt);
     expect(read.findIndex(({ event }) => event.kind === "draft")).toBeLessThan(replied);
     expect(read.flatMap(({ event, id }) => (event.kind === "event" ? [id] : []))).toStrictEqual(
@@ -85,6 +88,7 @@ dbSuite("a thread followed as it happens", () => {
 
   it("shows a live turn's end once its settle is kept, so what Undo takes back counts it", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { threadId } = await sendToAgent(runtime, accountId, {
       text: `${CREATE_NOTE}\nlong 300`,
     });
@@ -103,13 +107,15 @@ dbSuite("a thread followed as it happens", () => {
     await platform.turnsSettled();
 
     let sofar: readonly Streamed[] = [];
+
     const reading = follow(accountId, threadId, (read) => {
       sofar = read;
+
       return endsTurn(2)(read);
     });
+
     await sendToAgent(runtime, accountId, { text: "Again", threadId });
     await platform.turnsSettled();
-    // far past the relay's quick asks, as a settle hook eve retries for a while
     await sleep(1500);
     expect(shownOf(sofar).map(({ type }) => type)).toStrictEqual(["user.message", "agent.message"]);
 
@@ -134,10 +140,13 @@ dbSuite("a thread followed as it happens", () => {
     await platform.turnsSettled();
 
     let sofar: readonly Streamed[] = [];
+
     const reading = follow(accountId, threadId, (read) => {
       sofar = read;
+
       return endsTurn(2)(read);
     });
+
     const releaseStart = platform.holdHooks("turn.started");
     const releaseSettle = platform.holdHooks("turn.settled");
     await sendToAgent(runtime, accountId, { text: "Again", threadId });
@@ -178,6 +187,7 @@ dbSuite("a thread followed as it happens", () => {
     expect([...idsOf(firstPart), ...idsOf(rest)]).toStrictEqual(idsOf(whole));
 
     await sendToAgent(runtime, accountId, { text: "long 300", threadId });
+
     const beforeCut = await follow(
       accountId,
       threadId,
@@ -186,6 +196,7 @@ dbSuite("a thread followed as it happens", () => {
         rowsOf(read.slice(read.findIndex(({ event }) => event.kind === "caughtUp"))).length > 0,
       idsOf(whole).at(-1),
     );
+
     const afterCut = await follow(accountId, threadId, endsTurn(2), idsOf(beforeCut).at(-1));
     await platform.turnsSettled();
     const after = await follow(accountId, threadId, caughtUp, idsOf(whole).at(-1));
@@ -219,12 +230,15 @@ dbSuite("a thread followed as it happens", () => {
     await platform.turnsSettled();
 
     const deleting: Promise<void>[] = [];
+
     const read = await follow(accountId, threadId, (sofar) => {
       if (caughtUp(sofar) && deleting.length === 0) {
         deleting.push(deleteAgentThread(runtime, accountId, threadId).then(settled));
       }
+
       return false;
     });
+
     await Promise.all(deleting);
     expect(caughtUp(read)).toBe(true);
   });

@@ -1,6 +1,3 @@
-// every item inserts through a kit transform whose bytes re-parse to a modeled node and are their
-// own fixpoint; an inline equation writes none until it holds TeX.
-
 import { insertTable } from "@platejs/table";
 import {
   PencilRulerIcon,
@@ -52,23 +49,21 @@ export interface SlashItem {
   value: string;
   description: string;
   keywords?: string[];
-  // the row inserts a block the rich-block lock holds, which a locked editor could never fill
   richBlock?: true;
   onSelect: (editor: PlateEditor) => void;
 }
 
-// a row that turns the block into a turn-into target, named as the toolbar and the block menu
-// name it
 const turnIntoRow = (
   id: TurnIntoId,
   row: Pick<SlashItem, "description" | "icon" | "keywords" | "value">,
-): SlashItem => ({
-  ...row,
-  label: turnIntoOption(id).label,
-  onSelect: (editor) => {
-    turnIntoSelection(editor, turnIntoOption(id));
-  },
-});
+) =>
+  ({
+    ...row,
+    label: turnIntoOption(id).label,
+    onSelect: (editor) => {
+      turnIntoSelection(editor, turnIntoOption(id));
+    },
+  }) satisfies SlashItem;
 
 export const GROUPS: { group: string; items: SlashItem[] }[] = [
   {

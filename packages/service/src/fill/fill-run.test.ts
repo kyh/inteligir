@@ -1,16 +1,10 @@
-// The fill job's run over Postgres: a link saved to read later, its page read through the guarded
-// read from a suite's web, by the one reader every device runs, its files kept in the library and
-// the reading landed in its item; a page a later try may get past asked again until the last try,
-// which says the page's own failure, and past every try the page said unreached; a link the
-// built-in agent saved, read without its turn's Undo losing it.
-
 import { randomUUID } from "node:crypto";
 
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { stubFields } from "@repo/contract/library/item-makes";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { file, itemFile, job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -33,14 +27,14 @@ import { drainJobs } from "../jobs/drain-jobs";
 import { JOB_RUNS, leasedRun } from "../jobs/job-kinds";
 import { sealTurnSet } from "../library/library-change-sets";
 import { readItemWhole } from "../library/library-rows";
-import { filePage, htmlPage, pngOf, redirect, serveWeb } from "../test-support/fill-web";
+import { filePage, htmlPage, pngOf, redirect, serveWeb } from "../test-support/fill-web.test-utils";
 import {
   libraryAs,
   makeAccount,
   personalLibrary,
   seedItem,
   sessionPrincipal,
-} from "../test-support/library-fixture";
+} from "../test-support/library.fixture";
 import type { FillJob } from "./fill-job";
 import { fillRun } from "./fill-run";
 import { oembedEndpoint } from "./oembed";
@@ -60,8 +54,8 @@ const CORPUS = {
 
 const PDF = new TextEncoder().encode("%PDF-1.7\n% a file a link answered with\n");
 
-// an app shell, whose words only its host's oEmbed answer holds
 const SHELL = "<html><head><title>X</title></head><body><div id=root></div></body></html>";
+
 const hostsWords = () =>
   Response.json({
     author_name: "A Poster",
@@ -69,12 +63,13 @@ const hostsWords = () =>
     provider_name: "X",
   });
 
-const thousandWs = (): BodyBlock => ({
-  block: paragraph(randomUUID(), "w".repeat(1000)),
-  section: "note",
-});
+const thousandWs = () =>
+  ({
+    block: paragraph(randomUUID(), "w".repeat(1000)),
+    section: "note",
+  }) satisfies BodyBlock;
 
-const pageDiscovering = (endpoint: string): string =>
+const pageDiscovering = (endpoint: string) =>
   `<html><head><title>A post</title><link rel="alternate" type="application/json+oembed" href="${endpoint}"></head><body><article><p>${"Words worth keeping. ".repeat(40)}</p></article></body></html>`;
 
 interface SavedLink {
@@ -83,15 +78,15 @@ interface SavedLink {
   readonly job: FillJob;
 }
 
-// a link saved to read later in a fresh account, and the reading its save asked for
-const savedLink = async (url: string): Promise<SavedLink> => {
+const savedLink = async (url: string) => {
   const { accountId, library } = await personalLibrary();
   const saved = await library.items.saveLink({ url });
+
   return {
     accountId,
     itemId: saved.item.id,
     job: { coverHint: null, itemId: saved.item.id, url: saved.item.fields.url ?? url },
-  };
+  } satisfies SavedLink;
 };
 
 type Web = ReturnType<typeof serveWeb>;
@@ -99,7 +94,6 @@ type Web = ReturnType<typeof serveWeb>;
 const runOver = (web: Web) =>
   leasedRun(fillRun(pageFetch({ deadlineMs: 20_000, fetch: web.fetch })));
 
-// the job run as the drain's `attempts`-th lease of it hands it over
 const deliver = async (
   { accountId, job: payload }: Pick<SavedLink, "accountId" | "job">,
   web: Web,
@@ -116,27 +110,28 @@ const deliver = async (
 
 const itemIn = async (accountId: string, itemId: string) => {
   const whole = await readItemWhole(db, accountId, itemId);
+
   return whole === null ? null : { blocks: whole.blocks, fields: whole.item.fields };
 };
 
 const fieldsIn = async (accountId: string, itemId: string) => {
   const item = await itemIn(accountId, itemId);
+
   return item?.fields ?? null;
 };
 
-const textOfSection = (
-  item: Awaited<ReturnType<typeof itemIn>>,
-  section: "note" | "article",
-): string =>
+const textOfSection = (item: Awaited<ReturnType<typeof itemIn>>, section: "note" | "article") =>
   JSON.stringify(
     (item?.blocks ?? []).filter((held) => held.section === section).map((held) => held.block),
   );
 
-// the bytes the library keeps under a sha
-const keptBytes = async (accountId: string, sha: string): Promise<Uint8Array | null> => {
+const keptBytes = async (accountId: string, sha: string) => {
   const held = await fileOf(db, accountId, sha);
   const read = held === null ? null : await FILE_STORE.read(held.pathname, null);
-  return read === null ? null : new Uint8Array(await new Response(read.body).arrayBuffer());
+
+  return (
+    read === null ? null : new Uint8Array(await new Response(read.body).arrayBuffer())
+  ) satisfies Uint8Array | null;
 };
 
 const namedBy = async (accountId: string, itemId: string) =>
@@ -150,10 +145,12 @@ dbSuite("a saved link's reading", () => {
     const url = "https://pages.example/posts/item";
     const saved = await savedLink(url);
     const cover = pngOf(1200, 630);
+
     const web = serveWeb({
       "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
       [url]: htmlPage(blogPost),
     });
+
     await expect(deliver(saved, web)).resolves.toBe("done");
     const item = await itemIn(saved.accountId, saved.itemId);
     expect(item?.fields).toMatchObject({
@@ -167,7 +164,6 @@ dbSuite("a saved link's reading", () => {
     });
     expect(textOfSection(item, "article")).toContain("contract with the future");
     expect(textOfSection(item, "note")).toBe("[]");
-    // the page first, then its first cover candidate, asked as a browser would
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([
       url,
       "https://cdn.fieldnotes.example/cover@2x.jpg",
@@ -188,7 +184,6 @@ dbSuite("a saved link's reading", () => {
       await expect(deliver(saved, serveWeb({ [url]: htmlPage(html) }))).resolves.toBe("done");
       const item = await itemIn(saved.accountId, saved.itemId);
       expect(item?.fields).toMatchObject({ reading: { state: "read" } });
-      // every page gives an article or, a video's, the words it says of itself
       const article = (item?.blocks ?? []).filter((held) => held.section === "article");
       expect(article.length > 0 || item?.fields.description !== null).toBe(true);
     },
@@ -209,6 +204,7 @@ dbSuite("a saved link's reading", () => {
     const url = "https://www.youtube.com/watch?v=abc123";
     const saved = await savedLink(url);
     const endpoint = oembedEndpoint(url, null) ?? "";
+
     const web = serveWeb({
       [endpoint]: () =>
         Response.json({ author_name: "The Baker", provider_name: "YouTube", title: "Sourdough" }),
@@ -216,11 +212,11 @@ dbSuite("a saved link's reading", () => {
         videoPage.replace("<head>", '<head><meta name="author" content="Crumb Kitchen">'),
       ),
     });
+
     await deliver(saved, web);
     expect(web.asked.map((hop) => hop.url)).toContain(endpoint);
     const item = await itemIn(saved.accountId, saved.itemId);
     expect(item?.fields).toMatchObject({
-      // the page's own byline wins over what the host's oEmbed says
       author: "Crumb Kitchen",
       kind: "video",
       reading: { state: "read" },
@@ -305,10 +301,12 @@ dbSuite("a saved link's reading", () => {
   ])("never asks %s, a discovery link into private space", async (endpoint) => {
     const url = "https://pages.example/posts/discovering";
     const saved = await savedLink(url);
+
     const web = serveWeb({
       [endpoint]: () => Response.json({ author_name: "Inside the network" }),
       [url]: htmlPage(pageDiscovering(endpoint)),
     });
+
     await expect(deliver(saved, web)).resolves.toBe("done");
     expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
     const item = await itemIn(saved.accountId, saved.itemId);
@@ -324,10 +322,12 @@ dbSuite("a saved link's reading", () => {
     const url = "https://pages.example/posts/discovering";
     const endpoint = "https://pages.example/oembed?url=post";
     const saved = await savedLink(url);
+
     const web = serveWeb({
       [endpoint]: htmlPage("<html><body>Not an answer</body></html>"),
       [url]: htmlPage(pageDiscovering(endpoint)),
     });
+
     await expect(deliver(saved, web)).resolves.toBe("done");
     expect(web.asked.map((hop) => hop.url)).toContain(endpoint);
     await expect(fieldsIn(saved.accountId, saved.itemId)).resolves.toMatchObject({
@@ -378,9 +378,11 @@ dbSuite("a reading that did not land a page", () => {
     const url = "https://busy.example/post";
     const saved = await savedLink(url);
     const web = serveWeb({ [url]: htmlPage("<p>busy</p>", 503) });
+
     for (const attempts of [1, 2, 3]) {
       await expect(deliver(saved, web, attempts)).resolves.toBe("retry");
     }
+
     await expect(fieldsIn(saved.accountId, saved.itemId)).resolves.toMatchObject({
       reading: { state: "pending" },
     });
@@ -444,16 +446,18 @@ dbSuite("a reading that did not land a page", () => {
   it("says a page whose text the item can't hold as text that couldn't be saved", async () => {
     const accountId = await makeAccount();
     const url = "https://pages.example/too-much";
-    // a note within a few hundred bytes of what a body holds, which the page's article carries past
     const size = utf8ByteLength(JSON.stringify(thousandWs()));
+
     const blocks = Array.from({ length: Math.floor((BODY_MAX_BYTES - 1000) / (size + 1)) }, () =>
       thousandWs(),
     );
+
     const seeded = await seedItem(accountId, {
       blocks,
       fields: stubFields({ folderId: null, savedAt: Date.now(), tags: [], url }),
     });
-    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const warned = vi.spyOn(console, "warn");
     await deliver(
       { accountId, job: { coverHint: null, itemId: seeded.id, url } },
       serveWeb({ [url]: htmlPage(blogPost) }),
@@ -508,22 +512,26 @@ dbSuite("a job the run meets", () => {
     const saved = await savedLink(url);
     const cover = pngOf(1200, 630);
     const library = libraryAs(sessionPrincipal(saved.accountId));
+
     const web = serveWeb({
       "https://cdn.fieldnotes.example/cover@2x.jpg": async () => {
-        // the person deletes the item while its cover is fetched
         await library.items.delete({ ids: [saved.itemId] });
-        return await filePage(cover, "image/png")();
+
+        return filePage(cover, "image/png")();
       },
       [url]: htmlPage(blogPost),
     });
+
     await deliver(saved, web);
     await expect(fieldsIn(saved.accountId, saved.itemId)).resolves.toMatchObject({
       reading: { state: "pending" },
     });
+
     const kept = await db
       .select({ sha: file.sha256 })
       .from(file)
       .where(eq(file.accountId, saved.accountId));
+
     expect(kept).toHaveLength(1);
     await expect(namedBy(saved.accountId, saved.itemId)).resolves.toStrictEqual([]);
     const dayOn = Date.now() + 25 * 60 * 60_000;

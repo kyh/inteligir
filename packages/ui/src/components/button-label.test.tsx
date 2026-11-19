@@ -3,15 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { Button } from "./button";
 
-const noop = (): void => {
-  // a button needs a handler; this test is about layout
-};
+const noop = () => {};
 
-// The label is trimmed with text-box, which only a block container honours, so an icon left
-// inside that block does not size it and the line box pushes it out — the icon drew above the
-// label. Every element child belongs beside the text, not within it.
-const labelSpan = (button: HTMLElement): HTMLElement | null =>
-  button.querySelector("[class*='text-box']");
+const labelSpan = (button: HTMLElement) => button.querySelector("[class*='text-box']");
 
 describe("a button's children", () => {
   it("keeps an icon child out of the trimmed label span", () => {

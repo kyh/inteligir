@@ -14,77 +14,86 @@ import { editItemView } from "./item-edit";
 import type { EditPorts } from "./item-edit";
 import { itemView, viewPage } from "./item-view";
 
-const line = (text: string): LibraryNode => ({ children: [{ text }], type: "p" });
+const line = (text: string) => ({ children: [{ text }], type: "p" }) satisfies LibraryNode;
 
-const paragraph = (id: string, text: string): LibraryBlock => ({
-  children: [{ text }],
-  id,
-  type: "p",
-});
+const paragraph = (id: string, text: string) =>
+  ({
+    children: [{ text }],
+    id,
+    type: "p",
+  }) satisfies LibraryBlock;
 
-const bullet = (id: string, text: string): LibraryBlock => ({
-  children: [{ text }],
-  id,
-  indent: 1,
-  listStyleType: "disc",
-  type: "p",
-});
+const bullet = (id: string, text: string) =>
+  ({
+    children: [{ text }],
+    id,
+    indent: 1,
+    listStyleType: "disc",
+    type: "p",
+  }) satisfies LibraryBlock;
 
-const toggle = (id: string): LibraryBlock => ({
-  children: [line("Summary"), line("hidden")],
-  id,
-  type: "toggle",
-});
+const toggle = (id: string) =>
+  ({
+    children: [line("Summary"), line("hidden")],
+    id,
+    type: "toggle",
+  }) satisfies LibraryBlock;
 
-const columns = (id: string, inner: LibraryNode[]): LibraryBlock => ({
-  children: [
-    { children: inner, type: "column" },
-    { children: [line("right")], type: "column" },
-  ],
-  id,
-  type: "column_group",
-});
+const columns = (id: string, inner: LibraryNode[]) =>
+  ({
+    children: [
+      { children: inner, type: "column" },
+      { children: [line("right")], type: "column" },
+    ],
+    id,
+    type: "column_group",
+  }) satisfies LibraryBlock;
 
-const stored = (block: LibraryBlock, section: LibrarySection): BodyBlock => ({ block, section });
+const stored = (block: LibraryBlock, section: LibrarySection) =>
+  ({ block, section }) satisfies BodyBlock;
 
 const VIEW_PORTS = { title: () => null };
 
-// a page of `count` blocks from `from`, however long it runs
 const unbounded = (from: number, count: number) => ({
   count,
   from,
   maxChars: Number.POSITIVE_INFINITY,
 });
 
-const editPorts = (): EditPorts => {
+const editPorts = () => {
   let minted = 0;
+
   return {
     fileKind: () => null,
     itemByTitle: () => null,
     newBlockId: () => {
       minted += 1;
+
       return `new${String(minted)}`;
     },
     title: () => null,
-  };
+  } satisfies EditPorts;
 };
 
-const words = (blocks: readonly TElement[] | null): string[] =>
+const words = (blocks: readonly TElement[] | null) =>
   (blocks ?? []).map((block) => `${block.type}:${NodeApi.string(block)}`);
 
 const sectionsOf = (md: string) => {
   const read = parseMarkdownSections(md);
+
   if (!read.ok) {
     throw new Error(`the view did not read: ${read.reason.kind}`);
   }
+
   return { article: words(read.sections.article), note: words(read.sections.note) };
 };
 
-const withPage = (page: LibraryBlock): BodyBlock[] => [
-  stored(paragraph("n1", "my note"), "note"),
-  stored(page, "article"),
-  stored(paragraph("a2", "after it"), "article"),
-];
+const withPage = (page: LibraryBlock) =>
+  [
+    stored(paragraph("n1", "my note"), "note"),
+    stored(page, "article"),
+    stored(paragraph("a2", "after it"), "article"),
+  ] satisfies BodyBlock[];
 
 describe("the article's fence", () => {
   it.each([
@@ -135,22 +144,22 @@ describe("the article's fence", () => {
   });
 });
 
-// a list holding a code block under its first item, a paragraph on either side
-const nested = (indent: number): BodyBlock[] => [
-  stored(paragraph("p1", "before"), "note"),
-  stored(bullet("a1", "one"), "note"),
-  stored(
-    {
-      children: [{ children: [{ text: "x" }], type: "code_line" }],
-      id: "a2",
-      indent,
-      type: "code_block",
-    },
-    "note",
-  ),
-  stored(bullet("a3", "two"), "note"),
-  stored(paragraph("p2", "after"), "note"),
-];
+const nested = (indent: number) =>
+  [
+    stored(paragraph("p1", "before"), "note"),
+    stored(bullet("a1", "one"), "note"),
+    stored(
+      {
+        children: [{ children: [{ text: "x" }], type: "code_line" }],
+        id: "a2",
+        indent,
+        type: "code_block",
+      },
+      "note",
+    ),
+    stored(bullet("a3", "two"), "note"),
+    stored(paragraph("p2", "after"), "note"),
+  ] satisfies BodyBlock[];
 
 describe("a list run", () => {
   it.each([1, 2])("holds a block nested under it at indent %i as one group", (indent) => {
@@ -160,9 +169,11 @@ describe("a list run", () => {
       ["a1", "a2", "a3"],
       ["p2"],
     ]);
+
     for (const group of view.groups) {
       expect(view.markdown.slice(group.start, group.start + group.text.length)).toBe(group.text);
     }
+
     expect(sectionsOf(view.markdown).note).toStrictEqual([
       "p:before",
       "p:one",
@@ -183,8 +194,7 @@ describe("a list run", () => {
   });
 });
 
-// a paragraph linking an item, whose title the view asks for as it writes the paragraph
-const linking = (id: string): BodyBlock =>
+const linking = (id: string) =>
   stored(
     {
       children: [
@@ -198,13 +208,15 @@ const linking = (id: string): BodyBlock =>
     "note",
   );
 
-// ports naming every item whose title the view asked for, in the order it asked
 const askingPorts = () => {
   const asked: string[] = [];
-  const title = (id: string): string => {
+
+  const title = (id: string) => {
     asked.push(id);
+
     return `Item ${id}`;
   };
+
   return { asked, ports: { title } };
 };
 
@@ -226,6 +238,7 @@ describe("a page under a budget", () => {
     const ends = itemView(blocks, VIEW_PORTS).groups.map(
       (group) => blocks.findIndex(({ block }) => block === group.blocks.at(-1)) + 1,
     );
+
     for (const [held, to] of ends.entries()) {
       const page = viewPage(blocks, VIEW_PORTS, unbounded(0, to));
       const budget = { count: blocks.length, from: 0, maxChars: page.markdown.length };

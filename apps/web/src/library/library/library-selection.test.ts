@@ -5,7 +5,6 @@ import type { LibrarySelection, SelectionGesture } from "./library-selection";
 
 const ORDER = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const ROWS = ORDER.map((id) => ({ id }));
-// a listing the grid read whole, and one of 8,512 it read the first eight of
 const WHOLE = { items: ROWS, total: ROWS.length };
 const PARTLY_READ = { items: ROWS, total: 8512 };
 
@@ -15,23 +14,20 @@ const NONE: LibrarySelection = {
   selected: { ids: new Set(), kind: "ids" },
 };
 
-const run = (...gestures: SelectionGesture[]): LibrarySelection => {
+const run = (...gestures: SelectionGesture[]) => {
   let state = NONE;
+
   for (const gesture of gestures) {
     state = selectionAfter(state, gesture);
   }
+
   return state;
 };
 
-// an arrow over a grid three columns wide
-const move = (
-  delta: "left" | "right" | "up" | "down" | "first" | "last",
-  extend = false,
-): SelectionGesture => ({ columns: 3, delta, extend, kind: "move", order: ORDER });
+const move = (delta: "left" | "right" | "up" | "down" | "first" | "last", extend = false) =>
+  ({ columns: 3, delta, extend, kind: "move", order: ORDER }) satisfies SelectionGesture;
 
-// the rows of the listing the selection names
-const names = (s: LibrarySelection): string[] =>
-  selectedIn(s.selected, WHOLE).rows.map((row) => row.id);
+const names = (s: LibrarySelection) => selectedIn(s.selected, WHOLE).rows.map((row) => row.id);
 
 describe("a click and its modifiers, as Finder reads them", () => {
   it("selects one item with a click, replacing what was selected", () => {
@@ -48,6 +44,7 @@ describe("a click and its modifiers, as Finder reads them", () => {
       { kind: "toggle", id: "e" },
       { kind: "toggle", id: "a" },
     );
+
     expect(names(s)).toStrictEqual(["c", "e"]);
     expect(s.anchor).toBe("a");
   });
@@ -56,11 +53,13 @@ describe("a click and its modifiers, as Finder reads them", () => {
     expect(
       names(run({ kind: "click", id: "b" }, { kind: "range", order: ORDER, id: "e" })),
     ).toStrictEqual(["b", "c", "d", "e"]);
+
     const back = run(
       { kind: "click", id: "e" },
       { kind: "range", order: ORDER, id: "e" },
       { kind: "range", order: ORDER, id: "c" },
     );
+
     expect(names(back)).toStrictEqual(["c", "d", "e"]);
     expect(back.anchor).toBe("e");
     expect(back.focus).toBe("c");

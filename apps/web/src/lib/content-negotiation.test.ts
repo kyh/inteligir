@@ -41,6 +41,7 @@ describe(markdownResponse, () => {
       headers: { "Cache-Control": "no-store" },
       status: 404,
     });
+
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("vary")).toContain("Accept");

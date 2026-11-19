@@ -8,7 +8,7 @@ import { libraryPolicy, mintNonce, SITE_POLICY } from "./document-policy";
 
 const SITE = new URL("https://inteligir.com/library");
 
-const directiveOf = (policy: string, name: string): string | undefined =>
+const directiveOf = (policy: string, name: string) =>
   policy.split("; ").find((directive) => directive.startsWith(`${name} `));
 
 const THEME_HASH = `'sha256-${createHash("sha256").update(noFlashThemeScript).digest("base64")}'`;

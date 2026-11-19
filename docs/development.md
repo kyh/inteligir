@@ -145,7 +145,7 @@ opens `http://localhost:5174/app/sign-in`, and signing in there is the whole of
 it. A dev build saves to a local app on another port once its storage names
 it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
 in the welcome page's console, which is how the e2e points the dev build at the
-app it boots (`tools/e2e/src/extension.spec.ts`). The store builds
+app it boots (`tools/e2e/src/extension.test.ts`). The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
 `https://inteligir.com/*` as their one host and save there alone, whatever
@@ -188,7 +188,7 @@ knip runs once, over every workspace. On its own it is
 `pnpm turbo run //#knip`: it reads the extension's program, which extends the
 `.wxt/tsconfig.json` its `generate` task writes, so a bare `pnpm knip` on a
 fresh checkout sees none of the extension's suites and calls the exports they
-use unused. Lint, oxlint over ultracite's core, react, tanstack and anti-slop
+use unused. Lint, oxlint over ultracite's core, react, tanstack, anti-slop and landmines
 presets, is `pnpm turbo run //#lint` on its own for the same reason: its
 type-aware pass reads the site's route types and the extension's
 `.wxt/tsconfig.json`, which their `generate` tasks write.

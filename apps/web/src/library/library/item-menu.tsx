@@ -1,7 +1,3 @@
-// A card's right-click menu, over the card it was opened on, or over the whole selection when that
-// card is in it. Every verb is a command (`./library-commands.tsx`); the menu only names them for
-// the rows it was opened over, by what those rows are: a library item, or one in Deleted.
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,17 +12,13 @@ import { targetCount } from "./library-selection";
 import type { Target } from "./library-selection";
 import type { ListedItem } from "./listing";
 
-// what opened the menu: a right-click, or the card's menu key, which lights its first row
 export type MenuOpener = "pointer" | "key";
 
 export interface ItemMenuState {
   readonly row: ListedItem;
   readonly anchor: HTMLElement;
   readonly openedBy: MenuOpener;
-  // what the verbs act on: the row alone, or the selection it is part of. The grid selects a card
-  // it opens the menu on, so the target is the selection a message to the agent carries
   readonly target: Target;
-  // the rows of the target the grid read, which say what its items share
   readonly subjects: readonly ListedItem[];
 }
 
@@ -40,6 +32,7 @@ const DeletedVerbs = ({
   const commands = useLibraryCommands();
   const count = targetCount(target);
   const many = count > 1;
+
   return (
     <>
       <DropdownMenuItem
@@ -75,10 +68,12 @@ const LibraryVerbs = ({
   const { row, subjects, target } = menu;
   const count = targetCount(target);
   const many = count > 1;
-  // a pin every item carries comes off; items the grid has not read may carry none
+
   const pinned =
     target.kind === "ids" && subjects.every((subject) => subject.fields.pinnedAt !== null);
+
   const { url } = row.fields;
+
   return (
     <>
       {many ? null : (
@@ -172,6 +167,7 @@ export const ItemMenu = ({
     onClose();
     verb();
   };
+
   return (
     <DropdownMenu
       open={menu !== null}

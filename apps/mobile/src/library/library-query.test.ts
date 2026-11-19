@@ -20,6 +20,7 @@ describe("the Library's question to the listing", () => {
       scope: { kind: "deleted" as const },
       words: "draft",
     };
+
     expect(listingPage(filter, 200)).toStrictEqual({
       cursor: 200,
       kinds: ["link"],

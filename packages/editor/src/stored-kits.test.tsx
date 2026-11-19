@@ -1,6 +1,3 @@
-// The kits a person types in, mounted as the app draws them over a stored note: what each writes
-// is what a save stores, and the library's own editor opens that again with nothing to fix.
-
 import { fireEvent, render } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AnyPluginConfig } from "platejs";
@@ -15,7 +12,7 @@ import { pillEntries } from "@repo/editor/headless/formulas/pill-nodes";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
@@ -54,33 +51,35 @@ const SEEDED: BodyBlock[] = [
   },
 ];
 
-// what the library's own editor holds of `blocks` once it opens them
-const reopened = (blocks: readonly BodyBlock[]): BodyBlock[] =>
+const reopened = (blocks: readonly BodyBlock[]) =>
   blocksOfValue(
     createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: editorValueOf(blocks) }).children,
   );
 
-// the person's device, drawn with its kit over the stored note
 const mounted = (kit: readonly AnyPluginConfig[]) => {
   const device: PlateEditor = createPlateEditor({
     nodeId: true,
     plugins: [...kit],
     value: editorValueOf(SEEDED),
   });
+
   const view = render(
     <Plate editor={device}>
       <PlateContent />
     </Plate>,
   );
+
   const editable = view.container.querySelector("[data-slate-editor]");
+
   if (!(editable instanceof HTMLElement)) {
     throw new TypeError("the editor drew nothing");
   }
-  // as a save stores it, which opens again as it was
-  const agree = (): void => {
+
+  const agree = () => {
     const saved = blocksOfValue(device.children);
     expect(reopened(saved)).toStrictEqual(saved);
   };
+
   return { agree, device, editable };
 };
 

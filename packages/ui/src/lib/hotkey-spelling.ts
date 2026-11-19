@@ -1,14 +1,8 @@
-// One spelling for a chord on screen: the editor's toolbar, the palette's rows and the rail's
-// hints all read the same is-hotkey string and spell it for the keyboard in use.
-
 export type ShortcutModifier = "meta" | "ctrl";
 
-// never "either": on mac the editor's Ctrl-K is an emacs line kill, and both modifiers would double-fire.
-export const platformShortcutModifier = (): ShortcutModifier =>
-  /mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl";
+export const platformShortcutModifier = () =>
+  (/mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl") satisfies ShortcutModifier;
 
-// Apple's menu order (⌃⌥⇧⌘) on a mac keyboard, words elsewhere; off a mac `mod` is Ctrl, so the
-// two collapse into one cap
 const MODIFIER_CAPS: Record<
   ShortcutModifier,
   readonly { cap: string; spells: readonly string[] }[]
@@ -26,8 +20,6 @@ const MODIFIER_CAPS: Record<
   ],
 };
 
-// the glyph a named key is drawn with, on every keyboard, by the key's capitalized name; any other
-// key is that name
 const KEY_CAPS = new Map([
   ["Backspace", "⌫"],
   ["Down", "↓"],
@@ -40,22 +32,23 @@ const KEY_CAPS = new Map([
   ["Up", "↑"],
 ]);
 
-const keyCap = (key: string): string => {
+const keyCap = (key: string) => {
   const named = key.charAt(0).toUpperCase() + key.slice(1);
+
   return KEY_CAPS.get(named) ?? named;
 };
 
-// one entry per key, for a surface that draws a box per key
-export const hotkeyCaps = (hotkey: string, modifier: ShortcutModifier): string[] => {
+export const hotkeyCaps = (hotkey: string, modifier: ShortcutModifier) => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
   const mods = new Set(parts.slice(0, -1));
+
   const modifierCaps = MODIFIER_CAPS[modifier]
     .filter((row) => row.spells.some((mod) => mods.has(mod)))
     .map((row) => row.cap);
-  return [...modifierCaps, keyCap(key)];
+
+  return [...modifierCaps, keyCap(key)] satisfies string[];
 };
 
-// a mac keyboard runs its glyphs together; words are joined with +
-export const spellHotkey = (hotkey: string, modifier: ShortcutModifier): string =>
+export const spellHotkey = (hotkey: string, modifier: ShortcutModifier) =>
   hotkeyCaps(hotkey, modifier).join(modifier === "meta" ? "" : "+");

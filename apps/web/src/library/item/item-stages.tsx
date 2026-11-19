@@ -1,7 +1,3 @@
-// What an item that is a file shows above its note: the image, the PDF, the recording or a way to
-// download the file, from the library's files (the cloud's own route under the page's cookie); and
-// what a saved page shows before its text arrives.
-
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
@@ -13,10 +9,9 @@ import { usePageLibrary } from "../cloud/library-context";
 import { fileUrl, readFile } from "../cloud/library-files";
 import { saveBlob } from "@repo/ui/lib/save-blob";
 
-// The file's bytes read where the page draws them, then saved under its own name
-// (`@repo/ui/lib/save-blob`).
 const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
   const { cloud } = usePageLibrary();
+
   const save = useMutation({
     mutationFn: async () => {
       saveBlob(await readFile(cloud, sha), name);
@@ -25,6 +20,7 @@ const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: stri
       toast.error("The file couldn't be saved. Check your connection and try again.");
     },
   });
+
   return (
     <Button
       variant="secondary"
@@ -41,10 +37,13 @@ const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: stri
 
 export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
   const sha = fields.originalSha;
+
   if (sha === null) {
     return null;
   }
+
   const url = fileUrl(sha, fields.originalName);
+
   switch (fields.kind) {
     case "image": {
       return (
@@ -57,6 +56,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
         </div>
       );
     }
+
     case "pdf": {
       return (
         <div className="px-8 pt-4">
@@ -75,6 +75,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
         </div>
       );
     }
+
     case "video": {
       return (
         <div className="flex justify-center px-8 pt-4">
@@ -83,6 +84,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
         </div>
       );
     }
+
     case "audio": {
       return (
         <div className="px-8 pt-4">
@@ -91,6 +93,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
         </div>
       );
     }
+
     case "file":
     case "link":
     case "note": {
@@ -104,16 +107,20 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
         </div>
       );
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(fields.kind satisfies never)}`);
+    }
   }
 };
 
-// where a saved page came from, above its text
 export const SourceHeader = ({ fields }: { fields: LibraryItemFields }) => {
   const { url } = fields;
+
   if (url === null) {
     return null;
   }
+
   return (
     <div className="flex items-center gap-2 px-8 pt-4 text-body text-muted-foreground">
       <a
@@ -129,27 +136,31 @@ export const SourceHeader = ({ fields }: { fields: LibraryItemFields }) => {
   );
 };
 
-// what a link whose page is not read says: that the cloud reads it and its text lands under the
-// note, or why the reading failed
-export const readingNotice = (reading: Reading): string | null => {
+export const readingNotice = (reading: Reading) => {
   switch (reading.state) {
     case "pending": {
       return "Not read yet. The page is read in the cloud, and its text appears here soon.";
     }
+
     case "failed": {
       return reading.error;
     }
+
     case "none":
     case "read": {
       return null;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(reading satisfies never)}`);
+    }
   }
 };
 
 export const ReadingNotice = ({ fields }: { fields: LibraryItemFields }) => {
   const { reading } = fields;
   const notice = readingNotice(reading);
+
   return notice === null ? null : (
     <p className="m-0 px-8 pt-3 text-body text-muted-foreground" data-reading={reading.state}>
       {notice}

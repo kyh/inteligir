@@ -11,48 +11,65 @@ interface RowWords {
 
 const CHECK = { label: "Check for updates", move: "check" } as const;
 
-const rowWords = (state: DesktopUpdateState): RowWords => {
+const rowWords = (state: DesktopUpdateState) => {
   switch (state.status) {
     case "idle": {
-      return { button: CHECK, status: "Inteligir checks for updates when it opens." };
+      return {
+        button: CHECK,
+        status: "Inteligir checks for updates when it opens.",
+      } satisfies RowWords;
     }
+
     case "checking": {
-      return { button: null, status: "Checking…" };
+      return { button: null, status: "Checking…" } satisfies RowWords;
     }
+
     case "not-available": {
-      return { button: CHECK, status: "Inteligir is up to date." };
+      return { button: CHECK, status: "Inteligir is up to date." } satisfies RowWords;
     }
+
     case "available": {
       return {
         button: { label: "Download", move: "download" },
         status: `Inteligir ${state.version} is ready to download.`,
-      };
+      } satisfies RowWords;
     }
+
     case "downloading": {
-      return { button: null, status: `Downloading the update — ${String(state.downloadPercent)}%` };
+      return {
+        button: null,
+        status: `Downloading the update — ${String(state.downloadPercent)}%`,
+      } satisfies RowWords;
     }
+
     case "downloaded": {
       return {
         button: { label: "Restart to update", move: "install" },
         status: `Inteligir ${state.version} installs when it restarts.`,
-      };
+      } satisfies RowWords;
     }
+
     case "check-failed": {
-      return { button: CHECK, status: "Inteligir couldn't check for updates." };
+      return { button: CHECK, status: "Inteligir couldn't check for updates." } satisfies RowWords;
     }
+
     case "download-failed": {
       return {
         button: { label: "Try again", move: "download" },
         status: `Inteligir ${state.version} didn't download.`,
-      };
+      } satisfies RowWords;
     }
+
     case "install-failed": {
       return {
         button: { label: "Try again", move: "install" },
         status: `Inteligir ${state.version} didn't install.`,
-      };
+      } satisfies RowWords;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(state satisfies never)}`);
+    }
   }
 };
 
@@ -68,6 +85,7 @@ export const UpdatesRow = () => {
   }
 
   const { button, status } = rowWords(state);
+
   return (
     <Row label="Updates">
       <span className="flex items-center gap-2">

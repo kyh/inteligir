@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
 import { itemSearch } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -14,25 +14,25 @@ import { mintLibraryId } from "../library/library-ids";
 import { landItem } from "../library/library-landing";
 import { readItem } from "../library/library-rows";
 import { writeLibrary } from "../library/library-store";
-import { makeAccount, personalLibrary, seedItem } from "../test-support/library-fixture";
+import { makeAccount, personalLibrary, seedItem } from "../test-support/library.fixture";
 import { planSearchQuery } from "./search-query";
 import { bodyTsqueryOf, isPrintableAscii, likeLiteral, tsqueryOf } from "./search-sql";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
 
-const linesOf = (lines: readonly string[]): BodyBlock[] =>
+const linesOf: (lines: readonly string[]) => BodyBlock[] = (lines: readonly string[]) =>
   lines.map((text, at) => ({ block: paragraph(`p${String(at)}`, text), section: "note" }));
 
-// a note of lines filed nowhere, untitled unless `fields` says otherwise
 const note = async (
   accountId: string,
   lines: readonly string[],
   fields: Partial<LibraryItemFields> = {},
-): Promise<string> => {
+) => {
   const { id } = await seedItem(accountId, {
     blocks: linesOf(lines),
     fields: noteFixture({ savedAt: SAVED_AT, title: "", ...fields }),
   });
+
   return id;
 };
 
@@ -78,10 +78,10 @@ dbSuite("a search in Postgres", () => {
       const found = await library.search({ query: typed });
       expect(found.hits.map(({ id }) => id)).toStrictEqual([hiring]);
     }
+
     const byStem = await library.search({ query: "interviewer candidate" });
     expect(byStem.hits.map(({ id }) => id)).toStrictEqual([hiring]);
     expect(byStem.hits[0]?.snippet).toBe("Interviewing candidates this week.");
-    // a prefix never reaches into a stem: `hire` is no prefix of `hiring`
     await expect(library.search({ query: "hire" })).resolves.toStrictEqual({
       cursor: null,
       hits: [],
@@ -140,7 +140,6 @@ dbSuite("a search in Postgres", () => {
     const title = await note(accountId, ["Plans."], { title: "Roadmap" });
     const found = await library.search({ query: "roadmap" });
     expect(found.hits.map(({ id }) => id)).toStrictEqual([title, body]);
-    // the title holds the word, no line of the body or its fields does
     expect(found.hits[0]?.snippet).toBe("Roadmap");
   });
 
@@ -153,15 +152,15 @@ dbSuite("a search in Postgres", () => {
     const live = await library.listing.page({ limit: 10, scope: { kind: "all" }, words: "fox" });
     expect(live.items.map(({ id }) => id)).toStrictEqual([kept]);
     expect(live.items[0]?.snippet).toBe("The fox naps in the sun.");
+
     const deleted = await library.listing.page({
       limit: 10,
       scope: { kind: "deleted" },
       words: "fox",
     });
+
     expect(deleted.items.map(({ id }) => id)).toStrictEqual([gone]);
     expect(deleted.items[0]?.snippet).toBe("A fox long gone.");
-    // the literal tier reads the library alone: a part of a word finds a live item, never one in
-    // Deleted
     await expect(
       library.listing.page({ limit: 10, scope: { kind: "all" }, words: "aps" }),
     ).resolves.toMatchObject({ items: [{ id: kept, snippet: "The fox naps in the sun." }] });
@@ -179,13 +178,13 @@ dbSuite("a search in Postgres", () => {
 
   it("reads the body of a hit only when its body's words hold a term", async () => {
     const { accountId, library } = await personalLibrary();
+
     const titled = await note(accountId, ["Nothing here."], {
       tags: ["gardening"],
       title: "Gardening",
     });
+
     const typed = await note(accountId, ["Weeding the gardens today."]);
-    // the row's text holds the word its vector's body never did: a passage from it would be a
-    // read of the body
     await db
       .update(itemSearch)
       .set({ text: "A gardening line the body's words never held." })
@@ -201,37 +200,47 @@ dbSuite("a search in Postgres", () => {
 
   it("names at most its candidates for a literal passage more items hold", async () => {
     const { accountId, library } = await personalLibrary();
+
     for (let n = 0; n < 230; n += 1) {
       await note(accountId, [`Row ${String(n)}: abcxyzzydef.`], { title: `Row ${String(n)}` });
     }
+
     const named = new Set<string>();
     let cursor: number | undefined;
+
     do {
       const page = await library.search({ cursor, limit: 50, query: "xyzzy" });
+
       for (const hit of page.hits) {
         expect(hit.snippet).toContain("abcxyzzydef");
         named.add(hit.id);
       }
+
       cursor = page.cursor ?? undefined;
     } while (cursor !== undefined);
+
     expect(named.size).toBe(200);
   });
 
   it("keeps an item's search row through a pin, a move and Deleted and back, and writes it again for a new name, tag, alias or note", async () => {
     const { accountId, library } = await personalLibrary();
     const id = await note(accountId, ["Quarterly planning."], { title: "Roadmap" });
+
     const found = async (query: string) => {
       const { hits } = await library.search({ query });
+
       return hits.map((hit) => [hit.id, hit.snippet]);
     };
-    // the row's version: Postgres gives an updated row a new one
+
     const rowVersion = async () => {
       const [row] = await db
         .select({ version: sql<string>`xmin::text` })
         .from(itemSearch)
         .where(and(eq(itemSearch.accountId, accountId), eq(itemSearch.itemId, id)));
+
       return row?.version;
     };
+
     const written = await rowVersion();
     const folderId = mintLibraryId(Date.now());
     await library.folders.write({
@@ -255,10 +264,13 @@ dbSuite("a search in Postgres", () => {
       { answer: z.unknown(), opId: undefined },
       async (scope) => {
         const before = await readItem(scope.tx, accountId, id);
+
         if (before === null) {
           throw new Error("the item is gone");
         }
+
         const fields = { ...before.fields, aliases: ["Northstar"] };
+
         return await landItem(scope, { before, body: null, fields, itemId: id });
       },
     );

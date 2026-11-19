@@ -40,18 +40,18 @@ const SEED_HTML = [
   "</html>",
 ].join("\n");
 
-const insertRichBlock = (editor: SlateEditor, type: string, value: string): void => {
+const insertRichBlock = (editor: SlateEditor, type: string, value: string) => {
   editor.tf.insertNodes({ children: [{ text: "" }], type, value });
 };
 
-export const insertChartBlock = (editor: SlateEditor): void => {
+export const insertChartBlock = (editor: SlateEditor) => {
   insertRichBlock(editor, CHART_BLOCK_KEY, SEED_CHART);
 };
 
-export const insertCanvasBlock = (editor: SlateEditor): void => {
+export const insertCanvasBlock = (editor: SlateEditor) => {
   insertRichBlock(editor, CANVAS_BLOCK_KEY, SEED_CANVAS);
 };
 
-export const insertHtmlBlock = (editor: SlateEditor): void => {
+export const insertHtmlBlock = (editor: SlateEditor) => {
   insertRichBlock(editor, HTML_BLOCK_KEY, SEED_HTML);
 };

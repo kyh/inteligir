@@ -1,19 +1,18 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-// controlled on purpose: each surface owns its own persistence, and the script that reads it before
-// the first paint
-
 export type Theme = "system" | "light" | "dark";
+
 type ResolvedTheme = "light" | "dark";
 
-export const parseTheme = (value: string | null | undefined): Theme | undefined => {
+export const parseTheme = (value: string | null | undefined) => {
   if (value === "system" || value === "light" || value === "dark") {
     return value;
   }
-  return undefined;
+
+  return null;
 };
 
-const systemPrefersDark = (): boolean =>
+const systemPrefersDark = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
 interface ThemeContextValue {
@@ -32,15 +31,18 @@ export const ThemeProvider = ({
   theme: Theme;
   setTheme: (theme: Theme) => void;
   children: React.ReactNode;
-}): React.ReactElement => {
+}) => {
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
+
     const handler = (e: MediaQueryListEvent) => {
       setSystemDark(e.matches);
     };
+
     mq.addEventListener("change", handler);
+
     return () => {
       mq.removeEventListener("change", handler);
     };
@@ -56,10 +58,12 @@ export const ThemeProvider = ({
   return <ThemeContext value={{ resolved, setTheme, theme }}>{children}</ThemeContext>;
 };
 
-export const useTheme = (): ThemeContextValue => {
+export const useTheme = () => {
   const ctx = useContext(ThemeContext);
+
   if (!ctx) {
     throw new Error("useTheme must be used within a <ThemeProvider>");
   }
+
   return ctx;
 };

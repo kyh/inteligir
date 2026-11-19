@@ -1,4 +1,4 @@
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

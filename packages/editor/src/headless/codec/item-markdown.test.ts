@@ -9,15 +9,15 @@ import type { LibraryBlock, LibrarySection } from "@repo/contract/library/librar
 import { headlessEditor, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { ARTICLE_SECTION_KEY } from "@repo/editor/headless/markdown/md-rules";
 
-import { generateDoc } from "../../test-support/markdown-doc-generator";
-import { pretendLibrary, withoutId } from "../../test-support/codec-ports";
+import { generateDoc } from "../../test-support/markdown-doc-generator.test-utils";
+import { pretendLibrary, withoutId } from "../../test-support/codec-ports.test-utils";
 import { importItem } from "./item-markdown";
 import type { ImportedItem } from "./item-markdown";
 import { writeBlocks } from "./write-blocks";
 
 const FIXTURES = fileURLToPath(new URL("../../test-support/fixtures/", import.meta.url));
 
-const fixtures = (): { name: string; text: string }[] =>
+const fixtures = () =>
   (["corpus", "frontmatter"] as const).flatMap((dir) =>
     readdirSync(`${FIXTURES}${dir}`)
       .toSorted()
@@ -29,60 +29,61 @@ const fixtures = (): { name: string; text: string }[] =>
 
 const library = pretendLibrary();
 
-const imported = (text: string, name = "Fixture"): ImportedItem => {
+const imported = (text: string, name = "Fixture") => {
   const read = importItem({ name, text }, library.importPorts());
+
   if (!read.ok) {
     throw new Error(`the import refused: ${read.reason.kind}`);
   }
+
   return read.item;
 };
 
-// an item's body as the codec writes it, the page inside `:::article` after the note
-const bodyOf = (item: ImportedItem): string => {
+const bodyOf = (item: ImportedItem) => {
   const of = (section: LibrarySection) =>
     writeBlocks(
       item.blocks.filter((body) => body.section === section).map((body) => body.block),
       library.writePorts(),
     );
+
   const article = of("article");
+
   const body =
     article.length > 0
       ? [...of("note"), { children: article, type: ARTICLE_SECTION_KEY }]
       : of("note");
+
   return body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
 };
 
-// the written body read back under the item's title
-const reimported = (item: ImportedItem): ImportedItem => imported(bodyOf(item), item.fields.title);
+const reimported = (item: ImportedItem) => imported(bodyOf(item), item.fields.title);
 
-// what an item is, ids aside
 const content = (item: ImportedItem) => ({
   blocks: item.blocks.map((placed) => ({ ...placed, block: withoutId(placed.block) })),
   fields: item.fields,
   leftOut: item.leftOut,
 });
 
-// an item as the editor stores it, each block what a person typed, whatever its text spells
-const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => ({
-  blocks: blocks.map((block) => ({ block, section })),
-  fields: { ...imported("").fields, title: "Typed" },
-  leftOut: 0,
-});
+const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]) =>
+  ({
+    blocks: blocks.map((block) => ({ block, section })),
+    fields: { ...imported("").fields, title: "Typed" },
+    leftOut: 0,
+  }) satisfies ImportedItem;
 
-const typedLine = (text: string, id = "typed"): LibraryBlock => ({
-  children: [{ text }],
-  id,
-  type: "p",
-});
+const typedLine = (text: string, id = "typed") =>
+  ({
+    children: [{ text }],
+    id,
+    type: "p",
+  }) satisfies LibraryBlock;
 
-const typedBody = (text: string): string => bodyOf(typedItem("note", [typedLine(text)]));
+const typedBody = (text: string) => bodyOf(typedItem("note", [typedLine(text)]));
 
-const types = (item: ImportedItem): string[] => item.blocks.map(({ block }) => block.type);
+const types = (item: ImportedItem) => item.blocks.map(({ block }) => block.type);
 
-const stored = (item: ImportedItem): string => JSON.stringify(item.blocks);
+const stored = (item: ImportedItem) => JSON.stringify(item.blocks);
 
-// a file whose first read holds what its write cannot spell: a space at a mark's edge, which the
-// writer moves outside the mark
 const SETTLES_ON_FIRST_WRITE = new Set(["corpus/wiki-in-bold.md"]);
 
 describe("a body read from what the codec wrote is the body, ids aside", () => {
@@ -98,16 +99,17 @@ describe("a body read from what the codec wrote is the body, ids aside", () => {
     const settling = fixtures()
       .filter((fixture) => {
         const first = imported(fixture.text);
+
         return (
           JSON.stringify(content(reimported(first)).blocks) !==
           JSON.stringify(content(first).blocks)
         );
       })
       .map((fixture) => fixture.name);
+
     expect(new Set(settling)).toStrictEqual(SETTLES_ON_FIRST_WRITE);
   });
 
-  // the editor's own seeded documents: all seeds in one test, as its round-trip property runs them
   it("holds over the editor's generated documents", { timeout: 60_000 }, () => {
     for (let seed = 20_261_027; seed < 20_261_027 + 24; seed += 1) {
       const first = imported(generateDoc(seed));
@@ -173,16 +175,20 @@ describe("Obsidian's spellings and the dialect's look-alikes, typed as text", ()
       ":date",
       "{",
     ];
-    // a fixed walk through them, so a failure names a text that fails again
+
     let state = 20_261_106;
-    const pick = (bound: number): number => {
+
+    const pick = (bound: number) => {
       state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
+
       return Math.floor((state / 4_294_967_296) * bound);
     };
+
     for (let round = 0; round < 200; round += 1) {
       const text = Array.from({ length: 1 + pick(8) }, () => pieces[pick(pieces.length)] ?? "")
         .join("")
         .trim();
+
       const typed = typedItem("note", [typedLine(`${text}.`), typedLine(text, "second")]);
       expect(content(reimported(typed)), JSON.stringify(text)).toStrictEqual(content(typed));
     }
@@ -205,18 +211,21 @@ describe("Obsidian's spellings and the dialect's look-alikes, typed as text", ()
         type: "blockquote",
       },
     ]);
+
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
   it.each(LOOK_ALIKES)("keeps %j, typed first in a to-do, as the text it is", (text) => {
-    const todo = (checked: boolean, id: string): LibraryBlock => ({
-      checked,
-      children: [{ text }],
-      id,
-      indent: 1,
-      listStyleType: "todo",
-      type: "p",
-    });
+    const todo = (checked: boolean, id: string) =>
+      ({
+        checked,
+        children: [{ text }],
+        id,
+        indent: 1,
+        listStyleType: "todo",
+        type: "p",
+      }) satisfies LibraryBlock;
+
     const typed = typedItem("note", [todo(false, "open"), todo(true, "done")]);
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
@@ -327,10 +336,12 @@ describe("a block a list item opens with", () => {
     ["numbered item", "decimal"],
   ] as const)("keeps an empty %s above the list nested under it", (_name, listStyleType) => {
     const number = listStyleType === "decimal" ? { listStart: 1 } : {};
+
     const typed = typedItem("note", [
       { children: [{ text: "" }], id: "a", indent: 1, listStyleType, type: "p", ...number },
       { children: [{ text: "b" }], id: "b", indent: 2, listStyleType, type: "p", ...number },
     ]);
+
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
@@ -357,6 +368,7 @@ describe("a block a list item opens with", () => {
         type: "blockquote",
       },
     ]);
+
     expect(types(reimported(typed))).toStrictEqual(["h2", "blockquote"]);
     expect(stored(reimported(typed))).not.toContain("listStyleType");
   });
@@ -395,6 +407,7 @@ describe("a list as deep as an item holds", () => {
 
 describe("a reference and its definition", () => {
   const WRITTEN = "[design doc](https://example.com/doc)";
+
   const BOTH = [
     "Read the [design doc][1] before [the meeting][m] on Friday.",
     "",
@@ -457,6 +470,7 @@ describe("a reference and its definition", () => {
     const item = imported(
       '[a](https://example.com "Kept") and [b][l]\n\n[l]: https://example.com/l "Link title"\n',
     );
+
     expect(bodyOf(item)).toBe("[a](https://example.com) and [b](https://example.com/l)\n");
   });
 
@@ -474,6 +488,7 @@ describe("a reference and its definition", () => {
     const item = imported(
       "Note.\n\n[p]: https://example.com/p\n\n:::article\n[page words][p]\n:::\n",
     );
+
     expect(stored(item)).toContain('"url":"https://example.com/p"');
     expect(bodyOf(item)).not.toContain("]: ");
     expect(content(reimported(item))).toStrictEqual(content(item));
@@ -516,6 +531,7 @@ describe("a reference and its definition", () => {
       typedLine("[b] and [a][b] are words", "words"),
       typedLine("[x]: /a/path", "line"),
     ]);
+
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 });
@@ -532,6 +548,7 @@ describe("a pill's display in a file", () => {
         "",
       ].join("\n"),
     );
+
     expect(bodyOf(item)).toContain(
       'Each :formula[5]{name="price" source="5"}, in all :formula[15]{source="price*qty"}.',
     );
@@ -596,14 +613,15 @@ describe("a footnote", () => {
   });
 });
 
-const tabsLabelled = (label: string): LibraryBlock => ({
-  children: [
-    { children: [{ children: [{ text: "one" }], type: "p" }], label: "First", type: "tab_panel" },
-    { children: [{ children: [{ text: "two" }], type: "p" }], label, type: "tab_panel" },
-  ],
-  id: "tabs",
-  type: "tab_group",
-});
+const tabsLabelled = (label: string) =>
+  ({
+    children: [
+      { children: [{ children: [{ text: "one" }], type: "p" }], label: "First", type: "tab_panel" },
+      { children: [{ children: [{ text: "two" }], type: "p" }], label, type: "tab_panel" },
+    ],
+    id: "tabs",
+    type: "tab_group",
+  }) satisfies LibraryBlock;
 
 describe("a tab's label", () => {
   it.each([
@@ -672,6 +690,7 @@ describe("one file as its item", () => {
         "",
       ].join("\n"),
     );
+
     expect(item.fields).toMatchObject({
       kind: "link",
       pinnedAt: Date.parse("2026-05-01T10:00:00Z"),
@@ -683,7 +702,6 @@ describe("one file as its item", () => {
       title: "Fixture",
       url: "https://example.com/post",
     });
-    // a kind no item is stays the property it was written as
     expect(imported("---\nkind: book\n---\n\nBody.\n").fields).toMatchObject({
       kind: "note",
       properties: { kind: "book" },
@@ -705,6 +723,7 @@ describe("one file as its item", () => {
         "",
       ].join("\n"),
     );
+
     expect(item.fields).toMatchObject({
       aliases: [],
       pinnedAt: null,
@@ -735,39 +754,41 @@ describe("one file as its item", () => {
     expect(JSON.stringify(item.blocks[0]?.block)).toContain(`${key}: value`);
   });
 
-  // its input is past the 512 KiB block cap, and parsing that much markdown takes seconds on a
-  // runner beside the other suites
   it(
     "cuts a block past the cap into blocks of its own type, its text kept whole",
     { timeout: 30_000 },
     () => {
       const line = "A long line of a pasted log, written again and again.";
+
       const lines = Array.from(
         { length: Math.ceil((BLOCK_MAX_BYTES * 1.5) / line.length) },
         () => line,
       );
+
       const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
       expect(item.leftOut).toBe(0);
       expect(item.blocks.length).toBeGreaterThan(1);
       expect(new Set(types(item))).toStrictEqual(new Set(["code_block"]));
+
       const text = item.blocks
         .flatMap(({ block }) => block.children)
         .map((child) => /"text":"(?<text>[^"]*)"/u.exec(JSON.stringify(child))?.groups?.text ?? "")
         .filter((piece) => piece !== "");
+
       expect(text).toStrictEqual(lines);
     },
   );
 
   it("cuts one long run of text between characters, never inside a surrogate pair", () => {
-    // an odd offset puts a pair's high half at the cut
     const run = `x${"😀".repeat(140_000)}`;
     const item = imported(`${run}\n`);
     expect(item.blocks.length).toBeGreaterThan(1);
+
     const pieces = item.blocks
       .flatMap(({ block }) => block.children)
       .flatMap((child) => ("text" in child ? [child.text] : []));
+
     expect(pieces.join("")).toBe(run);
-    // a lone surrogate, which UTF-8 cannot hold
     expect(pieces.filter((piece) => /\p{Cs}/u.test(piece))).toStrictEqual([]);
   });
 
@@ -859,6 +880,7 @@ describe("one file as its item", () => {
 | - |
 | one\<br/>two |
 `);
+
     expect(stored(item)).toContain('"text":"one<br/>two"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
@@ -882,6 +904,7 @@ describe("one file as its item", () => {
         type: "table",
       },
     ]);
+
     expect(bodyOf(item)).toContain(String.raw`| ${"`"}a\\\|b${"`"} | word |`);
     const again = reimported(item);
     expect(stored(again).match(/"type":"t[dh]"/gu)).toHaveLength(2);
@@ -919,6 +942,7 @@ describe("one file as its item", () => {
         type: "table",
       },
     ]);
+
     expect(bodyOf(item)).toContain(String.raw`$$\Vert x\Vert $$`);
     expect(stored(reimported(item))).toContain(String.raw`\\Vert x\\Vert `);
   });
@@ -927,10 +951,13 @@ describe("one file as its item", () => {
     const item = imported(
       "Before [words]() after.\n\n- ![seen]()\n- [listed]()\n\n> [quoted](<>)\n\n| a |\n| - |\n| [cell]() |\n",
     );
+
     expect(item.leftOut).toBe(0);
+
     for (const kept of ["Before words after.", "![seen]()", "listed", "quoted", "cell"]) {
       expect(stored(item)).toContain(kept);
     }
+
     expect(stored(item)).not.toContain('"type":"a"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });

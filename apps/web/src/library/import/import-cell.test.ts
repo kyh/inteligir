@@ -1,10 +1,7 @@
-// The import's cell over `/v1`, as its thread builds it: a session's spent minute that names its
-// wait is waited out, and the import goes on to its end.
-
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/rpc/v1-contract";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
 import { TooManyRequestsError, V1_ERROR_STATUS_MAP } from "@repo/contract/rpc/v1-errors";
-import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response.test-utils";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
@@ -17,9 +14,8 @@ import { readImport } from "./import-reading";
 const ORIGIN = "http://localhost:5174";
 const encoder = new TextEncoder();
 
-// a library that holds every file, though no item names one, and lands every item, served by
-// oRPC's own handler
 const os = implement(v1Contract);
+
 const handler = new RPCHandler(
   {
     library: {
@@ -40,30 +36,37 @@ const handler = new RPCHandler(
   { errorStatusMap: V1_ERROR_STATUS_MAP },
 );
 
-// every call's first try meets the session's minute spent, naming no wait to speak of
 const busyFirst = () => {
   const asked: string[] = [];
+
   const transport: V1Transport = {
     fetch: async (request) => {
       asked.push(new URL(request.url).pathname);
+
       if (asked.length % 2 === 1) {
         const busy = refusalResponse(new TooManyRequestsError());
         busy.headers.set("retry-after", "0");
+
         return busy;
       }
+
       const { response } = await handler.handle(request, { prefix: V1_RPC_PATH });
+
       return response ?? new Response(null, { status: 404 });
     },
     origin: ORIGIN,
   };
+
   return { asked, transport };
 };
 
-const zipOf = async (entries: Readonly<Record<string, Uint8Array>>): Promise<Blob> => {
+const zipOf = async (entries: Readonly<Record<string, Uint8Array>>) => {
   const writer = new ZipWriter(new BlobWriter("application/zip"));
+
   for (const [path, bytes] of Object.entries(entries)) {
     await writer.add(path, new Uint8ArrayReader(bytes));
   }
+
   return await writer.close();
 };
 

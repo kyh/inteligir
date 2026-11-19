@@ -1,9 +1,3 @@
-// CLAUDE.md § An item's Info is its fields, and a write shows before it lands. Info reads the item's
-// row as the cell holds it (its fields, its card's counts), read again as either moves, and writes a
-// field as one change the cell makes, laid over what the page shows at once, so a pin, a move, a
-// tag or a property reads as done before it lands. Every part of it is the cell's, so it waits for
-// a connection.
-
 import { KIND_LABELS } from "@repo/client/library-labels";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
@@ -36,14 +30,14 @@ const ReadFailure = ({ reading }: { reading: Reading }) =>
 const folderName = (
   folders: readonly { readonly id: string; readonly name: string }[],
   folderId: string | null,
-): string =>
+) =>
   folderId === null
     ? "Unsorted"
     : (folders.find((folder) => folder.id === folderId)?.name ?? "A folder not here yet");
 
-// a property as one line: its words as they are, anything else as the JSON it holds
-const propertyText = (value: PropertyValue): string => {
+const propertyText = (value: PropertyValue) => {
   const words = z.string().safeParse(value);
+
   return words.success ? words.data : JSON.stringify(value);
 };
 
@@ -57,11 +51,12 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
   const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
-  // a read again asked from here or from the grid's menu, which a second press would only repeat
   const refreshing = useIsMutating({ mutationKey: orpc.library.items.refresh.mutationKey() }) > 0;
+
   if (cellStanding(item).kind === "missing") {
     return <p className="m-0 p-3 text-body text-muted-foreground">This item isn’t here.</p>;
   }
+
   return (
     <CellAnswer query={item} failed="This item couldn't be read.">
       {({ id, fields, card }) => (

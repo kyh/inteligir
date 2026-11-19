@@ -11,24 +11,26 @@ import {
 import type { ExportRun, ExportTarget, ExportThread, ThreadEars } from "./export-run";
 
 const COUNTS = { filesMissing: 0, items: 2, propertiesLeftOut: 0 };
+
 const TARGET: ExportTarget = {
   ask: { kind: "download" },
   name: "Inteligir library 2026-11-19.zip",
 };
 
-// a thread the suite speaks for, the target the person chose, and what reached the download
 const fakeHost = (target: ExportTarget | null = TARGET) => {
   const sent: ExportAsk[] = [];
   const delivered: { zip: Blob; name: string }[] = [];
   let ears: ThreadEars | null = null;
   let closed = 0;
+
   const store = createExportStore({
     choose: async () => await Promise.resolve(target),
     deliver: (zip, name) => {
       delivered.push({ name, zip });
     },
-    spawn: (heard): ExportThread => {
+    spawn: (heard) => {
       ears = heard;
+
       return {
         close: () => {
           closed += 1;
@@ -36,12 +38,14 @@ const fakeHost = (target: ExportTarget | null = TARGET) => {
         send: (ask) => {
           sent.push(ask);
         },
-      };
+      } satisfies ExportThread;
     },
   });
-  const tell = (news: ExportNews): void => {
+
+  const tell = (news: ExportNews) => {
     ears?.heard(news);
   };
+
   return { closed: () => closed, delivered, sent, store, tell };
 };
 
@@ -50,10 +54,12 @@ describe(exportAfter, () => {
     const listing = exportAfter({ kind: "idle" }, { kind: "start" });
     expect(listing).toStrictEqual({ kind: "listing" });
     expect(exportAfter(listing, { kind: "start" })).toBe(listing);
+
     const done = exportAfter(listing, {
       kind: "heard",
       news: { counts: COUNTS, kind: "done", zip: null },
     });
+
     expect(done).toStrictEqual({ counts: COUNTS, kind: "done" });
     expect(exportAfter(done, { kind: "stop" })).toBe(done);
     expect(exportAfter(done, { kind: "broke" })).toBe(done);
@@ -64,6 +70,7 @@ describe(exportAfter, () => {
       { kind: "listing" },
       { kind: "heard", news: { kind: "writing", total: 9, written: 4 } },
     );
+
     expect(exportAfter(writing, { kind: "stop" })).toStrictEqual({ kind: "stopped", written: 4 });
     expect(exportAfter(writing, { kind: "broke" })).toStrictEqual({
       kind: "failed",
@@ -129,7 +136,7 @@ describe(exportUnloadAsks, () => {
 
   it("asks as the tab closes only while the run lists or writes", () => {
     expect(
-      runs.filter((run) => exportUnloadAsks(run, { kind: "live" })).map((run) => run.kind),
+      runs.flatMap((run) => (exportUnloadAsks(run, { kind: "live" }) ? [run.kind] : [])),
     ).toStrictEqual(["listing", "writing"]);
   });
 

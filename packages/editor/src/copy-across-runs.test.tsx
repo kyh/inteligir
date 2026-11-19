@@ -1,6 +1,3 @@
-// A copy of blocks from two runs of a long note writes the plain text it would of one: a run is a
-// flow-root, no block to the copied text (styles.css), so no blank line lands at the run's edge.
-
 import fs from "node:fs";
 import path from "node:path";
 import { render } from "@testing-library/react";
@@ -9,13 +6,12 @@ import type { PlateEditor } from "platejs/react";
 import { createRef } from "react";
 import { describe, expect, it } from "vitest";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const STYLES = path.join(import.meta.dirname, "styles.css");
 
 const p = (text: string) => ({ children: [{ text }], type: "p" });
 
-// jsdom has no DataTransfer: what a copy writes, by format
 class RecordingTransfer implements DataTransfer {
   readonly written = new Map<string, string>();
   dropEffect: DataTransfer["dropEffect"] = "none";
@@ -32,28 +28,29 @@ class RecordingTransfer implements DataTransfer {
     remove: () => {},
     [Symbol.iterator]: [][Symbol.iterator],
   };
-  get types(): readonly string[] {
-    return [...this.written.keys()];
+  get types() {
+    return [...this.written.keys()] satisfies readonly string[];
   }
-  clearData = (format?: string): void => {
+  clearData = (format?: string) => {
     if (format === undefined) {
       this.written.clear();
     } else {
       this.written.delete(format);
     }
   };
-  getData = (format: string): string => this.written.get(format) ?? "";
-  setData = (format: string, data: string): void => {
+  getData = (format: string) => this.written.get(format) ?? "";
+  setData = (format: string, data: string) => {
     this.written.set(format, data);
   };
-  setDragImage = (): void => {
+  setDragImage = () => {
     this.dropEffect = "copy";
   };
 }
 
-const copied = (editor: PlateEditor): string => {
+const copied = (editor: PlateEditor) => {
   const transfer = new RecordingTransfer();
   editor.tf.setFragmentData(transfer);
+
   return transfer.getData("text/plain");
 };
 
@@ -66,9 +63,11 @@ describe("a copy across a long note's runs", () => {
     const ref = createRef<PlateEditor>();
     render(<EditorHarness value={value} ref={ref} chunkSize={100} />);
     const editor = ref.current;
+
     if (editor === null) {
       throw new Error("the editor did not mount");
     }
+
     expect(document.querySelectorAll("[data-slate-chunk]")).toHaveLength(2);
 
     editor.tf.select({ anchor: { offset: 0, path: [97, 0] }, focus: { offset: 5, path: [98, 0] } });

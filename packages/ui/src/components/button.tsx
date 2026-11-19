@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import type { CSSProperties, ReactNode, RefAttributes } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
@@ -51,9 +51,6 @@ type ButtonVariant = "primary" | "secondary" | "tertiary" | "ghost" | "destructi
 
 type ButtonSize = "default" | "compact" | "icon" | "icon-compact";
 
-// press: the surface sits 1px inside the button and a same-color shadow spread fills it out; pressing
-// collapses the spread 1px per side, where a scale would warp a wide button. fills are opaque
-// color-mix, not alpha, so the fill and its spread ring never seam.
 const bgVariants = {
   destructive:
     "[--btn-bg:var(--destructive)] group-hover:[--btn-bg:color-mix(in_oklab,var(--destructive)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
@@ -79,7 +76,6 @@ const activeBgVariants = {
     "bg-active shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
 } satisfies Record<ButtonVariant, string>;
 
-// class-string consumers cannot carry the layered press surface, so they get the flat palette on the root.
 const flatBgVariants = {
   destructive: "bg-destructive hover:bg-destructive/90",
   ghost: "bg-transparent hover:bg-hover active:bg-active",
@@ -92,9 +88,10 @@ const buttonVariants = (props?: {
   variant?: ButtonVariant | null;
   size?: ButtonSize | null;
   className?: string;
-}): string => {
+}) => {
   const variant = props?.variant ?? "primary";
   const size = props?.size ?? "compact";
+
   return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
 };
 
@@ -107,17 +104,14 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
   active?: boolean;
 }
 
-// text-box only applies to block containers, so the trim lives on the label span, not the flex root.
 const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 
-// Text runs are trimmed, and an element child (an icon, a count) is a sibling flex item beside
-// them: inside the trimmed block an inline svg does not size the block and is pushed out of its
-// line box, above the label.
-const labelChildren = (children: ReactNode): ReactNode[] => {
+const labelChildren = (children: ReactNode) => {
   const nodes = childList(children);
   const out: ReactNode[] = [];
   let run: ReactNode[] = [];
-  const flush = (key: number): void => {
+
+  const flush = (key: number) => {
     if (run.length > 0) {
       out.push(
         <span key={`text-${String(key)}`} className={labelTrimClass}>
@@ -127,6 +121,7 @@ const labelChildren = (children: ReactNode): ReactNode[] => {
       run = [];
     }
   };
+
   for (const [index, node] of nodes.entries()) {
     if (isTextChild(node)) {
       run.push(node);
@@ -135,7 +130,9 @@ const labelChildren = (children: ReactNode): ReactNode[] => {
       out.push(node);
     }
   }
+
   flush(nodes.length);
+
   return out;
 };
 
@@ -222,9 +219,8 @@ const Button = ({
     className,
   );
 
-  // an icon-only button says nothing on its face: its label becomes the product's tooltip
-  // and its accessible name, and the native title is dropped so the OS does not show a second one.
   const iconLabel = isIconOnly ? (ariaLabel ?? title) : undefined;
+
   const element = (
     <ButtonPrimitive
       ref={ref}
@@ -238,6 +234,7 @@ const Button = ({
       {internals}
     </ButtonPrimitive>
   );
+
   return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
 };
 

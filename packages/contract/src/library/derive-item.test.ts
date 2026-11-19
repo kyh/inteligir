@@ -5,14 +5,14 @@ import type { BodyBlock } from "./derive-item";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
-import { noteFixture, paragraph } from "../test-support/library-items";
+import { noteFixture, paragraph } from "../test-support/library-items.test-utils";
 
-const bodyOf = (blocks: readonly LibraryBlock[], section: LibrarySection = "note"): BodyBlock[] =>
+const bodyOf = (blocks: readonly LibraryBlock[], section: LibrarySection = "note") =>
   blocks.map((block) => ({ block, section }));
 
-// the item's rows as the cell derives them: its body read once, then the fields over its digest
 const derive = (fields: LibraryItemFields, body: readonly BodyBlock[]) => {
   const derived = deriveBody(body);
+
   return { ...deriveItem(fields, derived.digest), body: derived };
 };
 
@@ -49,6 +49,7 @@ describe(deriveBody, () => {
       id: "p5",
       type: "p",
     };
+
     const derived = derive(noteFixture(), bodyOf([mentioned]));
     expect(derived.card.preview).toBe("See Other now.");
     expect(derived.body.text).toBe("See Other now.");
@@ -60,6 +61,7 @@ describe(deriveBody, () => {
       id: "p4",
       type: "p",
     };
+
     expect(derive(noteFixture(), bodyOf([untitled])).body.links).toMatchObject([
       { targetId: "item-2", targetKey: null },
     ]);
@@ -73,6 +75,7 @@ describe(deriveBody, () => {
         { children: [{ text: "Words​ here" }], id: "w", type: "p" },
       ]),
     );
+
     expect(derived.card.preview).toBe("Words here");
     expect(derived.card.title).toBe("Words here");
     expect(derived.body.text).toBe("\nWords here");
@@ -83,6 +86,7 @@ describe(deriveBody, () => {
       noteFixture({ tags: ["work/plans", "Read"] }),
       bodyOf([linked, { ...linked, id: "p3" }]),
     );
+
     expect(derived.tags).toStrictEqual([
       { origin: "field", tag: "work/plans" },
       { origin: "field", tag: "Read" },
@@ -100,11 +104,13 @@ describe(deriveBody, () => {
       id: "p4",
       type: "p",
     };
+
     const fenced: LibraryBlock = {
       children: [{ children: [{ text: "#inFence" }], type: "code_line" }],
       id: "c1",
       type: "code_block",
     };
+
     expect(derive(noteFixture(), bodyOf([literal, fenced])).tags).toStrictEqual([
       { origin: "inline", tag: "kept" },
     ]);
@@ -113,19 +119,23 @@ describe(deriveBody, () => {
 
   it("reads a #tag up to a line long, as a field's tag is held, and a longer one as text", () => {
     const atLine = "t".repeat(ITEM_FIELD_CAPS.line);
+
     const derived = derive(
       noteFixture(),
       bodyOf([paragraph("p", `#${atLine} and #${atLine}s, not a tag`)]),
     );
+
     expect(derived.tags).toStrictEqual([{ origin: "inline", tag: atLine }]);
   });
 
   it("reads a body's text, its files and whether it holds a page", () => {
     const image: LibraryBlock = { children: leaf, id: "i", sha: "a".repeat(64), type: "img" };
+
     const derived = derive(noteFixture(), [
       ...bodyOf([linked]),
       ...bodyOf([image, paragraph("a", "Read.")], "article"),
     ]);
+
     expect(derived.body.text).toBe(
       "See Other and [[Not Yet]], the site #Work/plans marked\n\nRead.",
     );
@@ -160,6 +170,7 @@ describe(deriveBody, () => {
       { children: [{ text: "a list item" }], id: "l", listStyleType: "disc", type: "p" },
       paragraph("p", "The first paragraph."),
     ]);
+
     expect(derive(noteFixture(), blocks).card).toStrictEqual({
       outline: [{ blockId: "h", level: 1, text: "Intro" }],
       preview: "The first paragraph.",
@@ -174,6 +185,7 @@ describe(deriveBody, () => {
       { children: [{ text: "Two" }], id: "h2", type: "h2" },
       { children: [{ text: "Six" }], id: "h6", type: "h6" },
     ]);
+
     const derived = derive(noteFixture({ aliases: ["Alt"], title: "" }), blocks);
     expect(derived.card.outline).toStrictEqual([{ blockId: "h2", level: 2, text: "Two" }]);
     expect(derived.search.headings).toBe("Four\nTwo\nSix\nAlt");
@@ -182,18 +194,28 @@ describe(deriveBody, () => {
 
   it("keeps a card's outline short however many and long its headings run", () => {
     const long = "w".repeat(450_000);
+
     const headings: LibraryBlock[] = [
-      ...Array.from({ length: 5 }, (_, index): LibraryBlock => ({
-        children: [{ text: long }],
-        id: `long${String(index)}`,
-        type: "h1",
-      })),
-      ...Array.from({ length: 300 }, (_, index): LibraryBlock => ({
-        children: [{ text: `Part ${String(index)}` }],
-        id: `part${String(index)}`,
-        type: "h2",
-      })),
+      ...Array.from(
+        { length: 5 },
+        (_, index) =>
+          ({
+            children: [{ text: long }],
+            id: `long${String(index)}`,
+            type: "h1",
+          }) satisfies LibraryBlock,
+      ),
+      ...Array.from(
+        { length: 300 },
+        (_, index) =>
+          ({
+            children: [{ text: `Part ${String(index)}` }],
+            id: `part${String(index)}`,
+            type: "h2",
+          }) satisfies LibraryBlock,
+      ),
     ];
+
     const { outline } = derive(noteFixture(), bodyOf(headings)).card;
     expect(outline.length).toBeLessThan(headings.length);
     expect(outline.map((entry) => entry.blockId)).toStrictEqual(
@@ -228,6 +250,7 @@ describe(deriveBody, () => {
       },
       { children: leaf, id: "x", type: "html_block", value: "<b>hidden</b>" },
     ]);
+
     expect(derive(noteFixture(), blocks).body.text).toBe("a\tb\none()\ntwo()\n");
   });
 
@@ -241,6 +264,7 @@ describe(deriveBody, () => {
       }),
       [],
     );
+
     expect(derived.search.meta).toBe("example.com post\nExample\nread");
     expect(derived.urlKey).toBe("example.com/post");
   });

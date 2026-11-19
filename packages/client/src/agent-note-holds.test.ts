@@ -10,17 +10,22 @@ const OTHER_THREAD = "0199a4c2-0000-7000-8000-0000000000e2";
 const NOTE = "0199a4c2-0000-7000-8000-0000000000a1";
 
 let line = 0;
+
 const row = (event: AgentEvent) => {
   line += 1;
+
   return { at: line, event, eventId: `1:${String(line)}:0`, threadId: THREAD, type: "agent" };
 };
 
 const editing = (toolUseId: string, id = NOTE) =>
   row({ input: { id, ops: [] }, name: "edit_item", toolUseId, type: "agent.tool_use" });
+
 const reading = (toolUseId: string) =>
   row({ input: { id: NOTE }, name: "read_item", toolUseId, type: "agent.tool_use" });
+
 const result = (toolUseId: string) =>
   row({ isError: false, summary: "", toolUseId, type: "agent.tool_result" });
+
 const ended = () => row({ reason: "done", turn: 1, type: "turn.ended" });
 
 const eventsKey = (threadId?: string) =>
@@ -50,13 +55,13 @@ describe("following the agent's edits across the conversations a device holds", 
   let moves: NoteEditMove[];
   let stop: () => void;
 
-  const follow = (): void => {
+  const follow = () => {
     stop = followNoteEdits(queryClient.getQueryCache(), eventsKey(), (move) => {
       moves.push(move);
     });
   };
 
-  const holding = (threadId: string, rows: readonly unknown[]): void => {
+  const holding = (threadId: string, rows: readonly unknown[]) => {
     queryClient.setQueryData(eventsKey(threadId), { draft: "", rows });
   };
 

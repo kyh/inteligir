@@ -1,16 +1,3 @@
-/**
- * The runtime gate against a running app, a deployment's or `next start`'s: its health, the site's
- * policy, the sign-in gate, the crons' secret, the build floor, and a signed-in call through two
- * doors and a file through the store. Calls go through the contract's own client, so a changed procedure shape
- * breaks this at typecheck.
- *
- *   pnpm smoke                        # against http://localhost:5174, signed in as the seeded login
- *   SMOKE_URL=https://... pnpm smoke  # against a deployment, signed in with SMOKE_EMAIL and
- *                                     #   SMOKE_PASSWORD when both are set
- *
- * With VERCEL_AUTOMATION_BYPASS_SECRET set, every request carries it past a deployment's protection.
- * On CI (`.github/workflows/smoke.yml`, the deployment's check) a leg that cannot run fails.
- */
 import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { styleText } from "node:util";
@@ -34,12 +21,11 @@ type HeaderMap = Readonly<Record<string, string>>;
 
 type Leg =
   | { readonly label: string; readonly run: () => Promise<void> }
-  // a leg that does not run here: there is no login to sign in with
   | { readonly label: string; readonly skip: string };
 
-// unset, or empty as a workflow passes a secret nobody set
-const envOf = (name: string): string | undefined => {
+const envOf = (name: string) => {
   const value = process.env[name];
+
   return value === "" ? undefined : value;
 };
 
@@ -48,19 +34,20 @@ const SMOKE_PASSWORD = envOf("SMOKE_PASSWORD");
 const SMOKE_URL = envOf("SMOKE_URL");
 const VERCEL_AUTOMATION_BYPASS_SECRET = envOf("VERCEL_AUTOMATION_BYPASS_SECRET");
 
-// a gate runs every leg: one it skips would let a deployment through unchecked
 const GATE = envOf("CI") !== undefined;
 
 const BASE_URL = (SMOKE_URL ?? "http://localhost:5174").replace(/\/$/u, "");
 
-// the seeded login locally; a deployment never holds the seeded account
-const loginOf = (): Login | null => {
+const loginOf = () => {
   if (SMOKE_URL === undefined) {
-    return { email: "dev@inteligir.local", password: "password" };
+    return { email: "dev@inteligir.local", password: "password" } satisfies Login | null;
   }
-  return SMOKE_EMAIL === undefined || SMOKE_PASSWORD === undefined
-    ? null
-    : { email: SMOKE_EMAIL, password: SMOKE_PASSWORD };
+
+  return (
+    SMOKE_EMAIL === undefined || SMOKE_PASSWORD === undefined
+      ? null
+      : { email: SMOKE_EMAIL, password: SMOKE_PASSWORD }
+  ) satisfies Login | null;
 };
 
 const BYPASS: HeaderMap =
@@ -68,25 +55,19 @@ const BYPASS: HeaderMap =
     ? {}
     : { "x-vercel-protection-bypass": VERCEL_AUTOMATION_BYPASS_SECRET };
 
-// apps/web/vercel.json's crons
 const CRON_PATHS = ["/api/cron/agent", "/api/cron/housekeeping", "/api/cron/jobs"];
 
-// an install at the floor every deployment answers by default, and one below it
 const BUILD = clientBuildHeaders({ platform: "mobile", version: "0.7.0" });
 const STALE_BUILD = clientBuildHeaders({ platform: "mobile", version: "0.0.1" });
 
-/** Node's fetch has no default timeout; a stalled server would hang CI instead of failing it. */
 const deadline = () => AbortSignal.timeout(15_000);
 
-/** A wall-clock budget, not an attempt count: an attempt takes milliseconds when refused but a
- * full timeout when the server accepts and stalls. */
 const BOOT_BUDGET_MS = 90_000;
 
 class SmokeError extends Error {
   override name = "SmokeError";
 }
 
-// The annotation is what lets TypeScript narrow after a `fail(...)` call.
 const fail: (message: string) => never = (message) => {
   throw new SmokeError(message);
 };
@@ -98,7 +79,7 @@ const request = async (
     headers = {},
     method = "GET",
   }: { body?: string; headers?: HeaderMap; method?: string } = {},
-): Promise<Response> =>
+) =>
   await fetch(`${BASE_URL}${path}`, {
     body,
     headers: { ...BYPASS, ...headers },
@@ -107,10 +88,10 @@ const request = async (
     signal: deadline(),
   });
 
-/** `status + body`, truncated, so a failure is readable without a rerun. */
 const describeResponse = async (response: Response) => {
   const body = await response.text().catch(() => "<unreadable body>");
   const trimmed = body.replaceAll(/\s+/gu, " ").trim();
+
   return `HTTP ${String(response.status)} — ${trimmed.slice(0, 400) || "<empty body>"}`;
 };
 
@@ -120,37 +101,42 @@ const expectStatus = async (response: Response, status: number, what: string) =>
   }
 };
 
-const expectHtml = async (path: string): Promise<Response> => {
+const expectHtml = async (path: string) => {
   const response = await request(path, { headers: { accept: "text/html" } });
   await expectStatus(response, 200, path);
   const type = response.headers.get("content-type") ?? "no content type";
+
   if (!type.startsWith("text/html")) {
     fail(`${path} answered ${type}`);
   }
+
   return response;
 };
 
-/** Polls until healthy. Every unhealthy outcome retries: a booting server accepts TCP well before
- * it can route, so early 404s and 500s are expected. */
 const waitForServer = async () => {
   const startedAt = performance.now();
   let lastSeen = "no response at all";
+
   while (performance.now() - startedAt < BOOT_BUDGET_MS) {
     try {
       const response = await request("/api/health");
+
       if (response.ok) {
         return;
       }
+
       lastSeen = await describeResponse(response);
     } catch (error) {
       lastSeen = error instanceof Error ? error.message : String(error);
     }
+
     await sleep(250);
   }
+
   fail(`${BASE_URL} never answered /api/health within 90 s; last saw: ${lastSeen}`);
 };
 
-const v1Client = (headers: HeaderMap): V1Client =>
+const v1Client = (headers: HeaderMap) =>
   createORPCClient<V1Client>(
     new RPCLink({
       fetch: async (input, init) => await fetch(input, { ...init, signal: deadline() }),
@@ -160,22 +146,22 @@ const v1Client = (headers: HeaderMap): V1Client =>
     }),
   );
 
-/** The session's cookies as a Cookie header. Better Auth checks the site's Origin, or reads the
- * phone's scheme in its place. */
-const signIn = async (login: Login, door: HeaderMap): Promise<string> => {
+const signIn = async (login: Login, door: HeaderMap) => {
   const response = await request("/api/auth/sign-in/email", {
     body: JSON.stringify(login),
     headers: { ...door, "content-type": "application/json" },
     method: "POST",
   });
+
   await expectStatus(response, 200, `sign-in as ${login.email}`);
+
   return response.headers
     .getSetCookie()
     .map((cookie) => cookie.split(";")[0] ?? "")
     .join("; ");
 };
 
-const sessionToken = (cookie: string): string =>
+const sessionToken = (cookie: string) =>
   /session_token=(?<token>[^;]+)/u.exec(cookie)?.groups?.token ??
   fail("the sign-in set no session cookie");
 
@@ -185,67 +171,71 @@ const signOut = async (cookie: string, door: HeaderMap) => {
     headers: { ...door, "content-type": "application/json", cookie },
     method: "POST",
   });
+
   await expectStatus(response, 200, "sign-out");
 };
 
-// a file of its own every run, so its bytes go to the store each time rather than meeting the last
-// run's file held
 const SMOKE_FILE_BYTES = 4096;
 
-const sha256Of = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
+const sha256Of = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 const expectBytes = async (response: Response, expected: Uint8Array, what: string) => {
   const body = Buffer.from(await response.arrayBuffer());
+
   if (!body.equals(expected)) {
     fail(`${what} answered ${String(body.byteLength)} bytes that are not the file's`);
   }
 };
 
-/** A file's bytes up through `door` as every app sends them, by reserve, a PUT to the store reserve
- * names, and settle, then read back whole and by two ranges, as a media loader reads one. */
 const fileRoundTrip = async (door: HeaderMap) => {
   const signed = { ...BUILD, ...door };
+
   const transport: V1Transport = {
     fetch: async (outgoing) => {
       const headers = new Headers(outgoing.headers);
+
       for (const [name, value] of Object.entries({ ...BYPASS, ...signed })) {
         headers.set(name, value);
       }
+
       return await fetch(new Request(outgoing, { headers, signal: deadline() }));
     },
     origin: BASE_URL,
   };
+
   const bytes = crypto.getRandomValues(new Uint8Array(SMOKE_FILE_BYTES));
   const sha = sha256Of(bytes);
   await uploadBlob(transport, { bytes, mime: "application/octet-stream", sha });
 
-  const readAt = async (range: string | null): Promise<Response> =>
+  const readAt = async (range: string | null) =>
     await request(`${V1_BLOBS_PATH}/${sha}`, {
       headers: range === null ? signed : { ...signed, range },
     });
+
   const whole = await readAt(null);
   await expectStatus(whole, 200, "the whole file");
   await expectBytes(whole, bytes, "the whole file");
   const last = SMOKE_FILE_BYTES - 1;
+
   const parts = [
     { end: 9, range: "bytes=0-9", start: 0 },
     { end: last, range: "bytes=-1", start: last },
   ];
+
   for (const { end, range, start } of parts) {
     const part = await readAt(range);
     await expectStatus(part, 206, range);
     const spelled = `bytes ${String(start)}-${String(end)}/${String(SMOKE_FILE_BYTES)}`;
     const contentRange = part.headers.get("content-range");
+
     if (contentRange !== spelled) {
       fail(`${range} answered content-range ${contentRange ?? "none"}, not ${spelled}`);
     }
+
     await expectBytes(part, bytes.subarray(start, end + 1), range);
   }
 };
 
-/** The extension's door (the browser's signed session as a bearer), then the phone's (its cookie
- * under its scheme), each listing the account's library, which may be empty, and a file through
- * the extension's; both sessions end after. One sign-in a door, under the sign-in's 3 in 10 s. */
 const signedInCalls = async (login: Login) => {
   const site = { origin: BASE_URL };
   const browser = await signIn(login, site);
@@ -254,25 +244,30 @@ const signedInCalls = async (login: Login) => {
   const phoneDoor = { "expo-origin": PHONE_ORIGIN };
   const phone = await signIn(login, phoneDoor);
   const asPhone = v1Client({ ...phoneDoor, cookie: phone });
+
   for (const client of [asExtension, asPhone]) {
     await client.library.items.list({ limit: 1 });
   }
+
   await fileRoundTrip(extensionDoor);
   await signOut(phone, phoneDoor);
   await signOut(browser, site);
 };
 
-const signedInLeg = (login: Login | null): Leg => {
+const signedInLeg = (login: Login | null) => {
   const label =
     "a signed-in call answers through the extension's door and the phone's, and a file goes up and reads back by range";
-  return login === null
-    ? { label, skip: "set SMOKE_EMAIL and SMOKE_PASSWORD" }
-    : {
-        label,
-        run: async () => {
-          await signedInCalls(login);
-        },
-      };
+
+  return (
+    login === null
+      ? { label, skip: "set SMOKE_EMAIL and SMOKE_PASSWORD" }
+      : {
+          label,
+          run: async () => {
+            await signedInCalls(login);
+          },
+        }
+  ) satisfies Leg;
 };
 
 const LEGS: readonly Leg[] = [
@@ -282,6 +277,7 @@ const LEGS: readonly Leg[] = [
     run: async () => {
       const home = await expectHtml("/");
       const policy = home.headers.get("content-security-policy") ?? "";
+
       if (!policy.includes("script-src 'self' 'unsafe-inline'") || policy.includes("'nonce-")) {
         fail(`/ carries no static policy: ${policy || "none"}`);
       }
@@ -300,6 +296,7 @@ const LEGS: readonly Leg[] = [
       await expectStatus(response, 307, LIBRARY_PAGE_PATH);
       const location = new URL(response.headers.get("location") ?? "", BASE_URL);
       const expected = `${SIGN_IN_PATH}?next=${encodeURIComponent(LIBRARY_PAGE_PATH)}`;
+
       if (`${location.pathname}${location.search}` !== expected) {
         fail(`${LIBRARY_PAGE_PATH} went to ${location.href}, not ${expected}`);
       }
@@ -332,6 +329,7 @@ const LEGS: readonly Leg[] = [
         headers: { ...STALE_BUILD, "content-type": "application/json" },
         method: "POST",
       });
+
       await expectStatus(response, 426, "a call from build 0.0.1");
     },
   },
@@ -343,25 +341,32 @@ const runLeg = async (number: string, leg: Leg) => {
     if (GATE) {
       fail(`${number} ${leg.label}: ${leg.skip}`);
     }
+
     console.log(`  ${styleText("dim", `○ ${number} ${leg.label}: ${leg.skip}`)}`);
+
     return;
   }
+
   const startedAt = performance.now();
+
   try {
     await leg.run();
   } catch (error) {
     const said = error instanceof Error ? error.message : String(error);
     fail(`${number} ${error instanceof SmokeError ? said : `${leg.label}: ${said}`}`);
   }
+
   const elapsed = styleText("dim", `${String(Math.round(performance.now() - startedAt))}ms`);
   console.log(`  ${styleText("green", "✓")} ${number} ${leg.label} ${elapsed}`);
 };
 
 try {
   console.log(`\n  Smoke test → ${BASE_URL}\n`);
+
   for (const [index, leg] of LEGS.entries()) {
     await runLeg(`${String(index + 1)}.`, leg);
   }
+
   console.log(`\n  ${styleText("green", "Smoke test passed.")}\n`);
 } catch (error) {
   const said = error instanceof Error ? error.message : String(error);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
-import type { SlateEditor, TElement } from "platejs";
+import type { TElement } from "platejs";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
@@ -11,14 +11,11 @@ import type { BodyChange } from "@repo/editor/headless/body/body-change";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 
-const stored = (element: TElement & { readonly id: string }): LibraryBlock =>
-  storableBlockSchema.parse(element);
+const stored = (element: TElement & { readonly id: string }) => storableBlockSchema.parse(element);
 
-const p = (id: string, text: string): LibraryBlock =>
-  stored({ children: [{ text }], id, type: "p" });
+const p = (id: string, text: string) => stored({ children: [{ text }], id, type: "p" });
 
-// a paragraph holding one named pill, showing `display`
-const pill = (id: string, name: string, source: string, display: string): LibraryBlock =>
+const pill = (id: string, name: string, source: string, display: string) =>
   stored({
     children: [
       { text: `${name} ` },
@@ -28,43 +25,44 @@ const pill = (id: string, name: string, source: string, display: string): Librar
     type: "p",
   });
 
-const cell = (text: string): TElement => ({
-  children: [{ children: [{ text }], type: "p" }],
-  type: "td",
-});
+const cell = (text: string) =>
+  ({
+    children: [{ children: [{ text }], type: "p" }],
+    type: "td",
+  }) satisfies TElement;
 
-const table = (id: string, ...texts: readonly string[]): LibraryBlock =>
+const table = (id: string, ...texts: readonly string[]) =>
   stored({ children: [{ children: texts.map(cell), type: "tr" }], id, type: "table" });
 
-// an editor holding `value`, its ids on as the app runs them (Plate turns them off under
-// NODE_ENV=test)
-const editorOver = (value: TElement[]): SlateEditor =>
+const editorOver = (value: TElement[]) =>
   createSlateEditor({ nodeId: true, plugins: BASE_KIT, value });
 
-// the editor a writer opens a note's body in to apply its changes
 const note = (blocks: readonly LibraryBlock[]) => {
   const editor = editorOver(editorValueOf(blocks.map((block) => ({ block, section: "note" }))));
-  const read = (): BodyBlock[] => blocksOfValue(editor.children);
-  const base = (id: string): LibraryBlock => {
+  const read = () => blocksOfValue(editor.children);
+
+  const base = (id: string) => {
     const found = read().find(({ block }) => block.id === id);
+
     if (found === undefined) {
       throw new Error(`the note holds no ${id}`);
     }
+
     return found.block;
   };
+
   return { base, editor, read };
 };
 
-const ids = (blocks: readonly BodyBlock[]): string[] => blocks.map(({ block }) => block.id);
+const ids = (blocks: readonly BodyBlock[]) => blocks.map(({ block }) => block.id);
 
 describe("a body change applied through an editor holding the body", () => {
-  // no reader of the note derives a display, so the write that changes a source settles them
   it("settles what every pill shows in the write that changes one's source", () => {
     const { base, editor, read } = note([
       pill("price", "price", "5", "5"),
       pill("total", "total", "price*2", "10"),
     ]);
-    // the display a writer puts beside its source is whatever it wrote
+
     applyBodyChanges(editor, [
       {
         base: base("price"),
@@ -102,6 +100,7 @@ describe("a body change applied through an editor holding the body", () => {
 
   it("sets marks and props in place, and a cell's text by the cell", () => {
     const { base, editor, read } = note([p("one", "plain"), table("grid", "a1", "b1")]);
+
     const marked = stored({
       checked: true,
       children: [{ text: "pla" }, { bold: true, text: "in" }],
@@ -110,6 +109,7 @@ describe("a body change applied through an editor holding the body", () => {
       listStyleType: "todo",
       type: "p",
     });
+
     const inB1 = editor.api.pointRef({ offset: 2, path: [1, 0, 1, 0, 0] });
     applyBodyChanges(editor, [
       { base: base("one"), block: marked, blockId: "one", kind: "put" },
@@ -125,14 +125,17 @@ describe("a body change applied through an editor holding the body", () => {
   it("replaces a block it reshapes, under its id and in its section", () => {
     const editor = editorOver(editorValueOf([{ block: p("one", "words"), section: "article" }]));
     const [read] = blocksOfValue(editor.children);
+
     if (read === undefined) {
       throw new Error("a block");
     }
+
     const code = stored({
       children: [{ children: [{ text: "words" }], type: "code_line" }],
       id: "one",
       type: "code_block",
     });
+
     applyBodyChanges(editor, [{ base: read.block, block: code, blockId: "one", kind: "put" }]);
     expect(blocksOfValue(editor.children)).toStrictEqual([{ block: code, section: "article" }]);
   });
@@ -167,12 +170,14 @@ describe("a body change applied through an editor holding the body", () => {
 
   it("inserts, drops and moves blocks by id, a batch naming a block it inserted", () => {
     const { base, editor, read } = note([p("one", "1"), p("two", "2"), p("three", "3")]);
+
     const changes: BodyChange[] = [
       { afterId: null, block: p("top", "0"), kind: "insertAfter", section: "article" },
       { afterId: "top", block: p("next", "0.5"), kind: "insertAfter", section: "note" },
       { base: base("two"), blockId: "two", kind: "drop" },
       { afterId: "three", base: base("one"), blockId: "one", kind: "move" },
     ];
+
     expect(applyBodyChanges(editor, changes)).toStrictEqual({ kind: "applied" });
     expect(ids(read())).toStrictEqual(["top", "next", "three", "one"]);
     expect(read()[0]?.section).toBe("article");
@@ -228,6 +233,7 @@ describe("a body change applied through an editor holding the body", () => {
       { ...p("two", "2"), section: "note" },
       { ...p("one", "1"), section: "note" },
     ]);
+
     expect(ids(blocksOfValue(editor.children)).filter((id) => id === "one")).toHaveLength(2);
     expect(
       applyBodyChanges(editor, [

@@ -24,7 +24,7 @@ links, **jobs** and change sets; every `/v1` library call, **connector** call
 and **built-in agent** tool reaches it, and the agent's **threads** sit beside
 it (`packages/db/src/agent-schema.ts`). The **file store** holds the bytes it
 names by hash, and Better Auth's tables the accounts. A client's suites drive
-the fake cell (`@repo/contract/test-support/fake-cell`) in its place. Not what
+the fake cell (`@repo/contract/test-support/fake-cell.test-utils`) in its place. Not what
 a device shows: a device keeps at most a cache of what it last read.
 
 **door** — which device a `/v1` request says it came from, read before its

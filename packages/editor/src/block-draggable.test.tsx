@@ -7,16 +7,17 @@ import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const ROW_HEIGHT = 40;
 const ROW_SELECTOR = ".group\\/block";
 
-// jsdom lays nothing out, and dnd-kit measures each sortable's box to find the one a keyboard
-// step lands on: every block stands in its own row, in document order.
-const rowRect = function rowRect(this: Element): DOMRect {
+const rowRect = function rowRect(this: Element) {
   const index = [...document.querySelectorAll(ROW_SELECTOR)].indexOf(this);
-  return index === -1 ? new DOMRect() : new DOMRect(0, index * ROW_HEIGHT, 600, ROW_HEIGHT - 8);
+
+  return (
+    index === -1 ? new DOMRect() : new DOMRect(0, index * ROW_HEIGHT, 600, ROW_HEIGHT - 8)
+  ) satisfies DOMRect;
 };
 
 beforeEach(() => {
@@ -29,34 +30,35 @@ afterEach(() => {
 
 const p = (text: string) => ({ children: [{ text }], type: "p" });
 
-const mountValue = (value: Value): PlateEditor => {
+const mountValue = (value: Value) => {
   const ref = createRef<PlateEditor>();
   render(<EditorHarness value={value} ref={ref} nodeIds />);
+
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }
+
   return ref.current;
 };
 
-const rowOf = (text: string): HTMLElement => {
+const rowOf = (text: string) => {
   const row = [...document.querySelectorAll(ROW_SELECTOR)].find(
     (node) => node.querySelector('[data-slate-node="element"]')?.textContent === text,
   );
+
   if (!(row instanceof HTMLElement)) {
     throw new TypeError(`no block row reads "${text}"`);
   }
+
   return row;
 };
 
-// Plate's hotkeys swallow a key pressed while focus is outside the editable, so the grip is
-// focused first, as a Tab onto it would be.
 const pickUp = (text: string) => {
   const grip = within(rowOf(text)).getByTitle(/^Drag to move/u);
   grip.focus();
   fireEvent.keyDown(grip, { code: "Space" });
 };
 
-// the keyboard sensor arms its key listener on a timer after the drag starts
 const settle = async () => {
   await act(async () => {
     await delay(0);

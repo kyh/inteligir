@@ -1,8 +1,3 @@
-// The tab's one import, a value moved by `importAfter` alone: idle, reading the file, landing its
-// items, or ended done, stopped or failed. A run reads on a thread of its own (`./import-worker`),
-// which Stop and every end close; it lives as long as the tab, so Settings can close and open again
-// on it, and closing the tab ends it, which the browser asks about first while it runs.
-
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { useEffect, useSyncExternalStore } from "react";
 
@@ -27,7 +22,6 @@ type ImportMove =
   | { readonly kind: "start"; readonly source: ImportSource }
   | { readonly kind: "heard"; readonly news: Exclude<ImportNews, { kind: "session-ended" }> }
   | { readonly kind: "stop" }
-  // the thread itself failed: its script did not load, or it threw past its own reading
   | { readonly kind: "broke" };
 
 export const IMPORT_BROKE =
@@ -42,51 +36,65 @@ type Running = Extract<ImportRun, { kind: "reading" | "landing" }>;
 const isRunning = (run: ImportRun): run is Running =>
   run.kind === "reading" || run.kind === "landing";
 
-const countsOf = (run: Running): ImportCounts => (run.kind === "landing" ? run.counts : NONE);
+const countsOf = (run: Running) => (run.kind === "landing" ? run.counts : NONE);
 
-const afterNews = (
-  run: Running,
-  news: Extract<ImportMove, { kind: "heard" }>["news"],
-): ImportRun => {
+const afterNews = (run: Running, news: Extract<ImportMove, { kind: "heard" }>["news"]) => {
   switch (news.kind) {
     case "reading": {
-      return { kind: "reading", source: run.source };
+      return { kind: "reading", source: run.source } satisfies ImportRun;
     }
+
     case "landing": {
-      return { counts: news.counts, kind: "landing", source: run.source, total: news.total };
+      return {
+        counts: news.counts,
+        kind: "landing",
+        source: run.source,
+        total: news.total,
+      } satisfies ImportRun;
     }
+
     case "done": {
-      return { counts: news.counts, kind: "done" };
+      return { counts: news.counts, kind: "done" } satisfies ImportRun;
     }
+
     case "failed": {
-      return { counts: news.counts, kind: "failed", message: news.message };
+      return { counts: news.counts, kind: "failed", message: news.message } satisfies ImportRun;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(news satisfies never)}`);
+    }
   }
 };
 
-export const importAfter = (run: ImportRun, move: ImportMove): ImportRun => {
+export const importAfter = (run: ImportRun, move: ImportMove) => {
   if (move.kind === "start") {
-    return isRunning(run) ? run : { kind: "reading", source: move.source };
+    return (isRunning(run) ? run : { kind: "reading", source: move.source }) satisfies ImportRun;
   }
+
   if (!isRunning(run)) {
     return run;
   }
+
   switch (move.kind) {
     case "heard": {
       return afterNews(run, move.news);
     }
+
     case "stop": {
-      return { counts: countsOf(run), kind: "stopped" };
+      return { counts: countsOf(run), kind: "stopped" } satisfies ImportRun;
     }
+
     case "broke": {
-      return { counts: countsOf(run), kind: "failed", message: IMPORT_BROKE };
+      return { counts: countsOf(run), kind: "failed", message: IMPORT_BROKE } satisfies ImportRun;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(move satisfies never)}`);
+    }
   }
 };
 
-// the thread a run reads on, as the store reaches it
 export interface ImportThread {
   readonly send: (ask: ImportAsk) => void;
   readonly close: () => void;
@@ -101,27 +109,35 @@ export const createImportStore = (spawn: (ears: ThreadEars) => ImportThread) => 
   const listeners = new Set<() => void>();
   let run: ImportRun = IDLE;
   let thread: ImportThread | null = null;
-  const move = (next: ImportMove): void => {
+
+  const move = (next: ImportMove) => {
     const after = importAfter(run, next);
+
     if (after === run) {
       return;
     }
+
     run = after;
+
     if (!isRunning(run)) {
       thread?.close();
       thread = null;
     }
+
     for (const listener of listeners) {
       listener();
     }
   };
+
   return {
-    get: (): ImportRun => run,
-    start: (ask: ImportAsk, onSessionEnd: (end: SessionEnd) => void): void => {
+    get: () => run,
+    start: (ask: ImportAsk, onSessionEnd: (end: SessionEnd) => void) => {
       if (isRunning(run)) {
         return;
       }
+
       move({ kind: "start", source: ask.source });
+
       const started = spawn({
         broke: () => {
           move({ kind: "broke" });
@@ -134,28 +150,32 @@ export const createImportStore = (spawn: (ears: ThreadEars) => ImportThread) => 
           }
         },
       });
+
       thread = started;
       started.send(ask);
     },
-    stop: (): void => {
+    stop: () => {
       move({ kind: "stop" });
     },
-    subscribe: (listener: () => void): (() => void) => {
+    subscribe: (listener: () => void) => {
       listeners.add(listener);
-      return () => {
+
+      return (() => {
         listeners.delete(listener);
-      };
+      }) satisfies () => void;
     },
   };
 };
 
-const spawnWorker = (ears: ThreadEars): ImportThread => {
+const spawnWorker = (ears: ThreadEars) => {
   const worker = new Worker(new URL("import-worker.ts", import.meta.url), {
     name: "import",
     type: "module",
   });
+
   worker.addEventListener("message", (event) => {
     const news = importNewsSchema.safeParse(event.data);
+
     if (news.success) {
       ears.heard(news.data);
     } else {
@@ -165,6 +185,7 @@ const spawnWorker = (ears: ThreadEars): ImportThread => {
   worker.addEventListener("error", () => {
     ears.broke();
   });
+
   return {
     close: () => {
       worker.terminate();
@@ -172,31 +193,30 @@ const spawnWorker = (ears: ThreadEars): ImportThread => {
     send: (ask) => {
       worker.postMessage(ask, { transfer: [] });
     },
-  };
+  } satisfies ImportThread;
 };
 
 const tabImport = createImportStore(spawnWorker);
 
-export const useImportRun = (): ImportRun =>
+export const useImportRun = () =>
   useSyncExternalStore(tabImport.subscribe, tabImport.get, tabImport.get);
 
 export const startImport = tabImport.start;
 export const stopImport = tabImport.stop;
 
-// whether the browser asks as the tab closes or reloads: only while a run reads or lands, which the
-// close ends, and never once the session ended, whose way to the sign-in a prompt would hold up
-export const importUnloadAsks = (run: ImportRun, session: TabSession): boolean =>
+export const importUnloadAsks = (run: ImportRun, session: TabSession) =>
   session.kind === "live" && isRunning(run);
 
-// the browser's ask, for as long as the library is open rather than Settings, which a run outlives
-export const useImportUnloadAsk = (session: TabSessionStore): void => {
+export const useImportUnloadAsk = (session: TabSessionStore) => {
   useEffect(() => {
-    const asksOnUnload = (event: BeforeUnloadEvent): void => {
+    const asksOnUnload = (event: BeforeUnloadEvent) => {
       if (importUnloadAsks(tabImport.get(), session.get())) {
         event.preventDefault();
       }
     };
+
     window.addEventListener("beforeunload", asksOnUnload);
+
     return () => {
       window.removeEventListener("beforeunload", asksOnUnload);
     };

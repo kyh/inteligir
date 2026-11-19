@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { useRef } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
@@ -16,9 +16,6 @@ import { BACKDROP_CLASSES } from "@repo/ui/components/dialog";
 import { useSidebar, SidebarShell, SIDEBAR_WIDTH_MOBILE } from "@repo/ui/components/sidebar-core";
 import type { SidebarSide, SidebarVariant } from "@repo/ui/components/sidebar-core";
 
-// Base UI Dialog, not Drawer: Drawer's swipe-to-dismiss writes inline transform onto its Popup
-// and expects CSS-transition choreography, which fights Motion on the same element.
-
 interface SidebarSheetProps {
   side: SidebarSide;
   title: string;
@@ -28,15 +25,10 @@ interface SidebarSheetProps {
 }
 
 const SidebarSheet = ({ side, title, open, onClose, children }: SidebarSheetProps) => {
-  // the panel takes initial focus itself: left to the primitive, the trap lands on the top nav
-  // row, and Chrome grants :focus-visible to script-driven focus, so it shows the keyboard ring
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const offscreen = side === "left" ? "-100%" : "100%";
 
-  // `dark:` only matches the explicit .dark class, so the base tint carries system-dark users.
-  // Motion drives `x` on the main thread, where Base UI cannot see it, so the sheet's exit also
-  // fades to a near-1 opacity, a compositor animation of the same length that it can
   return (
     <DialogPrimitive.Root
       open={open}
@@ -52,6 +44,7 @@ const SidebarSheet = ({ side, title, open, onClose, children }: SidebarSheetProp
             <DialogPrimitive.Backdrop
               render={(backdropProps) => {
                 const { style: _style, ...rest } = motionProps(backdropProps);
+
                 return (
                   <motion.div
                     {...rest}
@@ -68,8 +61,8 @@ const SidebarSheet = ({ side, title, open, onClose, children }: SidebarSheetProp
               initialFocus={panelRef}
               render={(popupProps, state) => {
                 const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
-                // merge, don't replace: the primitive needs its own handle on the panel
                 const panelRefs = composeRefs(panelRef, baseRef);
+
                 return (
                   <Elevated
                     {...rest}
@@ -106,8 +99,6 @@ const SidebarSheet = ({ side, title, open, onClose, children }: SidebarSheetProp
 interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   side?: SidebarSide;
   variant?: SidebarVariant;
-  // what the sidebar is called, the Dialog.Title of the sheet it becomes below the mobile
-  // breakpoint, so two sheets are told apart
   label: string;
 }
 

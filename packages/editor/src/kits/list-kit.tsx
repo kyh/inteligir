@@ -8,14 +8,13 @@ import { BlockList } from "@repo/editor/block-list";
 
 import { INDENTABLE, INDENT_OPTIONS, LISTABLE } from "@repo/editor/headless/kits/list-base";
 
-// what css spells a bullet with; every other style a pasted list carries is a kind of number
 const BULLET_STYLES: ReadonlySet<string> = new Set(["circle", "disc", "none", "square"]);
 
-// a pasted list is styled however its page styled it, and a block stores only a bullet or a number
-const storedListStyle = (style: string): string | undefined => {
+const storedListStyle = (style: string) => {
   if (style === "") {
-    return undefined;
+    return;
   }
+
   return BULLET_STYLES.has(style) ? "disc" : "decimal";
 };
 
@@ -23,7 +22,6 @@ export const ListKit = [
   IndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: INDENT_OPTIONS }),
   ListPlugin.configure({
     inject: { targetPlugins: LISTABLE },
-    // Plate's own parse of an item, but for the style it would keep as written
     parsers: {
       html: {
         deserializer: {
@@ -48,11 +46,10 @@ export const ListKit = [
   }),
 ];
 
-// what Tab and Shift+Tab run, so a surface with no Tab key indents exactly the blocks the key would
-export const indentBlocks = (editor: SlateEditor): void => {
+export const indentBlocks = (editor: SlateEditor) => {
   editor.tf.tab({ reverse: false });
 };
 
-export const outdentBlocks = (editor: SlateEditor): void => {
+export const outdentBlocks = (editor: SlateEditor) => {
   editor.tf.tab({ reverse: true });
 };

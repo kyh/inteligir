@@ -7,13 +7,14 @@ import { z } from "zod";
 import { searchVectorOf } from "./search-vector";
 import type { SearchText } from "./search-vector";
 
-const text = (fields: Partial<SearchText>): SearchText => ({
-  body: "",
-  headings: "",
-  meta: "",
-  title: "",
-  ...fields,
-});
+const text = (fields: Partial<SearchText>) =>
+  ({
+    body: "",
+    headings: "",
+    meta: "",
+    title: "",
+    ...fields,
+  }) satisfies SearchText;
 
 describe(searchVectorOf, () => {
   it("weighs each field's words, title first, and shadows every word with its stem", () => {
@@ -26,6 +27,7 @@ describe(searchVectorOf, () => {
     const vector = searchVectorOf(
       text({ body: Array.from({ length: 100 }, () => "go").join(" ") }),
     );
+
     const [word] = vector.split(" ");
     expect(word?.split(",")).toHaveLength(64);
     expect(searchVectorOf(text({ body: "run", title: "run" }))).toBe("'run':1A,2 '~run':1A,2");
@@ -33,9 +35,11 @@ describe(searchVectorOf, () => {
 
   it("passes over a word too long to be a lexeme, and puts every word past the last place at it", () => {
     expect(searchVectorOf(text({ body: `${"x".repeat(257)} kept` }))).toBe("'kept':1 '~kept':1");
+
     const late = searchVectorOf(
       text({ body: Array.from({ length: 16_400 }, (_, at) => `w${String(at)}`).join(" ") }),
     );
+
     expect(late).toContain("'w16382':16383");
     expect(late).toContain("'w16399':16383");
   });
@@ -43,10 +47,11 @@ describe(searchVectorOf, () => {
 
 const matchSchema = z.array(z.object({ hit: z.boolean() }));
 
-const matches = async (vector: string, query: string): Promise<boolean> => {
+const matches = async (vector: string, query: string) => {
   const [row] = matchSchema.parse(
     await db.execute(sql`select ${vector}::tsvector @@ ${query}::tsquery as hit`, "objects"),
   );
+
   return row?.hit ?? false;
 };
 
@@ -56,12 +61,12 @@ dbSuite("a search vector in Postgres", () => {
     expect(await matches(vector, "'candid':*")).toBe(true);
     expect(await matches(vector, "'interviewer' | '~interview'")).toBe(true);
     expect(await matches(vector, "'budgeting' | '~budget'")).toBe(true);
-    // a prefix never reaches into the shadows
     expect(await matches(vector, "'hire':*")).toBe(false);
   });
 
   it("ranks a title's hit ten times a body's", async () => {
     const ranks = z.array(z.object({ body: z.number(), title: z.number() }));
+
     const [row] = ranks.parse(
       await db.execute(
         sql`select ts_rank(${searchVectorOf(text({ title: "roadmap" }))}::tsvector, ${"'roadmap'"}::tsquery) as title,
@@ -69,6 +74,7 @@ dbSuite("a search vector in Postgres", () => {
         "objects",
       ),
     );
+
     expect((row?.title ?? 0) / (row?.body ?? 1)).toBeCloseTo(10);
   });
 

@@ -3,8 +3,8 @@ import { deferred } from "@repo/contract/deferred";
 import { describe, expect, it, test } from "vitest";
 import { z } from "zod";
 
-import { memoryKv } from "./test-support/memory-kv";
-import type { MemoryKv } from "./test-support/memory-kv";
+import { memoryKv } from "./test-support/memory-kv.test-utils";
+import type { MemoryKv } from "./test-support/memory-kv.test-utils";
 import { oneAtATime, savesWaiting, waitingSaves } from "./waiting-saves";
 import type { WaitingSave } from "./waiting-saves";
 
@@ -14,6 +14,7 @@ const SECOND = "0190a000-0000-7000-8000-0000000000a2";
 const THIRD = "0190a000-0000-7000-8000-0000000000a3";
 
 const pageSchema = z.object({ url: z.string() });
+
 type Page = z.infer<typeof pageSchema>;
 
 const queueOver = (storage: MemoryKv = memoryKv()) => ({
@@ -26,25 +27,25 @@ const queueOver = (storage: MemoryKv = memoryKv()) => ({
   storage,
 });
 
-// a stamp per op id, each a second after the one before it
 const stampOf = (opId: string) => ({
   id: opId.replace(/a(?=\d$)/u, "1"),
   opId,
   savedAt: NOW + Number(opId.at(-1)) * 1000,
 });
 
-const pageOf = (opId: string): Page => ({ url: `https://example.test/${opId.at(-1) ?? ""}` });
+const pageOf = (opId: string) =>
+  ({ url: `https://example.test/${opId.at(-1) ?? ""}` }) satisfies Page;
 
 const LANDED = { answer: null, kind: "landed" } as const;
 const FULL = { code: "QUOTA", kind: "refused", message: "Your library is full." } as const;
 
-// a send that answers each save by its op id, `LANDED` where the case names nothing, and records
-// what it was asked to send
 const sending = (answers: Readonly<Record<string, CallOutcome<null> | { kind: "skipped" }>>) => {
   const sent: string[] = [];
+
   return {
     send: async (save: WaitingSave<Page>) => {
       sent.push(save.opId);
+
       return answers[save.opId] ?? LANDED;
     },
     sent,
@@ -160,10 +161,13 @@ describe("a waiting save", () => {
     const { saves, storage } = queueOver();
     await saves.keep(stampOf(FIRST), pageOf(FIRST));
     const answer = deferred();
+
     const passing = saves.pass(async () => {
       await answer.promise;
+
       return FULL;
     });
+
     await saves.clear();
     answer.resolve();
     await passing;
@@ -178,6 +182,7 @@ describe("a waiting save", () => {
     await saves.pass(async (save) => {
       sent.push(save.opId);
       await saves.clear();
+
       return LANDED;
     });
     expect(sent).toStrictEqual([FIRST]);
@@ -208,9 +213,11 @@ describe("a waiting save", () => {
   it("tells whoever listens what is kept after each change", async () => {
     const { saves } = queueOver();
     const told: string[][] = [];
+
     const stop = saves.onChange((kept) => {
       told.push(kept.map((save) => `${save.opId.at(-1) ?? ""}${save.refused === null ? "" : "!"}`));
     });
+
     await saves.keep(stampOf(FIRST), pageOf(FIRST));
     await saves.keep(stampOf(SECOND), pageOf(SECOND));
     await saves.pass(sending({ [FIRST]: FULL }).send);
@@ -265,10 +272,12 @@ describe(oneAtATime, () => {
   it("runs one pass at a time, and exactly one more for every ask made while one ran", async () => {
     const holds = [deferred(), deferred()];
     const began: string[] = [];
+
     const pass = oneAtATime(async (asker: string) => {
       began.push(asker);
       await holds[began.length - 1]?.promise;
     });
+
     const asks = [pass("first"), pass("second"), pass("third"), pass("fourth")];
     expect(began).toStrictEqual(["first"]);
     holds[0]?.resolve();
@@ -281,12 +290,15 @@ describe(oneAtATime, () => {
   it("starts over at the next ask after a pass that failed", async () => {
     let fails = true;
     let ran = 0;
+
     const pass = oneAtATime(async () => {
       ran += 1;
+
       if (fails) {
         throw new Error("the store would not open");
       }
     });
+
     await expect(pass()).rejects.toThrow(/would not open/u);
     fails = false;
     await pass();

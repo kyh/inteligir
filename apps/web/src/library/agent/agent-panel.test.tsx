@@ -11,8 +11,12 @@ import { z } from "zod";
 import { PausedWrites } from "../cloud/needs-connection";
 import { usePageLibrary } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
-import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library.test-utils";
+import type {
+  CellCall,
+  ThreadEventRow,
+  ThreadRow,
+} from "../test-support/fake-page-library.test-utils";
 import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
@@ -33,38 +37,35 @@ const thread: ThreadRow = {
   updatedAt: AT,
 };
 
-const row = (idx: number, event: ThreadEventRow["event"]): ThreadEventRow => ({
-  at: AT + idx,
-  event,
-  eventId: `e${String(idx)}`,
-  threadId: THREAD,
-  type: "event",
-});
+const row = (idx: number, event: ThreadEventRow["event"]) =>
+  ({
+    at: AT + idx,
+    event,
+    eventId: `e${String(idx)}`,
+    threadId: THREAD,
+    type: "event",
+  }) satisfies ThreadEventRow;
 
-const panel = (
-  flushOpen = vi.fn<() => Promise<void>>(async () => {
-    await Promise.resolve();
-  }),
-) => <AgentPanel viewContext={() => {}} flushOpen={flushOpen} />;
+const writesNothing = async () => {
+  await Promise.resolve();
+};
 
-// the library with THREAD the conversation its composer sends to
-const onThread = (library: PageLibrary): PageLibrary => {
+const panel = (flushOpen = writesNothing) => (
+  <AgentPanel viewContext={() => {}} flushOpen={flushOpen} />
+);
+
+const onThread = (library: PageLibrary) => {
   library.workspace.compose({ kind: "chose", threadId: THREAD });
+
   return library;
 };
 
-// the panel over an open item, whose screen a Tidy does not send
 const tidyPanel = (
-  <AgentPanel
-    viewContext={() => ({ itemId: THREAD, surface: "item" })}
-    flushOpen={vi.fn<() => Promise<void>>(async () => {
-      await Promise.resolve();
-    })}
-  />
+  <AgentPanel viewContext={() => ({ itemId: THREAD, surface: "item" })} flushOpen={writesNothing} />
 );
 
-const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
-  calls.filter((call) => call.path === path).map((call) => call.input);
+const callsTo = (calls: readonly CellCall[], path: string) =>
+  calls.flatMap((call) => (call.path === path ? [call.input] : []));
 
 const oneFinishedTurn = [
   row(0, { text: "File these.", type: "user.message" }),
@@ -74,9 +75,9 @@ const oneFinishedTurn = [
 const NOTHING_LEFT = { kept: [], next: null, refused: [], reverted: [] };
 const UNDONE = { ...NOTHING_LEFT, reverted: ["i1"] };
 
-// the panel on THREAD, until "Move" takes it to `to`, and back
 const Moving = ({ to }: { to: string | null }) => {
   const { workspace } = usePageLibrary();
+
   return (
     <>
       <button
@@ -94,10 +95,10 @@ const Moving = ({ to }: { to: string | null }) => {
   );
 };
 
-const noticeUp = (): boolean =>
+const noticeUp = () =>
   toast.getToasts().some((shown) => "title" in shown && shown.title === NEEDS_CONNECTION);
 
-const setOnline = (online: boolean): void => {
+const setOnline = (online: boolean) => {
   act(() => {
     onlineManager.setOnline(online);
   });
@@ -111,9 +112,6 @@ const twoFinishedTurns = [
 
 const undoInput = z.object({ threadId: z.string(), turn: z.number().optional() });
 
-// the cell's own rule, as cell-undo.ts keeps it: a turn goes back once, an undo of one already
-// back takes nothing, and with no connection a call meets no answer. `hold` keeps a call from
-// being answered until the suite says
 const takesBackOnce = (
   turns: readonly number[],
   hold: (call: CellCall) => Promise<void> = async () => {
@@ -122,41 +120,50 @@ const takesBackOnce = (
 ) => {
   const left = new Set(turns);
   const landed: number[][] = [];
-  const answer = async (call: CellCall): Promise<object> => {
+
+  const answer = async (call: CellCall) => {
     if (!onlineManager.isOnline()) {
       throw new TypeError("Failed to fetch");
     }
+
     await hold(call);
+
     if (call.path === "library.agent.undoable") {
-      return { turns: [...left].toSorted((a, b) => a - b) };
+      return { turns: [...left].toSorted((a, b) => a - b) } satisfies object;
     }
+
     const { turn } = undoInput.parse(call.input);
+
     const taken = [...left]
       .filter((one) => turn === undefined || one === turn)
       .toSorted((a, b) => b - a);
+
     for (const one of taken) {
       left.delete(one);
     }
+
     landed.push(taken);
+
     return taken.length === 0 ? NOTHING_LEFT : UNDONE;
   };
+
   return { answer, landed };
 };
 
-const heldDown = (button: HTMLElement | undefined): boolean =>
-  button?.hasAttribute("disabled") === true;
+const heldDown = (button: HTMLElement | undefined) => button?.hasAttribute("disabled") === true;
 
 const twoTurnsDrawn = async () => {
   await waitFor(() => {
     expect(screen.getAllByRole("button", { name: "Undo this turn" })).toHaveLength(2);
   });
+
   return {
     turn: screen.getAllByRole("button", { name: "Undo this turn" })[0] ?? document.body,
     whole: screen.getByRole("button", { name: "Undo this conversation" }),
   };
 };
 
-const gone = async (): Promise<void> => {
+const gone = async () => {
   await waitFor(() => {
     expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
   });
@@ -170,6 +177,7 @@ describe("the agent panel's conversation", () => {
       events: [row(0, { text: "File these.", type: "user.message" })],
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     await expect(screen.findByText("Filing the first")).resolves.toBeDefined();
     expect(screen.getByText("Working…")).toBeDefined();
@@ -187,8 +195,8 @@ describe("the agent panel's conversation", () => {
       ],
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
-    // the turns left to undo are in once the finished turn offers its own undo
     await screen.findByRole("button", { name: "Undo this turn" });
     expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
@@ -198,14 +206,15 @@ describe("the agent panel's conversation", () => {
   });
 
   it("undoes a turn by its number once the open item is written, and the conversation by its thread", async () => {
-    const flushOpen = vi.fn<() => Promise<void>>(async () => {
-      await Promise.resolve();
-    });
+    const written = { flushOpen: writesNothing };
+    const flushOpen = vi.spyOn(written, "flushOpen");
+
     const { calls, library } = fakePageLibrary({
       answer: ({ path }) => (path === "library.agent.undoable" ? { turns: [1, 2] } : UNDONE),
       events: twoFinishedTurns,
       threads: [thread],
     });
+
     renderOnLibrary(panel(flushOpen), onThread(library));
     const { turn, whole } = await twoTurnsDrawn();
     fireEvent.click(turn);
@@ -227,17 +236,21 @@ describe("the agent panel's conversation", () => {
 
   it("offers an Undo only for a turn with something left to take back, once that is read", async () => {
     const read = deferred();
+
     const { library } = fakePageLibrary({
       answer: async ({ path }) => {
         if (path !== "library.agent.undoable") {
           return UNDONE;
         }
+
         await read.promise;
+
         return { turns: [2] };
       },
       events: twoFinishedTurns,
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     await waitFor(() => {
       expect(document.querySelectorAll("[data-turn-ended]")).toHaveLength(2);
@@ -255,27 +268,31 @@ describe("the agent panel's conversation", () => {
     const refused = vi.spyOn(toast, "error");
     const undone = vi.spyOn(toast, "success");
     const answered = deferred();
+
     const { calls, library } = fakePageLibrary({
       answer: async ({ path }) => {
         if (path === "library.agent.undoable") {
           return { turns: callsTo(calls, "library.agent.undo").length < 2 ? [1, 2, 3] : [] };
         }
+
         if (callsTo(calls, path).length === 1) {
           return { ...UNDONE, next: 2 };
         }
+
         await answered.promise;
+
         return { ...UNDONE, reverted: ["i2"] };
       },
       events: oneFinishedTurn,
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     fireEvent.click(whole);
     await waitFor(() => {
       expect(callsTo(calls, "library.agent.undo")).toHaveLength(2);
     });
-    // held from the press until the last call lands, so a second press has nothing to ask
     expect(heldDown(whole)).toBe(true);
     fireEvent.click(whole);
     expect(undone).not.toHaveBeenCalled();
@@ -293,17 +310,19 @@ describe("the agent panel's conversation", () => {
 
   it("waits offline under the layout's notice, and goes once back online", async () => {
     const said = vi.spyOn(toast, "error");
+
     const { calls, library } = fakePageLibrary({
-      // with no connection a call rejects, as fetch does
       answer: ({ path }) => {
         if (!onlineManager.isOnline()) {
           throw new TypeError("Failed to fetch");
         }
+
         return path === "library.agent.undoable" ? { turns: [1] } : UNDONE;
       },
       events: oneFinishedTurn,
       threads: [thread],
     });
+
     renderOnLibrary(
       <>
         <PausedWrites />
@@ -317,7 +336,6 @@ describe("the agent panel's conversation", () => {
     await waitFor(() => {
       expect(noticeUp()).toBe(true);
     });
-    // a second press has nothing to add to the one that waits
     fireEvent.click(whole);
     expect(said).not.toHaveBeenCalled();
     setOnline(true);
@@ -333,16 +351,19 @@ describe("the agent panel's conversation", () => {
 
   it("stays down behind an undo in flight, then takes back what that one left", async () => {
     const answered = deferred();
+
     const cell = takesBackOnce([1, 2], async ({ path }) => {
       if (path === "library.agent.undo") {
         await answered.promise;
       }
     });
+
     const { calls, library } = fakePageLibrary({
       answer: cell.answer,
       events: twoFinishedTurns,
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     const { turn, whole } = await twoTurnsDrawn();
     fireEvent.click(turn);
@@ -373,6 +394,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread, { ...thread, id: OTHER_THREAD }],
     });
+
     renderOnLibrary(<Moving to={OTHER_THREAD} />, onThread(library));
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     setOnline(false);
@@ -392,11 +414,13 @@ describe("the agent panel's conversation", () => {
       const refused = vi.spyOn(toast, "error");
       const undone = vi.spyOn(toast, "success");
       const cell = takesBackOnce([1]);
+
       const { library } = fakePageLibrary({
         answer: cell.answer,
         events: oneFinishedTurn,
         threads: [thread],
       });
+
       renderOnLibrary(panel(), onThread(library));
       const turn = await screen.findByRole("button", { name: "Undo this turn" });
       setOnline(false);
@@ -419,16 +443,19 @@ describe("the agent panel's conversation", () => {
       const answered = deferred();
       const reread = deferred();
       let pressed = false;
+
       const cell = takesBackOnce([1], async ({ path }) => {
         if (pressed) {
           await (path === "library.agent.undo" ? answered : reread).promise;
         }
       });
+
       const { library } = fakePageLibrary({
         answer: cell.answer,
         events: oneFinishedTurn,
         threads: [thread],
       });
+
       renderOnLibrary(panel(), onThread(library));
       const turn = await screen.findByRole("button", { name: "Undo this turn" });
       pressed = true;
@@ -457,11 +484,13 @@ describe("the agent panel's conversation", () => {
       async (name) => {
         const refused = vi.spyOn(toast, "error");
         const cell = takesBackOnce([1]);
+
         const { library } = fakePageLibrary({
           answer: cell.answer,
           events: oneFinishedTurn,
           threads: [thread],
         });
+
         renderOnLibrary(<Moving to={null} />, onThread(library));
         const pressed = await screen.findByRole("button", { name });
         setOnline(false);
@@ -485,11 +514,13 @@ describe("the agent panel's conversation", () => {
     it("stays down behind a conversation press offline, which then lands whole", async () => {
       const refused = vi.spyOn(toast, "error");
       const cell = takesBackOnce([1, 2]);
+
       const { library } = fakePageLibrary({
         answer: cell.answer,
         events: twoFinishedTurns,
         threads: [thread],
       });
+
       renderOnLibrary(panel(), onThread(library));
       const { turn, whole } = await twoTurnsDrawn();
       setOnline(false);
@@ -507,15 +538,19 @@ describe("the agent panel's conversation", () => {
     it("holds from the press, however long the open item's write takes", async () => {
       const refused = vi.spyOn(toast, "error");
       const written = deferred();
-      const flushOpen = vi.fn<() => Promise<void>>(async () => {
+
+      const flushOpen = async () => {
         await written.promise;
-      });
+      };
+
       const cell = takesBackOnce([1, 2]);
+
       const { calls, library } = fakePageLibrary({
         answer: cell.answer,
         events: twoFinishedTurns,
         threads: [thread],
       });
+
       renderOnLibrary(panel(flushOpen), onThread(library));
       const { turn, whole } = await twoTurnsDrawn();
       fireEvent.click(turn);
@@ -540,11 +575,13 @@ describe("the agent panel's conversation", () => {
     const said = vi.spyOn(toast, "error");
     const held = "Another item in your library already holds this link.";
     let turns = [1];
+
     const { library } = fakePageLibrary({
       answer: ({ path }) => {
         if (path === "library.agent.undoable") {
           return { turns };
         }
+
         throw createORPCErrorFromJson({
           code: "CONFLICT",
           data: undefined,
@@ -555,6 +592,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     const turn = await screen.findByRole("button", { name: "Undo this turn" });
     turns = [];
@@ -574,13 +612,14 @@ describe("the agent panel's conversation", () => {
       const said = vi.spyOn(toast, "info");
       const undone = vi.spyOn(toast, "success");
       const refused = vi.spyOn(toast, "error");
-      // this device's list is a frame behind the other's undo
       let turns = [1];
+
       const { calls, library } = fakePageLibrary({
         answer: ({ path }) => (path === "library.agent.undoable" ? { turns } : NOTHING_LEFT),
         events: oneFinishedTurn,
         threads: [thread],
       });
+
       renderOnLibrary(panel(), onThread(library));
       const pressed = await screen.findByRole("button", { name });
       turns = [];
@@ -601,12 +640,14 @@ describe("the agent panel's conversation", () => {
     ["kept all of it", { kept: ["i1"], reverted: [] }, "info", /^Nothing was undone/u],
   ] as const)("says when a later change %s", async (_case, answer, kind, words) => {
     const said = vi.spyOn(toast, kind);
+
     const { library } = fakePageLibrary({
       answer: ({ path }) =>
         path === "library.agent.undoable" ? { turns: [1] } : { ...NOTHING_LEFT, ...answer },
       events: oneFinishedTurn,
       threads: [thread],
     });
+
     renderOnLibrary(panel(), onThread(library));
     fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
     await waitFor(() => {
@@ -618,11 +659,11 @@ describe("the agent panel's conversation", () => {
     const { calls, library } = fakePageLibrary({
       answer: () => ({ status: "running", threadId: THREAD }),
     });
+
     library.workspace.compose({ kind: "tidy" });
     renderOnLibrary(tidyPanel, library);
     expect(screen.getByText(TIDY_LABEL)).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    // the conversation it went to, which lets the Tidy go (`./agent-composer`)
     await waitFor(() => {
       expect(library.workspace.store.getState().composer.target).toStrictEqual({
         kind: "asking",
@@ -644,6 +685,7 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread],
     });
+
     library.workspace.compose({ kind: "tidy" });
     renderOnLibrary(tidyPanel, library);
     fireEvent.change(screen.getByPlaceholderText(TIDY_PLACEHOLDER), {

@@ -12,14 +12,12 @@ import {
 import { siteConfig } from "./site-config";
 import { siteGraph } from "./structured-data";
 
-// the floor agent-readiness checks hold a trust page and the homepage's raw text to
 const MIN_CHARS = 500;
 
 const PREVIEW = "https://inteligir-git-branch.vercel.app";
 const LLMS = llmsTxt(PREVIEW);
 
-// a claim can break across a source line, a quoted llms.txt line or an element
-const flowing = (text: string): string =>
+const flowing = (text: string) =>
   text
     .replaceAll(/<[^>]*>/gu, " ")
     .replaceAll(/[\s>]+/gu, " ")
@@ -43,8 +41,8 @@ const RETIRED_CLAIMS: readonly (readonly [string, RegExp])[] = [
   ["a copy of the library on the phone", /\bkeeps? a copy\b|\bcopy of every item\b/iu],
 ];
 
-const claimsIn = (text: string): string[] =>
-  RETIRED_CLAIMS.filter(([, pattern]) => pattern.test(flowing(text))).map(([claim]) => claim);
+const claimsIn = (text: string) =>
+  RETIRED_CLAIMS.flatMap(([claim, pattern]) => (pattern.test(flowing(text)) ? [claim] : []));
 
 describe("the site's markdown", () => {
   it.each([
@@ -147,6 +145,7 @@ describe("the JSON-LD graph", () => {
       "WebSite",
       "SoftwareApplication",
     ]);
+
     for (const node of graph) {
       expect(node.name).toBe(siteConfig.name);
       expect(node.url).toBe(siteConfig.url);

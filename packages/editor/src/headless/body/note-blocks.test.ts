@@ -3,24 +3,20 @@ import { createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { blockOfElement } from "@repo/editor/headless/body/element-block";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { sectioned } from "@repo/editor/headless/body/note-section";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
-import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs";
-import { CORPUS, LISTED, SECTIONED } from "../../test-support/stored-corpus";
+import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs.test-utils";
+import { CORPUS, LISTED, SECTIONED } from "../../test-support/stored-corpus.test-utils";
 
-// the corpus as an editor holds it: a stored block its normalizer rewrites is opened rewritten
 const HELD = blocksOfValue(editorValueOf(SECTIONED));
 
-// an editor holding `value`, its ids on as the app runs them (Plate turns them off under
-// NODE_ENV=test)
 const opened = (value: readonly TElement[]) =>
   createSlateEditor({ nodeId: true, plugins: BASE_KIT, value: [...value] });
 
-const columns = (...widths: readonly string[]): LibraryBlock => {
+const columns = (...widths: readonly string[]) => {
   const block = blockOfElement({
     children: widths.map((width) => ({
       children: [{ children: [{ text: width }], type: "p" }],
@@ -30,14 +26,15 @@ const columns = (...widths: readonly string[]): LibraryBlock => {
     id: "columns",
     type: "column_group",
   });
+
   if (block === null) {
     throw new Error("a column group the store takes");
   }
+
   return block;
 };
 
 describe("a note's body as an editor holds it", () => {
-  // the reading alone, before any normalizer: every pair the library persists reads back
   it("reads every node, mark and prop the library persists, in order and section", () => {
     const used = new Set<string>();
     usedPairs(CORPUS, used);
@@ -53,7 +50,7 @@ describe("a note's body as an editor holds it", () => {
   });
 
   it("opens a block of every type with all the model lets it carry, and reads it back unchanged", () => {
-    const listed = LISTED.map((block): BodyBlock => ({ block, section: "note" }));
+    const listed = LISTED.map((block) => ({ block, section: "note" }) satisfies BodyBlock);
     expect(new Set(listed.map(({ block }) => block.type)).size).toBe(listed.length);
     expect(blocksOfValue(editorValueOf(listed))).toStrictEqual(listed);
   });
@@ -65,6 +62,7 @@ describe("a note's body as an editor holds it", () => {
         { block: columns("100%"), section: "note" },
       ]),
     );
+
     expect(held.map(({ block }) => block.type)).toStrictEqual(["column_group", "p"]);
     expect(held[0]?.block).toStrictEqual(columns("40%", "60%"));
   });
@@ -75,7 +73,6 @@ describe("a note's body as an editor holds it", () => {
     editor.tf.normalize({ force: true });
     expect(editor.operations).toStrictEqual([]);
     expect(blocksOfValue(editor.children)).toStrictEqual(blocksOfValue(value));
-    // where a stored block opened as stored would have one
     const raw = opened([sectioned(columns("100%"), "note")]);
     raw.tf.normalize({ force: true });
     expect(raw.operations).not.toStrictEqual([]);
@@ -97,6 +94,7 @@ describe("a note's body as an editor holds it", () => {
         },
       ]),
     );
+
     editor.tf.insertNodes(
       { children: [{ text: "" }], trigger: "/", type: "slash_input" },
       { at: { offset: 7, path: [0, 0] } },

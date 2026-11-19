@@ -7,17 +7,16 @@ import { formatIsoDate } from "@repo/contract/iso-date";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { DateElement } from "@repo/editor/nodes/date-node";
 
-const insertDateChip = (editor: PlateEditor, iso: string): void => {
+const insertDateChip = (editor: PlateEditor, iso: string) => {
   insertVoidAndEscape(editor, { children: [{ text: "" }], date: iso, type: KEYS.date });
   editor.tf.insertText(" ");
 };
 
-export const insertDate = (editor: PlateEditor): void => {
+export const insertDate = (editor: PlateEditor) => {
   insertDateChip(editor, formatIsoDate(new Date()));
 };
 
-// No month-granularity byte form exists, so a month is its first day.
-export const insertMonthDate = (editor: PlateEditor): void => {
+export const insertMonthDate = (editor: PlateEditor) => {
   const now = new Date();
   insertDateChip(editor, formatIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)));
 };

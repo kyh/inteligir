@@ -8,9 +8,6 @@ import remarkGfm from "remark-gfm";
 import { SiteHeader } from "#components/site-header";
 import { siteConfig } from "#lib/site-config";
 
-// a policy's table holds sentences, headers included, so it scrolls in a box of its own at a width
-// its columns can wrap in: typeset's unwrapped headers would otherwise set the page's width, and its
-// max-content scroll puts each sentence on one line
 const WideTable = ({ node: _node, ...props }: ComponentProps<"table"> & ExtraProps) => (
   <div className="typeset-scroll">
     <table {...props} className="w-auto min-w-full [&_th]:min-w-36 [&_th]:whitespace-normal" />

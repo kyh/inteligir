@@ -1,11 +1,5 @@
 "use client";
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- a virtualized grid of rows positioned by transform, which <table> and <tr> cannot be */
-// The one component that calls `useVirtualizer` (@tanstack/react-virtual), which the React
-// Compiler skips as known-incompatible: the virtualizer is a mutable instance read during render.
-// So the cells are children the compiler does compile, and only this file goes uncompiled
-// (CLAUDE.md § The card grid is virtualized by uniform rows). Rows are uniform: every cell is
-// `cellHeight(cellWidth)` tall, so nothing is measured, and a resize re-derives the columns and
-// the row pitch from the width alone.
 
 import { useVirtualizer, defaultRangeExtractor } from "@tanstack/react-virtual";
 import type { Range, Virtualizer } from "@tanstack/react-virtual";
@@ -23,20 +17,15 @@ interface CardGridProps {
   count: number;
   minCellWidth: number;
   gap?: number;
-  // uniform rows; nothing is measured
   cellHeight: (cellWidth: number) => number;
   renderCell: (index: number) => ReactNode;
-  // the roving cell survives scroll, so focus never lands on an unmounted node
   keepMountedIndex?: number | null;
   initialOffset?: number;
   onScrollOffset?: (px: number) => void;
   onRangeChange?: (range: { first: number; last: number }) => void;
   onColumnsChange?: (columns: number) => void;
-  // jsdom lays nothing out, so a suite names the box the grid would have
   initialRect?: { width: number; height: number };
   handleRef?: RefObject<CardGridHandle | null>;
-  // a key pressed in the grid's own box: a popup a cell opens is the cell's child in React's tree
-  // but sits under <body>, so its keys never reach this
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   className?: string;
   "aria-label": string;
@@ -44,7 +33,6 @@ interface CardGridProps {
 }
 
 const DEFAULT_GAP = 16;
-// the inset the cells keep from the scroller's edges, on every side
 const INSET = 16;
 const OVERSCAN = 3;
 
@@ -53,33 +41,40 @@ interface Rect {
   height: number;
 }
 
-const gridColumns = (width: number, minCellWidth: number, gap: number): number =>
+const gridColumns = (width: number, minCellWidth: number, gap: number) =>
   Math.max(1, Math.floor((width + gap) / (minCellWidth + gap)));
 
-// the scroller's content box, or the named one while it lays out as nothing
 const observeRect =
   (fallback: Rect | undefined, onWidth: (width: number) => void) =>
   (instance: Virtualizer<HTMLDivElement, HTMLDivElement>, publish: (rect: Rect) => void) => {
     const element = instance.scrollElement;
+
     if (element === null) {
       return;
     }
-    const report = (width: number, height: number): void => {
+
+    const report = (width: number, height: number) => {
       const rect =
         fallback !== undefined && width === 0 && height === 0
           ? fallback
           : { height: Math.round(height), width: Math.round(width) };
+
       onWidth(rect.width);
       publish(rect);
     };
+
     report(element.clientWidth, element.clientHeight);
+
     const observer = new ResizeObserver((entries) => {
       const box = entries[0]?.contentRect;
+
       if (box !== undefined) {
         report(box.width, box.height);
       }
     });
+
     observer.observe(element);
+
     return () => {
       observer.disconnect();
     };
@@ -134,9 +129,11 @@ export const CardGrid = ({
     paddingStart: INSET,
     rangeExtractor: (range: Range) => {
       const rows = defaultRangeExtractor(range);
+
       if (keepRow === null || keepRow >= range.count || rows.includes(keepRow)) {
         return rows;
       }
+
       return [...rows, keepRow].toSorted((a, b) => a - b);
     },
     scrollPaddingEnd: INSET,
@@ -144,8 +141,6 @@ export const CardGrid = ({
     useFlushSync: false,
   });
 
-  // the row pitch moves with the width alone, and the virtualizer caches every size it handed
-  // out, so a new pitch re-derives them all
   useLayoutEffect(() => {
     virtualizer.measure();
   }, [virtualizer, rowHeight]);
@@ -195,9 +190,11 @@ export const CardGrid = ({
           const start = row.index * columns;
           const end = Math.min(count, start + columns);
           const cells: ReactNode[] = [];
+
           for (let index = start; index < end; index += 1) {
             cells.push(<Fragment key={index}>{renderCell(index)}</Fragment>);
           }
+
           return (
             <div
               key={row.key}

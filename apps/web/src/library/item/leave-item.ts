@@ -1,9 +1,3 @@
-// CLAUDE.md § The tab asks before it loses the open item's edit. The open item rides the URL, so
-// every way off it is guarded: a move the tab makes and Back or Forward through the address's
-// history (`library-history.ts`), and the tab's close or reload through the browser's own ask. The
-// open note is asked whether it stored every edit made here, and one it couldn't save, or didn't
-// say it saved in time, is given up only on the person's word.
-
 import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
 import { deferred } from "@repo/contract/deferred";
 import type { OpenNote } from "@repo/editor/item/item-editor";
@@ -16,13 +10,13 @@ import { usePageLibrary } from "../cloud/library-context";
 import type { TabSession } from "../cloud/library-context";
 import { guardLeaves } from "../library-history";
 
-// whether the note holds every edit, a note that hasn't said so in time counting as not holding,
-// since its save may wait on a connection for as long as the browser lets it
-const holdsInTime = async (note: Pick<OpenNote, "holds">): Promise<boolean> => {
+const holdsInTime = async (note: Pick<OpenNote, "holds">) => {
   const late = deferred<false>();
+
   const timer = setTimeout(() => {
     late.resolve(false);
   }, HOLDS_ANSWER_MS);
+
   try {
     return await Promise.race([note.holds(), late.promise]);
   } finally {
@@ -30,14 +24,14 @@ const holdsInTime = async (note: Pick<OpenNote, "holds">): Promise<boolean> => {
   }
 };
 
-// whether the page may leave the item
 export const leaveItem = async (
   note: Pick<OpenNote, "holds"> | null,
   ask: (options: ConfirmOptions) => Promise<boolean>,
-): Promise<boolean> => {
+) => {
   if (note === null || (await holdsInTime(note))) {
     return true;
   }
+
   return await ask({
     body: "Some of what you typed hasn't saved yet. Leave now and it's lost.",
     cancelLabel: "Stay",
@@ -47,29 +41,25 @@ export const leaveItem = async (
   });
 };
 
-// whether the browser asks as the tab closes or reloads, where no dialog of the page's can: only
-// over typing no save sent as the page goes would carry, and never once the session ended, which
-// leaves nothing the tab could still send
-export const unloadAsks = (
-  note: Pick<OpenNote, "unloadLoses"> | null,
-  session: TabSession,
-): boolean => session.kind === "live" && note !== null && note.unloadLoses();
+export const unloadAsks = (note: Pick<OpenNote, "unloadLoses"> | null, session: TabSession) =>
+  session.kind === "live" && note !== null && note.unloadLoses();
 
-// guards the open note for as long as the workspace is mounted; every question is asked as a leave
-// happens, so it reads the note the ref holds then
-export const useLeaveItem = (note: RefObject<OpenNote | null>): void => {
+export const useLeaveItem = (note: RefObject<OpenNote | null>) => {
   const { session } = usePageLibrary();
   useEffect(() => {
-    const asksOnUnload = (event: BeforeUnloadEvent): void => {
+    const asksOnUnload = (event: BeforeUnloadEvent) => {
       if (unloadAsks(note.current, session.get())) {
         event.preventDefault();
       }
     };
+
     window.addEventListener("beforeunload", asksOnUnload);
+
     const release = guardLeaves({
       holdsWork: () => note.current?.unsaved() === true,
       mayLeave: async () => await leaveItem(note.current, confirm),
     });
+
     return () => {
       window.removeEventListener("beforeunload", asksOnUnload);
       release();

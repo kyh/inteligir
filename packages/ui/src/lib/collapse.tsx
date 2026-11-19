@@ -9,7 +9,6 @@ interface CollapseProps {
   children: ReactNode;
 }
 
-// a closed fold is inert, never aria-hidden, which leaves the clipped controls in the tab order
 export const Collapse = ({ open, className, innerClassName, children }: CollapseProps) => (
   <div
     inert={open ? undefined : true}

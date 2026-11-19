@@ -6,14 +6,14 @@ import type { TElement } from "platejs";
 
 import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 
-import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning";
+import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning.test-utils";
 import { lettersKept } from "./markdown-doc";
 
 const FIXTURES = fileURLToPath(new URL("../../test-support/fixtures/", import.meta.url));
 
-// a list of the kind people keep: times, quotes, a url, an at-name, money and dates
 const PROSE_LIST = Array.from({ length: 30 }, (_, index) => {
   const n = index + 1;
+
   const lines = [
     `- Meeting at 10:${String(n).padStart(2, "0")} with Ana: review the Q${String((n % 4) + 1)} plan, then ship it.`,
     `- Read "Thinking, Fast and Slow" (ch. ${String(n)}) — *note* the anchoring bias; see https://example.com/${String(n)}.`,
@@ -21,6 +21,7 @@ const PROSE_LIST = Array.from({ length: 30 }, (_, index) => {
     `- Draft: **why** the cache (L${String(n)}) misses ~${String(n)}% of reads under load.`,
     `- Buy milk, eggs & bread; ask about the 2026-01-${String((n % 28) + 1).padStart(2, "0")} delivery.`,
   ];
+
   return lines[index % lines.length] ?? "";
 }).join("\n");
 
@@ -33,16 +34,12 @@ const CORPUS = [
   { md: PROSE_LIST, name: "prose-list" },
 ];
 
-// the share of a file's letters a write keeps where it keeps fewer than all: what stock markdown
-// cannot hold (an inline tag's markup, an entity decoded, a mail link's address beside its words)
 const KEPT_BELOW_ALL = new Map([
   ["entities.md", 0.4375],
   ["mailto-resource.md", 0.2857],
   ["tag-void-inline.md", 0.8378],
 ]);
 
-// the voids a file is written to hold, so its cases read and write those nodes, not text that spells
-// them; an escaped one is its text
 const VOIDS_HELD = new Map<string, readonly string[]>([
   ["date-edges.md", [KEYS.date]],
   ["date-only-paragraph.md", [KEYS.date]],
@@ -59,7 +56,7 @@ const VOID_TYPES: ReadonlySet<string> = new Set([
   KEYS.mention,
 ]);
 
-const voidsIn = (value: readonly TElement[]): string[] =>
+const voidsIn = (value: readonly TElement[]) =>
   [
     ...new Set(
       value
@@ -76,12 +73,14 @@ const MEDIA_TYPES = new Set(["img", "video", "file", "media_embed"]);
 const counts = (value: readonly TElement[]) => {
   let links = 0;
   let media = 0;
+
   for (const [node] of value.flatMap((block) => [...NodeApi.nodes(block)])) {
     if (ElementApi.isElement(node)) {
       links += LINK_TYPES.has(node.type) ? 1 : 0;
       media += MEDIA_TYPES.has(node.type) ? 1 : 0;
     }
   }
+
   return { links, media };
 };
 

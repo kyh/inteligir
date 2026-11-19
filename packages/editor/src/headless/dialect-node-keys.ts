@@ -1,11 +1,5 @@
-// Every dialect node's Slate type, spelled once: the plugin's key, the rule table's serialize key,
-// a deserializer's `type` and every walk's match. Alone in a module that imports no value, so the
-// kits, the rule table and the walks all reach it without closing a cycle around the kits.
-// Plate's own nodes are spelled by its KEYS.
-
 import type { RICH_FENCE_LANGS } from "@repo/editor/headless/markdown/fence-langs";
 
-// the fence map names the rich blocks too; `satisfies` holds the two spellings together
 type RichFenceBlockKey = NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>;
 
 export const FORMULA_PILL_KEY = "formulaPill";

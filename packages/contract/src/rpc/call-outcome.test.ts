@@ -1,11 +1,13 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
-import { refusalResponse } from "../test-support/refusal-response";
+import { refusalResponse } from "../test-support/refusal-response.test-utils";
 import {
   BlobMismatchError,
   ClientOutdatedError,
@@ -22,7 +24,9 @@ const ORIGIN = "http://localhost:5174";
 const FILE = { bytes: new Uint8Array([1, 2, 3]), mime: "image/png", sha: "a".repeat(64) };
 
 type Files = V1Client["library"]["files"];
+
 type Reserved = Awaited<ReturnType<Files["reserve"]>>;
+
 type Settled = Awaited<ReturnType<Files["settle"]>>;
 
 const TO_THE_STORE: Reserved = {
@@ -32,35 +36,42 @@ const TO_THE_STORE: Reserved = {
   url: "/store/upload-1",
 };
 
+const elsewhere = setupServer();
+
+beforeAll(() => {
+  elsewhere.listen({ onUnhandledRequest: "error" });
+});
+
 afterEach(() => {
-  vi.unstubAllGlobals();
+  elsewhere.resetHandlers();
+});
+
+afterAll(() => {
+  elsewhere.close();
 });
 
 interface Script {
   readonly reserve?: () => Reserved;
   readonly store?: () => Response;
   readonly settle?: () => Settled;
-  // the cloud's answer to each call's first try, the session's minute spent, if any
   readonly busy?: () => Response;
 }
 
-// the session's minute spent, as the cloud answers it before any procedure runs, naming its wait
-// in whole seconds or not at all
-const spentMinute = (retryAfter: string | null) => (): Response => {
+const spentMinute = (retryAfter: string | null) => () => {
   const refused = refusalResponse(new TooManyRequestsError());
+
   if (retryAfter !== null) {
     refused.headers.set("retry-after", retryAfter);
   }
+
   return refused;
 };
 
-// A cloud whose two file calls answer as a case scripts them, through oRPC's own handler, beside a
-// store on its own origin that answers a PUT as the case says; each request is recorded as
-// `<method> <path>`, and what the store was sent with the type it was sent as
 const cloudOf = (script: Script) => {
   const asked: string[] = [];
   const stored: { readonly bytes: Uint8Array; readonly type: string | null }[] = [];
   const os = implement(v1Contract);
+
   const handler = new RPCHandler(
     {
       library: {
@@ -70,34 +81,42 @@ const cloudOf = (script: Script) => {
           ),
           settle: os.library.files.settle.handler(({ input }) => {
             expect(input).toStrictEqual({ sha: FILE.sha, uploadId: "upload-1" });
-            return (script.settle ?? ((): Settled => ({ kind: "kept" })))();
+
+            return (script.settle ?? (() => ({ kind: "kept" }) satisfies Settled))();
           }),
         },
       },
     },
     { errorStatusMap: V1_ERROR_STATUS_MAP },
   );
+
   const transport: V1Transport = {
     fetch: async (request) => {
       const { pathname } = new URL(request.url);
       const call = `${request.method} ${pathname}`;
       const firstTry = !asked.includes(call);
       asked.push(call);
+
       if (pathname.startsWith(V1_RPC_PATH)) {
         if (firstTry && script.busy !== undefined) {
           return script.busy();
         }
+
         const { response } = await handler.handle(request, { prefix: V1_RPC_PATH });
+
         return response ?? new Response(null, { status: 404 });
       }
+
       stored.push({
         bytes: new Uint8Array(await request.arrayBuffer()),
         type: request.headers.get("content-type"),
       });
+
       return (script.store ?? (() => new Response(null, { status: 200 })))();
     },
     origin: ORIGIN,
   };
+
   return { asked, stored, transport };
 };
 
@@ -122,22 +141,27 @@ describe(uploadBlob, () => {
     const cloud = cloudOf({
       reserve: () => ({ ...TO_THE_STORE, url: "https://store.example/put?signature=s" }),
     });
+
     const sent: Request[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async (input, init) => {
-        sent.push(new Request(input, init));
-        return await Promise.resolve(new Response(null, { status: 200 }));
+
+    elsewhere.use(
+      http.put("https://store.example/put", ({ request }) => {
+        sent.push(request);
+
+        return new HttpResponse(null, { status: 200 });
       }),
     );
+
     const signed: V1Transport = {
       fetch: async (request) => {
         const headers = new Headers(request.headers);
         headers.set("authorization", "Bearer session");
+
         return await cloud.transport.fetch(new Request(request, { headers }));
       },
       origin: ORIGIN,
     };
+
     await expect(uploadBlob(signed, FILE)).resolves.toBeUndefined();
     expect(cloud.asked).toStrictEqual([RESERVE, SETTLE]);
     const [put] = sent;
@@ -158,6 +182,7 @@ describe(uploadBlob, () => {
           throw refusal;
         },
       });
+
       await expect(uploadBlob(cloud.transport, FILE), refusal.code).rejects.toMatchObject({
         code: refusal.code,
         data: refusal.data,
@@ -199,11 +224,13 @@ describe(uploadBlob, () => {
 
   it("tells the hook a sign-in it ended", async () => {
     const ended: SessionEnd[] = [];
+
     const cloud = cloudOf({
       reserve: () => {
         throw new ClientOutdatedError();
       },
     });
+
     await expect(
       uploadBlob(cloud.transport, FILE, (end) => {
         ended.push(end);
@@ -215,6 +242,7 @@ describe(uploadBlob, () => {
 
 const defined = (code: string, message = code) =>
   createORPCErrorFromJson({ code, data: undefined, defined: true, message });
+
 const undeclared = (code: string) =>
   createORPCErrorFromJson({ code, data: undefined, defined: false, message: code });
 
@@ -264,6 +292,7 @@ describe(outcomeOf, () => {
         { code: "BAD_REQUEST", kind: "refused", message: CHANGE_REFUSED },
       ],
     ];
+
     for (const [met, thrown, outcome] of misses) {
       await expect(
         outcomeOf(async () => {
@@ -278,8 +307,10 @@ describe(outcomeOf, () => {
     const sent = async (script: Script) =>
       await outcomeOf(async () => {
         await uploadBlob(cloudOf(script).transport, FILE);
+
         return FILE.sha;
       });
+
     await expect(sent({})).resolves.toStrictEqual({ answer: FILE.sha, kind: "landed" });
     await expect(
       sent({

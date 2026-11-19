@@ -1,46 +1,46 @@
-// A url's key is a row `deriveItem` writes with every write of the item
-// (`../library/derive-item.ts`).
-
 import { safeDecode } from "../text/safe-decode";
 
-// a pasted address holds no whitespace or control character; a browser escapes them all
-const holdsSpaceOrControl = (value: string): boolean => {
+const holdsSpaceOrControl = (value: string) => {
   for (const ch of value) {
     const cp = ch.codePointAt(0) ?? 0;
+
     if (cp <= 0x20 || (cp >= 0x7f && cp <= 0x9f) || /\s/u.test(ch)) {
       return true;
     }
   }
+
   return false;
 };
 
-// URL alone also takes `https:example.com`, `https:///path` and `https:\\host`
 const WEB_PREFIX = /^https?:\/\/[^/?#\\]/iu;
 
-const parseUrl = (value: string): URL | null => {
+const parseUrl = (value: string) => {
   try {
-    return new URL(value);
+    return new URL(value) satisfies URL | null;
   } catch {
     return null;
   }
 };
 
-const parseWebUrl = (value: string): URL | null => {
+const parseWebUrl = (value: string) => {
   const trimmed = value.trim();
+
   if (!WEB_PREFIX.test(trimmed) || holdsSpaceOrControl(trimmed)) {
     return null;
   }
+
   const url = parseUrl(trimmed);
+
   return url === null || url.hostname.replace(/\.$/u, "") === "" ? null : url;
 };
 
-export const isWebUrl = (value: string): boolean => parseWebUrl(value) !== null;
+export const isWebUrl = (value: string) => parseWebUrl(value) !== null;
 
-const bareHost = (url: URL): string => url.hostname.replace(/\.$/u, "").replace(/^www\./u, "");
+const bareHost = (url: URL) => url.hostname.replace(/\.$/u, "").replace(/^www\./u, "");
 
-// lowercased, no `www.`, no port
-export const urlHost = (value: string): string | null => {
+export const urlHost = (value: string) => {
   const url = parseWebUrl(value);
+
   return url === null ? null : bareHost(url);
 };
 
@@ -55,16 +55,19 @@ const MOBILE_WIKIPEDIA = /^(?<lang>.+)\.m\.wikipedia\.org$/u;
 
 const SHORT_YOUTUBE_HOST = "youtu.be";
 
-// the host the key and the per-host rules see
-const aliasedHost = (url: URL): string => {
+const aliasedHost = (url: URL) => {
   const host = bareHost(url);
+
   if (host === SHORT_YOUTUBE_HOST) {
     return "youtube.com";
   }
+
   const lang = MOBILE_WIKIPEDIA.exec(host)?.groups?.lang;
+
   if (lang !== undefined) {
     return `${lang}.wikipedia.org`;
   }
+
   return HOST_ALIASES.get(host) ?? host;
 };
 
@@ -105,26 +108,29 @@ const HOST_TRACKING_PARAMS = new Map([
 const ESCAPE = /%[\dA-Fa-f]{2}/gu;
 const UNRESERVED = /^[\w.~-]$/u;
 
-// URL leaves an escape as written: its case is folded and an unreserved one decoded here
-const normalizeEscapes = (text: string): string =>
+const normalizeEscapes = (text: string) =>
   text.replaceAll(ESCAPE, (escape) => {
     const hex = escape.slice(1).toUpperCase();
     const decoded = String.fromCodePoint(Number.parseInt(hex, 16));
+
     return UNRESERVED.test(decoded) ? decoded : `%${hex}`;
   });
 
-const keyPath = (pathname: string): string => {
+const keyPath = (pathname: string) => {
   const clean = normalizeEscapes(pathname);
+
   return clean.length > 1 && clean.endsWith("/") ? clean.slice(0, -1) : clean;
 };
 
-const paramName = (piece: string): string => {
+const paramName = (piece: string) => {
   const eq = piece.indexOf("=");
+
   return normalizeEscapes(eq === -1 ? piece : piece.slice(0, eq));
 };
 
-const isTrackingParam = (piece: string, host: string): boolean => {
+const isTrackingParam = (piece: string, host: string) => {
   const name = paramName(piece).toLowerCase();
+
   return (
     name.startsWith("utm_") ||
     TRACKING_PARAMS.has(name) ||
@@ -132,30 +138,36 @@ const isTrackingParam = (piece: string, host: string): boolean => {
   );
 };
 
-// split by hand: URLSearchParams writes a kept parameter back in its own spelling
-const queryPieces = (url: URL): string[] =>
-  url.search === "" ? [] : url.search.slice(1).split("&");
+const queryPieces = (url: URL) =>
+  (url.search === "" ? [] : url.search.slice(1).split("&")) satisfies string[];
 
-const firstSegment = (path: string): string => path.split("/").find((s) => s !== "") ?? "";
+const firstSegment = (path: string) => path.split("/").find((s) => s !== "") ?? "";
 
-const compareStrings = (a: string, b: string): number => {
+const compareStrings = (a: string, b: string) => {
   if (a === b) {
     return 0;
   }
+
   return a < b ? -1 : 1;
 };
 
-const keyQuery = (pieces: readonly string[], host: string): string =>
+const keyQuery = (pieces: readonly string[], host: string) =>
   pieces
-    .filter((piece) => piece !== "" && !isTrackingParam(piece, host))
-    .map((piece) => {
+    .flatMap((piece) => {
+      if (piece === "" || isTrackingParam(piece, host)) {
+        return [];
+      }
+
       const eq = piece.indexOf("=");
-      return eq === -1
-        ? { name: normalizeEscapes(piece), value: null }
-        : {
-            name: normalizeEscapes(piece.slice(0, eq)),
-            value: normalizeEscapes(piece.slice(eq + 1)),
-          };
+
+      return [
+        eq === -1
+          ? { name: normalizeEscapes(piece), value: null }
+          : {
+              name: normalizeEscapes(piece.slice(0, eq)),
+              value: normalizeEscapes(piece.slice(eq + 1)),
+            },
+      ];
     })
     .toSorted(
       (a, b) => compareStrings(a.name, b.name) || compareStrings(a.value ?? "", b.value ?? ""),
@@ -163,9 +175,7 @@ const keyQuery = (pieces: readonly string[], host: string): string =>
     .map(({ name, value }) => (value === null ? name : `${name}=${value}`))
     .join("&");
 
-// a route fragment (`#/inbox`, `#!/post`) addresses a different page; any other is a place in it
-const isRouteFragment = (fragment: string): boolean =>
-  fragment.startsWith("/") || fragment.startsWith("!");
+const isRouteFragment = (fragment: string) => fragment.startsWith("/") || fragment.startsWith("!");
 
 interface UrlKeyParts {
   host: string;
@@ -173,22 +183,24 @@ interface UrlKeyParts {
   query: string;
 }
 
-const keyPartsOf = (url: URL): UrlKeyParts => {
+const keyPartsOf = (url: URL) => {
   const host = aliasedHost(url);
   const pieces = queryPieces(url);
+
   if (bareHost(url) === SHORT_YOUTUBE_HOST) {
     const id = normalizeEscapes(firstSegment(url.pathname));
+
     return {
       host,
       path: id === "" ? "/" : "/watch",
       query: keyQuery(id === "" ? pieces : [...pieces, `v=${id}`], host),
-    };
+    } satisfies UrlKeyParts;
   }
-  return { host, path: keyPath(url.pathname), query: keyQuery(pieces, host) };
+
+  return { host, path: keyPath(url.pathname), query: keyQuery(pieces, host) } satisfies UrlKeyParts;
 };
 
-// an address's last path segment, decoded ("" when it names none)
-export const urlLastSegment = (value: string): string =>
+export const urlLastSegment = (value: string) =>
   safeDecode(
     parseWebUrl(value)
       ?.pathname.split("/")
@@ -198,115 +210,133 @@ export const urlLastSegment = (value: string): string =>
 const YOUTUBE_ID = /^[\w-]{6,20}$/u;
 const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/]+)/u;
 
-const youTubeIdOf = (url: URL): string | null => {
+const youTubeIdOf = (url: URL) => {
   const host = bareHost(url);
+
   if (host === SHORT_YOUTUBE_HOST) {
     return safeDecode(firstSegment(url.pathname));
   }
+
   if (host !== "youtube.com" && !host.endsWith(".youtube.com")) {
     return null;
   }
+
   const fromPath = YOUTUBE_PATH_ID.exec(url.pathname)?.groups?.id;
+
   return url.searchParams.get("v") ?? (fromPath === undefined ? null : safeDecode(fromPath));
 };
 
-// a YouTube video's id, from any of its addresses (a watch page, a short link, a short, a live, an
-// embed); null for any other address
-export const youTubeVideoId = (value: string): string | null => {
+export const youTubeVideoId = (value: string) => {
   const url = parseWebUrl(value);
   const id = url === null ? null : youTubeIdOf(url);
+
   return id !== null && YOUTUBE_ID.test(id) ? id : null;
 };
 
-// the dedupe key: no scheme or userinfo, the host folded and aliased, the path normalized, the
-// tracking parameters dropped and the rest sorted, a fragment kept only when it is a route
-export const urlKey = (value: string): string | null => {
+export const urlKey = (value: string) => {
   const url = parseWebUrl(value);
+
   if (url === null) {
     return null;
   }
+
   const { host, path, query } = keyPartsOf(url);
   const fragment = url.hash.slice(1);
+
   return `${url.port === "" ? host : `${host}:${url.port}`}${path}${query === "" ? "" : `?${query}`}${isRouteFragment(fragment) ? `#${normalizeEscapes(fragment)}` : ""}`;
 };
 
-// what is written to `url:`: the address as URL writes it, less its userinfo and its tracking
-// parameters
-export const cleanUrl = (value: string): string | null => {
+export const cleanUrl = (value: string) => {
   const url = parseWebUrl(value);
+
   if (url === null) {
     return null;
   }
+
   const host = aliasedHost(url);
   const kept = queryPieces(url).filter((piece) => piece !== "" && !isTrackingParam(piece, host));
   const search = kept.length === 0 ? "" : `?${kept.join("&")}`;
+
   return `${url.protocol}//${url.host}${url.pathname}${search}${url.hash}`;
 };
 
-// the host and the path's words, for the search index's meta column
-export const urlSearchText = (value: string): string => {
+export const urlSearchText = (value: string) => {
   const url = parseWebUrl(value);
+
   if (url === null) {
     return "";
   }
+
   const words = safeDecode(url.pathname)
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word !== "");
+
   return [bareHost(url), ...words].join(" ");
 };
 
 const SPOTIFY_AUDIO = /^\/(?:album|episode|playlist|show|track)\//u;
 
-const isVideo = (host: string, path: string): boolean => {
+const isVideo = (host: string, path: string) => {
   switch (host) {
     case "youtube.com": {
       return path === "/watch" || path.startsWith("/shorts/") || path.startsWith("/live/");
     }
+
     case "vimeo.com": {
       return path.split("/").some((segment) => /^\d+$/u.test(segment));
     }
+
     case "tiktok.com": {
       return path.includes("/video/");
     }
+
     case "dailymotion.com": {
       return path.startsWith("/video/");
     }
+
     case "loom.com": {
       return path.startsWith("/share/");
     }
+
     default: {
       return false;
     }
   }
 };
 
-const isAudio = (host: string, path: string): boolean => {
+const isAudio = (host: string, path: string) => {
   switch (host) {
     case "open.spotify.com": {
       return SPOTIFY_AUDIO.test(path);
     }
+
     case "soundcloud.com": {
       return path.split("/").filter((segment) => segment !== "").length >= 2;
     }
+
     case "music.apple.com":
     case "podcasts.apple.com": {
       return true;
     }
+
     default: {
       return false;
     }
   }
 };
 
-// what a saved address is, by its host after aliasing; a fill may still change it
-export const kindForUrl = (value: string): "link" | "video" | "audio" => {
+export const kindForUrl = (value: string) => {
   const url = parseWebUrl(value);
+
   if (url === null) {
-    return "link";
+    return "link" as const;
   }
+
   const { host, path } = keyPartsOf(url);
+
   if (isVideo(host, path)) {
-    return "video";
+    return "video" as const;
   }
-  return isAudio(host, path) ? "audio" : "link";
+
+  return (isAudio(host, path) ? "audio" : "link") satisfies "link" | "video" | "audio";
 };

@@ -1,6 +1,3 @@
-// WebKit keeps no scroll anchor, so the editor keeps one for a long note's runs: what is in view
-// holds still when a run above it changes size, and a run being typed in moves nothing.
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { anchorRun, anchorShift, holdInView } from "@repo/editor/run-anchoring";
@@ -29,59 +26,66 @@ describe("how far the view moves for a run's change of size", () => {
   });
 });
 
-// a ResizeObserver the suite drives: each `report` is one batch of size changes
 const observers: ((sizes: ReadonlyMap<Element, number>) => void)[] = [];
+
 class DrivenResizeObserver implements ResizeObserver {
   readonly watched = new Set<Element>();
   constructor(notify: ResizeObserverCallback) {
     observers.push((sizes) => {
-      const entries: ResizeObserverEntry[] = [...sizes]
-        .filter(([target]) => this.watched.has(target))
-        .map(([target, blockSize]) => ({
-          borderBoxSize: [{ blockSize, inlineSize: 700 }],
-          contentBoxSize: [{ blockSize, inlineSize: 700 }],
-          contentRect: DOMRect.fromRect({ height: blockSize, width: 700 }),
-          devicePixelContentBoxSize: [{ blockSize, inlineSize: 700 }],
-          target,
-        }));
+      const entries: ResizeObserverEntry[] = [...sizes].flatMap(([target, blockSize]) =>
+        this.watched.has(target)
+          ? [
+              {
+                borderBoxSize: [{ blockSize, inlineSize: 700 }],
+                contentBoxSize: [{ blockSize, inlineSize: 700 }],
+                contentRect: DOMRect.fromRect({ height: blockSize, width: 700 }),
+                devicePixelContentBoxSize: [{ blockSize, inlineSize: 700 }],
+                target,
+              },
+            ]
+          : [],
+      );
+
       notify(entries, this);
     });
   }
-  disconnect = (): void => {
+  disconnect = () => {
     this.watched.clear();
   };
-  observe = (target: Element): void => {
+  observe = (target: Element) => {
     this.watched.add(target);
   };
-  unobserve = (target: Element): void => {
+  unobserve = (target: Element) => {
     this.watched.delete(target);
   };
 }
 
-const report = (sizes: ReadonlyMap<Element, number>): void => {
+const report = (sizes: ReadonlyMap<Element, number>) => {
   for (const observer of observers) {
     observer(sizes);
   }
 };
 
-const placed = (el: Element, top: () => number): void => {
+const placed = (el: Element, top: () => number) => {
   el.getBoundingClientRect = () => DOMRect.fromRect({ height: 0, width: 700, y: top() });
 };
 
-// a scroller with two runs: the first starts 4000px above the view's top, the second below it
 const mount = () => {
   const scroller = document.createElement("div");
   scroller.dataset.editorScroller = "";
   const [above, below] = [document.createElement("div"), document.createElement("div")];
+
   for (const run of [above, below]) {
     run.dataset.slateChunk = "true";
     scroller.append(run);
   }
+
   document.body.append(scroller);
   placed(scroller, () => 0);
   placed(above, () => -4000);
   placed(below, () => 2000);
   const cleanups = [above, below].map((run) => anchorRun(run));
+
   return { above, below, cleanups, scroller };
 };
 
@@ -96,6 +100,7 @@ describe("the anchor a long note's runs keep where the engine keeps none", () =>
       const { style } = document.createElement("div");
       style.getPropertyValue = (name: string) =>
         name === "contain-intrinsic-block-size" ? `auto ${String(ESTIMATE)}px` : "";
+
       return style;
     });
   });
@@ -150,7 +155,6 @@ describe("the anchor a long note's runs keep where the engine keeps none", () =>
     report(new Map([[below, 2000]]));
     scroller.scrollTop = 30_000;
     holdInView(target);
-    // something above the target in view grew, which no run rule follows
     targetTop = 460;
     report(new Map([[below, 2060]]));
     expect(scroller.scrollTop).toBe(30_060);

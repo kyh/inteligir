@@ -4,8 +4,7 @@ import { CONNECTION_FAILED, settleAuthSubmit, submitView } from "./auth-shell";
 
 const FORM = new FormData();
 
-// what a browser's fetch does with no network
-const offline = async (): Promise<string | null> => {
+const offline = async () => {
   throw new TypeError("Failed to fetch");
 };
 

@@ -11,20 +11,20 @@ import { layBody } from "@repo/editor/headless/body/lay-body";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 
-const p = (id: string, text: string, section: LibrarySection = "note"): BodyBlock => ({
-  block: { children: [{ text }], id, type: "p" },
-  section,
-});
+const p = (id: string, text: string, section: LibrarySection = "note") =>
+  ({
+    block: { children: [{ text }], id, type: "p" },
+    section,
+  }) satisfies BodyBlock;
 
-// an editor showing `blocks`, its ids on as the app runs them, guarded as the item editor is
-const showing = (blocks: readonly BodyBlock[]): SlateEditor =>
+const showing = (blocks: readonly BodyBlock[]) =>
   createSlateEditor({
     nodeId: true,
     plugins: [...BASE_KIT, ReadOnlyGuardPlugin],
     value: editorValueOf(blocks),
   });
 
-const shown = (editor: SlateEditor): string[] =>
+const shown = (editor: SlateEditor) =>
   blocksOfValue(editor.children).map(
     ({ block, section }) => `${block.id}:${NodeApi.string(block)}:${section}`,
   );

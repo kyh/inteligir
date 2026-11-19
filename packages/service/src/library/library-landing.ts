@@ -1,12 +1,3 @@
-// Landing items inside a write's transaction: every rule a write meets (its fields within their
-// caps, its body within a body's, one live item per url, only files the library holds, new items
-// only within the library's room), then its rows, stamped with the write's one sequence number,
-// and its turn's change set told when the built-in agent wrote it (`./library-change-sets`). An
-// existing item's change writes only what changed: the body and its links when the write brings
-// one, the tags when they moved, the search row when the body or the text it derives moved, the
-// item's files when it names others. Items a write makes land together, a statement a table, so an import's batch is a
-// handful of statements.
-
 import { urlKey } from "@repo/contract/items/item-url";
 import { sameJson } from "@repo/contract/library/canonical-json";
 import { itemFilesOf } from "@repo/contract/library/cell-rules";
@@ -42,7 +33,6 @@ import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { anyOf, chunksOf } from "./set-sql";
 
-// an item as a write answers it
 export interface LiveItemRow {
   readonly card: ItemCard;
   readonly fields: LibraryItemFields;
@@ -51,8 +41,6 @@ export interface LiveItemRow {
   readonly updatedAt: number;
 }
 
-// an existing item's change: `body` the blocks it holds once the write lands, null to keep the
-// body as it stands
 export interface Landing {
   readonly itemId: string;
   readonly before: StoredItem;
@@ -60,21 +48,17 @@ export interface Landing {
   readonly body: readonly BodyBlock[] | null;
 }
 
-// an item the write makes, with its body in reading order
 export interface NewItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
   readonly blocks: readonly BodyBlock[];
 }
 
-// a body as a write leaves it: its row at its version, and what derives from its blocks
 interface WrittenBody {
   readonly row: typeof itemBody.$inferInsert;
   readonly derived: DerivedBody;
 }
 
-// the body a change leaves: its digest and version, what it writes, null when it stays, and the
-// digest of the body it replaces
 interface LandedBody {
   readonly digest: BodyDigest;
   readonly version: number;
@@ -85,45 +69,51 @@ interface LandedBody {
 const itemIs = (accountId: string, itemId: string) =>
   and(eq(item.accountId, accountId), eq(item.id, itemId));
 
-const sameShas = (a: readonly string[], b: readonly string[]): boolean => {
+const sameShas = (a: readonly string[], b: readonly string[]) => {
   const left = new Set(a);
   const right = new Set(b);
+
   return left.size === right.size && [...left].every((sha) => right.has(sha));
 };
 
-// blocks at a version, null past what a body holds
 const bodyAt = (
   accountId: string,
   itemId: string,
   blocks: readonly BodyBlock[],
   version: number,
-): WrittenBody | null => {
+) => {
   const derived = deriveBody(blocks);
   const row = bodyRowOf(accountId, itemId, { blocks, digest: derived.digest, version });
-  return row.bytes > BODY_MAX_BYTES ? null : { derived, row };
+
+  return (row.bytes > BODY_MAX_BYTES ? null : { derived, row }) satisfies WrittenBody | null;
 };
 
-// the body a change leaves
-const landedBody = async (scope: WriteScope, landing: Landing): Promise<LandedBody> => {
+const landedBody = async (scope: WriteScope, landing: Landing) => {
   const { body, itemId } = landing;
   const held = await readBodyFacts(scope.tx, scope.accountId, itemId);
+
   if (held === null) {
     throw new Error(`the item ${itemId} has no body row`);
   }
+
   const priorDigest = held.digest;
+
   if (body === null) {
-    return { digest: priorDigest, priorDigest, version: held.version, written: null };
+    return {
+      digest: priorDigest,
+      priorDigest,
+      version: held.version,
+      written: null,
+    } satisfies LandedBody;
   }
+
   const version = held.version + 1;
   const written = bodyAt(scope.accountId, itemId, body, version) ?? refuse({ kind: "too-large" });
-  return { digest: written.derived.digest, priorDigest, version, written };
+
+  return { digest: written.derived.digest, priorDigest, version, written } satisfies LandedBody;
 };
 
-const urlHeldByAnother = async (
-  scope: WriteScope,
-  key: string,
-  itemId: string,
-): Promise<boolean> => {
+const urlHeldByAnother = async (scope: WriteScope, key: string, itemId: string) => {
   const held = await scope.tx
     .select({ id: item.id })
     .from(item)
@@ -136,17 +126,20 @@ const urlHeldByAnother = async (
       ),
     )
     .limit(1);
+
   return held.length > 0;
 };
 
-// every rule a change meets, before anything is written: a refusal leaves nothing to roll back
 const checkLanding = async (scope: WriteScope, landing: Landing) => {
   const { before, fields, itemId } = landing;
+
   if (!libraryItemFieldsSchema.validate(fields)) {
     refuse({ kind: "too-large" });
   }
+
   const landed = await landedBody(scope, landing);
   const derived = deriveItem(fields, landed.digest);
+
   if (
     derived.urlKey !== null &&
     fields.deletedAt === null &&
@@ -154,25 +147,24 @@ const checkLanding = async (scope: WriteScope, landing: Landing) => {
   ) {
     refuse({ kind: "url-held" });
   }
+
   const priorFiles = itemFilesOf(before.fields, landed.priorDigest.files);
   const files = itemFilesOf(fields, landed.digest.files);
+
   const missing = await missingFiles(
     scope.tx,
     scope.accountId,
     files.filter((sha) => !priorFiles.includes(sha)),
   );
+
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
   }
+
   return { derived, files, landed, priorFiles };
 };
 
-// a body's rows in place of the ones it held: the body at its version, and the links it holds
-const replaceBody = async (
-  scope: WriteScope,
-  itemId: string,
-  { derived, row }: WrittenBody,
-): Promise<void> => {
+const replaceBody = async (scope: WriteScope, itemId: string, { derived, row }: WrittenBody) => {
   const { accountId, tx } = scope;
   await tx
     .update(itemBody)
@@ -182,41 +174,39 @@ const replaceBody = async (
     .delete(itemLink)
     .where(and(eq(itemLink.accountId, accountId), eq(itemLink.sourceId, itemId)));
   const links = linkRowsOf(accountId, itemId, derived.links);
+
   if (links.length > 0) {
     await tx.insert(itemLink).values(links);
   }
 };
 
-// the body's text as the search row holds it, for a landing of the fields alone
-const heldText = async (scope: WriteScope, itemId: string): Promise<string> => {
+const heldText = async (scope: WriteScope, itemId: string) => {
   const [row] = await scope.tx
     .select({ text: itemSearch.text })
     .from(itemSearch)
     .where(and(eq(itemSearch.accountId, scope.accountId), eq(itemSearch.itemId, itemId)));
+
   return row?.text ?? "";
 };
 
-// the tag rows' own columns, as JSON compares them
-const tagColumns = (tags: DerivedItem["tags"]): string[][] =>
-  tags.map(({ origin, tag }) => [origin, tag]);
+const tagColumns = (tags: DerivedItem["tags"]) => tags.map(({ origin, tag }) => [origin, tag]);
 
-// the tags the item's fields and body give the rail, in place of the ones it held
 const replaceTags = async (scope: WriteScope, itemId: string, derived: DerivedItem) => {
   const { accountId, tx } = scope;
   await tx.delete(itemTag).where(and(eq(itemTag.accountId, accountId), eq(itemTag.itemId, itemId)));
   const tags = tagRowsOf(accountId, itemId, derived.tags);
+
   if (tags.length > 0) {
     await tx.insert(itemTag).values(tags).onConflictDoNothing();
   }
 };
 
-// the search row the item's fields and body give, in place of the one it held
 const replaceSearch = async (
   scope: WriteScope,
   itemId: string,
   derived: DerivedItem,
   text: string,
-): Promise<void> => {
+) => {
   const { accountId, tx } = scope;
   const search = searchRowOf(accountId, itemId, { ...derived.search, body: text });
   await tx
@@ -228,17 +218,18 @@ const replaceSearch = async (
     });
 };
 
-// an existing item as its change lands; refuses a change no rule admits, before anything is written
-export const landItem = async (scope: WriteScope, landing: Landing): Promise<LiveItemRow> => {
+export const landItem = async (scope: WriteScope, landing: Landing) => {
   const { accountId, now, tx } = scope;
   const { before, fields, itemId } = landing;
   const { derived, files, landed, priorFiles } = await checkLanding(scope, landing);
   const setId = await scope.set();
   const seq = await scope.seq();
   const { written } = landed;
+
   if (setId !== null && written !== null) {
     await recordBody(scope, setId, { itemId, made: false, versionAfter: landed.version });
   }
+
   const row = itemRowOf(accountId, {
     card: derived.card,
     fields,
@@ -247,23 +238,28 @@ export const landItem = async (scope: WriteScope, landing: Landing): Promise<Liv
     updatedAt: now,
     urlKey: derived.urlKey,
   });
+
   await tx.update(item).set(row).where(itemIs(accountId, itemId));
+
   if (written !== null) {
     await replaceBody(scope, itemId, written);
   }
-  // what the item gave search and the rail before: a pin, a move or Deleted changes neither, and
-  // rewriting the search row is most of such a landing
+
   const prior = deriveItem(before.fields, landed.priorDigest);
+
   if (!sameJson(tagColumns(prior.tags), tagColumns(derived.tags))) {
     await replaceTags(scope, itemId, derived);
   }
+
   if (written !== null || !sameJson(prior.search, derived.search)) {
     const text = written === null ? await heldText(scope, itemId) : written.derived.text;
     await replaceSearch(scope, itemId, derived, text);
   }
+
   if (!sameShas(priorFiles, files)) {
     await nameItemFiles(tx, accountId, itemId, files, now);
   }
+
   if (setId !== null) {
     await recordLanding(scope, setId, {
       after: fields,
@@ -272,10 +268,11 @@ export const landItem = async (scope: WriteScope, landing: Landing): Promise<Liv
       itemId,
     });
   }
-  return { card: derived.card, fields, id: itemId, seq, updatedAt: now };
+
+  return { card: derived.card, fields, id: itemId, seq, updatedAt: now } satisfies LiveItemRow;
 };
 
-const liveKeyOf = ({ deletedAt, url }: LibraryItemFields): string | null =>
+const liveKeyOf = ({ deletedAt, url }: LibraryItemFields) =>
   deletedAt !== null || url === null ? null : urlKey(url);
 
 interface HeldKeys {
@@ -283,12 +280,11 @@ interface HeldKeys {
   readonly urlKeys: ReadonlySet<string>;
 }
 
-// what the library holds that a made item could meet: ids made already, live or purged, and the
-// live items' url keys
-const heldKeys = async (scope: WriteScope, made: readonly NewItem[]): Promise<HeldKeys> => {
+const heldKeys = async (scope: WriteScope, made: readonly NewItem[]) => {
   const { accountId, tx } = scope;
   const ids = made.map(({ id }) => id);
   const keys = made.flatMap(({ fields }) => liveKeyOf(fields) ?? []);
+
   const [items, purged, urls] = await Promise.all([
     tx
       .select({ id: item.id })
@@ -307,13 +303,13 @@ const heldKeys = async (scope: WriteScope, made: readonly NewItem[]): Promise<He
             and(eq(item.accountId, accountId), isNull(item.deletedAt), anyOf(item.urlKey, keys)),
           ),
   ]);
+
   return {
     ids: new Set([...items, ...purged].map((row) => row.id)),
     urlKeys: new Set(urls.flatMap((row) => row.urlKey ?? [])),
-  };
+  } satisfies HeldKeys;
 };
 
-// a made item that met every rule its own row answers, before the files it names are asked after
 interface Candidate {
   readonly made: NewItem;
   readonly body: WrittenBody;
@@ -321,68 +317,74 @@ interface Candidate {
   readonly files: readonly string[];
 }
 
-const refused = (refusal: LibraryRefusal): LibraryResult<never> => ({ ok: false, refusal });
+const refused = (refusal: LibraryRefusal) =>
+  ({ ok: false, refusal }) satisfies LibraryResult<never>;
 
-const candidateOf = (
-  accountId: string,
-  made: NewItem,
-  held: HeldKeys,
-): LibraryResult<Candidate> => {
+const candidateOf = (accountId: string, made: NewItem, held: HeldKeys) => {
   if (held.ids.has(made.id)) {
     return refused({ kind: "conflict" });
   }
+
   if (!libraryItemFieldsSchema.validate(made.fields)) {
     return refused({ kind: "too-large" });
   }
-  // a caller of /v1 may send any display, and no editor of the note has settled it yet
+
   const blocks = settledBody(made.blocks);
   const body = blocks === null ? null : bodyAt(accountId, made.id, blocks, 1);
+
   if (body === null) {
     return refused({ kind: "too-large" });
   }
+
   const key = liveKeyOf(made.fields);
+
   if (key !== null && held.urlKeys.has(key)) {
     return refused({ kind: "url-held" });
   }
+
   const derived = deriveItem(made.fields, body.derived.digest);
   const files = itemFilesOf(made.fields, body.derived.digest.files);
-  return { ok: true, value: { body, derived, files, made } };
+
+  return { ok: true, value: { body, derived, files, made } } satisfies LibraryResult<Candidate>;
 };
 
-// each candidate refused by a file the library lacks, or by an id or a url an earlier one claimed
-const claimed = (
-  checked: readonly LibraryResult<Candidate>[],
-  missing: ReadonlySet<string>,
-): LibraryResult<Candidate>[] => {
+const claimed = (checked: readonly LibraryResult<Candidate>[], missing: ReadonlySet<string>) => {
   const ids = new Set<string>();
   const urls = new Set<string>();
+
   return checked.map((outcome) => {
     if (!outcome.ok) {
       return outcome;
     }
+
     const { files, made } = outcome.value;
     const absent = files.filter((sha) => missing.has(sha)).toSorted();
+
     if (absent.length > 0) {
       return refused({ kind: "blob-missing", shas: absent });
     }
+
     if (ids.has(made.id)) {
       return refused({ kind: "conflict" });
     }
+
     const key = liveKeyOf(made.fields);
+
     if (key !== null && urls.has(key)) {
       return refused({ kind: "url-held" });
     }
+
     ids.add(made.id);
+
     if (key !== null) {
       urls.add(key);
     }
+
     return outcome;
   });
 };
 
-// each made item's rows, a statement a table, and the turn's set told of each; the sequence they
-// took
-const insertMade = async (scope: WriteScope, landed: readonly Candidate[]): Promise<number> => {
+const insertMade = async (scope: WriteScope, landed: readonly Candidate[]) => {
   const { accountId, now, tx } = scope;
   await holdRoomFor(
     scope,
@@ -390,6 +392,7 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]): Prom
   );
   const setId = await scope.set();
   const seq = await scope.seq();
+
   const rows = landed.map(({ body, derived, made }) => ({
     body: body.row,
     item: itemRowOf(accountId, {
@@ -404,29 +407,34 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]): Prom
     search: searchRowOf(accountId, made.id, { ...derived.search, body: body.derived.text }),
     tags: tagRowsOf(accountId, made.id, derived.tags),
   }));
+
   for (const chunk of chunksOf(rows, 100)) {
     await tx.insert(item).values(chunk.map((row) => row.item));
     await tx.insert(itemBody).values(chunk.map((row) => row.body));
     await tx.insert(itemSearch).values(chunk.map((row) => row.search));
   }
+
   for (const chunk of chunksOf(
     rows.flatMap((row) => row.tags),
     1000,
   )) {
     await tx.insert(itemTag).values(chunk).onConflictDoNothing();
   }
+
   for (const chunk of chunksOf(
     rows.flatMap((row) => row.links),
     1000,
   )) {
     await tx.insert(itemLink).values(chunk);
   }
+
   await nameNewItemFiles(
     tx,
     accountId,
     landed.map(({ files, made }) => ({ itemId: made.id, shas: files })),
     now,
   );
+
   if (setId !== null) {
     for (const { body, made } of landed) {
       await recordBody(scope, setId, {
@@ -442,27 +450,30 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]): Prom
       });
     }
   }
+
   return seq;
 };
 
-// Items the write makes, each landed or refused by the first rule it fails, in order: an id the
-// library made already, or an earlier one of these claims, is a conflict, and a url a live item or
-// an earlier one of these holds is held. Each body lands with its pills settled. Room is the whole
-// batch's: past it the write is refused
-export const landNewItems = async (
+export const landNewItems: (
   scope: WriteScope,
   made: readonly NewItem[],
-): Promise<LibraryResult<LiveItemRow>[]> => {
+) => Promise<LibraryResult<LiveItemRow>[]> = async (
+  scope: WriteScope,
+  made: readonly NewItem[],
+) => {
   const { accountId, now, tx } = scope;
+
   if (made.length === 0) {
-    return [];
+    return [] satisfies LibraryResult<LiveItemRow>[];
   }
+
   const held = await heldKeys(scope, made);
   const checked = made.map((each) => candidateOf(accountId, each, held));
   const named = checked.flatMap((outcome) => (outcome.ok ? outcome.value.files : []));
   const outcomes = claimed(checked, new Set(await missingFiles(tx, accountId, named)));
   const landed = outcomes.flatMap((outcome) => (outcome.ok ? [outcome.value] : []));
   const seq = landed.length === 0 ? 0 : await insertMade(scope, landed);
+
   return outcomes.map((outcome) =>
     outcome.ok
       ? {

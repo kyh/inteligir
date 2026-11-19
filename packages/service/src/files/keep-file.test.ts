@@ -1,5 +1,3 @@
-// Bytes the cloud holds itself, kept as an upload is and named by the sha they hash to.
-
 import { db } from "@repo/db/drizzle-client";
 import { file } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
@@ -7,8 +5,8 @@ import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 
 import { env } from "../env";
-import { fileOf } from "../test-support/file-uploads";
-import { makeAccount, seedFile } from "../test-support/library-fixture";
+import { fileOf } from "../test-support/file-uploads.test-utils";
+import { makeAccount, seedFile } from "../test-support/library.fixture";
 import { FILE_STORE } from "./file-store-of";
 import { keepFile } from "./keep-file";
 

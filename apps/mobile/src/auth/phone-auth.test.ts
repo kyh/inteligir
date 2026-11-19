@@ -1,7 +1,3 @@
-// The phone's auth over Better Auth's own client, as the app makes it but for the Expo plugin, whose
-// part here is a jar standing in for the Keychain: what each of the cloud's answers comes to, and a
-// sign-out that settles before the cloud answers it.
-
 import { createAuthClient } from "better-auth/client";
 import type { BetterAuthClientPlugin } from "better-auth/client";
 import type { JsonValue } from "@repo/contract/library/canonical-json";
@@ -14,16 +10,13 @@ const SESSION = "better-auth.session_token=signed";
 
 type Answer = () => Promise<Response>;
 
-const json =
-  (status: number, body: JsonValue): Answer =>
-  async () =>
-    await Promise.resolve(Response.json(body, { status }));
+const json = (status: number, body: JsonValue) =>
+  (async () => await Promise.resolve(Response.json(body, { status }))) satisfies Answer;
 
-// the cloud as the client meets it, each path's answer the suite's, and each request it was asked
 const phoneOver = (answers: Record<string, Answer>) => {
   const jar = { cookie: SESSION };
   const asked: { path: string; body: string | null }[] = [];
-  // the Expo plugin's part: the session it keeps, cleared before a sign-out's request goes
+
   const keychain = {
     fetchPlugins: [
       {
@@ -32,6 +25,7 @@ const phoneOver = (answers: Record<string, Answer>) => {
           if (url.endsWith("/sign-out")) {
             jar.cookie = "";
           }
+
           return await Promise.resolve({ options, url });
         },
         name: "keychain",
@@ -40,6 +34,7 @@ const phoneOver = (answers: Record<string, Answer>) => {
     getActions: () => ({ getCookie: async () => await Promise.resolve(jar.cookie) }),
     id: "keychain",
   } satisfies BetterAuthClientPlugin;
+
   const client = createAuthClient({
     baseURL: CLOUD,
     fetchOptions: {
@@ -48,14 +43,17 @@ const phoneOver = (answers: Record<string, Answer>) => {
         const { pathname } = new URL(request.url);
         asked.push({ body: request.body === null ? null : await request.text(), path: pathname });
         const answer = answers[pathname];
+
         if (answer === undefined) {
           throw new TypeError(`nothing answers ${pathname}`);
         }
+
         return await answer();
       },
     },
     plugins: [keychain],
   });
+
   return { asked, auth: phoneAuthOver(client, CLOUD), jar };
 };
 
@@ -85,6 +83,7 @@ describe("the phone's sign-in over Better Auth's client", () => {
         message: "Invalid email or password",
       }),
     });
+
     await expect(
       no.auth.signIn({ email: "ada@example.com", password: "pw" }),
     ).resolves.toStrictEqual({
@@ -108,9 +107,11 @@ describe("the phone's sign-in over Better Auth's client", () => {
       name: "Ada",
       password: "pw",
     };
+
     const gate = phoneOver({
       "/api/sign-up": json(403, { message: "That invite code doesn't work." }),
     });
+
     await expect(gate.auth.signUp(request)).resolves.toStrictEqual({
       kind: "refused",
       message: "That invite code doesn't work.",
@@ -141,7 +142,6 @@ describe("the phone's sign-in over Better Auth's client", () => {
     const phone = phoneOver({ "/api/auth/sign-out": async () => await never.promise });
     await phone.auth.signOut();
     expect(phone.jar.cookie).toBe("");
-    // the request goes on after it, unawaited
     await expect
       .poll(() => phone.asked.map(({ path }) => path))
       .toStrictEqual(["/api/auth/sign-out"]);

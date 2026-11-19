@@ -2,21 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { planSearchQuery, stemToken, tokenize } from "./search-query";
 
-// `a AND b*`: the `*` marks the prefix term
-const plans = (query: string): string[] =>
+const plans = (query: string) =>
   planSearchQuery(query).map((planned) =>
     planned.terms
       .map((term) => (term.prefix ? `${term.token}*` : term.token))
       .join(planned.match === "all" ? " AND " : " OR "),
   );
 
-const plan = (query: string): string | undefined => plans(query)[0];
+const plan = (query: string) => plans(query)[0];
 
 describe(tokenize, () => {
   it("lowercases, folds diacritics, and splits on non-word runs", () => {
     expect(tokenize("Hello, Wörld-42!")).toStrictEqual(["hello", "world", "42"]);
     expect(tokenize("Acción Łódź İstanbul")).toStrictEqual(["accion", "łodz", "istanbul"]);
-    // letters of their own, not a letter and a mark
     expect(tokenize("Straße søster 东京")).toStrictEqual(["straße", "søster", "东京"]);
     expect(tokenize("")).toStrictEqual([]);
   });
@@ -86,9 +84,7 @@ describe(planSearchQuery, () => {
 
   it("prefix-matches the token still being typed, and only that one", () => {
     expect(plan("burnout wor")).toBe("burnout AND wor*");
-    // a trailing stopword means the word before it is finished
     expect(plan("burnout at")).toBe("burnout");
-    // repeats collapse; the prefix follows the token, not its position
     expect(plan("work at work")).toBe("work*");
   });
 });

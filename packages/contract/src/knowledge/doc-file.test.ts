@@ -14,6 +14,7 @@ describe("what counts as a doc", () => {
     for (const path of ["a.md", "a.markdown", "a.mdx", "a.txt", "notes/README.TXT"]) {
       expect(isDocPath(path)).toBe(true);
     }
+
     for (const path of ["a.png", "a", "assets/logo.svg", ".gitignore"]) {
       expect(isDocPath(path)).toBe(false);
     }

@@ -1,16 +1,3 @@
-// The platform-free half of the composition root: app-runtime.ts binds it to Better Auth's Expo
-// client, the phone's key-value store, its file folder, the global fetch and the OS, so every move
-// between signed in and signed out runs under test.
-//
-// Signed in, the phone reads the account's library from the cloud through TanStack Query, whose
-// cache the app keeps between launches, so what was last read shows offline; it asks what moved
-// while it is in front (`@repo/client/library-changes`), and the queries showing that ask again. A save goes at once, and a share
-// waits in its outbox until the cloud takes it. A sign-in starts the cache, the files and the shares
-// over, since they may be another account's; a relaunch keeps them. A sign-out, a session ended
-// elsewhere and a deleted account clear them; a build the cloud no longer takes keeps everything
-// until it is updated. Each launch and each return to the front asks Better Auth whether the
-// session stands, which also slides it on.
-
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
@@ -38,64 +25,46 @@ import { createExternalStore } from "./external-store";
 import type { ReadableStore } from "./external-store";
 import { downloadBlob, phoneTransport } from "./phone-transport";
 
-// what the cache keeps between launches, and how long a query it holds is used unasked
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 const FRESH_MS = 30_000;
 const CACHE_KEY = "library-cache";
-// a cache that changes in a burst (a page of covers, what one answer of what moved reads again) is
-// written once for it
 const CACHE_WRITE_MS = 1000;
 
 export interface ComposeRuntimeArgs {
   readonly cloudUrl: string;
   readonly build: ClientBuild;
   readonly auth: PhoneAuth;
-  // the phone's key-value store: the kept cache and the shares waiting
   readonly storage: KvStorage;
   readonly folder: FileFolder;
-  // the global fetch, which every `/v1` call rides
   readonly fetch: (request: Request) => Promise<Response>;
-  // a fresh UUIDv7, which an item's id and an op id both are
   readonly newId: () => string;
   readonly newBlockId: () => string;
   readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
   readonly measurePicture: FileCachePorts["measure"];
 }
 
-// the account's library as this phone reaches it, while signed in
 export interface PhoneLibrary {
   readonly client: V1Client;
   readonly queries: ReturnType<typeof createTanstackQueryUtils<V1Client>>;
   readonly files: FileCache;
   readonly saves: PhoneSaves;
   readonly shares: ShareOutbox;
-  // the items a write moved, as an answer of what moved names them, or null when any may have: an
-  // open note's page reads again what it shows of them
   readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
-  // a fresh op id for a write a screen makes
   readonly newId: () => string;
 }
 
 export type PhoneSession =
   | { readonly kind: "restoring" }
-  // `notice`: why this phone is signed out when it did not sign out itself
   | { readonly kind: "signed-out"; readonly notice: string | null }
   | { readonly kind: "signed-in"; readonly library: PhoneLibrary }
-  // the cloud no longer takes this build: everything is kept until the app is updated
   | { readonly kind: "outdated" }
-  // the phone's store would not open
   | { readonly kind: "failed"; readonly message: string };
 
-// `waiting`: shares the cloud has not taken, which signing out would discard
 export type LogoutOutcome =
   | { readonly kind: "signed-out" }
   | { readonly kind: "waiting"; readonly saves: number }
-  // the phone could not let its copy go, so it stays signed in, and the screen says why
   | { readonly kind: "failed"; readonly message: string };
 
-// where this runtime's sign-in stands, which the screens read as a session: signed in is its
-// library open, asking what moved until `stopAsking`, or a leave under way, whose outcome a
-// sign-out asked meanwhile waits for and whose library the screens keep until its copy is gone
 type State =
   | Exclude<PhoneSession, { readonly kind: "signed-in" }>
   | { readonly kind: "open"; readonly library: PhoneLibrary; readonly stopAsking: () => void }
@@ -105,56 +74,51 @@ type State =
       readonly done: Promise<LogoutOutcome>;
     };
 
-const shown = (state: State): PhoneSession =>
-  state.kind === "open" || state.kind === "leaving"
+const shown = (state: State) =>
+  (state.kind === "open" || state.kind === "leaving"
     ? { kind: "signed-in", library: state.library }
-    : state;
+    : state) satisfies PhoneSession;
 
 export interface AppRuntime {
   readonly session: ReadableStore<PhoneSession>;
   readonly login: LoginStore;
-  // every query of the sign-in, and how the app keeps them between launches
   readonly queryClient: QueryClient;
   readonly persistOptions: PersistQueryClientProviderProps["persistOptions"];
-  // reads the kept session once and ends `restoring` either way
   readonly start: () => Promise<void>;
-  // refuses while shares wait, unless told to discard them
   readonly logout: (options?: { readonly discardWaiting?: boolean }) => Promise<LogoutOutcome>;
-  // whether the app is in front and online: each return sends the shares waiting and asks the
-  // session
   readonly reach: ReadableStore<boolean>;
-  // either half, as the OS says it
   readonly setReach: (fact: { readonly front?: boolean; readonly online?: boolean }) => void;
 }
 
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
-export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
+export const composeRuntime = (args: ComposeRuntimeArgs) => {
   let state: State = { kind: "restoring" };
   const session = createExternalStore(shown(state));
+
   const queryClient = new QueryClient({
     defaultOptions: {
-      // a write made offline fails at once: nothing waits for a connection but a share
       mutations: { networkMode: "always" },
       queries: { gcTime: CACHE_KEPT_MS, retry: retryUnlessRefused, staleTime: FRESH_MS },
     },
   });
+
   const persister = createAsyncStoragePersister({
     key: CACHE_KEY,
     storage: args.storage,
     throttleTime: CACHE_WRITE_MS,
   });
 
-  // the state's one writer: a library that stops being open stops asking what moved, and the
-  // screens hear of every move but one that keeps the library they hold
-  const move = (next: State): void => {
+  const move = (next: State) => {
     if (state.kind === "open") {
       state.stopAsking();
     }
+
     state = next;
     const before = session.get();
     const after = shown(next);
+
     if (
       before.kind !== "signed-in" ||
       after.kind !== "signed-in" ||
@@ -164,14 +128,10 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   };
 
-  // a leave of `library`'s whose outcome every sign-out asked meanwhile shares; `run` awaits
-  // before it moves the state on, so the state says leaving first
-  const leaving = async (
-    library: PhoneLibrary,
-    run: () => Promise<LogoutOutcome>,
-  ): Promise<LogoutOutcome> => {
+  const leaving = async (library: PhoneLibrary, run: () => Promise<LogoutOutcome>) => {
     const done = run();
     move({ done, kind: "leaving", library });
+
     return await done;
   };
 
@@ -189,28 +149,20 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     measure: args.measurePicture,
   });
 
-  // everything of an account on this phone goes: its kept cache, its files and its shares
-  const forgetAccount = async (shares: ShareOutbox | null): Promise<void> => {
+  const forgetAccount = async (shares: ShareOutbox | null) => {
     await (shares === null ? clearStoredShares(args.storage) : shares.clear());
     await files.clear();
     queryClient.clear();
     await persister.removeClient();
   };
 
-  // this phone leaves its account, its library already stopped by the state it left, so whether or
-  // not the clear finishes it hears nothing more; the session goes only once the copy has, so a
-  // copy that would not go is still the account's
-  const leave = async (library: PhoneLibrary, notice: string | null): Promise<void> => {
+  const leave = async (library: PhoneLibrary, notice: string | null) => {
     await forgetAccount(library.shares);
     await args.auth.signOut();
     move({ kind: "signed-out", notice });
   };
 
-  // the cloud ended this sign-in (a session ended elsewhere, a deleted account): the phone leaves
-  // it, and is signed out all the same when its copy would not go, since nothing it holds reaches
-  // the library any more; the session stays kept, so the next launch meets the same end and clears
-  // again
-  const ended = async (library: PhoneLibrary, notice: string): Promise<LogoutOutcome> => {
+  const ended = async (library: PhoneLibrary, notice: string) => {
     try {
       await leave(library, notice);
     } catch (error) {
@@ -219,43 +171,43 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         notice: `${notice} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: ${messageOf(error)}`,
       });
     }
-    return { kind: "signed-out" };
+
+    return { kind: "signed-out" } satisfies LogoutOutcome;
   };
 
-  // a refusal of the sign-in itself, heard by any call of `library`'s; one heard under an earlier
-  // sign-in, or while this one is already ending, ends nothing more
-  const sessionEnded = (library: PhoneLibrary, end: SessionEnd): void => {
+  const sessionEnded = (library: PhoneLibrary, end: SessionEnd) => {
     if (state.kind !== "open" || state.library !== library) {
       return;
     }
+
     if (end === "outdated") {
       move({ kind: "outdated" });
+
       return;
     }
+
     const notice = end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE;
     void leaving(library, async () => await ended(library, notice));
   };
 
-  // Better Auth's own read: a session it no longer holds ends this one, and a cloud it could not
-  // reach ends nothing
-  const checkSession = async (library: PhoneLibrary): Promise<void> => {
+  const checkSession = async (library: PhoneLibrary) => {
     if ((await args.auth.check()) === "ended") {
       sessionEnded(library, "signed-out");
     }
   };
 
-  // in front and online, which changes only when the two together do, so a wake that also brings
-  // the network back is one return
   const reach = createExternalStore(true);
   let reachFacts = { front: true, online: true };
+
   const setReach: AppRuntime["setReach"] = (fact) => {
     reachFacts = { ...reachFacts, ...fact };
     const reaches = reachFacts.front && reachFacts.online;
+
     if (reaches !== reach.get()) {
       reach.set(reaches);
     }
   };
-  // never removed: the runtime lives as long as the app
+
   reach.subscribe(() => {
     if (reach.get() && state.kind === "open") {
       void state.library.shares.flush();
@@ -263,19 +215,22 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   });
 
-  const open = async (source: "restored" | "signed-in"): Promise<void> => {
+  const open = async (source: "restored" | "signed-in") => {
     if (source === "signed-in") {
-      // another account's library, or the last sign-in's, goes before this one's is read
       await forgetAccount(null);
     }
+
     let library: PhoneLibrary | null = null;
-    const onSessionEnd = (end: SessionEnd): void => {
+
+    const onSessionEnd = (end: SessionEnd) => {
       if (library !== null) {
         sessionEnded(library, end);
       }
     };
+
     const client = v1Client(transport, onSessionEnd);
     const queries = createTanstackQueryUtils(client);
+
     const saves = createPhoneSaves({
       client,
       files,
@@ -287,6 +242,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         await uploadBlob(transport, file, onSessionEnd);
       },
     });
+
     const shares = createShareOutbox({
       landed: () => {
         void queryClient.invalidateQueries({ queryKey: queries.library.listing.key() });
@@ -294,8 +250,10 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       saves,
       storage: args.storage,
     });
+
     await shares.load();
     const changes = createLibraryChanges({ client, queries, queryClient });
+
     const made: PhoneLibrary = {
       client,
       files,
@@ -305,13 +263,13 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       saves,
       shares,
     };
+
     library = made;
     move({ kind: "open", library: made, stopAsking: changes.start() });
     void shares.flush();
   };
 
-  // the kept sign-in's library opened over what the phone holds, or why it could not be
-  const restore = async (): Promise<void> => {
+  const restore = async () => {
     try {
       await open("restored");
     } catch (error) {
@@ -319,16 +277,16 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   };
 
-  // a sign-out of `library`'s: the phone stays signed in when its copy would not go, and opens
-  // again what it still holds, under the sign-in it never let go
-  const signOut = async (library: PhoneLibrary): Promise<LogoutOutcome> => {
+  const signOut = async (library: PhoneLibrary) => {
     try {
       await leave(library, null);
     } catch (error) {
       await restore();
-      return { kind: "failed", message: messageOf(error) };
+
+      return { kind: "failed", message: messageOf(error) } satisfies LogoutOutcome;
     }
-    return { kind: "signed-out" };
+
+    return { kind: "signed-out" } satisfies LogoutOutcome;
   };
 
   const login = createLoginStore({
@@ -345,21 +303,24 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       if (state.kind === "leaving") {
         return await state.done;
       }
+
       if (state.kind !== "open") {
         return { kind: "signed-out" };
       }
+
       const { library } = state;
       const waiting = library.shares.waiting.get().length;
+
       if (waiting > 0 && options.discardWaiting !== true) {
         return { kind: "waiting", saves: waiting };
       }
+
       return await leaving(library, async () => await signOut(library));
     },
     login,
     persistOptions: {
       buster: clientBuildValue(args.build),
       dehydrateOptions: {
-        // a file's address is this launch's, and a mutation is never kept
         shouldDehydrateMutation: () => false,
         shouldDehydrateQuery: (query) =>
           defaultShouldDehydrateQuery(query) && query.meta?.persist !== false,
@@ -375,21 +336,27 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       if (started) {
         return;
       }
+
       started = true;
       let kept: string | null = null;
+
       try {
         kept = await args.auth.cookie();
       } catch (error) {
         login.fail(`The saved sign-in could not be read: ${messageOf(error)}`);
       }
+
       if (kept === null) {
         move({ kind: "signed-out", notice: null });
+
         return;
       }
+
       await restore();
+
       if (state.kind === "open") {
         void checkSession(state.library);
       }
     },
-  };
+  } satisfies AppRuntime;
 };

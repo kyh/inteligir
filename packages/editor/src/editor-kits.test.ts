@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
-import type { Descendant, TElement } from "platejs";
+import type { Descendant } from "platejs";
 import { BaseTogglePlugin } from "@platejs/toggle";
 
 import { insertColumnGroup } from "@repo/editor/kits/column-kit";
@@ -11,22 +11,25 @@ import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { insertPageLink } from "@repo/editor/mention/mention-insert";
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
-import { rewrite } from "@repo/editor/test-support/markdown-meaning";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning.test-utils";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);
+
   const value =
     parsed !== null && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
+
   return createSlateEditor({ plugins: EDITOR_KIT, value });
 };
 
-const out = (editor: ReturnType<typeof makeEditor>): string => serializeNote(editor);
+const out = (editor: ReturnType<typeof makeEditor>) => serializeNote(editor);
 
-const el = (node: Descendant | undefined): TElement => {
+const el = (node: Descendant | undefined) => {
   if (node === undefined || !ElementApi.isElement(node)) {
     throw new Error("expected an element node");
   }
+
   return node;
 };
 
@@ -38,6 +41,7 @@ describe("a list's depth", () => {
         { children: [{ text: "x" }], indent: LIST_MAX_INDENT, listStyleType: "disc", type: "p" },
       ],
     });
+
     editor.tf.setNodes({ indent: LIST_MAX_INDENT + 1 }, { at: [0] });
     expect(el(editor.children[0]).indent).toBe(LIST_MAX_INDENT);
   });
@@ -62,9 +66,9 @@ describe("column normalizer (suppressed width writer)", () => {
   });
 
   it("preserves authored widths without rebalancing to 100", () => {
-    // 70 + 40 ≠ 100, which the stock normalizer would rebalance
     const src =
       '::::columns\n:::column{width="70%"}\na\n:::\n\n:::column{width="40%"}\nb\n:::\n::::\n';
+
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     expect(out(editor)).toBe(src);
@@ -113,8 +117,6 @@ const type = (editor: ReturnType<typeof makeEditor>, text: string) => {
 
 const PAGE = "0190a000-0000-7000-8000-000000000001";
 
-// The picker opens only on a single typed `[`, so these bulk-insert the body, as a paste or a
-// cancelled picker does, and type the closers.
 describe("an item link typed outside the picker", () => {
   it("stays the text it is, which a save keeps as text", () => {
     const editor = makeEditor("x\n");
@@ -195,6 +197,7 @@ describe(insertToggle, () => {
       plugins: EDITOR_KIT,
       value: [{ children: [{ text: "" }], type: KEYS.toggle }],
     });
+
     editor.tf.select(editor.api.start([0]));
     editor.tf.insertBreak();
     editor.tf.insertText("after");
@@ -219,7 +222,6 @@ describe(insertToggle, () => {
   });
 
   it("collapse state lives in the plugin store — flipping it never dirties bytes", () => {
-    // headless parse assigns no NodeIdPlugin ids, so an explicit id is driven
     const editor = makeEditor(":::toggle\nSummary\n\nbody\n:::\n");
     const before = out(editor);
     const isOpen = (id: string) => editor.getOptions(BaseTogglePlugin).openIds?.has(id) ?? false;
@@ -247,9 +249,11 @@ describe("insert transforms serialize canonically", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     insertEquation(editor);
+
     const equation = editor.children.find(
       (n) => ElementApi.isElement(n) && n.type === KEYS.equation,
     );
+
     expect(equation).toMatchObject({ texExpression: "" });
 
     const inlineHost = makeEditor("x\n");
@@ -281,9 +285,11 @@ describe("insert transforms serialize canonically", () => {
   ])("an empty inline equation in %s leaves one run either side", (_where, md) => {
     const editor = makeEditor(md);
     const [text] = editor.api.nodes({ at: [0], match: (node) => TextApi.isText(node) });
+
     if (text === undefined) {
       throw new Error("the block holds no text");
     }
+
     editor.tf.select({ offset: 1, path: text[1] });
     insertInlineEquation(editor);
     expect(
@@ -298,9 +304,11 @@ describe("insert transforms serialize canonically", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     insertEquation(editor);
+
     const at = editor.children.findIndex(
       (n) => ElementApi.isElement(n) && n.type === KEYS.equation,
     );
+
     editor.tf.setNodes({ texExpression: "E = mc^2" }, { at: [at] });
     const output = out(editor);
     expect(output).toContain("$$\nE = mc^2\n$$");
@@ -314,6 +322,7 @@ describe("insert transforms serialize canonically", () => {
       ["https://example.com/paper.pdf", KEYS.file],
       ["https://example.com/embed", KEYS.mediaEmbed],
     ];
+
     for (const [url, embedType] of cases) {
       const editor = makeEditor("x\n");
       editor.tf.select(editor.api.end([0]));

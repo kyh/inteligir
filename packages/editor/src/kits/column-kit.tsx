@@ -1,5 +1,3 @@
-// The plugins and their stable-width normalizer are headless (headless/column-base.ts).
-
 import { KEYS, PathApi } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
@@ -10,10 +8,9 @@ import {
   ColumnItemBasePlugin,
 } from "@repo/editor/headless/kits/column-base";
 
-export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3): void => {
+export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3) => {
   const emptyBlock = () => ({ children: [{ text: "" }], type: editor.getType(KEYS.p) });
   editor.tf.withoutNormalizing(() => {
-    // select: true lands the caret in the last column; move it to the first.
     editor.tf.insertNodes(
       {
         children: Array.from({ length: count }, () => ({
@@ -25,10 +22,13 @@ export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3): void => {
       { select: true },
     );
     const column = editor.api.above({ match: { type: editor.getType(KEYS.column) } });
+
     if (!column) {
       return;
     }
+
     const start = editor.api.start([...PathApi.parent(column[1]), 0]);
+
     if (start) {
       editor.tf.select(start);
     }

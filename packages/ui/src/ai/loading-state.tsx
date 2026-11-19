@@ -1,5 +1,5 @@
 "use client";
-// Vendored from Beautiful UI (beautifului.dev), MIT.
+// @license MIT, vendored from Beautiful UI (beautifului.dev).
 
 import { useEffect, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
@@ -9,6 +9,7 @@ import { cn } from "@repo/ui/lib/cn";
 const DOTS = Array.from({ length: 9 }, (_, i) => {
   const row = Math.floor(i / 3);
   const column = i % 3;
+
   return { delayMs: (column + Math.abs(row - 1)) * 90, id: `r${String(row)}c${String(column)}` };
 });
 
@@ -24,23 +25,28 @@ const LoaderGrid = () => (
   </span>
 );
 
-const useElapsedLabel = (): string => {
+const useElapsedLabel = () => {
   const [clock, setClock] = useState(() => {
     const mountedAt = Date.now();
+
     return { mountedAt, now: mountedAt };
   });
+
   useEffect(() => {
     const timer = setInterval(() => {
       setClock((current) => ({ ...current, now: Date.now() }));
     }, 100);
+
     return () => {
       clearInterval(timer);
     };
   }, []);
   const seconds = Math.max(0, (clock.now - clock.mountedAt) / 1000);
+
   if (seconds < 60) {
     return `${seconds.toFixed(1)}s`;
   }
+
   return `${String(Math.floor(seconds / 60))}m ${(seconds % 60).toFixed(1)}s`;
 };
 
@@ -55,6 +61,7 @@ const LoadingState = ({
   ...props
 }: LoadingStateProps & RefAttributes<HTMLDivElement>) => {
   const elapsed = useElapsedLabel();
+
   return (
     <div
       ref={ref}

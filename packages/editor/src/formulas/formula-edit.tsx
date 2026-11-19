@@ -9,45 +9,53 @@ import { entryName, entryTextOf, pillFromEntryIn } from "@repo/editor/formulas/f
 import { pillEntries, pillOf } from "@repo/editor/headless/formulas/pill-nodes";
 import type { PillEntry } from "@repo/editor/headless/formulas/pill-nodes";
 
-// A new name for the pill at `at` spelled into every source that read its old one, so no formula
-// loses what it names. Only the first pill to hold a name is read by it, so a later one's rename
-// respells nothing.
 const respelled = (
   pills: readonly PillEntry[],
   at: Path,
   from: string | undefined,
   to: string | undefined,
-): { at: Path; source: string }[] => {
+) => {
   if (from === undefined || to === undefined) {
-    return [];
+    return [] satisfies { at: Path; source: string }[];
   }
+
   const read = pills.find(({ node }) => pillOf(node).name === from);
-  return read === undefined || !PathApi.equals(read.at, at)
-    ? []
-    : pills
-        .filter((pill) => pill !== read)
-        .map((pill) => ({ at: pill.at, source: renameIn(pillOf(pill.node).source, from, to) }));
+
+  return (
+    read === undefined || !PathApi.equals(read.at, at)
+      ? []
+      : pills.flatMap((pill) =>
+          pill === read
+            ? []
+            : [{ at: pill.at, source: renameIn(pillOf(pill.node).source, from, to) }],
+        )
+  ) satisfies { at: Path; source: string }[];
 };
 
-const applyFormulaEdit = (editor: SlateEditor, element: TElement, next: Pill): void => {
+const applyFormulaEdit = (editor: SlateEditor, element: TElement, next: Pill) => {
   const at = editor.api.findPath(element);
+
   if (at === undefined) {
     return;
   }
+
   const readers = respelled(pillEntries(editor.children), at, pillOf(element).name, next.name);
   editor.tf.withoutNormalizing(() => {
     editor.tf.setNodes({ name: next.name, source: next.source }, { at });
+
     for (const reader of readers) {
       editor.tf.setNodes({ source: reader.source }, { at: reader.at });
     }
   });
 };
 
-export const convertFormulaToText = (editor: SlateEditor, element: TElement): void => {
+export const convertFormulaToText = (editor: SlateEditor, element: TElement) => {
   const path = editor.api.findPath(element);
+
   if (path === undefined) {
     return;
   }
+
   const text = entryTextOf(pillOf(element));
   editor.tf.withoutNormalizing(() => {
     editor.tf.removeNodes({ at: path });
@@ -55,35 +63,36 @@ export const convertFormulaToText = (editor: SlateEditor, element: TElement): vo
   });
 };
 
-// the names the pills before `element` hold, each read from the first pill to hold it
-const namesBefore = (editor: SlateEditor, element: TElement): ReadonlySet<string> => {
+const namesBefore = (editor: SlateEditor, element: TElement) => {
   const at = editor.api.findPath(element);
+
   return new Set(
     at === undefined
       ? []
       : pillEntries(editor.children)
           .filter((pill) => PathApi.isBefore(pill.at, at))
           .flatMap(({ node }) => pillOf(node).name ?? []),
-  );
+  ) satisfies ReadonlySet<string>;
 };
 
 export const FormulaEditForm = ({ element, onDone }: { element: TElement; onDone: () => void }) => {
   const editor = useEditorRef();
   const [entry, setEntry] = useState(() => entryTextOf(pillOf(element)));
-  // read as the editor opens: the compiler would key it on the entry too, a walk of the note per
-  // keystroke
   const heldBefore = useMemo(() => namesBefore(editor, element), [editor, element]);
   const name = entryName(entry);
   const readElsewhere = name !== undefined && heldBefore.has(name) ? name : null;
   const noticeId = useId();
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
         const pill = pillFromEntryIn(editor, entry);
+
         if (pill !== null) {
           applyFormulaEdit(editor, element, pill);
         }
+
         onDone();
       }}
     >

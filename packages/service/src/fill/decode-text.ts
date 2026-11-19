@@ -1,8 +1,3 @@
-// a page's bytes as text, by the HTML standard's order: a byte-order mark, then the response's
-// declared charset, then a `<meta charset>` (or its http-equiv spelling) in the first 1024 bytes,
-// then UTF-8. A label the platform's decoder does not know falls through to the next source, and
-// no source ever throws: a page's bytes are hostile input.
-
 const PRESCAN_BYTES = 1024;
 
 const BOMS: readonly { bytes: readonly number[]; label: string }[] = [
@@ -11,40 +6,42 @@ const BOMS: readonly { bytes: readonly number[]; label: string }[] = [
   { bytes: [0xff, 0xfe], label: "utf-16le" },
 ];
 
-const decoderFor = (label: string | null): TextDecoder | null => {
+const decoderFor = (label: string | null) => {
   if (label === null || label.trim() === "") {
     return null;
   }
+
   try {
-    return new TextDecoder(label.trim().toLowerCase());
+    return new TextDecoder(label.trim().toLowerCase()) satisfies TextDecoder | null;
   } catch {
     return null;
   }
 };
 
-const bomLabel = (bytes: Uint8Array): string | null =>
+const bomLabel = (bytes: Uint8Array) =>
   BOMS.find(({ bytes: mark }) => mark.every((byte, index) => bytes[index] === byte))?.label ?? null;
 
-// the meta prescan reads ASCII, which every charset a page may declare shares in its first bytes
-const prescanLabel = (bytes: Uint8Array): string | null => {
+const prescanLabel = (bytes: Uint8Array) => {
   const head = new TextDecoder("latin1").decode(bytes.subarray(0, PRESCAN_BYTES));
   const direct = /<meta[^>]+charset\s*=\s*["']?\s*(?<label>[\w.:-]+)/iu.exec(head)?.groups?.label;
+
   return direct ?? null;
 };
 
-// UTF-16 is never honoured from a meta tag (the standard reads it as UTF-8 there), since a tag the
-// prescan could read in ASCII cannot be in UTF-16
-const fromMeta = (label: string | null): string | null =>
+const fromMeta = (label: string | null) =>
   label === null || /^utf-16/iu.test(label) ? null : label;
 
-export const decodeText = (bytes: Uint8Array, declaredCharset: string | null): string => {
+export const decodeText = (bytes: Uint8Array, declaredCharset: string | null) => {
   const bom = bomLabel(bytes);
+
   if (bom !== null) {
     return new TextDecoder(bom).decode(bytes);
   }
+
   const decoder =
     decoderFor(declaredCharset) ??
     decoderFor(fromMeta(prescanLabel(bytes))) ??
     new TextDecoder("utf-8");
+
   return decoder.decode(bytes);
 };

@@ -40,9 +40,8 @@ describe("a reset mail", () => {
   });
 
   it("goes nowhere and logs no address with mail off", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {
-      // quiet: the test reads the line off the spy
-    });
+    const warn = vi.spyOn(console, "warn");
+
     await expect(
       deliverEmail(composeResetEmail("user@example.com", "http://x/reset"), { kind: "off" }),
     ).resolves.toBe("off");

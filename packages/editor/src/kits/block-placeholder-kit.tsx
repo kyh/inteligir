@@ -1,7 +1,6 @@
 import { KEYS } from "platejs";
 import { BlockPlaceholderPlugin } from "platejs/react";
 
-// The plugin skips a pristine-empty doc, so PlateContent's placeholder covers that state with the same copy.
 export const WRITE_PLACEHOLDER = "Write, or press '/' for commands";
 
 export const BlockPlaceholderKit = [

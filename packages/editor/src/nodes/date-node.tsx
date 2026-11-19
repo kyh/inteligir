@@ -1,6 +1,3 @@
-// Never toDateString() (en-US locale bytes) or toISOString() (UTC-shifts across midnight): the
-// chip saves its `date` as `@YYYY-MM-DD`.
-
 import { Suspense, lazy } from "react";
 import { PlateElement, useEditorRef, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -22,22 +19,28 @@ const Calendar = lazy(
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-const label = (value: string): string => {
+const label = (value: string) => {
   const date = parseIsoDate(value);
+
   if (!date) {
     return value || "Pick a date";
   }
+
   const today = new Date();
   const dayDiff = Math.round((startOfDay(date) - startOfDay(today)) / 86_400_000);
+
   if (dayDiff === 0) {
     return "Today";
   }
+
   if (dayDiff === -1) {
     return "Yesterday";
   }
+
   if (dayDiff === 1) {
     return "Tomorrow";
   }
+
   return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
 };
 
@@ -70,9 +73,11 @@ export const DateElement = (props: PlateElementProps) => {
               selected={parseIsoDate(value) ?? undefined}
               onSelect={(date) => {
                 const at = editor.api.findPath(element);
+
                 if (date && at) {
                   editor.tf.setNodes({ date: formatIsoDate(date) }, { at });
                 }
+
                 setOpen(false);
               }}
             />

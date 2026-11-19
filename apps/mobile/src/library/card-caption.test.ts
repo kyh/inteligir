@@ -5,7 +5,7 @@ import { cardCaption } from "./card-caption";
 
 const SAVED = Date.UTC(2026, 9, 2, 12);
 
-const caption = (fields: Pick<LibraryItemFields, "reading" | "site">): string =>
+const caption = (fields: Pick<LibraryItemFields, "reading" | "site">) =>
   cardCaption({ fields: { ...fields, savedAt: SAVED } });
 
 describe("a Library row's caption", () => {

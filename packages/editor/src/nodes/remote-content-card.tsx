@@ -1,7 +1,3 @@
-// The page's CSP refuses every remote image, frame and fetch on purpose: a remote embed would be a
-// beacon on every open. So a remote url is never loaded, and the card hands it to the system
-// browser instead.
-
 import { ExternalLinkIcon, FileTextIcon, FilmIcon, GlobeIcon, ImageIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,7 +25,7 @@ export const RemoteContentCard = ({
   url: string;
 }) => {
   const Icon = KIND_ICON[kind];
-  // the action sits under the text, clear of the corner the media toolbar covers while selected.
+
   return (
     <div
       className={cn(

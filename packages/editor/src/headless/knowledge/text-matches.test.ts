@@ -35,7 +35,6 @@ describe("finding literal occurrences", () => {
 });
 
 describe("offsets into one string", () => {
-  // `toLowerCase` turns İ into two code units, which would shift every offset after it
   it("keeps the original text's offsets past a letter whose lower case is longer", () => {
     expect(findTextOffsets("İstanbul foo", "FOO", LOOSE)).toStrictEqual([{ length: 3, offset: 9 }]);
   });

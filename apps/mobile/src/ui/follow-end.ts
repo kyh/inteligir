@@ -1,15 +1,7 @@
-// A scroll view that keeps to its end as what it holds grows, as a conversation does while the
-// agent replies, and lets go while the reader scrolls away. Following is the reader's to change:
-// their drag, fling or tap on the status bar stops it, and coming to rest at the end or a send
-// takes it up again, since an offset read as the content grows says the end moved, not that the
-// reader did.
-
 import { useRef } from "react";
 import type { RefObject } from "react";
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollView } from "react-native";
 
-// how far short of the end a scroll may rest and still be at it: about a line, since a fling
-// seldom stops on the last point
 const NEAR_END = 24;
 
 export interface ScrollMetrics {
@@ -18,20 +10,19 @@ export interface ScrollMetrics {
   readonly viewportHeight: number;
 }
 
-// a bottom inset rests the end past the content, and content shorter than the view is all at it
-export const atEnd = ({ contentHeight, offset, viewportHeight }: ScrollMetrics): boolean =>
+export const atEnd = ({ contentHeight, offset, viewportHeight }: ScrollMetrics) =>
   offset + viewportHeight >= contentHeight - NEAR_END;
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
-const metricsOf = ({ nativeEvent }: ScrollEvent): ScrollMetrics => ({
-  contentHeight: nativeEvent.contentSize.height,
-  offset: nativeEvent.contentOffset.y,
-  viewportHeight: nativeEvent.layoutMeasurement.height,
-});
+const metricsOf = ({ nativeEvent }: ScrollEvent) =>
+  ({
+    contentHeight: nativeEvent.contentSize.height,
+    offset: nativeEvent.contentOffset.y,
+    viewportHeight: nativeEvent.layoutMeasurement.height,
+  }) satisfies ScrollMetrics;
 
-export interface FollowEnd {
-  // the scroll view's own props, spread onto it
+interface FollowEnd {
   readonly props: {
     readonly ref: RefObject<ScrollView | null>;
     readonly onContentSizeChange: () => void;
@@ -42,26 +33,27 @@ export interface FollowEnd {
     readonly onScrollEndDrag: (event: ScrollEvent) => void;
     readonly onScrollToTop: () => void;
   };
-  // back to the end, following again
   readonly follow: () => void;
 }
 
-export const useFollowEnd = (): FollowEnd => {
+export const useFollowEnd = () => {
   const view = useRef<ScrollView>(null);
-  // it opens on the end
   const following = useRef(true);
-  // a jump, since a growth that lands mid-animation would aim it at an end already gone
-  const keep = (): void => {
+
+  const keep = () => {
     if (following.current) {
       view.current?.scrollToEnd({ animated: false });
     }
   };
-  const letGo = (): void => {
+
+  const letGo = () => {
     following.current = false;
   };
-  const rest = (event: ScrollEvent): void => {
+
+  const rest = (event: ScrollEvent) => {
     following.current = atEnd(metricsOf(event));
   };
+
   return {
     follow: () => {
       following.current = true;
@@ -77,5 +69,5 @@ export const useFollowEnd = (): FollowEnd => {
       onScrollToTop: letGo,
       ref: view,
     },
-  };
+  } satisfies FollowEnd;
 };

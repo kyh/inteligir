@@ -36,30 +36,31 @@ interface ConfirmStore {
 }
 
 const confirmStore: ConfirmStore = {
-  getSnapshot(): ConfirmSnapshot {
+  getSnapshot() {
     return confirmStore.snapshot;
   },
   listeners: new Set<Listener>(),
-  set(pending: PendingConfirm | null): void {
+  set(pending: PendingConfirm | null) {
     confirmStore.snapshot = {
       options: pending?.options ?? confirmStore.snapshot.options,
       pending,
     };
+
     for (const listener of confirmStore.listeners) {
       listener();
     }
   },
   snapshot: { options: null, pending: null },
-  subscribe(listener: Listener): () => void {
+  subscribe(listener: Listener) {
     confirmStore.listeners.add(listener);
-    return () => {
+
+    return (() => {
       confirmStore.listeners.delete(listener);
-    };
+    }) satisfies () => void;
   },
 };
 
-// without a mounted ConfirmDialogHost the promise stays pending, never a false positive.
-export const confirm = async (options: ConfirmOptions): Promise<boolean> =>
+export const confirm = async (options: ConfirmOptions) =>
   // oxlint-disable-next-line promise/avoid-new -- the answer arrives from a click on the mounted host, so there is no upstream promise to return
   await new Promise<boolean>((resolve) => {
     confirmStore.getSnapshot().pending?.resolve(false);
@@ -72,9 +73,9 @@ export const ConfirmDialogHost = () => {
     confirmStore.getSnapshot,
     confirmStore.getSnapshot,
   );
+
   const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
   const confirmButtonRef = React.useRef<HTMLButtonElement>(null);
-  // Enter confirms what can be undone; a destructive answer takes a deliberate move to reach
   const destructive = options?.destructive === true;
 
   const settle = (confirmed: boolean) => {
@@ -84,9 +85,6 @@ export const ConfirmDialogHost = () => {
 
   const open = pending !== null;
 
-  // Dialog's backdrop and card over the alert primitive's own parts, which keep the alertdialog
-  // role and refuse an outside-press dismissal; controlled, since the Portal's presence reads the
-  // open it is handed
   return (
     <AlertDialog.Root
       open={open}

@@ -1,7 +1,3 @@
-// `library.agent.*`'s rows over the built-in agent's threads: a message sent to eve as the person,
-// their threads and each one followed as it happens, a stop, a delete, the agent's standing for
-// them, its switch and the filing rules it follows.
-
 import { answer, reading, writing } from "../library/library-access";
 import { writeLibrary } from "../library/library-store";
 import { readFilingRules, rulesSchema, writeFilingRules } from "./agent-preference";

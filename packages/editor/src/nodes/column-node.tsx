@@ -1,7 +1,4 @@
-// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Live drag mutates the two flanking columns' flex-basis imperatively; pointer-up commits every
-// width once via setNodes. Percentages are normalized against the sum of column pixel widths,
-// so gaps never skew the stored ratios.
+// @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
 import { useRef } from "react";
 import { ElementApi, PathApi } from "platejs";
@@ -17,7 +14,17 @@ import { LockedContent } from "./rich-block-chrome";
 
 const MIN_PCT = 10;
 
-const formatPct = (value: number): string => `${Number(value.toFixed(2))}%`;
+const formatPct = (value: number) => `${Number(value.toFixed(2))}%`;
+
+const capturePointer = (handle: Element, pointerId: number) => {
+  try {
+    handle.setPointerCapture(pointerId);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const ColumnGroupElement = (props: PlateElementProps) => (
   <PlateElement {...props} className="mb-1">
@@ -38,28 +45,30 @@ export const ColumnElement = (props: PlateElementProps) => {
     const path = editor.api.findPath(element);
     const host = hostRef.current;
     const groupRow = host?.parentElement;
+
     if (!path || !host || !groupRow) {
       return;
     }
+
     const next = host.nextElementSibling;
+
     if (!(next instanceof HTMLElement)) {
       return;
     }
 
     e.preventDefault();
-    // capture is best effort; the listeners live on window, and pointercancel aborts without committing.
     const handle = e.currentTarget;
+
     if ("setPointerCapture" in handle) {
-      try {
-        handle.setPointerCapture(e.pointerId);
-      } catch {
-        // synthetic pointers (tests) may not be capturable.
-      }
+      capturePointer(handle, e.pointerId);
     }
+
     const startX = e.clientX;
+
     const cells = [...groupRow.children].filter(
       (cell): cell is HTMLElement => cell instanceof HTMLElement,
     );
+
     const startPx = cells.map((cell) => cell.getBoundingClientRect().width);
     const totalPx = startPx.reduce((sum, px) => sum + px, 0);
     const selfIndex = cells.indexOf(host);
@@ -69,7 +78,7 @@ export const ColumnElement = (props: PlateElementProps) => {
     const pairPx = startSelf + startNext;
     const minPx = (MIN_PCT / 100) * totalPx;
 
-    const clampDelta = (clientX: number): number =>
+    const clampDelta = (clientX: number) =>
       Math.min(Math.max(clientX - startX, minPx - startSelf), startNext - minPx);
 
     const listeners = new AbortController();
@@ -93,19 +102,23 @@ export const ColumnElement = (props: PlateElementProps) => {
     const onUp = (up: PointerEvent) => {
       detach();
       const delta = clampDelta(up.clientX);
+
       if (delta === 0) {
         return;
       }
-      // the last column absorbs rounding so widths sum to 100.
+
       const finalPx = startPx.map((px, i) => {
         if (i === selfIndex) {
           return startSelf + delta;
         }
+
         if (i === nextIndex) {
           return startNext - delta;
         }
+
         return px;
       });
+
       const rounded = finalPx.map((px) => Number(((px / totalPx) * 100).toFixed(2)));
       const sumButLast = rounded.slice(0, -1).reduce((sum, pct) => sum + pct, 0);
       rounded[rounded.length - 1] = Number((100 - sumButLast).toFixed(2));
@@ -124,14 +137,18 @@ export const ColumnElement = (props: PlateElementProps) => {
   };
 
   const path = editor.api.findPath(element);
+
   const isLast = (() => {
     if (!path) {
       return true;
     }
+
     const parent = editor.api.node(PathApi.parent(path));
+
     if (!parent || !ElementApi.isElement(parent[0])) {
       return true;
     }
+
     return path.at(-1) === parent[0].children.length - 1;
   })();
 

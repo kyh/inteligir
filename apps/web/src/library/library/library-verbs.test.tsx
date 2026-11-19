@@ -1,25 +1,23 @@
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { toast, Toaster } from "@repo/ui/components/sonner";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThemeProvider } from "#components/theme-provider";
 
-import { fakePageLibrary, renderHookOnLibrary } from "../test-support/fake-page-library";
-import type { CellCall } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderHookOnLibrary } from "../test-support/fake-page-library.test-utils";
+import type { CellCall } from "../test-support/fake-page-library.test-utils";
 import { useLibraryVerbs } from "./library-verbs";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// a run of this many goes in two calls, the second of one
 const TWO_CALLS = BULK_ITEMS_MAX + 1;
 
-const addressOf = (at: number): string => `https://example.com/${String(at)}`;
+const addressOf = (at: number) => `https://example.com/${String(at)}`;
 
-// the verbs over the cell, under the toaster that draws what they say
 const verbsOver = (
   cell: ReturnType<typeof createFakeCell>,
   answer?: (call: CellCall) => object | undefined,
@@ -30,18 +28,22 @@ const verbsOver = (
     </ThemeProvider>,
   );
   const { library } = fakePageLibrary({ answer, cell });
+
   return renderHookOnLibrary(useLibraryVerbs, library).result;
 };
 
 describe("a restore", () => {
   it("says what stayed in Deleted from every call it made", async () => {
     const cell = createFakeCell();
+
     const ids = Array.from({ length: TWO_CALLS }, (_, at) =>
       cell.seed.item({ deletedAt: 1, url: addressOf(at) }),
     );
+
     for (const at of [0, BULK_ITEMS_MAX]) {
       cell.seed.item({ url: addressOf(at) });
     }
+
     const verbs = verbsOver(cell);
     const restored = vi.spyOn(toast, "success");
     const held = vi.spyOn(toast, "info");
@@ -64,6 +66,7 @@ describe("a verb over a scope", () => {
         throw new Error("the cell is down");
       }
     });
+
     const failed = vi.spyOn(toast, "error");
 
     await act(async () => {
@@ -82,14 +85,17 @@ describe("a delete", () => {
     const cell = createFakeCell();
     const ids = Array.from({ length: TWO_CALLS }, () => cell.seed.item());
     let deletes = 0;
+
     const verbs = verbsOver(cell, (call) => {
       if (call.path === "library.items.delete") {
         deletes += 1;
+
         if (deletes === 2) {
           throw new Error("the cell is down");
         }
       }
     });
+
     const failed = vi.spyOn(toast, "error");
 
     await act(async () => {
@@ -105,9 +111,9 @@ describe("a delete", () => {
       }),
     );
 
-    await vi.waitFor(() => {
-      expect(restores.mock.lastCall?.[0]).toBe(`Restored ${String(BULK_ITEMS_MAX)} items.`);
-    });
+    const restored = `Restored ${String(BULK_ITEMS_MAX)} items.`;
+    await screen.findByText(restored);
+    expect(restores.mock.lastCall?.[0]).toBe(restored);
     expect(
       [...cell.items().values()].filter((item) => item.fields.deletedAt !== null),
     ).toStrictEqual([]);

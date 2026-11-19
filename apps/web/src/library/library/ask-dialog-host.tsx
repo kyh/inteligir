@@ -1,8 +1,3 @@
-// The one dialog the library's asks are drawn in (`./ask.ts`): a folder to move items to, a tag to
-// add or take off, and a name (a new folder's, a renamed one's, a link's address). Each form
-// mounts with its ask inside the dialog's content, so its draft is born with the ask and gone with
-// it, and one made over another opens empty.
-
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
@@ -17,6 +12,7 @@ import type { Ask } from "./ask";
 
 const FolderForm = ({ ask }: { ask: Extract<Ask, { kind: "folder" }> }) => {
   const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
+
   return (
     <>
       <DialogTitle>
@@ -40,10 +36,11 @@ const FolderForm = ({ ask }: { ask: Extract<Ask, { kind: "folder" }> }) => {
   );
 };
 
-const cleanTag = (raw: string): string => raw.trim().replace(/^#/u, "").replaceAll(/\s+/gu, "-");
+const cleanTag = (raw: string) => raw.trim().replace(/^#/u, "").replaceAll(/\s+/gu, "-");
 
 const TagsForm = ({ ask }: { ask: Extract<Ask, { kind: "tags" }> }) => {
   const [draft, setDraft] = useState("");
+
   return (
     <>
       <DialogTitle>{ask.count === 1 ? "Tag" : `Tag ${String(ask.count)} items`}</DialogTitle>
@@ -52,6 +49,7 @@ const TagsForm = ({ ask }: { ask: Extract<Ask, { kind: "tags" }> }) => {
         onSubmit={(event) => {
           event.preventDefault();
           const tag = cleanTag(draft);
+
           if (tag !== "") {
             ask.answer({ add: [tag], remove: [] });
           }
@@ -94,6 +92,7 @@ const TagsForm = ({ ask }: { ask: Extract<Ask, { kind: "tags" }> }) => {
 const NameForm = ({ ask }: { ask: Extract<Ask, { kind: "name" }> }) => {
   const [draft, setDraft] = useState(ask.initial);
   const [refusal, setRefusal] = useState<string | null>(null);
+
   return (
     <>
       <DialogTitle>{ask.title}</DialogTitle>
@@ -103,11 +102,14 @@ const NameForm = ({ ask }: { ask: Extract<Ask, { kind: "name" }> }) => {
         onSubmit={(event) => {
           event.preventDefault();
           const name = draft.trim();
+
           if (name === "") {
             return;
           }
+
           const refused = ask.refuse?.(name) ?? null;
           setRefusal(refused);
+
           if (refused === null) {
             ask.answer(name);
           }
@@ -140,20 +142,25 @@ const AskForm = ({ ask }: { ask: Ask }) => {
     case "folder": {
       return <FolderForm ask={ask} />;
     }
+
     case "tags": {
       return <TagsForm ask={ask} />;
     }
+
     case "name": {
       return <NameForm ask={ask} />;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(ask satisfies never)}`);
+    }
   }
 };
 
 export const AskDialogHost = () => {
   const { made, standing } = useStore(asks);
-  // an ask nothing can answer once its host is gone answers null
   useEffect(() => dismissAsk, []);
+
   return (
     <Dialog
       open={standing !== null}

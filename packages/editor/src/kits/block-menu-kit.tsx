@@ -21,6 +21,7 @@ export const BlockMenuKit = [
         if (props.attributes.className?.includes("slate-selectable") !== true) {
           return null;
         }
+
         return <BlockSelection pluginKey={props.plugin.key} />;
       },
     },

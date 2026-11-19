@@ -1,9 +1,3 @@
-// why a page was not read, in one plain sentence, as the item says it, and whether the fill tries
-// again later: offline, a timeout, a resolver that did not answer, or a site saying it is busy
-// (429, 503) leave the link waiting for a retry; anything else is said on the item.
-
-// what a fetch refuses to ask: an address off the web or off its ports, one written as numbers, a
-// saved name for private space, or a public page's redirect to one
 export type FetchRefusal =
   | "off-web"
   | "address-literal"
@@ -12,15 +6,12 @@ export type FetchRefusal =
 
 export type FetchFailure =
   | { kind: "refused"; refusal: FetchRefusal }
-  // `reason` is the platform's own wording of the status, never the site's
   | { kind: "status"; status: number; reason: string; transient: boolean }
   | { kind: "timeout" }
   | { kind: "unreachable" }
   | { kind: "redirects" }
-  // `bytes`: the size the site declared, or what had arrived when the read stopped
   | { kind: "too-large"; bytes: number };
 
-// the standard's own wording of a refused status, never the site's, which is its own to say
 const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
   [100, "continue"],
   [101, "switching protocols"],
@@ -69,16 +60,15 @@ const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
   [511, "network authentication required"],
 ]);
 
-// a site saying it is busy, which a later try may get past
 const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([429, 503]);
 
-// a status no page is read from (anything outside 200 to 299)
-export const statusFailure = (status: number): FetchFailure => ({
-  kind: "status",
-  reason: STATUS_REASONS.get(status) ?? "an error",
-  status,
-  transient: TRANSIENT_STATUSES.has(status),
-});
+export const statusFailure = (status: number) =>
+  ({
+    kind: "status",
+    reason: STATUS_REASONS.get(status) ?? "an error",
+    status,
+    transient: TRANSIENT_STATUSES.has(status),
+  }) satisfies FetchFailure;
 
 interface FillFailure {
   sentence: string;
@@ -86,22 +76,20 @@ interface FillFailure {
 }
 
 export const TEXT_NOT_SAVED = "The page's text couldn't be saved.";
-// a connection that failed, and a link the queue's retries could not read
 export const PAGE_UNREACHED = "The page couldn't be reached.";
 const MB = 1024 * 1024;
 
 const LIMIT_MB = 10;
 
-// MB to the nearest whole; a size the read only knows is past the limit (the site declared none, or
-// one that rounds to the limit) is said as over it
-export const fileOnlyLinked = (bytes: number | null): string => {
+export const fileOnlyLinked = (bytes: number | null) => {
   const mb = bytes === null ? null : Math.max(1, Math.round(bytes / MB));
+
   return mb === null || mb <= LIMIT_MB
     ? `The file is over ${String(LIMIT_MB)} MB; only its link is kept.`
     : `The file is ${String(mb)} MB; only its link is kept (the limit is ${String(LIMIT_MB)} MB).`;
 };
 
-export const failureOf = (failure: FetchFailure): FillFailure => {
+export const failureOf = (failure: FetchFailure) => {
   switch (failure.kind) {
     case "refused": {
       switch (failure.refusal) {
@@ -109,50 +97,71 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
           return {
             sentence: "The page pointed at an address on your own network, so it isn't read.",
             transient: false,
-          };
+          } satisfies FillFailure;
         }
+
         case "private-network": {
           return {
             sentence:
               "This address is on a private network, which the cloud can't reach, so its page isn't read.",
             transient: false,
-          };
+          } satisfies FillFailure;
         }
+
         case "address-literal": {
           return {
             sentence: "The cloud opens pages by name, so an address written as numbers isn't read.",
             transient: false,
-          };
+          } satisfies FillFailure;
         }
+
         case "off-web": {
-          return { sentence: "This address isn't one a page can be read from.", transient: false };
+          return {
+            sentence: "This address isn't one a page can be read from.",
+            transient: false,
+          } satisfies FillFailure;
         }
+
         default: {
           const exhaustive: never = failure.refusal;
+
           return exhaustive;
         }
       }
     }
+
     case "status": {
       return {
         sentence: `The site answered ${String(failure.status)} (${failure.reason}).`,
         transient: failure.transient,
-      };
+      } satisfies FillFailure;
     }
+
     case "timeout": {
-      return { sentence: "The page took too long to answer.", transient: true };
+      return {
+        sentence: "The page took too long to answer.",
+        transient: true,
+      } satisfies FillFailure;
     }
+
     case "unreachable": {
-      return { sentence: PAGE_UNREACHED, transient: true };
+      return { sentence: PAGE_UNREACHED, transient: true } satisfies FillFailure;
     }
+
     case "redirects": {
-      return { sentence: "The page redirected too many times.", transient: false };
+      return {
+        sentence: "The page redirected too many times.",
+        transient: false,
+      } satisfies FillFailure;
     }
+
     case "too-large": {
-      return { sentence: fileOnlyLinked(failure.bytes), transient: false };
+      return { sentence: fileOnlyLinked(failure.bytes), transient: false } satisfies FillFailure;
     }
+
     default: {
       const exhaustive: never = failure;
+
       return exhaustive;
     }
   }

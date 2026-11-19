@@ -7,15 +7,15 @@ import { describe, expect, it } from "vitest";
 import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
-import { EditorHarness } from "../test-support/editor-harness";
+import { EditorHarness } from "../test-support/editor-harness.test-utils";
 
 const BUDGET = { display: "5", name: "budget", source: "5" };
 
-// the editor with `see {` typed after what `before` holds, and the picker the second `{` opened
 const openPicker = (before: Value[number]["children"] = [{ text: "" }]) => {
   installFakeEditorHost();
+
   const value: Value = [
     {
       children: [
@@ -27,22 +27,26 @@ const openPicker = (before: Value[number]["children"] = [{ text: "" }]) => {
       type: "p",
     },
   ];
+
   const ref = createRef<PlateEditor>();
   render(<EditorHarness ref={ref} value={value} />);
-  const editor = (): PlateEditor => {
+
+  const editor = () => {
     if (ref.current === null) {
       throw new Error("the editor never mounted");
     }
+
     return ref.current;
   };
-  // the caret inside the input, where the trigger's insert leaves it
+
   act(() => {
     editor().tf.select({ offset: 0, path: [0, before.length + 1, 0] });
   });
+
   return { markdown: () => serializeNote(editor()) };
 };
 
-const typeQuery = (query: string): void => {
+const typeQuery = (query: string) => {
   fireEvent.change(screen.getByRole("combobox"), { target: { value: query } });
 };
 
@@ -66,6 +70,7 @@ describe("the {{ picker", () => {
       { children: [{ text: "" }], type: FORMULA_PILL_KEY, ...BUDGET },
       { text: " " },
     ]);
+
     fireEvent.click(await screen.findByRole("option", { name: /budget/u }));
     expect(markdown()).toBe(
       ':formula[5]{name="budget" source="5"} see :formula[5]{source="budget"}\n',

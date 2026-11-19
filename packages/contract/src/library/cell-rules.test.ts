@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { folderOpLanding, folderOpRefusal, organized } from "./cell-rules";
 import type { FolderReader } from "./cell-rules";
-import { noteFixture } from "../test-support/library-items";
+import { noteFixture } from "../test-support/library-items.test-utils";
 
 const TOP = "01890a5d-ac96-774b-bcce-b302099a8001";
 const UNDER = "01890a5d-ac96-774b-bcce-b302099a8002";
@@ -23,10 +23,10 @@ const row = (
   sort: "a0",
 });
 
-// Work › Plans, and a deleted folder
 const work = row(TOP, "Work", null);
 const plans = row(UNDER, "Plans", TOP);
 const tree = [work, plans, row(GONE, "Old", null, 5)];
+
 const reader: FolderReader = {
   children: (parentId) =>
     tree.filter((folder) => folder.parentId === parentId && folder.deletedAt === null),
@@ -42,6 +42,7 @@ describe("a folder op against the tree its writer read", () => {
       parentId: null,
       sort: "a0",
     } satisfies Parameters<typeof folderOpRefusal>[1];
+
     expect(folderOpRefusal(reader, create)).toBeNull();
     expect(folderOpLanding(reader, create, 9)).toStrictEqual([]);
   });

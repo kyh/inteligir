@@ -192,7 +192,7 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 
 - **A library test that logs a console.error fails.** React reports a render-phase setState, a
   missing key or an update outside `act` only there, so a suite that just logs it stays green over
-  a defect. `apps/web/src/library/test-support/console-error-gate.ts`.
+  a defect. `apps/web/src/library/test-support/console-error-gate.test-utils.ts`.
 - **The tab is a route of the site, and its suites run beside the site's** (owner decision). The
   app serves it and the Mac app's window loads it from there, its suites run under jsdom at the
   window's own address, and `apps/web/tsconfig.json` holds it to the Mac app's WebKit stdlib.

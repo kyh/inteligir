@@ -1,8 +1,3 @@
-// An item's file full size, by the item's id: a picture zoomable, a PDF in a WebView that runs no
-// script and loads nothing but the file, from the phone's file cache, which fetches it from the
-// cloud the first time and keeps it after, until iOS clears its cache. A file of another kind says
-// so.
-
 import { shownTitle } from "@repo/contract/items/item-name";
 import { UNREACHABLE } from "@repo/contract/rpc/call-outcome";
 import { Stack, useLocalSearchParams } from "expo-router";
@@ -28,6 +23,7 @@ const MAX_ZOOM = 5;
 
 const ImageView = ({ uri }: { uri: string }) => {
   const { height, width } = useWindowDimensions();
+
   return (
     <ScrollView
       centerContent
@@ -48,6 +44,7 @@ const ImageView = ({ uri }: { uri: string }) => {
 
 const DocumentView = ({ uri }: { uri: string }) => {
   const theme = useTheme();
+
   return (
     <WebView
       style={screenStyle(theme)}
@@ -83,6 +80,7 @@ const ViewerScreen = () => {
       <ActivityIndicator />
     </View>
   );
+
   if (read.kind === "missing" || (item !== null && sha === null)) {
     body = <Centered>This file is not in your library.</Centered>;
   } else if (read.kind === "unreachable") {

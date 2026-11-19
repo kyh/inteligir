@@ -1,31 +1,48 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { deferred } from "@repo/contract/deferred";
-import { nextTask } from "../test-support/async";
+import { nextTask } from "../test-support/async.test-utils";
 import { createShareQueue } from "./share-queue";
 
-// a settle the test ends when it chooses, as one that takes its time
 const pending = () => {
   const ends: (() => void)[] = [];
   const events: string[] = [];
+
   const ports = {
     reset: () => {
       events.push("reset");
     },
-    settle: async (intent: string): Promise<"settled"> => {
+    settle: async (intent: string) => {
       events.push(`settle ${intent}`);
       // oxlint-disable-next-line promise/avoid-new -- a settle the test ends by hand, which only a promise's resolve can do
       await new Promise<void>((resolve) => {
         ends.push(resolve);
       });
       events.push(`settled ${intent}`);
-      return "settled";
+
+      return "settled" as const;
     },
   };
-  const end = (index: number): void => {
+
+  const end = (index: number) => {
     ends[index]?.();
   };
+
   return { end, events, ports };
+};
+
+const resetting = () => {
+  const heard = deferred();
+  let count = 0;
+
+  return {
+    count: () => count,
+    first: heard.promise,
+    reset: () => {
+      count += 1;
+      heard.resolve();
+    },
+  };
 };
 
 describe("the shares the inbox settles", () => {
@@ -33,7 +50,6 @@ describe("the shares the inbox settles", () => {
     const { end, events, ports } = pending();
     const queue = createShareQueue<string>();
     queue.offer("first", ports);
-    // the context replaces its intent with the second share while the first settles
     queue.offer("second", ports);
     end(0);
     await vi.waitFor(() => {
@@ -66,7 +82,8 @@ describe("the shares the inbox settles", () => {
   });
 
   it("keeps a share its library left under it, for the screen the next sign-in mounts", async () => {
-    const reset = vi.fn<() => void>();
+    const resets = resetting();
+    const { reset } = resets;
     const settled: string[] = [];
     const queue = createShareQueue<string>();
     queue.offer("only", {
@@ -74,23 +91,24 @@ describe("the shares the inbox settles", () => {
       settle: async () => await Promise.resolve("held"),
     });
     await nextTask();
-    expect(reset).not.toHaveBeenCalled();
+    expect(resets.count()).toBe(0);
 
     queue.offer("only", {
       reset,
       settle: async (intent) => {
         settled.push(intent);
+
         return await Promise.resolve("settled");
       },
     });
-    await vi.waitFor(() => {
-      expect(reset).toHaveBeenCalledOnce();
-    });
+    await resets.first;
+    expect(resets.count()).toBe(1);
     expect(settled).toStrictEqual(["only"]);
   });
 
   it("settles a held share through the library a failed sign-out opened again meanwhile", async () => {
-    const reset = vi.fn<() => void>();
+    const resets = resetting();
+    const { reset } = resets;
     const left = deferred<"held">();
     const settled: string[] = [];
     const queue = createShareQueue<string>();
@@ -99,14 +117,14 @@ describe("the shares the inbox settles", () => {
       reset,
       settle: async (intent) => {
         settled.push(intent);
+
         return await Promise.resolve("settled");
       },
     });
 
     left.resolve("held");
-    await vi.waitFor(() => {
-      expect(reset).toHaveBeenCalledOnce();
-    });
+    await resets.first;
+    expect(resets.count()).toBe(1);
     expect(settled).toStrictEqual(["only"]);
   });
 });

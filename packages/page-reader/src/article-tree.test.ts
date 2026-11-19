@@ -1,40 +1,35 @@
-// the tree a page's readable part is read as, without the extractor in front of it: what a page
-// may write (a link and a picture by a web address, code by its own language), the blocks the
-// editor's rules read it as, and where a page past the article's budget is cut.
-
 import type { Nodes, Root } from "mdast";
 import { describe, expect, it } from "vitest";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { articleBlocks } from "@repo/editor/headless/codec/item-markdown";
 
 import { articleMdast, articleTree } from "./article-tree";
 import { HAST, wordsOf } from "./page-words";
 
-// spelled in two halves: the scheme the tree must not hold, never a link of this suite's
 const SCRIPT_SCHEME = ["java", "script:"].join("");
 
 const PAGE_URL = "https://pages.example/posts/item";
 
-const treeOf = (html: string): Root => articleMdast(articleTree(html), PAGE_URL);
+const treeOf = (html: string) => articleMdast(articleTree(html), PAGE_URL);
 
-// every node of the tree in the page's order, less where it stood in the source
-const nodesOf = (root: Root): Nodes[] => {
+const nodesOf = (root: Root) => {
   const all: Nodes[] = [];
   const pending: Nodes[] = [root];
+
   for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
     const { position: _position, ...rest } = node;
     all.push(rest);
+
     if ("children" in node) {
       pending.push(...node.children.toReversed());
     }
   }
+
   return all;
 };
 
-// the blocks the editor's rules read the tree as, less their ids
-const blocksIn = (html: string): Omit<LibraryBlock, "id">[] =>
+const blocksIn = (html: string) =>
   (articleBlocks(treeOf(html), () => "id")?.blocks ?? []).map(({ id: _id, ...block }) => block);
 
 const thumb = {
@@ -44,27 +39,25 @@ const thumb = {
   url: "https://pages.example/thumb.png",
 };
 
-// a paragraph of one link to the page's post, holding the words given
 const post = (words: { text: string; bold?: true }[]) => ({
   children: [{ children: words, type: "a", url: "https://pages.example/post" }],
   type: "p",
 });
 
-const linksIn = (html: string): string[] =>
+const linksIn = (html: string) =>
   nodesOf(treeOf(html)).flatMap((node) => (node.type === "link" ? [node.url] : []));
 
-const picturesIn = (html: string): string[] =>
+const picturesIn = (html: string) =>
   nodesOf(treeOf(html)).flatMap((node) => (node.type === "image" ? [node.url] : []));
 
-const textIn = (html: string): string =>
+const textIn = (html: string) =>
   nodesOf(treeOf(html))
     .flatMap((node) => (node.type === "text" ? [node.value] : []))
     .join("");
 
-const kindsIn = (html: string): string[] => nodesOf(treeOf(html)).map((node) => node.type);
+const kindsIn = (html: string) => nodesOf(treeOf(html)).map((node) => node.type);
 
-// a table's rows, each cell as its plain text
-const rowsIn = (html: string): string[][] =>
+const rowsIn = (html: string) =>
   nodesOf(treeOf(html))
     .flatMap((node) => (node.type === "tableRow" ? [node] : []))
     .map((row) =>
@@ -145,6 +138,7 @@ describe("what a page may write", () => {
     expect(kindsIn(plain).slice(0, 6)).toStrictEqual([...lead, "table"]);
     const spanned = `<table>${caption}<tr><td colspan="2">Monday</td></tr>${rows}</table>`;
     expect(kindsIn(spanned).slice(0, 6)).toStrictEqual([...lead, "paragraph"]);
+
     for (const html of [plain, spanned]) {
       expect(textIn(html).startsWith("Ferries from North Quay")).toBe(true);
     }
@@ -156,6 +150,7 @@ describe("what a page may write", () => {
         `<pre><code class="language-toml">a = 1</code></pre><pre><code class="language-inteligir-html">&lt;b&gt;x&lt;/b&gt;</code></pre><pre><code class="language-Inteligir-Chart">{}</code></pre>`,
       ),
     ).flatMap((node) => (node.type === "code" ? [node] : []));
+
     expect(code).toStrictEqual([
       { lang: "toml", meta: null, type: "code", value: "a = 1" },
       { lang: null, meta: null, type: "code", value: "<b>x</b>" },
@@ -180,10 +175,10 @@ describe("what a page may write", () => {
   });
 });
 
-const paragraph = (index: number): string =>
+const paragraph = (index: number) =>
   `<p>Paragraph ${String(index)} holds <a href="/notes/${String(index)}">a link</a> and closes with a plain sentence of ordinary prose.</p>`;
 
-const paragraphs = (count: number): string =>
+const paragraphs = (count: number) =>
   Array.from({ length: count }, (_, index) => paragraph(index)).join("");
 
 describe("a readable part past the article's budget", () => {
@@ -204,6 +199,7 @@ describe("a readable part past the article's budget", () => {
     const tree = articleTree(
       `<section><div>${paragraphs(count)}</div></section><p>after the wrapper</p>`,
     );
+
     const words = wordsOf(tree, HAST);
     expect(words.length).toBeGreaterThan(count / 3);
     expect(words.every((text) => text.endsWith("ordinary prose."))).toBe(true);

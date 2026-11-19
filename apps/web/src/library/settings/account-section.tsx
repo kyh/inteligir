@@ -1,9 +1,3 @@
-// Settings › Account: who is signed in, the devices signed in to the account, the assistants let
-// into the library through the connector, the built-in agent's switch and the filing rules it
-// follows, and signing out or deleting the account. Each is the account's, kept in the cloud, so
-// each waits for a connection; a revoke or a switch refetches only the list it changed, once it
-// has landed.
-
 import { FILING_RULES_MAX } from "@repo/contract/library/library-wire";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
@@ -23,8 +17,6 @@ import { relativeTimeLabel, useNow } from "../relative-time";
 import { FILING_RULES_TEXT } from "./filing-rules";
 import { Row, SectionHeading } from "./settings-chrome";
 
-// what the account's rows read: fresh for half a minute, so Settings opened again soon after does
-// not ask the cell again as its rows mount
 const ACCOUNT_FRESH_MS = 30_000;
 
 const accountReads = (orpc: CloudWire["orpc"]) => ({
@@ -33,13 +25,12 @@ const accountReads = (orpc: CloudWire["orpc"]) => ({
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
 });
 
-// this device's own row has no Sign out: it leaves through the account's, which clears its cookie
-// too
 const DevicesRow = () => {
   const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const nowMs = useNow();
   const devices = useQuery(accountReads(orpc).devices);
+
   const revoke = useMutation(
     orpc.account.devices.revoke.mutationOptions({
       onError: (cause) => {
@@ -50,6 +41,7 @@ const DevicesRow = () => {
       },
     }),
   );
+
   return (
     <Row label="Devices">
       <CellAnswer query={devices} failed="The devices couldn't be read.">
@@ -89,6 +81,7 @@ const AssistantsRow = () => {
   const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const assistants = useQuery(accountReads(orpc).assistants);
+
   const revoke = useMutation(
     orpc.account.assistants.revoke.mutationOptions({
       onError: (cause) => {
@@ -100,6 +93,7 @@ const AssistantsRow = () => {
       },
     }),
   );
+
   return (
     <Row label="Connected assistants">
       <CellAnswer query={assistants} failed="The connected assistants couldn't be read.">
@@ -143,6 +137,7 @@ const AgentRow = () => {
   const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const status = useQuery(accountReads(orpc).agent);
+
   const setEnabled = useMutation(
     orpc.library.agent.setEnabled.mutationOptions({
       onError: (cause) => {
@@ -153,9 +148,9 @@ const AgentRow = () => {
       },
     }),
   );
-  // the side asked for while its call is on its way and the status is read again, so a drag the
-  // call takes stays where it was let go
+
   const asked = setEnabled.isPending ? setEnabled.variables.enabled : null;
+
   return (
     <Row label="Built-in agent">
       <CellAnswer query={status} failed="The built-in agent's state couldn't be read.">
@@ -185,6 +180,7 @@ const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => voi
   const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const [text, setText] = useState(initial);
+
   const save = useMutation(
     orpc.library.agent.setRules.mutationOptions({
       onError: (cause) => {
@@ -197,6 +193,7 @@ const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => voi
       },
     }),
   );
+
   return (
     <form
       className="flex flex-col gap-2"
@@ -221,14 +218,14 @@ const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => voi
   );
 };
 
-// the rules the built-in agent follows over its own taste, which Tidy my library files by; the
-// starter rules fill the page the first time, until the person saves their own
 const FilingRulesRow = () => {
   const { orpc } = usePageLibrary().wire;
   const [open, setOpen] = useState(false);
+
   const rules = useQuery(
     orpc.library.agent.rules.queryOptions({ input: open ? undefined : skipToken }),
   );
+
   return (
     <Row label="Filing rules">
       <div className="flex flex-col items-start gap-1">
@@ -271,6 +268,7 @@ const DeleteAccount = () => {
   const { left, wire } = usePageLibrary();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
+
   const remove = useMutation({
     mutationFn: async (typed: string) => await wire.client.account.delete({ password: typed }),
     onError: (cause) => {
@@ -280,6 +278,7 @@ const DeleteAccount = () => {
       left("deleted");
     },
   });
+
   return (
     <>
       <Button
@@ -303,6 +302,7 @@ const DeleteAccount = () => {
             className="flex flex-col gap-2"
             onSubmit={(event) => {
               event.preventDefault();
+
               if (password !== "") {
                 remove.mutate(password);
               }
@@ -333,8 +333,8 @@ const DeleteAccount = () => {
 
 export const AccountSection = () => {
   const { account, left } = usePageLibrary();
+
   const signOut = useMutation({
-    // a refusal or no answer rejects, so the page stays signed in and says so
     mutationFn: async () => {
       await authClient.signOut({ fetchOptions: { throw: true } });
     },
@@ -345,6 +345,7 @@ export const AccountSection = () => {
       left("signed-out");
     },
   });
+
   return (
     <section id="account" className="scroll-mt-10 space-y-2">
       <SectionHeading>Account</SectionHeading>

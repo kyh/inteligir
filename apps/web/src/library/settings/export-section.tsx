@@ -1,7 +1,3 @@
-// Taking the library out: every live item as a zip of Markdown files and the files they hold, which
-// Import reads back, written on this device (`../export/export-run`). Stop ends it, leaving no zip;
-// so does closing the tab. It needs a connection.
-
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { Button } from "@repo/ui/components/button";
 import { formatCount, plural } from "@repo/ui/lib/plural";
@@ -12,32 +8,41 @@ import { startExport, stopExport, useExportRun } from "../export/export-run";
 import type { ExportRun } from "../export/export-run";
 import { Row, SectionHeading } from "./settings-chrome";
 
-// what an export says once it ran, or as it runs
-export const exportSentence = (run: Exclude<ExportRun, { kind: "idle" }>): string => {
+export const exportSentence = (run: Exclude<ExportRun, { kind: "idle" }>) => {
   switch (run.kind) {
     case "listing": {
-      return "Reading the library…";
+      return "Reading the library…" satisfies string;
     }
+
     case "writing": {
-      return `Wrote ${formatCount(run.written)} of ${formatCount(run.total)}…`;
+      return `Wrote ${formatCount(run.written)} of ${formatCount(run.total)}…` satisfies string;
     }
+
     case "done": {
       const parts = [`Wrote ${plural(run.counts.items, "item")}`];
+
       if (run.counts.propertiesLeftOut > 0) {
         parts.push(`${plural(run.counts.propertiesLeftOut, "property", "properties")} left out`);
       }
+
       if (run.counts.filesMissing > 0) {
         parts.push(`${plural(run.counts.filesMissing, "file")} couldn't be read`);
       }
-      return `${parts.join(", ")}.`;
+
+      return `${parts.join(", ")}.` satisfies string;
     }
+
     case "failed": {
-      return run.message;
+      return run.message satisfies string;
     }
+
     case "stopped": {
-      return `Stopped after writing ${plural(run.written, "item")}, before the zip was finished.`;
+      return `Stopped after writing ${plural(run.written, "item")}, before the zip was finished.` satisfies string;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(run satisfies never)}`);
+    }
   }
 };
 
@@ -46,6 +51,7 @@ const ExportRow = () => {
   const online = useOnline();
   const run = useExportRun();
   const running = run.kind === "listing" || run.kind === "writing";
+
   return (
     <Row label="Export">
       <div className="flex flex-col gap-1.5">

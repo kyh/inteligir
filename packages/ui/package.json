@@ -16,7 +16,7 @@
     "./lib/surface-context": "./src/lib/surface-context.tsx",
     "./lib/theme": "./src/lib/theme.tsx",
     "./postcss.config": "./postcss.config.mjs",
-    "./test-support/inert-resize-observer": "./src/test-support/inert-resize-observer.ts"
+    "./test-support/inert-resize-observer.test-utils": "./src/test-support/inert-resize-observer.test-utils.ts"
   },
   "scripts": {
     "test": "vitest run",

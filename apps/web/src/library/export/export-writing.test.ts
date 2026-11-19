@@ -1,7 +1,7 @@
 import { bytesFolderPath } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { BlobReader, TextWriter, ZipReader } from "@zip.js/zip.js/lib/zip-core-native.js";
 import { describe, expect, it } from "vitest";
 
@@ -22,8 +22,8 @@ const DELETED = "0195f3a0-5c1e-7000-8000-000000000003";
 const PURGED = "0195f3a0-5c1e-7000-8000-000000000004";
 const DECK = "0195f3a0-5c1e-7000-8000-000000000005";
 
-const note = (blocks: readonly BodyBlock["block"][]): BodyBlock[] =>
-  blocks.map((block) => ({ block, section: "note" }));
+const note = (blocks: readonly BodyBlock["block"][]) =>
+  blocks.map((block) => ({ block, section: "note" })) satisfies BodyBlock[];
 
 const picture: BodyBlock["block"] = {
   children: [{ text: "" }],
@@ -31,6 +31,7 @@ const picture: BodyBlock["block"] = {
   sha: PICTURE,
   type: "img",
 };
+
 const notesFile: BodyBlock["block"] = {
   children: [{ text: "" }],
   id: "notes",
@@ -39,15 +40,12 @@ const notesFile: BodyBlock["block"] = {
   type: "file",
 };
 
-const item = (
-  id: string,
-  fields: Partial<LibraryItemFields>,
-  blocks: BodyBlock[] = [],
-): WholeItem => ({
-  blocks,
-  fields: noteFixture(fields),
-  id,
-});
+const item = (id: string, fields: Partial<LibraryItemFields>, blocks: BodyBlock[] = []) =>
+  ({
+    blocks,
+    fields: noteFixture(fields),
+    id,
+  }) satisfies WholeItem;
 
 const LIBRARY: readonly WholeItem[] = [
   item(PLAN, { folderId: Q4, title: "Launch plan" }, [
@@ -80,15 +78,14 @@ const FILES = new Map([
   [NOTES_FILE, new Blob(["plain words"], { type: "text/plain" })],
 ]);
 
-// the library as the cell answers an export: its listing two pages long, the second listing the
-// first's last item again as a page that moved would, an item deleted and one purged since, and
-// a file the library no longer holds
 const fakeCell = (options: { readonly failOn?: string } = {}) => {
   const reads = new Map<string, number>();
   const pages = [LIBRARY.slice(0, 2), LIBRARY.slice(1)];
+
   const cell: ExportCell = {
     file: async (sha) => {
       reads.set(sha, (reads.get(sha) ?? 0) + 1);
+
       return await Promise.resolve(FILES.get(sha) ?? null);
     },
     folders: async () =>
@@ -100,6 +97,7 @@ const fakeCell = (options: { readonly failOn?: string } = {}) => {
       if (id === options.failOn) {
         throw new Error("no answer");
       }
+
       return await Promise.resolve(
         id === PURGED ? null : (LIBRARY.find((one) => one.id === id) ?? null),
       );
@@ -113,6 +111,7 @@ const fakeCell = (options: { readonly failOn?: string } = {}) => {
         })),
       }),
   };
+
   return { cell, reads };
 };
 
@@ -121,18 +120,21 @@ const run = async (cell: ExportCell) => {
   await exportLibrary({ kind: "download" }, cell, (news) => {
     told.push(news);
   });
+
   return told;
 };
 
-const entriesOf = async (zip: Blob): Promise<ReadonlyMap<string, string>> => {
+const entriesOf = async (zip: Blob) => {
   const entries = await new ZipReader(new BlobReader(zip)).getEntries();
   const texts = new Map<string, string>();
+
   for (const entry of entries) {
     if (!entry.directory) {
       texts.set(entry.filename, await entry.getData(new TextWriter()));
     }
   }
-  return texts;
+
+  return texts satisfies ReadonlyMap<string, string>;
 };
 
 describe(exportLibrary, () => {
@@ -140,9 +142,11 @@ describe(exportLibrary, () => {
     const { cell, reads } = fakeCell();
     const told = await run(cell);
     const done = told.at(-1);
+
     if (done?.kind !== "done" || done.zip === null) {
       throw new Error(`the export ended ${JSON.stringify(done)}`);
     }
+
     expect(done.counts).toStrictEqual({ filesMissing: 1, items: 3, propertiesLeftOut: 0 });
     expect(told.slice(0, -1)).toStrictEqual([
       { kind: "listing" },

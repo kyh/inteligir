@@ -1,9 +1,3 @@
-// Who a call to the library is by, and the actor its writes are by. A person reaches it through
-// one of their sessions on `/v1` (`../rpc/admit`); a connected assistant through one grant of the
-// connector's consent page, its scopes what the person let that grant do; and the built-in agent
-// in one turn of one thread, the one writer whose writes a change set keeps, since Undo reaches only
-// the agent's turns. Nothing a caller sends names a principal: each door resolves its own.
-
 import type { AppPrincipal } from "../rpc/admit";
 
 export interface TurnActor {
@@ -12,13 +6,10 @@ export interface TurnActor {
   readonly turn: number;
 }
 
-// beside the person, a connected assistant and the agent: an import a device runs, and the cloud
-// reading a saved page
 export type LibraryActor =
   | TurnActor
   | { readonly kind: "person" | "assistant" | "import" | "fill" };
 
-// `library` reads and changes the library, and `library:read` reads it alone
 export type LibraryScope = "library" | "library:read";
 
 export interface ConnectorPrincipal {
@@ -39,21 +30,25 @@ interface AgentPrincipal {
 
 export type LibraryPrincipal = AppPrincipal | ConnectorPrincipal | AgentPrincipal;
 
-export const libraryActorOf = ({ actor }: LibraryPrincipal): LibraryActor => {
+export const libraryActorOf = ({ actor }: LibraryPrincipal) => {
   switch (actor.kind) {
     case "session": {
-      return { kind: "person" };
+      return { kind: "person" } satisfies LibraryActor;
     }
+
     case "assistant": {
-      return { kind: "assistant" };
+      return { kind: "assistant" } satisfies LibraryActor;
     }
+
     case "agent": {
       return actor;
     }
-    // no default
+
+    default: {
+      throw new Error(`unexpected ${String(actor satisfies never)}`);
+    }
   }
 };
 
-// whether the principal may change the library, not only read it: only a grant limits it
-export const changesLibrary = ({ actor }: LibraryPrincipal): boolean =>
+export const changesLibrary = ({ actor }: LibraryPrincipal) =>
   actor.kind !== "assistant" || actor.scopes.includes("library");

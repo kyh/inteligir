@@ -6,15 +6,19 @@ import { describe, expect, it } from "vitest";
 
 import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
-import { meaningOf, readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
+import {
+  meaningOf,
+  readValue,
+  rewrite,
+} from "@repo/editor/test-support/markdown-meaning.test-utils";
 
-import { EditorHarness } from "./test-support/editor-harness";
+import { EditorHarness } from "./test-support/editor-harness.test-utils";
 
 const callout = GROUPS.flatMap(({ items }) => items).find((item) => item.value === "callout");
 
-// Slate tells React of a change a microtask after it, so each step awaits its render
 const calloutThenTyped = async (line: string) => {
   const ref = createRef<PlateEditor>();
+
   const view = render(
     <EditorHarness
       ref={ref}
@@ -24,15 +28,19 @@ const calloutThenTyped = async (line: string) => {
       ]}
     />,
   );
+
   const editor = ref.current;
+
   if (editor === null || callout === undefined) {
     throw new Error("the harness and the Callout row must exist");
   }
+
   await act(async () => {
     editor.tf.select(editor.api.end([1]));
     callout.onSelect(editor);
     editor.tf.insertText("typed");
   });
+
   return { editor, view };
 };
 
@@ -53,9 +61,11 @@ describe("the slash menu's Callout", () => {
   it("draws the Note label over words that hold no marker, and the label changes the alert", async () => {
     const { editor, view } = await calloutThenTyped("");
     const quote = view.container.querySelector("blockquote");
+
     if (quote === null) {
       throw new TypeError("the callout must draw as a quote");
     }
+
     expect(quote.textContent).toBe("Notetyped");
 
     fireEvent.click(within(quote).getByRole("button", { name: "Note" }));
@@ -74,14 +84,18 @@ describe("a marker typed where a quote opens", () => {
       />,
     );
     const editor = ref.current;
+
     if (editor === null) {
       throw new Error("the harness must mount");
     }
+
     await act(async () => {
       editor.tf.select(editor.api.end([0]));
+
       for (const key of "[!tip]") {
         editor.tf.insertText(key);
       }
+
       editor.tf.insertText("body");
     });
     expect(serializeNote(editor)).toBe("> [!TIP]\n> body\n");

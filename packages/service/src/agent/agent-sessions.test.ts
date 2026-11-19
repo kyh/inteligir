@@ -1,13 +1,7 @@
-// The built-in agent's conversations over the fake platform, which plays the mock model's script and
-// runs its calls as eve runs the agent's tools: what a send makes in the library, what the record
-// hook keeps of it, how a stop and a message sent mid-turn land, how Undo takes its turns back, how
-// a thread moves across its eve sessions, how a deleted one goes, and what the agent's cron settles
-// that a hook never did.
-
 import { randomUUID } from "node:crypto";
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { agentThread, agentThreadEvent, agentTurn } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import { changeSet } from "@repo/db/library-schema";
@@ -15,10 +9,13 @@ import { dbSuite } from "@repo/db/test-database";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 
-import { createFakeAgentPlatform, fakeAgentRuntime } from "../test-support/fake-agent-platform";
-import type { FakeAgentPlatform } from "../test-support/fake-agent-platform";
-import { personalLibrary } from "../test-support/library-fixture";
-import { caughtUp, readStream, rowsOf } from "../test-support/thread-reads";
+import {
+  createFakeAgentPlatform,
+  fakeAgentRuntime,
+} from "../test-support/fake-agent-platform.test-utils";
+import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
+import { personalLibrary } from "../test-support/library.fixture";
+import { caughtUp, readStream, rowsOf } from "../test-support/thread-reads.test-utils";
 import { runAgentCron } from "./agent-cron";
 import { mintLibraryId } from "../library/library-ids";
 import { cancelAgentTurn, deleteAgentThread, sendToAgent } from "./agent-sessions";
@@ -50,7 +47,6 @@ beforeEach(() => {
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
-// what the thread kept, as a device reads it before anything happens live
 const keptOf = async (library: Library, threadId: string, lastEventId?: string) =>
   rowsOf(await readStream(await library.agent.events({ threadId }, { lastEventId }), caughtUp));
 
@@ -59,24 +55,29 @@ const rowCounts = async (threadId: string) => {
     .select({ n: count() })
     .from(agentThreadEvent)
     .where(eq(agentThreadEvent.threadId, threadId));
+
   const [turns] = await db
     .select({ n: count() })
     .from(agentTurn)
     .where(eq(agentTurn.threadId, threadId));
+
   const [threads] = await db
     .select({ n: count() })
     .from(agentThread)
     .where(eq(agentThread.id, threadId));
+
   return { events: events?.n ?? 0, threads: threads?.n ?? 0, turns: turns?.n ?? 0 };
 };
 
 dbSuite("the built-in agent's conversations", () => {
   it("makes a note by a call directive as the turn, keeping the turn's events in order", async () => {
     const { accountId, library } = await personalLibrary();
+
     const { status, threadId } = await sendToAgent(runtime, accountId, {
       opId: randomUUID(),
       text: CREATE_NOTE,
     });
+
     expect(status).toBe("running");
     await platform.turnsSettled();
 
@@ -177,9 +178,11 @@ dbSuite("the built-in agent's conversations", () => {
     const turns = await db.select().from(agentTurn).where(eq(agentTurn.threadId, threadId));
     expect(turns).toMatchObject([{ number: 1, outcome: "done" }]);
     const events = await keptOf(library, threadId);
+
     const said = events
       .map(({ event }) => agentEventSchema.parse(event))
       .flatMap((event) => (event.type === "user.message" ? [event.text] : []));
+
     expect(said).toStrictEqual(["long 300", "And this too"]);
     expect(events.map(({ type }) => type)).toStrictEqual([
       "user.message",
@@ -367,21 +370,24 @@ dbSuite("the built-in agent's conversations", () => {
   });
 
   it("tries a deleted thread whose session can't be ended after those not tried since, so it never starves them", async () => {
-    // each its own account, since a day allows an account two turns
     const retiredThread = async (text: string) => {
       const { accountId } = await personalLibrary();
       const { threadId } = await sendToAgent(runtime, accountId, { text });
       await platform.turnsSettled();
       await deleteAgentThread(null, accountId, threadId);
+
       return threadId;
     };
+
     const stuck = new Set<string>();
     const stuckThreads: string[] = [];
+
     for (const text of ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"]) {
       const threadId = await retiredThread(text);
       stuck.add(platform.sessionFor(threadId, 1) ?? "");
       stuckThreads.push(threadId);
     }
+
     const failing: AgentRuntime = {
       ...runtime,
       platform: {
@@ -390,27 +396,34 @@ dbSuite("the built-in agent's conversations", () => {
           if (stuck.has(sessionId)) {
             throw new Error("eve is away");
           }
+
           return await platform.end(caller, sessionId);
         },
       },
     };
-    const allTried = async (): Promise<boolean> => {
+
+    const allTried = async () => {
       const rows = await db
         .select({ triedAt: agentThread.purgeTriedAt })
         .from(agentThread)
         .where(inArray(agentThread.id, stuckThreads));
+
       return rows.every(({ triedAt }) => triedAt !== null);
     };
+
     while (!(await allTried())) {
       await runAgentCron(failing);
     }
 
     const later: string[] = [];
+
     for (const text of ["Nine", "Ten", "Eleven"]) {
       later.push(await retiredThread(text));
     }
+
     const second = await runAgentCron(failing);
     expect(second.threads).toMatchObject({ purged: later.length });
+
     for (const threadId of later) {
       await expect(rowCounts(threadId)).resolves.toMatchObject({ threads: 0 });
     }

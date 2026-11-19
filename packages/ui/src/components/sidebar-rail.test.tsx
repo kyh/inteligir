@@ -6,18 +6,19 @@ import { Sidebar } from "./sidebar";
 import { SidebarProvider } from "./sidebar-core";
 import type { SidebarActions } from "./sidebar-core";
 
-const mediaQueryList = (query: string, matches: boolean): MediaQueryList => ({
-  addEventListener: () => {},
-  // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
-  addListener: () => {},
-  dispatchEvent: () => false,
-  matches,
-  media: query,
-  onchange: null,
-  removeEventListener: () => {},
-  // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
-  removeListener: () => {},
-});
+const mediaQueryList = (query: string, matches: boolean) =>
+  ({
+    addEventListener: () => {},
+    // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
+    addListener: () => {},
+    dispatchEvent: () => false,
+    matches,
+    media: query,
+    onchange: null,
+    removeEventListener: () => {},
+    // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
+    removeListener: () => {},
+  }) satisfies MediaQueryList;
 
 /* oxlint-disable anti-slop/no-runtime-typeof -- feature detection over host objects: jsdom has
    neither media queries nor pointer capture, and the rail reads both. */
@@ -25,8 +26,10 @@ beforeAll(() => {
   if (typeof window.matchMedia !== "function") {
     window.matchMedia = (query: string) => mediaQueryList(query, false);
   }
+
   if (typeof Element.prototype.setPointerCapture !== "function") {
     Element.prototype.setPointerCapture = () => {};
+
     Element.prototype.releasePointerCapture = () => {};
   }
 });
@@ -36,7 +39,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// jsdom lays nothing out, so the shell measures 0 wide and every drag starts from there
 const mountSidebar = (props: {
   onOpenChange?: (open: boolean) => void;
   onWidthCommitted?: (px: number) => void;
@@ -46,6 +48,7 @@ const mountSidebar = (props: {
       <Sidebar label="Sidebar">rows</Sidebar>
     </SidebarProvider>,
   );
+
   return screen.getByRole("button", { name: "Resize or collapse sidebar" });
 };
 
@@ -92,8 +95,7 @@ describe("the rail's resize", () => {
   });
 });
 
-// testing-library's role queries do not read `inert`, so the attribute is what is asserted
-const inertAncestor = (element: HTMLElement): Element | null => element.closest("[inert]");
+const inertAncestor = (element: HTMLElement) => element.closest("[inert]");
 
 const panel = (open: boolean) => (
   <SidebarProvider open={open}>
@@ -136,7 +138,6 @@ describe("the provider", () => {
       actions.current?.toggle();
     });
     const sheet = await screen.findByRole("dialog", { name: "Sidebar" });
-    // named by its Dialog.Title, so a panel's sheet beside it is called something else
     const title = within(sheet).getByRole("heading", { level: 2, name: "Sidebar" });
     expect(sheet.getAttribute("aria-labelledby")).toBe(title.id);
     expect(onOpenChange).not.toHaveBeenCalled();

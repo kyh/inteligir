@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { deferred } from "@repo/contract/deferred";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
@@ -7,7 +10,7 @@ import worker from "../entrypoints/background";
 import type { ExtensionRequest, WorkerAnswer } from "../messages";
 import { keepConnection } from "./connection";
 import { keepSave, queuedSaves, SEND_ALARM } from "./save-queue";
-import { KEPT, SESSION } from "./test-support/fake-cloud";
+import { KEPT, SESSION } from "./test-support/fake-cloud.test-utils";
 
 const WAITING = {
   id: "01900000-0000-7000-8000-000000000001",
@@ -21,7 +24,6 @@ const WAITING = {
   savedAt: Date.UTC(2026, 10, 5, 12),
 };
 
-// the local Worker's session cookie, as Better Auth names it on plain http
 const SESSION_COOKIE: Browser.cookies.Cookie = {
   domain: "localhost",
   hostOnly: true,
@@ -35,20 +37,16 @@ const SESSION_COOKIE: Browser.cookies.Cookie = {
   value: SESSION.bearer,
 };
 
-// the browser's jar at the cloud, holding the session cookie or not
-const jarHolds = (held: boolean): void => {
-  fakeBrowser.cookies.get = async (
-    details: Browser.cookies.CookieDetails,
-  ): Promise<Browser.cookies.Cookie | null> =>
+const jarHolds = (held: boolean) => {
+  fakeBrowser.cookies.get = async (details: Browser.cookies.CookieDetails) =>
     held && details.name === SESSION_COOKIE.name && new URL(details.url).origin === SESSION.origin
       ? SESSION_COOKIE
       : null;
 };
 
-// the jar tells the worker its session cookie changed: a write is told as `explicit`, after the
-// removal (`overwrite`) of the one it replaced
 const jarListeners: ((change: Browser.cookies.CookieChangeInfo) => void)[] = [];
-const jarTells = (cause: "explicit" | "overwrite"): void => {
+
+const jarTells = (cause: "explicit" | "overwrite") => {
   for (const listener of jarListeners) {
     listener({ cause, cookie: SESSION_COOKIE, removed: cause === "overwrite" });
   }
@@ -60,50 +58,50 @@ const SAVE_LINK = "/v1/rpc/library/items/saveLink";
 const FULL = "Your library is full.";
 const NONE_HELD = { refused: [], waiting: 0 };
 
-// `/v1/rpc`'s answers to a link's save: a full library's refusal, and the item it landed as
-const refusesFull = (): Response =>
+const refusesFull = () =>
   Response.json(
     {
       json: { code: "QUOTA", data: { bytesCap: 1, bytesUsed: 1 }, defined: true, message: FULL },
     },
     { status: 507 },
   );
-const lands = (): Response =>
+
+const lands = () =>
   Response.json({ json: { created: true, item: { fields: { title: "File over app" } } } });
 
-// the cloud: get-session answers the account, a link's save as the case says, and every other
-// call goes unanswered, as a link's save does where the case says nothing
 const cloudAnswers = (saveLink?: () => Response) => {
   const asked: string[] = [];
   const bearers: (string | null)[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async (input, init) => {
-      const request = new Request(input, init);
+  network.use(
+    http.all("*", ({ request }) => {
       const { pathname } = new URL(request.url);
       asked.push(pathname);
       bearers.push(request.headers.get("authorization"));
+
       if (pathname === GET_SESSION) {
         return Response.json({
           session: { id: "session-1" },
           user: { email: SESSION.email, id: "reader" },
         });
       }
+
       if (pathname === SAVE_LINK && saveLink !== undefined) {
         return saveLink();
       }
-      throw new TypeError("Failed to fetch");
+
+      return HttpResponse.error();
     }),
   );
+
   return { asked, bearers };
 };
 
-const alarmStands = async (): Promise<boolean> => {
+const alarmStands = async () => {
   const alarm = await browser.alarms.get(SEND_ALARM);
+
   return alarm !== undefined;
 };
 
-// the calls the fake browser leaves out, which the worker makes
 beforeEach(async () => {
   fakeBrowser.reset();
   vi.spyOn(browser.runtime, "getManifest").mockReturnValue({
@@ -122,22 +120,32 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+const network = setupServer();
+
+beforeAll(() => {
+  network.listen({ onUnhandledRequest: "error" });
+});
+
+afterEach(() => {
+  network.resetHandlers();
+});
+
+afterAll(() => {
+  network.close();
 });
 
 const PAGE = { id: browser.runtime.id, url: browser.runtime.getURL("/welcome.html") };
 
-// what the worker answers one of its own pages
-const ask = async (request: ExtensionRequest): Promise<WorkerAnswer | undefined> => {
-  const answers: WorkerAnswer[] = [];
+const ask = async (request: ExtensionRequest) => {
+  const answered = deferred<WorkerAnswer>();
   void fakeBrowser.runtime.onMessage.trigger(request, PAGE, (answer: WorkerAnswer) => {
-    answers.push(answer);
+    answered.resolve(answer);
   });
-  await vi.waitFor(() => {
-    expect(answers).toHaveLength(1);
-  });
-  return answers[0];
+
+  return await answered.promise;
 };
 
 describe("the worker", () => {
@@ -160,7 +168,6 @@ describe("the worker", () => {
     await browser.alarms.create(SEND_ALARM, { periodInMinutes: 0.5 });
     const { asked } = cloudAnswers();
     worker.main();
-    // a page's ask is answered after the start has run: the one call is the ask's own
     await ask({ type: "status" });
     expect(asked).toStrictEqual([GET_SESSION]);
     await fakeBrowser.alarms.onAlarm.trigger({
@@ -179,7 +186,6 @@ describe("the worker", () => {
     const { asked } = cloudAnswers();
     worker.main();
     await ask({ type: "status" });
-    // signed out, the save waits on a person: nothing is asked and no alarm stands
     expect(asked).toStrictEqual([]);
     await expect(alarmStands()).resolves.toBe(false);
     jarHolds(true);
@@ -241,11 +247,12 @@ describe("the worker", () => {
     let answer = refusesFull;
     const { asked } = cloudAnswers(() => answer());
     worker.main();
+
     const parked = {
       refused: [{ message: FULL, name: "File over app", opId: WAITING.opId }],
       waiting: 0,
     };
-    // the start's pass meets the full library
+
     await vi.waitFor(async () => {
       await expect(ask({ type: "saves" })).resolves.toStrictEqual(parked);
     });

@@ -25,8 +25,9 @@ import { authPageHref, signedInLanding } from "#lib/next-path";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
-const refusalMessage = async (response: Response): Promise<string> => {
+const refusalMessage = async (response: Response) => {
   const body = refusalSchema.safeParse(await response.json().catch(() => null));
+
   return body.success ? body.data.message : AUTH_FALLBACK_ERROR;
 };
 
@@ -38,16 +39,19 @@ export const SignUpForm = ({ next }: { next: string | undefined }) => {
       name: fieldValue(form, "name"),
       password: fieldValue(form, "password"),
     };
-    // not the Better Auth client: the invite gate forwards Better Auth's answer, cookie included
+
     const response = await fetch(AUTH_API_PATHS.signUp, {
       body: JSON.stringify(request),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
+
     if (!response.ok) {
       return await refusalMessage(response);
     }
+
     leaveForm(signedInLanding(next));
+
     return null;
   });
 

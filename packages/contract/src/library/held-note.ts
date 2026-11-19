@@ -1,10 +1,5 @@
-// A note's body as a device edits it whole: what it reads (`items.get`), what a save carries over
-// the version it read (`items.saveBody`), and what the save made of it, in the terms every host
-// hands the editor.
-
 import type { BodyBlock } from "./derive-item";
 
-// its blocks at their version, the title a copy of them goes by, and whether it is in Deleted
 export interface HeldNote {
   readonly blocks: readonly BodyBlock[];
   readonly version: number;
@@ -18,9 +13,6 @@ export interface NoteSave {
   readonly blocks: readonly BodyBlock[];
 }
 
-// `saved` at its new version; `stale`, someone saved since its base; `full`, past the most a note
-// holds; `deleted`, in Deleted; `missing`, the item gone; `file-missing`, a file its blocks name
-// that the library doesn't hold, which no resend of those blocks changes
 export type NoteSaved =
   | { readonly kind: "saved"; readonly version: number }
   | { readonly kind: "stale" }

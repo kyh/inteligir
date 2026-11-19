@@ -1,19 +1,15 @@
-// The note page's actions as they cross into the page: answered over the phone's runtime, signed in
-// to the contract's fake cell, every answer read back as the JSON Expo carries, bytes as base64,
-// and a refusal as the Error whose message the page is handed.
-
 import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/contract/bytes";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeCell } from "@repo/contract/test-support/fake-cell";
-import { paragraph } from "@repo/contract/test-support/library-items";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
+import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { composeRuntime } from "../lib/compose-runtime";
-import { fakePhoneAuth } from "../test-support/fake-phone-auth";
-import { memoryFolder } from "../test-support/memory-folder";
-import { memoryKv } from "@repo/client/test-support/memory-kv";
+import { fakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
+import { memoryFolder } from "../test-support/memory-folder.test-utils";
+import { memoryKv } from "@repo/client/test-support/memory-kv.test-utils";
 import { noteActions } from "./note-actions";
 
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
@@ -22,25 +18,25 @@ const PICTURE = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 
 const idSource = () => {
   let next = 0;
-  return (): string => {
+
+  return () => {
     next += 1;
+
     return `0190a000-0000-7000-8000-${next.toString(16).padStart(12, "0")}`;
   };
 };
 
-const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
+const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-type Json = z.infer<ReturnType<typeof z.json>>;
-
-// what the page is handed of an answer: Expo carries each one as JSON text
-const overTheWire = async (answer: Promise<unknown>): Promise<Json> => {
+const overTheWire = async (answer: Promise<unknown>) => {
   const text = JSON.stringify(await answer);
+
   return z.json().parse(JSON.parse(text));
 };
 
-// `changedBytes`: the phone hashes what it sends wrongly, as bytes that changed before they went
 const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
   const network = cell.device("phone");
+
   const runtime = composeRuntime({
     auth: fakePhoneAuth().auth,
     build: { platform: "mobile", version: "1.0.0" },
@@ -54,13 +50,17 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
       await Promise.resolve(changedBytes ? sha256(Uint8Array.of(0)) : sha256(bytes)),
     storage: memoryKv(),
   });
+
   await runtime.start();
   await runtime.login.login({ email: "ada@example.com", password: "a long password" });
   const session = runtime.session.get();
+
   if (session.kind !== "signed-in") {
     throw new Error(`the phone is ${session.kind}`);
   }
+
   const opened: string[] = [];
+
   const actions = noteActions({
     itemId: NOTE,
     library: session.library,
@@ -69,10 +69,11 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
     },
     queryClient: runtime.queryClient,
   });
+
   return { actions, network, opened };
 };
 
-const noteFiled = async (cell: FakeCell, folderId: string | null): Promise<void> => {
+const noteFiled = async (cell: FakeCell, folderId: string | null) => {
   await cell.device("mac").client.library.items.create({
     blocks: [{ block: paragraph("p1", "first"), section: "note" }],
     folderId,
@@ -143,6 +144,7 @@ describe("the note page's actions, as the page receives them", () => {
     const cell = createFakeCell();
     await noteFiled(cell, null);
     const { actions } = await pageOver(cell);
+
     const picture: BodyBlock = {
       block: { children: [{ text: "" }], id: "i1", sha: "a".repeat(64), type: "img" },
       section: "note",

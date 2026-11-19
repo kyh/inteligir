@@ -18,21 +18,22 @@ const NOT_A_REQUEST: ConsentRequest = {
   sentence: "This link isn't a request to connect. Start connecting again from your assistant.",
 };
 
-// Everything shown is read on the server from the request the provider signed, so nothing in the
-// address but that request reaches the page.
 const ConsentEntry = async ({
   searchParams,
 }: Pick<PageProps<"/connect/authorize">, "searchParams">) => {
   const query = oauthQueryOf(await searchParams);
   const request = query === null ? NOT_A_REQUEST : await readConsentRequest(query);
+
   if (request.kind === "refused") {
     return <ConsentRefused sentence={request.sentence} />;
   }
+
   const session = await getSession();
+
   if (session === null) {
-    // as the provider sends a person who isn't signed in, so the sign-in carries on to this page
     redirect(`${SIGN_IN_PATH}?${query ?? ""}`);
   }
+
   return <ConsentForm ask={request} email={session.user.email} />;
 };
 

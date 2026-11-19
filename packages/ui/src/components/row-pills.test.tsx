@@ -15,19 +15,18 @@ import {
 } from "./dropdown-menu";
 import { SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "./sidebar-menu";
 
-// jsdom lays nothing out, so a row is given the box a list of equal rows would give it: one row
-// tall, at its index among its sibling rows, and none while it is out of the document.
 const ROW_HEIGHT = 28;
 const ROW_WIDTH = 200;
 const ROW = '[data-sidebar="menu-item"], [role^="menuitem"]';
 const BOXED = `${ROW}, [data-sidebar="menu-button"]`;
 
-const rowTop = (element: HTMLElement): number => {
+const rowTop = (element: HTMLElement) => {
   const siblings = element.parentElement === null ? [] : [...element.parentElement.children];
+
   return siblings.filter((sibling) => sibling.matches(ROW)).indexOf(element) * ROW_HEIGHT;
 };
 
-const top = (index: number): string => `${String(index * ROW_HEIGHT)}px`;
+const top = (index: number) => `${String(index * ROW_HEIGHT)}px`;
 
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function offsetTop(
@@ -61,19 +60,16 @@ const Menu = ({ keys, active }: { keys: readonly string[]; active?: string }) =>
   </SidebarMenu>
 );
 
-const pillTop = (pill: "active" | "hover"): string | null =>
+const pillTop = (pill: "active" | "hover") =>
   document.querySelector<HTMLElement>(`.bg-${pill}`)?.style.top ?? null;
 
-// a pill's spring and its exit run on Motion's clock, which a loaded runner stretches past
-// vitest's one-second default
-const settled = async (check: () => void): Promise<void> => {
+const settled = async (check: () => void) => {
   await vi.waitFor(check, { timeout: 5000 });
 };
 
-const row = (name: string): HTMLElement => screen.getByRole("button", { name });
+const row = (name: string) => screen.getByRole("button", { name });
 
-const tabStops = (names: readonly string[]): string[] =>
-  names.filter((name) => row(name).tabIndex === 0);
+const tabStops = (names: readonly string[]) => names.filter((name) => row(name).tabIndex === 0);
 
 const menuIn = (mode: "hidden" | "visible") => (
   <Activity mode={mode}>
@@ -116,9 +112,9 @@ describe("the sidebar's active pill", () => {
   });
 });
 
-// a row that owns whether it is current: turning it re-renders the row, never the list
 const OwnRow = ({ name }: { name: string }) => {
   const [current, setCurrent] = useState(false);
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -144,7 +140,7 @@ const MenuWithActions = ({ keys, active }: { keys: readonly string[]; active?: s
   </SidebarMenu>
 );
 
-const litRows = (names: readonly string[]): string[] =>
+const litRows = (names: readonly string[]) =>
   names.filter((name) => row(name).closest("li")?.dataset.lit === "");
 
 describe("the sidebar's tab stop", () => {
@@ -233,8 +229,6 @@ describe("the sidebar's hover pill", () => {
     });
   });
 
-  // jsdom's :focus-visible follows a heuristic of its own, so a ring and the pill's return to the
-  // keyboard's row are held in Chromium (tools/e2e/src/library.spec.ts)
   it("marks the row it sits on lit, and only that row, when focus moves it off the pointer's", async () => {
     render(<Menu keys={["a", "b", "c"]} />);
     fireEvent.mouseMove(row("a"));
@@ -252,9 +246,11 @@ describe("the sidebar's hover pill", () => {
   it("re-renders no row as it travels", () => {
     const keys = Array.from({ length: 20 }, (_, index) => `row${String(index)}`);
     const rendered: string[] = [];
+
     const onRender: ProfilerOnRenderCallback = (id) => {
       rendered.push(id);
     };
+
     render(
       <SidebarMenu aria-label="Rows">
         {keys.map((key) => (
@@ -285,9 +281,7 @@ const menuRows = (
   </DropdownMenu>
 );
 
-// Base UI focuses a menu's popup a frame after it opens, and a row it lit before then is lit again
-// as that focus lands, which a case quicker than any pointer would read as a pill left behind
-const openMenu = async (): Promise<void> => {
+const openMenu = async () => {
   render(menuRows);
   await settled(() => {
     expect(document.activeElement).toBe(screen.getByRole("menu"));
@@ -347,12 +341,14 @@ describe("a dropdown's radio rows", () => {
   });
 });
 
-const listRows = (): [HTMLElement, HTMLElement] => {
+const listRows = () => {
   const [first, second] = screen.getAllByRole("listitem");
+
   if (first === undefined || second === undefined) {
     throw new Error("the menu did not render two rows");
   }
-  return [first, second];
+
+  return [first, second] satisfies [HTMLElement, HTMLElement];
 };
 
 describe("a row's box", () => {

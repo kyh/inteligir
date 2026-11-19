@@ -1,5 +1,3 @@
-// The only module importing katex (JS + CSS), so the ~280KB lands in a lazy chunk.
-
 import { useEffect, useRef } from "react";
 import { render } from "katex";
 
@@ -18,6 +16,7 @@ const KatexView = ({ tex, displayMode, className }: Props) => {
     if (!ref.current) {
       return;
     }
+
     render(tex, ref.current, {
       displayMode,
       errorColor: "#cc0000",

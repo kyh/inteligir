@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DesktopUpdateState } from "./shell/desktop-bridge";
 
-// the store reads its bridge as the module loads, so each test loads the page's modules afresh
 beforeEach(() => {
   vi.resetModules();
 });
@@ -16,21 +15,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// the Mac app's shell, answering each update command as updater.rs does
-const underShell = (answers: ReadonlyMap<string, DesktopUpdateState>): string[] => {
+const underShell = (answers: ReadonlyMap<string, DesktopUpdateState>) => {
   const asked: string[] = [];
   vi.stubGlobal("isTauri", true);
   mockIPC(
     (command) => {
       asked.push(command);
+
       return answers.get(command) ?? null;
     },
     { shouldMockEvents: true },
   );
+
   return asked;
 };
 
-const shown = async (): Promise<void> => {
+const shown = async () => {
   const [{ DesktopUpdateBanner }, { UpdatesRow }, { Toaster }, { ThemeProvider }] =
     await Promise.all([
       import("./desktop-update-banner"),
@@ -38,6 +38,7 @@ const shown = async (): Promise<void> => {
       import("@repo/ui/components/sonner"),
       import("#components/theme-provider"),
     ]);
+
   render(
     <ThemeProvider>
       <Toaster />
@@ -47,13 +48,11 @@ const shown = async (): Promise<void> => {
   );
 };
 
-// the toaster's live region, which announces what lands in it
-const notices = (): HTMLElement => screen.getByRole("region", { name: /^Notifications/u });
+const notices = () => screen.getByRole("region", { name: /^Notifications/u });
 
-const banner = async (): Promise<HTMLElement> => await within(notices()).findByRole("listitem");
+const banner = async () => await within(notices()).findByRole("listitem");
 
-// the shell's push; the page's listener registers a tick after it subscribes, so a case retries it
-const pushed = async (state: DesktopUpdateState): Promise<void> => {
+const pushed = async (state: DesktopUpdateState) => {
   await act(async () => {
     await emit("update-state", state);
   });
@@ -67,6 +66,7 @@ describe("the Mac app's update", () => {
         ["download_update", { downloadPercent: 0, status: "downloading" }],
       ]),
     );
+
     await shown();
     const offered = await banner();
     expect(within(offered).getByText("Update available")).toBeDefined();
@@ -104,6 +104,7 @@ describe("the Mac app's update", () => {
         ["install_update", { status: "downloaded", version: "1.2.3" }],
       ]),
     );
+
     await shown();
     const ready = await banner();
     expect(within(ready).getByText("Restart to finish installing Inteligir 1.2.3.")).toBeDefined();
@@ -123,6 +124,7 @@ describe("the Mac app's update", () => {
         { message: "The connection dropped.", status: "download-failed", version: "1.2.3" },
       ],
     ]);
+
     const asked = underShell(answers);
     await shown();
     const update = await banner();
@@ -162,6 +164,7 @@ describe("the Mac app's update", () => {
         ["install_update", { status: "downloaded", version: "1.2.3" }],
       ]),
     );
+
     await shown();
     const update = await banner();
     expect(within(update).getByText("The update didn't install")).toBeDefined();

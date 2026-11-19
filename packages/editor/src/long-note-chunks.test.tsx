@@ -1,26 +1,22 @@
-// A long item's top level renders in runs of blocks, each a box that skips its layout and paint
-// while off screen (EditorChunk, editor-chrome.tsx), and every block stays mounted: a run is never
-// unmounted, so find, a selection and a link far down the item reach real dom.
-
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { mountNote } from "./test-support/memory-note";
-import { memoryNotes } from "./test-support/memory-notes";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
+import { mountNote } from "./test-support/memory-note.test-utils";
+import { memoryNotes } from "./test-support/memory-notes.test-utils";
 
-const paragraphs = (count: number): string =>
+const paragraphs = (count: number) =>
   `${Array.from({ length: count }, (_, index) => `Paragraph ${String(index + 1)}.`).join("\n\n")}\n`;
 
 const host = { notes: memoryNotes() };
 
-const mount = async (itemId: string, markdown: string): Promise<HTMLElement> => {
+const mount = async (itemId: string, markdown: string) => {
   const { editable } = await mountNote(host.notes, itemId, markdown);
+
   return editable;
 };
 
-// a run's blocks are its own children, so the box is all that stands between them and the editable
-const runs = (editable: HTMLElement): HTMLElement[] =>
+const runs = (editable: HTMLElement) =>
   [...editable.children].filter(
     (child): child is HTMLElement =>
       child instanceof HTMLElement && Object.hasOwn(child.dataset, "slateChunk"),
@@ -31,14 +27,15 @@ describe("a long item's top level", () => {
     installFakeEditorHost({ notes: host.notes });
   });
 
-  // 250 real Plate blocks, on purpose: three runs are the claim
   it("renders in runs of a hundred blocks, every block mounted", { timeout: 30_000 }, async () => {
     const editable = await mount("long", paragraphs(250));
     const boxes = runs(editable);
     expect(boxes.map((box) => box.children.length)).toStrictEqual([100, 100, 50]);
+
     for (const box of boxes) {
       expect(box.classList.contains(EDITOR_CHUNK)).toBe(true);
     }
+
     expect(editable.textContent).toContain("Paragraph 250.");
   });
 

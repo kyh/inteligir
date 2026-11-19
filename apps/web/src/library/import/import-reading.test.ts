@@ -6,7 +6,7 @@ import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
 import { describe, expect, it } from "vitest";
 
-import { RAINDROP_EXPORT } from "../test-support/raindrop-export";
+import { RAINDROP_EXPORT } from "../test-support/raindrop-export.test-utils";
 import { ImportStoppedError, LIBRARY_FULL } from "./import-landing";
 import type { ImportCell, ImportedItem } from "./import-landing";
 import type { ImportNews } from "./import-news";
@@ -17,26 +17,29 @@ const encoder = new TextEncoder();
 
 type NewItem = Extract<ImportedItem, { kind: "new" }>;
 
-// the library as the cell answers an import, in memory: an item by its id or its address, and a
-// file named once an item's text carries its sha
 const fakeCell = (options: { readonly roomFor?: number } = {}) => {
   const items = new Map<string, NewItem>();
   const files = new Set<string>();
   const batches: number[] = [];
-  const holder = (url: string | null): NewItem | undefined => {
+
+  const holder = (url: string | null) => {
     const key = url === null ? null : urlKey(url);
+
     return [...items.values()].find(
       (item) => key !== null && item.fields.url !== null && urlKey(item.fields.url) === key,
     );
   };
+
   const cell: ImportCell = {
     keep: async (bytes) => {
       files.add(fileSha(bytes));
+
       return await Promise.resolve(fileSha(bytes));
     },
     land: async (batch) => {
       batches.push(batch.length);
       const counts = { added: 0, alreadySaved: 0, unreadable: 0 };
+
       for (const item of batch) {
         if (item.kind === "restore") {
           counts.alreadySaved += 1;
@@ -49,10 +52,12 @@ const fakeCell = (options: { readonly roomFor?: number } = {}) => {
           counts.added += 1;
         }
       }
+
       return await Promise.resolve(counts);
     },
     named: async (shas) => {
       const texts = [...items.values()].map((item) => JSON.stringify(item));
+
       return await Promise.resolve({
         named: shas.filter((sha) => texts.some((text) => text.includes(sha))),
         originals: shas.filter((sha) =>
@@ -64,20 +69,24 @@ const fakeCell = (options: { readonly roomFor?: number } = {}) => {
       await Promise.resolve(
         notes.map((note) => {
           const held = items.get(note.id) ?? holder(note.url);
+
           return held === undefined
             ? { id: note.id, standing: "new" as const }
             : { id: held.id, standing: "held" as const };
         }),
       ),
   };
+
   return { batches, cell, files, items };
 };
 
-const zipOf = async (entries: Readonly<Record<string, Uint8Array>>): Promise<Blob> => {
+const zipOf = async (entries: Readonly<Record<string, Uint8Array>>) => {
   const writer = new ZipWriter(new BlobWriter("application/zip"));
+
   for (const [path, bytes] of Object.entries(entries)) {
     await writer.add(path, new Uint8ArrayReader(bytes));
   }
+
   return await writer.close();
 };
 
@@ -86,6 +95,7 @@ const read = async (cell: ImportCell, file: Blob, source: "markdown" | "raindrop
   await readImport({ file, source }, cell, (heard) => {
     news.push(heard);
   });
+
   return news.at(-1);
 };
 
@@ -102,12 +112,12 @@ const VAULT = {
 };
 
 const PAST_A_LINE = "a".repeat(ITEM_FIELD_CAPS.line + 1);
+
 const LONG_ALIASES = Array.from(
   { length: ITEM_FIELD_CAPS.listEntries },
   (_, index) => `- ${String(index).padStart(3, "0")}${"a".repeat(ITEM_FIELD_CAPS.line - 3)}`,
 );
 
-// notes whose frontmatter holds what no field takes as written
 const ODD_NOTES = {
   "Aliases.md": encoder.encode(`---\naliases:\n${LONG_ALIASES.join("\n")}\n---\nBody.\n`),
   "Key.md": encoder.encode(`---\n${PAST_A_LINE}: value\n---\nBody.\n`),
@@ -115,43 +125,49 @@ const ODD_NOTES = {
   "Tag.md": encoder.encode(`---\ntags: [${PAST_A_LINE}]\n---\nBody.\n`),
 };
 
-const titled = (items: ReadonlyMap<string, NewItem>, title: string): NewItem => {
+const titled = (items: ReadonlyMap<string, NewItem>, title: string) => {
   const item = [...items.values()].find((candidate) => candidate.fields.title === title);
+
   if (item === undefined) {
     throw new Error(`no item titled ${title}`);
   }
+
   return item;
 };
 
-// the cell's keep made slow, a later file sooner, refusing every file past `roomFor` as a full
-// library does, and what it saw: the most keeps under way at once, and any asked after a refusal
 const slowKeeps = (cell: ImportCell, roomFor = Number.POSITIVE_INFINITY) => {
   const seen = { afterRefusal: 0, calls: 0, mostAtOnce: 0 };
   let underWay = 0;
   let refused = false;
+
   const slow: ImportCell = {
     ...cell,
     keep: async (bytes, mime) => {
       seen.calls += 1;
       const call = seen.calls;
+
       if (refused) {
         seen.afterRefusal += 1;
       }
+
       if (call > roomFor) {
         refused = true;
         throw new ImportStoppedError(LIBRARY_FULL);
       }
+
       underWay += 1;
       seen.mostAtOnce = Math.max(seen.mostAtOnce, underWay);
       await delay(Math.max(1, 30 - call * 2));
       underWay -= 1;
+
       return await cell.keep(bytes, mime);
     },
   };
+
   return { cell: slow, seen };
 };
 
-const lonePdfs = (count: number): Record<string, Uint8Array> =>
+const lonePdfs = (count: number) =>
   Object.fromEntries(
     Array.from({ length: count }, (_, index) => [
       `Files/f${String(index).padStart(2, "0")}.pdf`,
@@ -185,7 +201,6 @@ describe("a zip of notes read on the device", () => {
     const zip = await zipOf(VAULT);
     await read(library.cell, zip, "markdown");
     const ids = [...library.items.keys()];
-    // the notes are held, and the file is no item's of its own again, since one holds it
     expect(await read(library.cell, zip, "markdown")).toStrictEqual({
       counts: { added: 0, alreadySaved: 2, unreadable: 0 },
       kind: "done",
@@ -196,13 +211,16 @@ describe("a zip of notes read on the device", () => {
   it("sends up no file again that an item holds when the same zip is read again", async () => {
     const library = fakeCell();
     const kept: string[] = [];
+
     const counting: ImportCell = {
       ...library.cell,
       keep: async (bytes, mime) => {
         kept.push(fileSha(bytes));
+
         return await library.cell.keep(bytes, mime);
       },
     };
+
     const zip = await zipOf(VAULT);
     await read(counting, zip, "markdown");
     expect(kept).toHaveLength(2);
@@ -215,11 +233,13 @@ describe("a zip of notes read on the device", () => {
   it("counts a note too long to read, and lands the rest", async () => {
     const library = fakeCell();
     const long = `# Long\n\n${"A line of plain words in a long note.\n\n".repeat(30_000)}`;
+
     const ended = await read(
       library.cell,
       await zipOf({ "Long.md": encoder.encode(long), "Short.md": encoder.encode("Short.\n") }),
       "markdown",
     );
+
     expect(ended).toStrictEqual({
       counts: { added: 1, alreadySaved: 0, unreadable: 1 },
       kind: "done",

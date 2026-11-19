@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { keychainStorage } from "./keychain-storage";
 import type { Keychain } from "./keychain-storage";
 
-// stand-ins for expo-secure-store's native constants: its default, which a backup carries to a
-// new phone, and the one this app writes
 const WHEN_UNLOCKED = 5;
 const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 6;
 
@@ -12,9 +10,9 @@ interface Item {
   accessible: number;
 }
 
-// the Keychain as expo-secure-store drives it, each item kept with the accessibility it was written at
 const fakeKeychain = () => {
   const items = new Map<string, Item>();
+
   const keychain: Keychain = {
     WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     getItem: (key) => items.get(key)?.value ?? null,
@@ -27,6 +25,7 @@ const fakeKeychain = () => {
       await Promise.resolve();
     },
   };
+
   return { items, keychain };
 };
 
