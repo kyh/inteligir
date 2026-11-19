@@ -17,6 +17,10 @@ configure({ asyncUtilTimeout: 10_000 });
 const SONNER_UNMOUNT_MS = 250;
 
 afterAll(async () => {
+  // TanStack Query hands a screen a read's answer on a 0ms timer, and one a file's last test queued
+  // before its tree unmounted would reach React after jsdom is gone; timers of one length fire in
+  // the order they were set, so one more turn of them lets every such answer land first
+  await delay(0);
   if (toast.getHistory().length > 0) {
     await delay(SONNER_UNMOUNT_MS);
   }
