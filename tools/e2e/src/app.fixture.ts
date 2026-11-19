@@ -79,16 +79,16 @@ const freePort = async () => {
   server.close();
   await once(server, "close");
 
-  return port;
+  return port satisfies number;
 };
 
 const answersHealthy = async (url: string) => {
   try {
     const response = await fetch(url);
 
-    return response.ok;
+    return response.ok satisfies boolean;
   } catch {
-    return false;
+    return false satisfies boolean;
   }
 };
 
@@ -121,7 +121,7 @@ const serve = async (
 
   while (server.exitCode === null && Date.now() < deadline) {
     if (await answersHealthy(ready)) {
-      return stop;
+      return stop satisfies () => Promise<void>;
     }
 
     await sleep(250);
@@ -137,13 +137,13 @@ const RESET_LINK = /https?:\/\/\S*\/api\/auth\/reset-password\/\S+/u;
 const loggedResetLink = (log: string, to: string) => {
   const mail = log.split(MAIL_TO).findLast((entry) => entry.startsWith(`${to}\n`));
 
-  return mail === undefined ? null : (RESET_LINK.exec(mail)?.[0] ?? null);
+  return (mail === undefined ? null : (RESET_LINK.exec(mail)?.[0] ?? null)) satisfies string | null;
 };
 
 const buildHeaders = (cloud: Cloud) => {
   const build: ClientBuild = { platform: "extension", version: cloud.build };
 
-  return clientBuildHeaders(build);
+  return clientBuildHeaders(build) satisfies Record<string, string>;
 };
 
 const v1Client = (cloud: Cloud, headers: Readonly<Record<string, string>>) =>
@@ -153,7 +153,7 @@ const v1Client = (cloud: Cloud, headers: Readonly<Record<string, string>>) =>
       origin: cloud.origin,
       url: V1_RPC_PATH,
     }),
-  );
+  ) satisfies V1Client;
 
 const cookiesOf = (response: Response) =>
   response.headers.getSetCookie().map((setCookie) => {
@@ -161,7 +161,7 @@ const cookiesOf = (response: Response) =>
     const at = pair.indexOf("=");
 
     return { name: pair.slice(0, at), value: pair.slice(at + 1) };
-  });
+  }) satisfies Cookie[];
 
 const sessionValue = (cookies: readonly Cookie[]) => {
   const session = cookies.find(({ name }) => name.endsWith("session_token"));
@@ -170,8 +170,47 @@ const sessionValue = (cookies: readonly Cookie[]) => {
     throw new Error("the answer set no session cookie");
   }
 
-  return session.value;
+  return session.value satisfies string;
 };
+
+export const signUp = async (cloud: Cloud) => {
+  const email = `${crypto.randomUUID()}@inteligir.local`;
+
+  const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
+    const response = await fetch(`${cloud.origin}${route}`, {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json",
+        origin: cloud.origin,
+        "sec-fetch-site": "same-origin",
+      },
+      method: "POST",
+    });
+
+    expect(response.status, route).toBe(200);
+
+    return cookiesOf(response);
+  };
+
+  const inviteCode = await cloud.mint();
+
+  const signedUp = await sitePost(AUTH_API_PATHS.signUp, {
+    email,
+    inviteCode,
+    name: "E2E",
+    password: PASSWORD,
+  });
+
+  const cookies = await sitePost("/api/auth/sign-in/email", { email, password: PASSWORD });
+  const bearer = sessionValue(signedUp);
+  const { account } = v1Client(cloud, { authorization: `Bearer ${bearer}` });
+
+  return { bearer, client: account, cookies, email, password: PASSWORD } satisfies Account;
+};
+
+export const libraryOf = (cloud: Cloud, account: Account) =>
+  v1Client(cloud, { authorization: `Bearer ${account.bearer}` })
+    .library satisfies V1Client["library"];
 
 export const watchErrors = (context: BrowserContext, allowed: RegExp | null) => {
   const seen: string[] = [];
@@ -191,7 +230,7 @@ export const watchErrors = (context: BrowserContext, allowed: RegExp | null) => 
     note(String(error.error()));
   });
 
-  return seen;
+  return seen satisfies string[];
 };
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
@@ -312,41 +351,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     expect(seen, "the page and console errors").toEqual([]);
   },
   account: async ({ cloud, context }, use) => {
-    const email = `${crypto.randomUUID()}@inteligir.local`;
-
-    const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
-      const response = await fetch(`${cloud.origin}${route}`, {
-        body: JSON.stringify(body),
-        headers: {
-          "content-type": "application/json",
-          origin: cloud.origin,
-          "sec-fetch-site": "same-origin",
-        },
-        method: "POST",
-      });
-
-      expect(response.status, route).toBe(200);
-
-      return cookiesOf(response);
-    };
-
-    const inviteCode = await cloud.mint();
-
-    const signedUp = await sitePost(AUTH_API_PATHS.signUp, {
-      email,
-      inviteCode,
-      name: "E2E",
-      password: PASSWORD,
-    });
-
-    const cookies = await sitePost("/api/auth/sign-in/email", { email, password: PASSWORD });
-    await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: cloud.origin })));
-    const bearer = sessionValue(signedUp);
-    const { account } = v1Client(cloud, { authorization: `Bearer ${bearer}` });
-    await use({ bearer, client: account, cookies, email, password: PASSWORD });
+    const account = await signUp(cloud);
+    await context.addCookies(account.cookies.map((cookie) => ({ ...cookie, url: cloud.origin })));
+    await use(account);
   },
   library: async ({ account, cloud }, use) => {
-    await use(v1Client(cloud, { authorization: `Bearer ${account.bearer}` }).library);
+    await use(libraryOf(cloud, account));
   },
   secondContext: async ({ account, allowedErrors, browser, cloud }, use) => {
     const context = await browser.newContext();
@@ -377,7 +387,7 @@ export const phoneSession = async (cloud: Cloud, account: Account) => {
     .map(({ name, value }) => `${name}=${value}`)
     .join("; ");
 
-  return v1Client(cloud, { cookie, "expo-origin": PHONE_ORIGIN });
+  return v1Client(cloud, { cookie, "expo-origin": PHONE_ORIGIN }) satisfies V1Client;
 };
 
 export const openLibrary = async (page: Page, cloud: Cloud, query = "") => {
@@ -395,7 +405,8 @@ export const signInOnSite = async (page: Page, account: Pick<Account, "email" | 
 
 export const EDITOR = '[data-slate-editor="true"]';
 
-export const newId = () => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
+export const newId = () =>
+  uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16))) satisfies string;
 
 export const upload = async (
   cloud: Cloud,
@@ -421,7 +432,7 @@ export const upload = async (
 
   await uploadBlob(transport, { bytes, mime: type, sha });
 
-  return sha;
+  return sha satisfies string;
 };
 
 export const typeAfter = async (
@@ -442,7 +453,7 @@ export const skipScriptedPaste = (browserName: PlaywrightWorkerOptions["browserN
 export const markdownOf = async (library: V1Client["library"], id: string) => {
   const { view } = await library.items.read({ id });
 
-  return view.markdown;
+  return view.markdown satisfies string;
 };
 
 export const download = async (cloud: Cloud, account: Account, sha: string) => {
@@ -452,5 +463,5 @@ export const download = async (cloud: Cloud, account: Account, sha: string) => {
 
   expect(response.status, "the download").toBe(200);
 
-  return Buffer.from(await response.arrayBuffer());
+  return Buffer.from(await response.arrayBuffer()) satisfies Buffer;
 };

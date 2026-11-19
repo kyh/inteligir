@@ -1,4 +1,5 @@
 import type { PropertyOp } from "@repo/contract/library/field-ops";
+import { propertyKeySchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
@@ -47,7 +48,7 @@ const rowOf = (key: string, value: PropertyValue) => {
 };
 
 export const rowsOf = (properties: Properties) =>
-  Object.entries(properties).map(([key, value]) => rowOf(key, value));
+  Object.entries(properties).map(([key, value]) => rowOf(key, value)) satisfies TypedProperty[];
 
 export const propertyOp = (properties: Properties, key: string, value?: PropertyValue) => {
   const op: PropertyOp = { key, op: "property" };
@@ -60,12 +61,19 @@ export const propertyOp = (properties: Properties, key: string, value?: Property
     op.value = value;
   }
 
-  return op;
+  return op satisfies PropertyOp;
 };
 
 const ITEM_NAMES = new Set(["title", "tags", "folder", "pinned"]);
 
-export const nameRefusal = (properties: Properties, name: string) =>
-  Object.hasOwn(properties, name) || ITEM_NAMES.has(name.toLowerCase())
-    ? "This item already has one by that name."
-    : null;
+export const nameRefusal = (properties: Properties, name: string) => {
+  if (!propertyKeySchema.safeParse(name).success) {
+    return "No property can take that name." satisfies string | null;
+  }
+
+  return (
+    Object.hasOwn(properties, name) || ITEM_NAMES.has(name.toLowerCase())
+      ? "This item already has one by that name."
+      : null
+  ) satisfies string | null;
+};

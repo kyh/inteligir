@@ -10,7 +10,7 @@ const NONCE_BYTES = 16;
 export const mintNonce = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(NONCE_BYTES));
 
-  return btoa(String.fromCodePoint(...bytes));
+  return btoa(String.fromCodePoint(...bytes)) satisfies string;
 };
 
 const DEV_EVAL = process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : [];
@@ -32,7 +32,7 @@ export const libraryPolicy = (url: URL, nonce: string) =>
     ...FIXED_TAIL,
     `frame-src ${url.origin}${V1_BLOBS_PATH}/`,
     "worker-src 'self'",
-  ].join("; ");
+  ].join("; ") satisfies string;
 
 export const SITE_POLICY = [
   ...DRAWING_DIRECTIVES,

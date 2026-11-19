@@ -11,6 +11,7 @@ import { PageLibraryProvider, useLibraryQueries } from "./cloud/library-context"
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
 import { DesktopUpdateBanner } from "./desktop-update-banner";
+import { useExportUnloadAsk } from "./export/export-run";
 import { useImportUnloadAsk } from "./import/import-run";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { AskDialogHost } from "./library/ask-dialog-host";
@@ -61,6 +62,7 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
     });
   });
   useImportUnloadAsk(library.session);
+  useExportUnloadAsk(library.session);
   const standing = useSyncExternalStore(library.session.subscribe, library.session.get);
 
   if (standing.kind === "ended" && standing.why === "outdated") {

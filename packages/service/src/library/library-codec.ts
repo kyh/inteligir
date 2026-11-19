@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
+import type { FileKind } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { file, item, itemLink } from "@repo/db/library-schema";
 import { editItemView } from "@repo/editor/headless/codec/item-edit";
-import type { ViewEdit } from "@repo/editor/headless/codec/item-edit";
+import type { EditOutcome, ViewEdit } from "@repo/editor/headless/codec/item-edit";
 import { libraryLinks } from "@repo/editor/headless/codec/library-links";
 import { readInOneRound } from "@repo/editor/headless/codec/one-round-lookup";
 import type { LookupAnswers, LookupAsks } from "@repo/editor/headless/codec/one-round-lookup";
@@ -85,9 +86,9 @@ const fileKindsOf = async (db: DbExecutor, accountId: string, shas: readonly str
           .from(file)
           .where(and(eq(file.accountId, accountId), inArray(file.sha256, [...shas])));
 
-  const held = new Map(rows.map((row) => [row.sha256, fileKindOfMime(row.mime)]));
+  const held = new Map<string, FileKind>(rows.map((row) => [row.sha256, fileKindOfMime(row.mime)]));
 
-  return new Map(
+  return new Map<string, FileKind | null>(
     shas.map((sha) => [sha, held.get(sha) ?? null]),
   ) satisfies LookupAnswers["fileKinds"];
 };
@@ -156,7 +157,7 @@ export const editOutcomeOf = async (
     titles: await linkedTitlesOf(db, accountId, edit.itemId),
   };
 
-  const { unanswered, value } = await readInOneRound(
+  const { unanswered, value } = await readInOneRound<EditOutcome>(
     (lookup) => editItemView(edit.blocks, edit.edits, { ...lookup, newBlockId: randomUUID }),
     answerOf(db, accountId),
     known,

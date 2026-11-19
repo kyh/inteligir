@@ -108,8 +108,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   Why: its subject is loaded by the kit or is CSS, so no import names it.
   `oxlint.config.ts`.
 - **A suite that does real work past vitest's default keeps its timeout,
-  counted in `SLOW_SUITES`, and two waits no event ends are counted in
-  `WAITED_OUT`**: sonner's own unmount timer, and the relay holding a turn's
+  counted in `SLOW_SUITES`, and waits no event ends are counted in
+  `WAITED_OUT`**: sonner's own unmount timer, one turn of 0ms timers so a
+  query answer queued before a file's last unmount lands before jsdom goes
+  (timers of one length fire in the order set), and the relay holding a turn's
   events for a window. Why: the counts only shrink. `oxlint.config.ts`.
 - **An override's `no-restricted-imports` restates the repo-wide rows**
   (`restrictedImports`), each row a regex rather than a group. Why: an

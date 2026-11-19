@@ -9,7 +9,7 @@ import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins/bearer";
 
 import { keepDeletedAccountSessions } from "../agent/deleted-account-sessions";
-import { APP_URL } from "../app-url";
+import { APP_URL, DEPLOYMENT_ORIGIN } from "../app-url";
 import { startBackground } from "../background";
 import { env } from "../env";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
@@ -88,7 +88,11 @@ const createAuth = (disableSignUp: boolean) =>
       expiresIn: 60 * DAY_SECONDS,
       updateAge: DAY_SECONDS,
     },
-    trustedOrigins: [EXTENSION_ORIGIN, PHONE_ORIGIN],
+    trustedOrigins: [
+      EXTENSION_ORIGIN,
+      PHONE_ORIGIN,
+      ...(DEPLOYMENT_ORIGIN === null ? [] : [DEPLOYMENT_ORIGIN]),
+    ],
     user: {
       deleteUser: {
         beforeDelete: async (user) => {
@@ -116,13 +120,13 @@ export const getAuth = () => {
     made = createAuth(true);
   }
 
-  return made;
+  return made satisfies Auth;
 };
 
 export const getSignUpAuth = () => {
   gate ??= createAuth(false);
 
-  return gate;
+  return gate satisfies Auth;
 };
 
 export const sessionCredential = (headers: Pick<Headers, "get">) => {
@@ -147,7 +151,7 @@ const AUTH_TOKEN_HEADER = "set-auth-token";
 
 export const withoutAuthToken = (answer: Response) => {
   if (!answer.headers.has(AUTH_TOKEN_HEADER)) {
-    return answer;
+    return answer satisfies Response;
   }
 
   const headers = new Headers(answer.headers);
@@ -168,5 +172,5 @@ export const withoutAuthToken = (answer: Response) => {
     headers,
     status: answer.status,
     statusText: answer.statusText,
-  });
+  }) satisfies Response;
 };

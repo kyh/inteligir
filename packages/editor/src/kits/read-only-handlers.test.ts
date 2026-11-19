@@ -15,24 +15,27 @@ const editOnlyFor = (plugin: AnyEditorPlatePlugin, feature: "handlers" | "render
   const { editOnly } = plugin;
 
   if (editOnly === undefined || editOnly === false) {
-    return false;
+    return false satisfies boolean;
   }
 
-  return editOnly === true || editOnly[feature] !== false;
+  return (editOnly === true || editOnly[feature] !== false) satisfies boolean;
 };
 
 const hasDomHandlers = (plugin: AnyEditorPlatePlugin) =>
-  DOM_HANDLERS.some((key) => (plugin.handlers[key] ?? null) !== null);
+  DOM_HANDLERS.some((key) => (plugin.handlers[key] ?? null) !== null) satisfies boolean;
 
 const KITS = Object.entries(PROFILE_KITS);
 
-const pluginsOf: (kit: (typeof KITS)[number][1]) => AnyEditorPlatePlugin[] = (kit) =>
-  createPlateEditor({ plugins: kit }).meta.pluginList;
+const pluginsOf = (kit: (typeof KITS)[number][1]) => {
+  const plugins: AnyEditorPlatePlugin[] = createPlateEditor({ plugins: kit }).meta.pluginList;
+
+  return plugins;
+};
 
 const liveKeys = (kit: (typeof KITS)[number][1]) =>
   pluginsOf(kit)
     .filter((plugin) => hasDomHandlers(plugin) && !editOnlyFor(plugin, "handlers"))
-    .map((plugin) => plugin.key);
+    .map((plugin) => plugin.key) satisfies string[];
 
 describe("a read-only editor's DOM handlers", () => {
   it.each(KITS)("are kept from no node of the %s kit's drawing", (_profile, kit) => {
@@ -61,12 +64,7 @@ describe("a read-only editor's DOM handlers", () => {
   });
 });
 
-const CHORDS_THAT_TRANSFORM = [
-  "bold.toggle",
-  "italic.toggle",
-  "p.toggleParagraph",
-  "underline.toggle",
-];
+const CHORDS_THAT_TRANSFORM = ["bold.toggle", "italic.toggle", "underline.toggle"];
 
 describe("a read-only editor's chords", () => {
   it.each(KITS)("in the %s kit are only chords the model refuses", (_profile, kit) => {
@@ -142,7 +140,7 @@ describe.each(KITS)("a key in the %s kit", (_profile, kit) => {
     const before = editor.children;
     pipeHandler(editor, { handlerKey: "onKeyDown" })?.(event);
 
-    return editor.children !== before;
+    return (editor.children !== before) satisfies boolean;
   };
 
   it.each(KEYS_THAT_WRITE)("$name writes while editable and nothing read-only", (key) => {

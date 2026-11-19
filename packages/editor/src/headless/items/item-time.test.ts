@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseItemTime } from "./item-time";
+import { formatItemTime, parseItemTime } from "./item-time";
 
 describe(parseItemTime, () => {
   it.each([
@@ -53,5 +53,16 @@ describe(parseItemTime, () => {
 
   it("reads a year under 100 as written, so before 1970, never as 19xx", () => {
     expect(parseItemTime("0075-01-01")).toBeNull();
+  });
+});
+
+describe(formatItemTime, () => {
+  it.each([
+    [Date.UTC(2026, 9, 17, 9, 12, 30), "2026-10-17T09:12:30Z"],
+    [Date.UTC(2026, 9, 17, 9, 12, 30, 7), "2026-10-17T09:12:30.007Z"],
+    [0, "1970-01-01T00:00:00Z"],
+  ])("writes %d as %s, which reads back as itself", (ms, text) => {
+    expect(formatItemTime(ms)).toBe(text);
+    expect(parseItemTime(text)).toBe(ms);
   });
 });

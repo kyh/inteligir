@@ -17,7 +17,7 @@
     "push": "pnpm with-env node scripts/push.ts",
     "push:check": "pnpm with-env node scripts/check-push.ts",
     "push:remote": "dotenv -e ../../.env.production.local -- node scripts/push.ts",
-    "reset": "pnpm start && supabase db reset && pnpm push",
+    "reset": "(pnpm --silent status || pnpm start) && pnpm with-env node scripts/reset.ts",
     "start": "supabase start --runtime native && supabase status --env --output-format text --override-name DB_URL=POSTGRES_URL > ../../.env.local",
     "status": "pnpm with-env node scripts/status.ts",
     "stop": "supabase stop",

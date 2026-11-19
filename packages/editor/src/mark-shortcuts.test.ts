@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { EDITOR_SHORTCUTS } from "./editor-shortcuts";
 import { BasicMarksKit } from "./kits/basic-marks-kit";
+import { EDITOR_KIT } from "./kits/editor-kit";
 import { MARK_SHORTCUTS, markPluginShortcuts, markShortcut } from "./mark-shortcuts";
 
 const toggleShortcutSchema = z.object({ keys: z.string() }).nullish();
@@ -32,5 +33,12 @@ describe("the mark chords", () => {
 
   it("leave a mark with no chord unbound rather than on a Plate default", () => {
     expect(resolvedToggle(KEYS.strikethrough)).toBeUndefined();
+  });
+
+  it("are the only chords a plugin of the editor holds, Plate's paragraph chord nulled", () => {
+    const editor = createPlateEditor({ plugins: EDITOR_KIT });
+    expect(Object.keys(editor.meta.shortcuts).toSorted()).toStrictEqual(
+      MARK_SHORTCUTS.map((row) => `${row.mark}.toggle`).toSorted(),
+    );
   });
 });

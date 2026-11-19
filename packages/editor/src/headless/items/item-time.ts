@@ -62,3 +62,6 @@ export const parseItemTime = (value: string) => {
 
   return itemInstant(at === null ? null : at - offset * MS_PER_MINUTE);
 };
+
+export const formatItemTime = (ms: number) =>
+  new Date(ms).toISOString().replace(/\.000Z$/u, "Z") satisfies string;

@@ -34,6 +34,7 @@
     "./headless/body/own-edit": "./src/headless/body/own-edit.ts",
     "./headless/codec/import-plan": "./src/headless/codec/import-plan.ts",
     "./headless/codec/item-edit": "./src/headless/codec/item-edit.ts",
+    "./headless/codec/item-export": "./src/headless/codec/item-export.ts",
     "./headless/codec/item-markdown": "./src/headless/codec/item-markdown.ts",
     "./headless/codec/item-view": "./src/headless/codec/item-view.ts",
     "./headless/codec/library-links": "./src/headless/codec/library-links.ts",

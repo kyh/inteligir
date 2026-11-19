@@ -10,15 +10,8 @@ const CONFLICT = "This note changed somewhere else while you were typing";
 
 const SELECTION_READ_MS = 300;
 
-const caretAfter = async (page: Page, line: string) => {
-  const drawn = page.locator(EDITOR).getByText(line, { exact: true });
-  const box = await drawn.boundingBox();
-
-  if (box === null) {
-    throw new Error(`"${line}" is not drawn`);
-  }
-
-  await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
+const caretIn = async (page: Page, line: string) => {
+  await page.locator(EDITOR).getByText(line, { exact: true }).click();
   await page.waitForTimeout(SELECTION_READ_MS);
 };
 
@@ -192,11 +185,11 @@ test("a note with no connection takes no key: a mark's chord, Tab, a list's chor
   });
   await page.waitForTimeout(SELECTION_READ_MS);
   await pressFrom(page, link, "ControlOrMeta+b");
-  await caretAfter(page, "An item to indent");
+  await caretIn(page, "An item to indent");
   await pressFrom(page, link, "Tab");
-  await caretAfter(page, "A line to list");
+  await caretIn(page, "A line to list");
   await pressFrom(page, link, "ControlOrMeta+l");
-  await caretAfter(page, video);
+  await caretIn(page, video);
   await pressFrom(page, link, "Enter");
   await expect(editor.locator("strong")).toHaveCount(0);
 

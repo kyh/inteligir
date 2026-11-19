@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of November 18, 2026.
+Effective as of November 19, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -260,6 +260,13 @@ The apps also hold to these:
   an Obsidian folder) is read on your device, in the window you import from;
   only the items it holds and the files they name go to your library. Each
   imported link is then read as above.
+- **Exporting.** Settings › Export writes every item in your library, with the
+  files it holds, as a zip of Markdown files on your device, in the window you
+  export from. It reads only your own library, signed in as you, and sends
+  nothing anywhere: in Chrome and other Chromium browsers the zip is written
+  straight into the file you choose, and in Safari, Firefox and the Mac app it
+  is put together in the window's memory and saved to your downloads. We keep
+  no copy of it.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own (on a Mac, press fn
   twice; on the phone, the keyboard's microphone key) and types into the app
@@ -289,7 +296,8 @@ assistant you connect yourself, such as Claude or ChatGPT. Specifically:
   information](#how-we-share-your-personal-information)).
 - **The built-in agent searches the web and reads web pages without asking you
   first**, when what you ask reaches past your library. The words it searches
-  for go to Anthropic, which runs the search and hands back what it found. A
+  for go to Anthropic, which runs the search through the search providers it
+  names among its subprocessors and hands back what it found. A
   page it reads is fetched by our cloud, from Vercel's servers: only an
   `https://` address on the public internet, never one inside a private
   network, whether the agent named it or a page redirected there, with no
@@ -388,9 +396,9 @@ Specifically, in our cloud:
   the conversation, until seven days pass without a turn, or until your first
   message once the session is seven days old, which the conversation takes up
   in a new session. As a session ends, the agent asks Vercel to delete what it
-  carried; Vercel keeps a record of each of its runs (their ids, times,
-  statuses, step names and attributes), without what was said, for the time
-  Vercel sets. Deleting the account ends every session at once, and one our
+  carried, and Vercel deletes what remains of it within 96 days; Vercel keeps a
+  record of each of its runs (their ids, times, statuses, step names and
+  attributes), without what was said, for up to a year. Deleting the account ends every session at once, and one our
   cloud can't reach then at a later try, made every 15 minutes.
 - **What the built-in agent spent**, each turn, model call and web search with
   its cost, the conversation's id and the time, is kept 35 days, to hold your
@@ -418,9 +426,13 @@ Specifically, in our cloud:
   addresses, never yours) is filed under no account, so deleting the account
   leaves it; it is deleted within the hour once a day has passed since it
   registered or was last disconnected and no account has it connected.
-- **Vercel's request log**, and its AI Gateway's record of each request the
-  built-in agent makes, keep each entry for the time Vercel sets for our
-  account.
+- **Vercel's request log** keeps each entry for up to 30 days. Its AI
+  Gateway keeps no question or answer of the built-in agent's past the request,
+  and its record of each request for the time Vercel sets, the providers each
+  was routed to for 30 days.
+- **Anthropic** deletes what the built-in agent sends it, and what it answers,
+  within 30 days, and uses none of it to train its models; a request it flags
+  under its usage policy it can keep for up to two years.
 
 **Your phone.** Signed in, the phone keeps what it last read of your library, so
 that still shows with no connection: the items, lists, folders and
@@ -535,7 +547,9 @@ in your library at inteligir.com/library, shows the account it is signed in to
 and every device signed in to it, named from the browser or app it signed in
 with, with when each was last used. The sign-in page can email you a link to set
 a new password. To change anything else, such as your name or email address,
-contact us.
+contact us. Settings › Export saves a copy of your whole library on your
+device, as Markdown files and the files your items hold, which Settings ›
+Import, or any app that reads Markdown, can read back.
 
 **Privacy settings.** Signing a device out of your account (Settings › Account)
 ends its access, and on the phone deletes what it kept of your library.
@@ -615,7 +629,9 @@ things are not filed that way: the throttling counts, an unused reset link,
 what an assistant registered, and Vercel's records of each request, of each
 call the built-in agent makes and of each run of its sessions. Your password is
 kept only as a hash; each session is a random token our cloud keeps as it is,
-to recognize that device; and the apps talk to our cloud over HTTPS.
+to recognize that device; and the apps talk to our cloud over HTTPS. Supabase
+encrypts the database and its backups, and Vercel Blob your files, at rest,
+with AES-256.
 
 These are the edges of that protection, stated plainly:
 

@@ -15,8 +15,8 @@ open item, the panel and the palette, `workspace-store.ts` holds what they share
 `library-address.ts` spells where the tab is and `library-history.ts` moves it; `library/` the
 grid, its verbs and the commands every screen presses; `item/` the open item; `panel/` Info;
 `agent/` the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings;
-`import/` an import's reading; `styles/` the sheet only this route links;
-`shell/desktop-bridge.ts` the Mac app's update.
+`import/` an import's reading; `export/` an export's writing; `styles/` the sheet only this route
+links; `shell/desktop-bridge.ts` the Mac app's update.
 
 ## The tab over the cell
 
@@ -46,6 +46,16 @@ grid, its verbs and the commands every screen presses; `item/` the open item; `p
   the file again carries on; read in the cloud, a zip waits in the file store as a second copy and
   each job reads a page of it.
   `apps/web/src/library/import/import-run.ts`.
+- **An export is written in the tab, on a module worker, as the zip an import reads.** It lists
+  every live item, reads each whole a few ahead and writes it by the codec with the files it holds
+  from `/v1/blobs`, so Stop or closing the tab, which the browser asks about, leaves no zip; written
+  in the cloud, a zip would wait in the file store as a second copy, past what a function runs for.
+  `apps/web/src/library/export/export-writing.ts`.
+- **An export streams where the browser can, and its cap is the library's.** Chromium's save
+  picker hands the worker a file to stream into; WebKit, the Mac app's window among it, and Firefox
+  have none, so there the zip comes back as one blob in memory and downloads as a file item's
+  Download does, at most about the library's own 1 GiB, since a cap of the export's own would
+  refuse a library its storage took. `apps/web/src/library/export/export-run.ts`.
 - **The tab learns what moved by asking `library.changes` on a beat, and reads that again.** An
   answer names what moved and never carries it, and the tab learns the head before its first read,
   so every write after that read is one a later answer names.

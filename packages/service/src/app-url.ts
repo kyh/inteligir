@@ -18,3 +18,6 @@ const deploymentUrl = () => {
 };
 
 export const APP_URL = env.APP_URL ?? deploymentUrl();
+
+export const DEPLOYMENT_ORIGIN =
+  process.env.VERCEL_URL === undefined ? null : `https://${process.env.VERCEL_URL}`;

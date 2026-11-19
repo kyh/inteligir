@@ -11,7 +11,7 @@ import { blankItemFields } from "@repo/contract/library/item-makes";
 import type { Reading } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS, propertyKeySchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
-import { parseItemTime } from "@repo/editor/headless/items/item-time";
+import { formatItemTime, parseItemTime } from "@repo/editor/headless/items/item-time";
 
 type KeyValues = ReadonlyMap<string, PropertyValue>;
 
@@ -52,59 +52,68 @@ const cut = (text: string, max: number) => {
 
   const kept = whole.slice(0, end).trimEnd();
 
-  return kept === "" ? null : kept;
+  return (kept === "" ? null : kept) satisfies string | null;
 };
 
-const jsonBytes = (value: PropertyValue) => utf8ByteLength(canonicalJson(value));
+const jsonBytes = (value: PropertyValue) => utf8ByteLength(canonicalJson(value)) satisfies number;
 
 const textValue = z.string();
 const textList = z.array(textValue);
 const numberValue = z.number();
 const flagValue = z.boolean();
 
-const written = (value: PropertyValue) => (textValue.validate(value) ? value.trim() : null);
+const written = (value: PropertyValue) =>
+  (textValue.validate(value) ? value.trim() : null) satisfies string | null;
 
 const line = (value: PropertyValue) =>
-  textValue.validate(value) ? cut(value, ITEM_FIELD_CAPS.line) : null;
+  (textValue.validate(value) ? cut(value, ITEM_FIELD_CAPS.line) : null) satisfies string | null;
 
-const instant = (value: PropertyValue) => (textValue.validate(value) ? parseItemTime(value) : null);
+const instant = (value: PropertyValue) =>
+  (textValue.validate(value) ? parseItemTime(value) : null) satisfies number | null;
 
 const kindOf = (value: PropertyValue) => {
   const kind = written(value)?.toLowerCase() ?? "";
 
-  return isItemKind(kind) ? kind : null;
+  return (isItemKind(kind) ? kind : null) satisfies ItemKind | null;
 };
 
 const urlOf = (value: PropertyValue) => {
   const url = written(value);
 
-  return url !== null && url.length <= ITEM_FIELD_CAPS.url && isWebUrl(url) ? url : null;
+  return (
+    url !== null && url.length <= ITEM_FIELD_CAPS.url && isWebUrl(url) ? url : null
+  ) satisfies string | null;
 };
 
 const WIKI_NAME = /^\[\[(?:[^|\]]*\|)?(?<name>[^\]]*)\]\]$/u;
 
-const shownName = (text: string) => (WIKI_NAME.exec(text.trim())?.groups?.name ?? text).trim();
+const shownName = (text: string) =>
+  (WIKI_NAME.exec(text.trim())?.groups?.name ?? text).trim() satisfies string;
 
 const authorOf = (value: PropertyValue) => {
   const names = textList.safeParse(Array.isArray(value) ? value : [value]);
 
-  return names.success
-    ? line(
-        names.data
-          .map(shownName)
-          .filter((name) => name !== "")
-          .join(", "),
-      )
-    : null;
+  return (
+    names.success
+      ? line(
+          names.data
+            .map(shownName)
+            .filter((name) => name !== "")
+            .join(", "),
+        )
+      : null
+  ) satisfies string | null;
 };
 
 const publishedOf = (value: PropertyValue) =>
-  line(numberValue.validate(value) ? String(value) : value);
+  line(numberValue.validate(value) ? String(value) : value) satisfies string | null;
 
 const tagOf = (entry: string) => {
   const tag = (entry.startsWith("#") ? entry.slice(1) : entry).trim();
 
-  return isTagName(tag) && tag.length <= ITEM_FIELD_CAPS.line ? tag : null;
+  return (isTagName(tag) && tag.length <= ITEM_FIELD_CAPS.line ? tag : null) satisfies
+    | string
+    | null;
 };
 
 const pageReading = (kind: ItemKind, at: number | null, error: string | null) => {
@@ -161,13 +170,13 @@ const readKeys = (file: KeyValues) => {
       left.delete(key);
     }
 
-    return took;
+    return took satisfies T | null;
   };
 
   const own = <T>(key: string, read: (value: PropertyValue) => T | null) => {
     ownKeys.add(key);
 
-    return whole(key, read);
+    return whole(key, read) satisfies T | null;
   };
 
   const list = (key: string, spell: (entry: string) => string | null) => {
@@ -238,22 +247,24 @@ const jsonValue = z.json();
 
 const valueOf = (node: ParsedNode | null, doc: Document.Parsed, yaml: string) => {
   if (node === null) {
-    return null;
+    return null satisfies PropertyValue;
   }
 
   const value: unknown = node.toJS(doc);
   const json = jsonValue.safeParse(value);
 
-  return json.success && JSON.stringify(json.data) === JSON.stringify(value)
-    ? json.data
-    : yaml.slice(node.range[0], node.range[1]).trimEnd();
+  return (
+    json.success && JSON.stringify(json.data) === JSON.stringify(value)
+      ? json.data
+      : yaml.slice(node.range[0], node.range[1]).trimEnd()
+  ) satisfies PropertyValue;
 };
 
 const keyValues = (yaml: string) => {
   const doc = parseDocument(yaml);
 
   if (doc.errors.length > 0 || !isMap(doc.contents)) {
-    return null;
+    return null satisfies KeyValues | null;
   }
 
   try {
@@ -267,7 +278,7 @@ const keyValues = (yaml: string) => {
       ),
     ) satisfies KeyValues | null;
   } catch {
-    return null;
+    return null satisfies KeyValues | null;
   }
 };
 
@@ -284,20 +295,20 @@ export const readFrontmatter = (yaml: string | null) => {
 };
 
 export const factsOf = (front: Frontmatter) =>
-  front.kind === "fields" ? front.facts : readKeys(new Map()).facts;
+  (front.kind === "fields" ? front.facts : readKeys(new Map()).facts) satisfies FileFacts;
 
 export const unheldYaml = (front: Frontmatter) => {
   switch (front.kind) {
     case "none": {
-      return null;
+      return null satisfies string | null;
     }
 
     case "invalid": {
-      return front.yaml;
+      return front.yaml satisfies string | null;
     }
 
     case "fields": {
-      return front.unheld;
+      return front.unheld satisfies string | null;
     }
 
     default: {
@@ -307,7 +318,7 @@ export const unheldYaml = (front: Frontmatter) => {
 };
 
 export const titleOf = (facts: FileFacts, name: string) =>
-  cut(facts.title ?? name, ITEM_FIELD_CAPS.line) ?? "";
+  (cut(facts.title ?? name, ITEM_FIELD_CAPS.line) ?? "") satisfies string;
 
 export const itemFields = (facts: FileFacts, name: string, now: number) => {
   const savedAt = facts.savedAt ?? now;
@@ -321,3 +332,106 @@ export const itemFields = (facts: FileFacts, name: string, now: number) => {
     title: titleOf(facts, name),
   } satisfies LibraryItemFields;
 };
+
+type Keys = ReadonlyMap<string, PropertyValue>;
+
+type Properties = LibraryItemFields["properties"];
+
+const LIST_KEYS = ["tags", "aliases"] as const;
+
+const isListKey = (key: string) => LIST_KEYS.some((list) => list === key) satisfies boolean;
+
+const fetchedOf = (reading: Reading) =>
+  (reading.state === "read" || reading.state === "failed" ? reading.at : null) satisfies
+    | number
+    | null;
+
+const fieldKeys = (id: string, fields: LibraryItemFields, title: string | null) => {
+  const keys = new Map<string, PropertyValue>([["id", id]]);
+
+  const text = (key: string, value: string | null) => {
+    if (value !== null) {
+      keys.set(key, value);
+    }
+  };
+
+  const { reading, url } = fields;
+  const fetched = url === null ? null : fetchedOf(reading);
+  text("title", title);
+  text("kind", fields.kind === "note" ? null : fields.kind);
+  text("url", url);
+  text("site", fields.site);
+  text("author", fields.author);
+  text("published", fields.published);
+  text("description", fields.description);
+  text("lang", fields.lang);
+  text("saved", formatItemTime(fields.savedAt));
+  text("fetched", fetched === null ? null : formatItemTime(fetched));
+  text("fetch-error", url !== null && reading.state === "failed" ? reading.error : null);
+
+  for (const key of LIST_KEYS) {
+    if (fields[key].length > 0) {
+      keys.set(key, fields[key]);
+    }
+  }
+
+  if (fields.pinnedAt !== null) {
+    keys.set("pinned", true);
+  }
+
+  return keys satisfies Keys;
+};
+
+const withProperties = (keys: Keys, properties: Properties, left: ReadonlySet<string>) => {
+  const all = new Map(keys);
+
+  for (const [key, value] of Object.entries(properties)) {
+    if (left.has(key)) {
+      continue;
+    }
+
+    const field = keys.get(key);
+
+    if (field === undefined) {
+      all.set(key, value);
+    } else if (Array.isArray(field) && isListKey(key)) {
+      all.set(key, [...field, ...(Array.isArray(value) ? value : [value])]);
+    }
+  }
+
+  return all satisfies Keys;
+};
+
+const yamlOf = (keys: Keys) => stringify(keys, { lineWidth: 0 }).trimEnd() satisfies string;
+
+const notReadBack = (yaml: string, properties: Properties) => {
+  const front = readFrontmatter(yaml);
+  const back: Properties = front.kind === "fields" ? front.facts.properties : {};
+
+  return Object.entries(properties).flatMap(([key, value]) =>
+    Object.hasOwn(back, key) && canonicalJson(back[key] ?? null) === canonicalJson(value)
+      ? []
+      : [key],
+  ) satisfies string[];
+};
+
+interface WrittenFrontmatter {
+  readonly yaml: string;
+  readonly leftOut: number;
+}
+
+const settled: (
+  keys: Keys,
+  properties: Properties,
+  left: ReadonlySet<string>,
+) => WrittenFrontmatter = (keys, properties, left) => {
+  const yaml = yamlOf(withProperties(keys, properties, left));
+  const lost = notReadBack(yaml, properties).filter((key) => !left.has(key));
+
+  return lost.length === 0
+    ? { leftOut: left.size, yaml }
+    : settled(keys, properties, new Set([...left, ...lost]));
+};
+
+export const writeFrontmatter = (id: string, fields: LibraryItemFields, title: string | null) =>
+  settled(fieldKeys(id, fields, title), fields.properties, new Set()) satisfies WrittenFrontmatter;

@@ -5,8 +5,17 @@ import { chromium, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { z } from "zod";
-import { download, newId, signInOnSite, test as base, watchErrors } from "./app.fixture";
+import {
+  download,
+  libraryOf,
+  newId,
+  signInOnSite,
+  signUp,
+  test as base,
+  watchErrors,
+} from "./app.fixture";
 import type { Account, Cloud } from "./app.fixture";
 
 const BUILD = path.resolve(import.meta.dirname, "../../../apps/extension/.output/chrome-mv3");
@@ -26,7 +35,7 @@ const QueuedSchema = z.array(
 );
 
 const pageOf = (title: string, script = "", head = "") =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>${head}</head><body><article><h1>${title}</h1><p>If you want digital artifacts that last, they must be files you can control.</p><div id="later"></div><p>The file is the one thing every app agrees on.</p></article>${script}</body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>${head}</head><body><article><h1>${title}</h1><p>If you want digital artifacts that last, they must be files you can control.</p><div id="later"></div><p>The file is the one thing every app agrees on.</p></article>${script}</body></html>` satisfies string;
 
 const PAGE_BODIES = new Map([
   [
@@ -63,12 +72,26 @@ const signIn = async (page: Page, cloud: Cloud, account: Account) => {
   await expect(page).toHaveURL(`${cloud.origin}${QUIET_PAGE}`);
 };
 
+const signOut = async (page: Page) => {
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/sign-out", {
+      body: "{}",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    return response.status;
+  });
+
+  expect(status).toBe(200);
+};
+
 const openPanel = async (extension: BrowserContext, cloud: Cloud) => {
   const panel = await extension.newPage();
   await panel.goto(`${EXTENSION_ORIGIN}/welcome.html`);
 
   const ask = async <T>(schema: z.ZodType<T>, source: string) =>
-    schema.parse(await panel.evaluate(source));
+    schema.parse(await panel.evaluate(source)) satisfies T;
 
   await panel.evaluate(
     `chrome.storage.local.set({ "cloud-origin": ${JSON.stringify(cloud.origin)} })`,
@@ -171,17 +194,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-elsewhere")).toBeDefined();
 
-  const signedOut = await site.evaluate(async () => {
-    const response = await fetch("/api/auth/sign-out", {
-      body: "{}",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-
-    return response.status;
-  });
-
-  expect(signedOut).toBe(200);
+  await signOut(site);
   expect(await signedInAs()).toBeNull();
   expect(await save("/signed-out-here")).toEqual({ kind: "queued", waitsFor: "sign-in" });
   expect(await alarms()).toEqual([]);
@@ -224,6 +237,54 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect(refused).toHaveCount(0);
   expect(await queued()).toEqual([]);
   expect(await landed("/let-go")).toBeUndefined();
+});
+
+test("the extension saves to whoever the site signed in last, and asks who that is only when the site's sign-in changed", async ({
+  account,
+  cloud,
+  extension,
+  library,
+}) => {
+  await extension.route(`${PAGES}/**`, async (route) => {
+    const { pathname } = new URL(route.request().url());
+    await route.fulfill({ body: pageOf(pathname), contentType: "text/html" });
+  });
+  const site = await extension.newPage();
+  const { save } = await openPanel(extension, cloud);
+  let asked = 0;
+  await extension.route(`${cloud.origin}/api/auth/get-session*`, async (route) => {
+    asked += 1;
+    await route.continue();
+  });
+
+  const askedBy = async (pathname: string) => {
+    asked = 0;
+    expect(await save(pathname)).toMatchObject({ kind: "saved" });
+
+    return asked;
+  };
+
+  const landedIn = async (owner: V1Client["library"], pathname: string) => {
+    const { items } = await owner.items.list({ kinds: ["link"] });
+
+    return items.some((item) => item.url === `${PAGES}${pathname}`);
+  };
+
+  await signIn(site, cloud, account);
+  expect(await askedBy("/first-sign-in")).toBe(1);
+  expect(await askedBy("/same-sign-in")).toBe(0);
+
+  const other = await signUp(cloud);
+  await signOut(site);
+  await signIn(site, cloud, other);
+  expect(await askedBy("/other-sign-in")).toBe(1);
+  expect(await landedIn(libraryOf(cloud, other), "/other-sign-in")).toBe(true);
+  expect(await landedIn(library, "/other-sign-in")).toBe(false);
+  expect(await askedBy("/other-again")).toBe(0);
+
+  const popup = await extension.newPage();
+  await popup.goto(`${EXTENSION_ORIGIN}/popup.html`);
+  await expect(popup.getByText(`Signed in as ${other.email}`)).toBeVisible();
 });
 
 const LARGE_COVER = Buffer.concat([

@@ -10,6 +10,8 @@ configure({ asyncUtilTimeout: 10_000 });
 const SONNER_UNMOUNT_MS = 250;
 
 afterAll(async () => {
+  await delay(0);
+
   if (toast.getHistory().length > 0) {
     await delay(SONNER_UNMOUNT_MS);
   }

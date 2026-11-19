@@ -14,6 +14,7 @@ import {
 import { libraryGoes } from "../library-history";
 import { devicePrefs, usePref } from "../prefs";
 import { AccountSection } from "./account-section";
+import { ExportSection } from "./export-section";
 import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
@@ -28,6 +29,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 const NAV = [
   { id: "account", label: "Account" },
   { id: "import", label: "Import" },
+  { id: "export", label: "Export" },
   { id: "editor", label: "Editor" },
   { id: "about", label: "About" },
 ] as const;
@@ -125,6 +127,8 @@ export const SettingsPage = () => (
       <AccountSection />
       <Separator />
       <ImportSection />
+      <Separator />
+      <ExportSection />
       <Separator />
       <EditorSection />
       <Separator />

@@ -22,11 +22,12 @@ const SERVER_ONLY = {
   regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
 
-const REACT_OR_UI = "^(?:react(?:-dom)?|@repo/ui)(?:/|$)";
+const PAGE_ONLY =
+  "^(?:react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react(?:/|$)|\\.css$";
 
 const SERVICE_PLATFORM = {
-  message: "@repo/service runs on the server: no DOM and no React",
-  regex: REACT_OR_UI,
+  message: "@repo/service runs on the server: no DOM, no React half and no stylesheet",
+  regex: PAGE_ONLY,
 };
 
 const NO_ORPC_IN_PAGE = {
@@ -60,8 +61,7 @@ const HEADLESS_FOLDER = "packages/editor/src/headless/**";
 
 const HEADLESS_PLATFORM = {
   message: "packages/editor/src/headless/ runs on the server: no React half, stylesheet or node",
-  regex:
-    "^(?:node:|react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react$|\\.css$",
+  regex: `^node:|${PAGE_ONLY}`,
 };
 
 const HEADLESS_WALL = {
@@ -71,7 +71,8 @@ const HEADLESS_WALL = {
 
 const HEADLESS_ALONE = {
   group: ["@repo/editor/**", "!@repo/editor/headless/**"],
-  message: "the server, the page reader and the import worker load @repo/editor/headless/ alone",
+  message:
+    "the server, the page reader and the import and export workers load @repo/editor/headless/ alone",
 };
 
 const NOTE_PAGE_PLATFORM = {
@@ -97,10 +98,11 @@ const LIBRARY_IMPORTS = [
 ];
 
 const IMPORT_RUN = "apps/web/src/library/import/import-run.ts";
+const EXPORT_RUN = "apps/web/src/library/export/export-run.ts";
 
-const IMPORT_WORKER_PLATFORM = {
-  message: "the import runs in a module worker: no React and no @repo/ui",
-  regex: REACT_OR_UI,
+const WORKER_PLATFORM = {
+  message: "an import and an export run in a module worker: no React half, @repo/ui or stylesheet",
+  regex: PAGE_ONLY,
 };
 
 const NEW_ID = "apps/web/src/library/library/new-id.ts";
@@ -109,6 +111,11 @@ const IMPORT_WORKER_WALL = {
   group: ["../**", "!../library/new-id", "./import-run"],
   message:
     "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+};
+
+const EXPORT_WORKER_WALL = {
+  group: ["../**", "./export-run"],
+  message: "the export worker reaches nothing of the app outside export/, and never export-run.ts",
 };
 
 const NEW_ID_LEAF = {
@@ -162,7 +169,7 @@ const SLOW_SUITES = {
 };
 
 const WAITED_OUT = {
-  "apps/web/src/library/test-support/dom-cleanup.test-utils.ts": 1,
+  "apps/web/src/library/test-support/dom-cleanup.test-utils.ts": 2,
   "packages/service/src/agent/relay.test.ts": 2,
 };
 
@@ -328,8 +335,21 @@ export default defineConfig({
         "no-restricted-imports": restrictedImports([
           ...LIBRARY_IMPORTS,
           SHELL_API,
-          IMPORT_WORKER_PLATFORM,
+          WORKER_PLATFORM,
           IMPORT_WORKER_WALL,
+          HEADLESS_ALONE,
+        ]),
+      },
+    },
+    {
+      excludeFiles: [...tests, EXPORT_RUN],
+      files: ["apps/web/src/library/export/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          ...LIBRARY_IMPORTS,
+          SHELL_API,
+          WORKER_PLATFORM,
+          EXPORT_WORKER_WALL,
           HEADLESS_ALONE,
         ]),
       },
@@ -340,7 +360,7 @@ export default defineConfig({
         "no-restricted-imports": restrictedImports([
           ...LIBRARY_IMPORTS,
           SHELL_API,
-          IMPORT_WORKER_PLATFORM,
+          WORKER_PLATFORM,
           NEW_ID_LEAF,
           HEADLESS_ALONE,
         ]),

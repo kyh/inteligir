@@ -73,7 +73,9 @@ export const insertHorizontalRule = (editor: PlateEditor) => {
 };
 
 export const BasicBlocksKit = [
-  ParagraphPlugin.withComponent(blockElement("p", "px-0.5")),
+  ParagraphPlugin.extend(() => ({ shortcuts: { toggleParagraph: null } })).withComponent(
+    blockElement("p", "px-0.5"),
+  ),
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),

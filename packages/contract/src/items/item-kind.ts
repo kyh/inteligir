@@ -13,20 +13,20 @@ export const URL_ITEM_KINDS = ["link", "video", "audio"] as const satisfies read
 
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
-export const fileKindOfMime: (mime: string) => FileKind = (mime: string) => {
+export const fileKindOfMime = (mime: string) => {
   const type = mime.toLowerCase();
 
   if (type === "application/pdf") {
-    return "pdf" as const;
+    return "pdf" satisfies FileKind;
   }
 
   for (const kind of ["image", "video", "audio"] as const) {
     if (type.startsWith(`${kind}/`)) {
-      return kind;
+      return kind satisfies FileKind;
     }
   }
 
-  return "file" as const;
+  return "file" satisfies FileKind;
 };
 
 export const UNKNOWN_FILE_TYPE = "application/octet-stream";
@@ -66,14 +66,14 @@ const TYPE_OF_EXTENSION = new Map(
 );
 
 export const mediaTypeOfName = (name: string) =>
-  TYPE_OF_EXTENSION.get(extnamePath(name).slice(1).toLowerCase()) ?? null;
+  (TYPE_OF_EXTENSION.get(extnamePath(name).slice(1).toLowerCase()) ?? null) satisfies string | null;
 
 export const extensionsOfType = (type: string) =>
   (MEDIA_EXTENSIONS.find(([known]) => known === type)?.slice(1) ?? []) satisfies readonly string[];
 
 export const fileKindOf = (path: string) => {
   if (isDocPath(path) || isDotEntryPath(path)) {
-    return null;
+    return null satisfies FileKind | null;
   }
 
   const type = mediaTypeOfName(path);
@@ -81,7 +81,8 @@ export const fileKindOf = (path: string) => {
   return (type === null ? "file" : fileKindOfMime(type)) satisfies FileKind | null;
 };
 
-export const keptFileType = (handed: string) => (handed === "" ? UNKNOWN_FILE_TYPE : handed);
+export const keptFileType = (handed: string) =>
+  (handed === "" ? UNKNOWN_FILE_TYPE : handed) satisfies string;
 
 export const COVERS_DIR = "assets/covers";
 
@@ -92,6 +93,9 @@ const BYTES_FOLDER_PATH = new RegExp(
   "u",
 );
 
-export const isBytesFolderPath = (path: string) => BYTES_FOLDER_PATH.test(path);
+export const isBytesFolderPath = (path: string) => BYTES_FOLDER_PATH.test(path) satisfies boolean;
+
+export const bytesFolderPath = (sha: string, name: string) =>
+  `${DEFAULT_ATTACHMENTS_FOLDER}/${sha.slice(0, CONTENT_ADDRESS_HEX_CHARS)}/${name}` satisfies string;
 
 export const WEB_URL_RULE = "Only web links (http or https) can be saved.";
