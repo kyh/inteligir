@@ -5,8 +5,17 @@ import { chromium, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
+import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { z } from "zod";
-import { download, newId, signInOnSite, test as base, watchErrors } from "./fixtures";
+import {
+  download,
+  libraryOf,
+  newId,
+  signInOnSite,
+  signUp,
+  test as base,
+  watchErrors,
+} from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
 
 // WXT's output for the dev flavor, whose one cloud host is localhost and which may script a
@@ -65,6 +74,19 @@ const signIn = async (page: Page, cloud: Cloud, account: Account) => {
   await page.goto(`${cloud.origin}${SIGN_IN_PATH}?next=${QUIET_PAGE}`);
   await signInOnSite(page, account);
   await expect(page).toHaveURL(`${cloud.origin}${QUIET_PAGE}`);
+};
+
+// signed out on the site from one of its pages, as its account menu signs out
+const signOut = async (page: Page) => {
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/sign-out", {
+      body: "{}",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    return response.status;
+  });
+  expect(status).toBe(200);
 };
 
 // the extension's own page, which asks its worker as the popup does, pointed at this run's cloud
@@ -171,15 +193,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-elsewhere")).toBeDefined();
 
-  const signedOut = await site.evaluate(async () => {
-    const response = await fetch("/api/auth/sign-out", {
-      body: "{}",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    return response.status;
-  });
-  expect(signedOut).toBe(200);
+  await signOut(site);
   expect(await signedInAs()).toBeNull();
   expect(await save("/signed-out-here")).toEqual({ kind: "queued", waitsFor: "sign-in" });
   // it waits on a person, so no alarm wakes the worker for it
@@ -225,6 +239,51 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await expect(refused).toHaveCount(0);
   expect(await queued()).toEqual([]);
   expect(await landed("/let-go")).toBeUndefined();
+});
+
+test("the extension saves to whoever the site signed in last, and asks who that is only when the site's sign-in changed", async ({
+  account,
+  cloud,
+  extension,
+  library,
+}) => {
+  await extension.route(`${PAGES}/**`, async (route) => {
+    const { pathname } = new URL(route.request().url());
+    await route.fulfill({ body: pageOf(pathname), contentType: "text/html" });
+  });
+  const site = await extension.newPage();
+  const { save } = await openPanel(extension, cloud);
+  let asked = 0;
+  await extension.route(`${cloud.origin}/api/auth/get-session*`, async (route) => {
+    asked += 1;
+    await route.continue();
+  });
+  // how many times a save asked the cloud whose session the browser holds
+  const askedBy = async (pathname: string) => {
+    asked = 0;
+    expect(await save(pathname)).toMatchObject({ kind: "saved" });
+    return asked;
+  };
+  const landedIn = async (owner: V1Client["library"], pathname: string) => {
+    const { items } = await owner.items.list({ kinds: ["link"] });
+    return items.some((item) => item.url === `${PAGES}${pathname}`);
+  };
+
+  await signIn(site, cloud, account);
+  expect(await askedBy("/first-sign-in")).toBe(1);
+  expect(await askedBy("/same-sign-in")).toBe(0);
+
+  const other = await signUp(cloud);
+  await signOut(site);
+  await signIn(site, cloud, other);
+  expect(await askedBy("/other-sign-in")).toBe(1);
+  expect(await landedIn(libraryOf(cloud, other), "/other-sign-in")).toBe(true);
+  expect(await landedIn(library, "/other-sign-in")).toBe(false);
+  expect(await askedBy("/other-again")).toBe(0);
+
+  const popup = await extension.newPage();
+  await popup.goto(`${EXTENSION_ORIGIN}/popup.html`);
+  await expect(popup.getByText(`Signed in as ${other.email}`)).toBeVisible();
 });
 
 // a PNG's signature and header naming a cover's size, then bytes to past what one request to the

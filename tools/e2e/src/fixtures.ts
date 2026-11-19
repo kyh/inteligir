@@ -1,7 +1,7 @@
 // One app per Playwright worker: `next start` on apps/web's build and the agent eve built beside it,
 // over a database of their own cloned from the run's template (databases.ts), and every page they
 // fetch answered from a test's `web.pages` or failing it (page-relay.ts). One account per test,
-// signed in on the test's context and reachable through `/v1`.
+// signed in on the test's context and reachable through `/v1`; a test signs up any other itself.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -184,6 +184,40 @@ const sessionValue = (cookies: readonly Cookie[]): string => {
   return session.value;
 };
 
+// a new account, signed up on the site's own page, which ships with the app and names no build
+export const signUp = async (cloud: Cloud): Promise<Account> => {
+  const email = `${crypto.randomUUID()}@inteligir.local`;
+  const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
+    const response = await fetch(`${cloud.origin}${route}`, {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json",
+        origin: cloud.origin,
+        "sec-fetch-site": "same-origin",
+      },
+      method: "POST",
+    });
+    expect(response.status, route).toBe(200);
+    return cookiesOf(response);
+  };
+  const inviteCode = await cloud.mint();
+  const signedUp = await sitePost(AUTH_API_PATHS.signUp, {
+    email,
+    inviteCode,
+    name: "E2E",
+    password: PASSWORD,
+  });
+  // the browser signs in apart, so its sign-out leaves the test's own client signed in
+  const cookies = await sitePost("/api/auth/sign-in/email", { email, password: PASSWORD });
+  const bearer = sessionValue(signedUp);
+  const { account } = v1Client(cloud, { authorization: `Bearer ${bearer}` });
+  return { bearer, client: account, cookies, email, password: PASSWORD };
+};
+
+// `account`'s library, as its own client reads it
+export const libraryOf = (cloud: Cloud, account: Account): V1Client["library"] =>
+  v1Client(cloud, { authorization: `Bearer ${account.bearer}` }).library;
+
 // every console error and uncaught page error on a page of `context` that `allowed` does not name
 export const watchErrors = (context: BrowserContext, allowed: RegExp | null): string[] => {
   const seen: string[] = [];
@@ -314,37 +348,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     expect(seen, "the page and console errors").toEqual([]);
   },
   account: async ({ cloud, context }, use) => {
-    const email = `${crypto.randomUUID()}@inteligir.local`;
-    // the site's own page, which ships with the app and names no build
-    const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
-      const response = await fetch(`${cloud.origin}${route}`, {
-        body: JSON.stringify(body),
-        headers: {
-          "content-type": "application/json",
-          origin: cloud.origin,
-          "sec-fetch-site": "same-origin",
-        },
-        method: "POST",
-      });
-      expect(response.status, route).toBe(200);
-      return cookiesOf(response);
-    };
-    const inviteCode = await cloud.mint();
-    const signedUp = await sitePost(AUTH_API_PATHS.signUp, {
-      email,
-      inviteCode,
-      name: "E2E",
-      password: PASSWORD,
-    });
-    // the browser signs in apart, so its sign-out leaves the test's own client signed in
-    const cookies = await sitePost("/api/auth/sign-in/email", { email, password: PASSWORD });
-    await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: cloud.origin })));
-    const bearer = sessionValue(signedUp);
-    const { account } = v1Client(cloud, { authorization: `Bearer ${bearer}` });
-    await use({ bearer, client: account, cookies, email, password: PASSWORD });
+    const account = await signUp(cloud);
+    await context.addCookies(account.cookies.map((cookie) => ({ ...cookie, url: cloud.origin })));
+    await use(account);
   },
   library: async ({ account, cloud }, use) => {
-    await use(v1Client(cloud, { authorization: `Bearer ${account.bearer}` }).library);
+    await use(libraryOf(cloud, account));
   },
   secondContext: async ({ account, allowedErrors, browser, cloud }, use) => {
     const context = await browser.newContext();
