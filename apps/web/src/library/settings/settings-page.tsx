@@ -1,5 +1,5 @@
 // Settings, drawn over the workspace it leaves mounted (`library-layout.tsx`): the account and
-// what reaches it, bringing a library in, and how the editor reads. A section
+// what reaches it, bringing a library in and taking it out, and how the editor reads. A section
 // the cloud answers waits for a connection and says so; the editor's are this page's own. Its own
 // address, so it deep-links and Back works.
 
@@ -19,6 +19,7 @@ import {
 import { libraryGoes } from "../library-history";
 import { devicePrefs, usePref } from "../prefs";
 import { AccountSection } from "./account-section";
+import { ExportSection } from "./export-section";
 import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
@@ -35,6 +36,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 const NAV = [
   { id: "account", label: "Account" },
   { id: "import", label: "Import" },
+  { id: "export", label: "Export" },
   { id: "editor", label: "Editor" },
   { id: "about", label: "About" },
 ] as const;
@@ -131,6 +133,8 @@ export const SettingsPage = () => (
       <AccountSection />
       <Separator />
       <ImportSection />
+      <Separator />
+      <ExportSection />
       <Separator />
       <EditorSection />
       <Separator />

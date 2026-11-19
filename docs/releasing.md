@@ -318,6 +318,10 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
 - **Import** from Settings › Import: a real Obsidian vault's zip and a Raindrop
   CSV land, a 2 MB note in the zip is counted unreadable while the rest lands,
   and closing the window midway then choosing the zip again adds nothing twice.
+- **Export** from Settings › Export: the zip lands in Downloads as
+  `Inteligir library <date>.zip`, a library of several hundred MB exports with
+  the window still answering, and Import a zip of notes… in a spare account
+  brings back the same items, files opening in WebKit.
 
 ### The browser extension
 
@@ -452,6 +456,9 @@ note under the editor's content policy; what it cannot run is below.
 - **A file of nearly 100 MB**, dropped on the grid and pasted into a note, in
   Chrome, Safari and the Mac app: the window keeps scrolling and taking typing
   until its upload starts.
+- **Export** in Chrome: Settings › Export asks where to save, writes the zip
+  there, which opens in Finder; Stop midway leaves no finished zip; in Safari and
+  Firefox the zip lands in Downloads.
 - **Safari, Chrome and Firefox**: a note saving a second after typing stops, the
   offline notice, the leave prompt over typing that couldn't save on Back and on
   closing the tab, Settings opened,

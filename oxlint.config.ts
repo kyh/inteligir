@@ -70,7 +70,8 @@ const HEADLESS_WALL = {
 // a group, for its negation
 const HEADLESS_ALONE = {
   group: ["@repo/editor/**", "!@repo/editor/headless/**"],
-  message: "the server, the page reader and the import worker load @repo/editor/headless/ alone",
+  message:
+    "the server, the page reader and the import and export workers load @repo/editor/headless/ alone",
 };
 // the phone's note page runs in its web view and reaches the phone only through its props
 const NOTE_PAGE_PLATFORM = {
@@ -91,10 +92,12 @@ const SHELL_API = {
 const LIBRARY_IMPORTS = [
   { message: "the library runs in a browser, where no node module loads", regex: NODE },
 ];
-// the import runs in a module worker, which has no DOM; import-run.ts starts it from the page
+// an import and an export each run in a module worker, which has no DOM; import-run.ts and
+// export-run.ts start them from the page
 const IMPORT_RUN = "apps/web/src/library/import/import-run.ts";
-const IMPORT_WORKER_PLATFORM = {
-  message: "the import runs in a module worker: no React half, @repo/ui or stylesheet",
+const EXPORT_RUN = "apps/web/src/library/export/export-run.ts";
+const WORKER_PLATFORM = {
+  message: "an import and an export run in a module worker: no React half, @repo/ui or stylesheet",
   regex: PAGE_ONLY,
 };
 // a row reads a file's own imports, not theirs, so the worker reaches the app outside import/ only
@@ -104,6 +107,10 @@ const IMPORT_WORKER_WALL = {
   group: ["../**", "!../library/new-id", "./import-run"],
   message:
     "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+};
+const EXPORT_WORKER_WALL = {
+  group: ["../**", "./export-run"],
+  message: "the export worker reaches nothing of the app outside export/, and never export-run.ts",
 };
 const NEW_ID_LEAF = {
   message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
@@ -276,8 +283,21 @@ export default defineConfig({
         "no-restricted-imports": restrictedImports([
           ...LIBRARY_IMPORTS,
           SHELL_API,
-          IMPORT_WORKER_PLATFORM,
+          WORKER_PLATFORM,
           IMPORT_WORKER_WALL,
+          HEADLESS_ALONE,
+        ]),
+      },
+    },
+    {
+      excludeFiles: [...tests, EXPORT_RUN],
+      files: ["apps/web/src/library/export/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          ...LIBRARY_IMPORTS,
+          SHELL_API,
+          WORKER_PLATFORM,
+          EXPORT_WORKER_WALL,
           HEADLESS_ALONE,
         ]),
       },
@@ -288,7 +308,7 @@ export default defineConfig({
         "no-restricted-imports": restrictedImports([
           ...LIBRARY_IMPORTS,
           SHELL_API,
-          IMPORT_WORKER_PLATFORM,
+          WORKER_PLATFORM,
           NEW_ID_LEAF,
           HEADLESS_ALONE,
         ]),

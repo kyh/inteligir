@@ -18,7 +18,7 @@ src/
 agent/           the built-in agent, eve's: its channel, hooks, tools, filing rules and mock model
 scripts/         write-licenses.ts, which writes public/licenses.md and the vendored texts at prebuild
 next.config.ts   Cache Components, the React Compiler, the static policy and headers, Turbopack's
-                 `?raw` and the import worker's alias, eve's mount
+                 `?raw` and the import and export workers' alias, eve's mount
 vercel.json      the functions' region and the crons
 ```
 

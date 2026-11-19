@@ -37,6 +37,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Bring your Raindrop bookmarks in** from a Raindrop backup's CSV file, in Settings › Import.
 - **Bring a zip of notes in**, a folder of notes or an Obsidian folder, in Settings › Import; what it can't read is counted under "couldn't be read".
 - **An import is read on your device**: keep the window open until it says what it added, and your browser asks before you close or reload it mid-import; if it closes, choose the same file again and it carries on, adding nothing twice.
+- **Take your whole library out** with Export the library… in Settings › Export: every item as a Markdown file in its folders, with its fields, tags and the files it holds, in a zip that Import a zip of notes… reads back as the same items. Chrome, Edge and the other Chromium browsers ask where to save it and write it there as it goes; Safari, Firefox and the Mac app save it to your downloads once it's done. Keep the window open until it says how many items it wrote: Stop, or closing the window, leaves no zip.
 - **Your library on your iPhone**: covers, kinds, search, every file, editing, and what you last opened readable offline.
 - **Create your account on your iPhone** with the invite code you were sent.
 - **Save from any app on your iPhone** with "Save to Inteligir"; a share made offline waits on the phone and lands once you're back, a link shared twice waiting once, and one your library refuses is listed once however often you share it.

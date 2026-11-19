@@ -25,10 +25,10 @@ const PRIVATE_DOCUMENT_HEADERS = [
 ];
 
 // micromark's entity decoder parses through a DOM element under the browser condition, which
-// Turbopack resolves for a worker's modules as for the page's, so the import's module worker would
-// load with no document; the table it takes everywhere else costs the page about 12 kB gzipped. The
-// package exports no subpath, so the alias names its file, relative to this directory, since
-// Turbopack takes an alias as a request
+// Turbopack resolves for a worker's modules as for the page's, so the import's and the export's
+// module workers would load with no document; the table it takes everywhere else costs the page
+// about 12 kB gzipped. The package exports no subpath, so the alias names its file, relative to
+// this directory, since Turbopack takes an alias as a request
 const require = createRequire(import.meta.url);
 const NAMED_REFERENCES_TABLE = `./${path.relative(
   import.meta.dirname,

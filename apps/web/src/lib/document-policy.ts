@@ -45,7 +45,8 @@ export const libraryPolicy = (url: URL, nonce: string): string =>
     // Chromium draws a PDF item's viewer in a frame and checks it here as well as at object-src, so
     // the library's own files on this origin are framed, and nothing else
     `frame-src ${url.origin}${V1_BLOBS_PATH}/`,
-    // an import reads its file on a module worker the build ships (src/library/import/import-worker.ts)
+    // an import reads its file and an export writes its zip on a module worker the build ships
+    // (src/library/import/import-worker.ts, src/library/export/export-worker.ts)
     "worker-src 'self'",
   ].join("; ");
 
