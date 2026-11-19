@@ -60,3 +60,8 @@ export const parseItemTime = (value: string): number | null => {
   const at = utcMs(year, month, day, hour, minute, second, ms);
   return itemInstant(at === null ? null : at - offset * MS_PER_MINUTE);
 };
+
+// an instant as a file's `saved` and `fetched` spell one, which `parseItemTime` reads back: UTC,
+// its milliseconds written only when it has any
+export const formatItemTime = (ms: number): string =>
+  new Date(ms).toISOString().replace(/\.000Z$/u, "Z");

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bytesFolderPath,
   COVERS_DIR,
   fileKindOf,
+  isBytesFolderPath,
   isItemKind,
   ITEM_KINDS,
   keptFileType,
@@ -55,6 +57,12 @@ describe("item kinds", () => {
 
   it("spells the library's own places", () => {
     expect(COVERS_DIR).toBe("assets/covers");
+  });
+
+  it("writes a file in a folder of its bytes that an import reads as that file", () => {
+    const path = bytesFolderPath("0123456789abcdef".repeat(4), "Report 2026.pdf");
+    expect(path).toBe("assets/0123456789abcdef/Report 2026.pdf");
+    expect(isBytesFolderPath(path)).toBe(true);
   });
 });
 

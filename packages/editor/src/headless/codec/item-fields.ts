@@ -8,7 +8,8 @@
 // its instant, so neither is ever a property. A block that is not YAML is no field's, and the
 // import keeps it as the note's first code block, as it keeps the keys no property holds: one
 // whose name is past a line or is `__proto__`, one past what the properties' bytes hold, and an
-// `id` or a `saved` that does not read.
+// `id` or a `saved` that does not read. `writeFrontmatter` is the reading's inverse, an export's
+// keys for an item, held to what this reader reads back of them.
 
 import { isMap, isScalar, parseDocument, stringify } from "yaml";
 import type { Document, ParsedNode } from "yaml";
@@ -23,7 +24,7 @@ import { blankItemFields } from "@repo/contract/library/item-makes";
 import type { Reading } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS, propertyKeySchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
-import { parseItemTime } from "@repo/editor/headless/items/item-time";
+import { formatItemTime, parseItemTime } from "@repo/editor/headless/items/item-time";
 
 type KeyValues = ReadonlyMap<string, PropertyValue>;
 
@@ -334,3 +335,109 @@ export const itemFields = (facts: FileFacts, name: string, now: number): Library
     title: titleOf(facts, name),
   };
 };
+
+type Keys = ReadonlyMap<string, PropertyValue>;
+type Properties = LibraryItemFields["properties"];
+
+// the keys a list is written under, whose entries a property of the same name joins
+const LIST_KEYS = ["tags", "aliases"] as const;
+
+const isListKey = (key: string): boolean => LIST_KEYS.some((list) => list === key);
+
+// when a file says its page was last read or tried: a waiting page says nothing, since a
+// `fetched:` alone reads as read
+const fetchedOf = (reading: Reading): number | null =>
+  reading.state === "read" || reading.state === "failed" ? reading.at : null;
+
+// an item's fields as the keys `readKeys` reads back, its id first; `title` only where the file's
+// name cannot carry it, and a reading's keys only beside an address, since a file with none keeps
+// them as properties
+const fieldKeys = (id: string, fields: LibraryItemFields, title: string | null): Keys => {
+  const keys = new Map<string, PropertyValue>([["id", id]]);
+  const text = (key: string, value: string | null): void => {
+    if (value !== null) {
+      keys.set(key, value);
+    }
+  };
+  const { reading, url } = fields;
+  const fetched = url === null ? null : fetchedOf(reading);
+  text("title", title);
+  text("kind", fields.kind === "note" ? null : fields.kind);
+  text("url", url);
+  text("site", fields.site);
+  text("author", fields.author);
+  text("published", fields.published);
+  text("description", fields.description);
+  text("lang", fields.lang);
+  text("saved", formatItemTime(fields.savedAt));
+  text("fetched", fetched === null ? null : formatItemTime(fetched));
+  text("fetch-error", url !== null && reading.state === "failed" ? reading.error : null);
+  for (const key of LIST_KEYS) {
+    if (fields[key].length > 0) {
+      keys.set(key, fields[key]);
+    }
+  }
+  if (fields.pinnedAt !== null) {
+    keys.set("pinned", true);
+  }
+  return keys;
+};
+
+// the fields' keys and every property but those `left`: a property under a key a field wrote is
+// left out, but for a list's, whose entries join the field's after them, as a file holds what
+// the field could not read
+const withProperties = (keys: Keys, properties: Properties, left: ReadonlySet<string>): Keys => {
+  const all = new Map(keys);
+  for (const [key, value] of Object.entries(properties)) {
+    if (left.has(key)) {
+      continue;
+    }
+    const field = keys.get(key);
+    if (field === undefined) {
+      all.set(key, value);
+    } else if (Array.isArray(field) && isListKey(key)) {
+      all.set(key, [...field, ...(Array.isArray(value) ? value : [value])]);
+    }
+  }
+  return all;
+};
+
+const yamlOf = (keys: Keys): string => stringify(keys, { lineWidth: 0 }).trimEnd();
+
+// the properties a file's keys do not read back as themselves: one under a key a field wrote, one
+// the import reads as a field (a `url:` on an item with none), and one it keeps as no property
+const notReadBack = (yaml: string, properties: Properties): string[] => {
+  const front = readFrontmatter(yaml);
+  const back: Properties = front.kind === "fields" ? front.facts.properties : {};
+  return Object.entries(properties).flatMap(([key, value]) =>
+    Object.hasOwn(back, key) && canonicalJson(back[key] ?? null) === canonicalJson(value)
+      ? []
+      : [key],
+  );
+};
+
+interface WrittenFrontmatter {
+  readonly yaml: string;
+  // the properties no key of the file spells
+  readonly leftOut: number;
+}
+
+const settled = (
+  keys: Keys,
+  properties: Properties,
+  left: ReadonlySet<string>,
+): WrittenFrontmatter => {
+  const yaml = yamlOf(withProperties(keys, properties, left));
+  const lost = notReadBack(yaml, properties).filter((key) => !left.has(key));
+  return lost.length === 0
+    ? { leftOut: left.size, yaml }
+    : settled(keys, properties, new Set([...left, ...lost]));
+};
+
+// an item's frontmatter, in one fixed order, read back until every property it holds reads as
+// itself, so a file never says what its item did not: each property that cannot is left out
+export const writeFrontmatter = (
+  id: string,
+  fields: LibraryItemFields,
+  title: string | null,
+): WrittenFrontmatter => settled(fieldKeys(id, fields, title), fields.properties, new Set());

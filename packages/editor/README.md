@@ -24,8 +24,8 @@ src/
                  else of the editor (`oxlint.config.ts`):
     markdown/    the dialect over Plate's stock markdown: the plugin list, the rule table, the read
                  that refuses with a reason, fence names, the frontmatter fence, `serializeNote`
-    codec/       an item as markdown: an import's plan, file and frontmatter, the agent's view and
-                 edits
+    codec/       an item as markdown: an import's plan, file and frontmatter, an export's file,
+                 the agent's view and edits
     kits/        the base kits the codec's editor is built from, the mirror of the React kits
     body/        a note's body as blocks: what an editor holds, a merge, a body laid in, a writer's edits
     formulas/    a pill's source, what it shows and its nodes

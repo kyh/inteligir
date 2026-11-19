@@ -199,6 +199,11 @@ arrive as `unknown` and become domain values there alone.
   recording each ask, and once more over the round's answers.** A run asks nothing the first did
   not but the title of an item a title named, which that title's answer carries, while a query per
   ask is a round trip per link. `packages/editor/src/headless/codec/one-round-lookup.test.ts`.
+- **An export writes each item as the file its import reads back.** Its keys are written beside
+  the reader and read back by it, so a property no key can spell is left out and counted, never
+  turned into a field; each file sits in the folder of its bytes, named with an extension of their
+  type, which the caller reads before it writes, since an import reads a file's kind off its name.
+  `packages/editor/src/headless/codec/item-export.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
   and its landing both read through `readFrontmatter`, each key one row and the filename the title,
   since a second reader plans a title or an address the landing reads otherwise.

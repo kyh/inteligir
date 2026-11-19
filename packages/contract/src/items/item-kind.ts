@@ -103,5 +103,9 @@ const BYTES_FOLDER_PATH = new RegExp(
 
 export const isBytesFolderPath = (path: string): boolean => BYTES_FOLDER_PATH.test(path);
 
+// where an export writes a file's bytes, under the name it goes by in the bytes' own folder
+export const bytesFolderPath = (sha: string, name: string): string =>
+  `${DEFAULT_ATTACHMENTS_FOLDER}/${sha.slice(0, CONTENT_ADDRESS_HEX_CHARS)}/${name}`;
+
 // what a device says of a link it will not save, in the one sentence every device says it
 export const WEB_URL_RULE = "Only web links (http or https) can be saved.";
