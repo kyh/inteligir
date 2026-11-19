@@ -11,7 +11,7 @@ import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins/bearer";
 
 import { keepDeletedAccountSessions } from "../agent/deleted-account-sessions";
-import { APP_URL } from "../app-url";
+import { APP_URL, DEPLOYMENT_ORIGIN } from "../app-url";
 import { startBackground } from "../background";
 import { env } from "../env";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
@@ -121,7 +121,11 @@ const createAuth = (disableSignUp: boolean) =>
     },
     // the app's own origin is trusted as the base URL; never a pattern over `chrome-extension://`,
     // which would trust every extension installed beside ours
-    trustedOrigins: [EXTENSION_ORIGIN, PHONE_ORIGIN],
+    trustedOrigins: [
+      EXTENSION_ORIGIN,
+      PHONE_ORIGIN,
+      ...(DEPLOYMENT_ORIGIN === null ? [] : [DEPLOYMENT_ORIGIN]),
+    ],
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to

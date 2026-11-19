@@ -42,6 +42,10 @@ DOM (`oxlint.config.ts`).
   Vercel's production or preview URL, never a request's host.** A reset link
   minted from a forged `Host` would carry its token to another site.
   `packages/service/src/app-url.ts`.
+- **Better Auth trusts the deployment's own address, `VERCEL_URL`, beside
+  `APP_URL`.** The smoke check signs in on a deployment before a production
+  domain points at it, and only that deployment's own pages carry its address.
+  `packages/service/src/app-url.ts`.
 - **Only Better Auth's own read slides a session.** A row and its cookie slide
   together or not at all, so the app's own reads pass `disableRefresh`.
   `packages/service/src/auth/auth.ts`.

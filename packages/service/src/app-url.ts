@@ -20,3 +20,9 @@ const deploymentUrl = (): string => {
 };
 
 export const APP_URL = env.APP_URL ?? deploymentUrl();
+
+// The deployment's own address, which its pages and a check run on it before a domain points there
+// (`pnpm smoke`, `.github/workflows/smoke.yml`) sign in from: only this deployment's own pages carry
+// it, so Better Auth trusts it beside APP_URL, which a deployment may not be serving yet
+export const DEPLOYMENT_ORIGIN =
+  process.env.VERCEL_URL === undefined ? null : `https://${process.env.VERCEL_URL}`;
