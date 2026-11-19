@@ -135,15 +135,15 @@ production, which waits for CI and for `pnpm smoke` against the deployment
 
 ### Platform matrix
 
-| Surface         | Dev command          | Agent-verifiable at runtime? (specs in `tools/e2e/src`)                                           |
-| --------------- | -------------------- | ------------------------------------------------------------------------------------------------- |
-| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                         |
-| Library tab     | `pnpm dev:web`       | **Yes**: `account`, `library`, `search`, `editor`, `note-links`, `saved-note`, `saving`, `import` |
-| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                              |
-| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                                    |
-| Mac app         | `pnpm dev`           | **Its shell and engine**: `cargo test`; `pnpm e2e:webkit`; the window needs a human               |
-| Extension       | `pnpm dev:extension` | **Yes, in Chromium**: its suites; `extension`                                                     |
-| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites; `pnpm e2e:mobile` (`tools/e2e/phone`)                           |
+| Surface         | Dev command          | Agent-verifiable at runtime? (specs in `tools/e2e/src`)                                                     |
+| --------------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                                   |
+| Library tab     | `pnpm dev:web`       | **Yes**: `account`, `library`, `search`, `editor`, `note-links`, `saved-note`, `saving`, `import`, `export` |
+| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                                        |
+| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                                              |
+| Mac app         | `pnpm dev`           | **Its shell and engine**: `cargo test`; `pnpm e2e:webkit`; the window needs a human                         |
+| Extension       | `pnpm dev:extension` | **Yes, in Chromium**: its suites; `extension`                                                               |
+| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites; `pnpm e2e:mobile` (`tools/e2e/phone`)                                     |
 
 ## Rules that matter
 
