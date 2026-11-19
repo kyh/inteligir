@@ -73,6 +73,16 @@ describe("Info's Add property", () => {
     expect(screen.getByRole("button", { name: "Add" })).toBeDefined();
     expect(onWrite).not.toHaveBeenCalled();
   });
+
+  it("stays open on a name no property can take, writing nothing for the library to refuse", () => {
+    const onWrite = mount();
+    openAdd("Text", "__proto__");
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "x" } });
+    submitAdd();
+
+    expect(screen.getByRole("alert").textContent).toBe("No property can take that name.");
+    expect(onWrite).not.toHaveBeenCalled();
+  });
 });
 
 describe("a property's row", () => {

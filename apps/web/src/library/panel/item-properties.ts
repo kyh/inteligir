@@ -3,6 +3,7 @@
 // showed. A value no control edits (an object, a list that is not all words) is drawn as it is.
 
 import type { PropertyOp } from "@repo/contract/library/field-ops";
+import { propertyKeySchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
@@ -65,7 +66,11 @@ export const propertyOp = (
 const ITEM_NAMES = new Set(["title", "tags", "folder", "pinned"]);
 
 // why a new property cannot take a name, which holds the form open on it
-export const nameRefusal = (properties: Properties, name: string): string | null =>
-  Object.hasOwn(properties, name) || ITEM_NAMES.has(name.toLowerCase())
+export const nameRefusal = (properties: Properties, name: string): string | null => {
+  if (!propertyKeySchema.safeParse(name).success) {
+    return "No property can take that name.";
+  }
+  return Object.hasOwn(properties, name) || ITEM_NAMES.has(name.toLowerCase())
     ? "This item already has one by that name."
     : null;
+};

@@ -60,7 +60,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **The panel's tabs are Info and Agent.**
 - **Info's Add property asks for a name, a type and a value**: Text, Number, Checkbox, Date or List, kept exactly as you typed it, so `Meeting: Q3 review` stays text and `02139` keeps its zero.
 - **A date property is picked from a calendar**, and the Text/Date switch under a property's name is gone: to make a date text again, remove the property and add it as Text.
-- **A new property can't be named title, tags, folder or pinned**, or take a name the item already has; Add property says so and stays open.
+- **A new property can't be named title, tags, folder, pinned or `__proto__`**, or take a name the item already has; Add property says so and stays open.
 - **⌘P searches your library and runs a few commands**: New note, Save a link…, Ask the agent, Tidy my library and Settings.
 - **⌘P shows the words that matched under each result**, wherever they sit in a long paragraph; a connected assistant's search results do too.
 - **The agent and connected assistants count a tag once however it's capitalized**: their list of tags and folders matches the sidebar, most used first, and an item they list or organize names the tags written in its note too, which they know only an edit of the note takes out.

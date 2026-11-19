@@ -51,4 +51,8 @@ describe("an item's properties as the panel's rows", () => {
     );
     expect(nameRefusal(properties, "status")).toBeNull();
   });
+
+  it("refuses a name no property can take, as the item's own fields read it", () => {
+    expect(nameRefusal({}, "__proto__")).toBe("No property can take that name.");
+  });
 });
