@@ -198,8 +198,6 @@ minimumReleaseAge: 1440
 # day old; an install drops by itself one the lockfile no longer resolves
 minimumReleaseAgeExcludePrune: true
 minimumReleaseAgeExclude:
-  - "@interfere/landmines@0.1.0"
-  - "ultracite@8.3.0"
 
 # an install drops a catalog entry no manifest spells any more
 catalogPrune: true
