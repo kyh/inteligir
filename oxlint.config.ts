@@ -22,6 +22,10 @@ const SERVER_ONLY = {
   regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
 const REACT_OR_UI = "^(?:react(?:-dom)?|@repo/ui)(?:/|$)";
+// what only a page loads: React, a package's React half (`platejs/react`, `@base-ui/react`,
+// `lucide-react`), @repo/ui, a stylesheet and the renderers katex and pele
+const PAGE_ONLY =
+  "^(?:react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react(?:/|$)|\\.css$";
 const SERVICE_PLATFORM = {
   message: "@repo/service runs on the server: no DOM and no React",
   regex: REACT_OR_UI,
@@ -57,8 +61,7 @@ const EDITOR_PLATFORM = {
 const HEADLESS_FOLDER = "packages/editor/src/headless/**";
 const HEADLESS_PLATFORM = {
   message: "packages/editor/src/headless/ runs on the server: no React half, stylesheet or node",
-  regex:
-    "^(?:node:|react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react$|\\.css$",
+  regex: `^node:|${PAGE_ONLY}`,
 };
 // a regex cannot count a climb's depth, so a headless file names another folder's by name
 const HEADLESS_WALL = {
@@ -92,8 +95,8 @@ const LIBRARY_IMPORTS = [
 // the import runs in a module worker, which has no DOM; import-run.ts starts it from the page
 const IMPORT_RUN = "apps/web/src/library/import/import-run.ts";
 const IMPORT_WORKER_PLATFORM = {
-  message: "the import runs in a module worker: no React and no @repo/ui",
-  regex: REACT_OR_UI,
+  message: "the import runs in a module worker: no React half, @repo/ui or stylesheet",
+  regex: PAGE_ONLY,
 };
 // a row reads a file's own imports, not theirs, so the worker reaches the app outside import/ only
 // through new-id.ts, which takes the worker's row too and imports none of the app's modules
