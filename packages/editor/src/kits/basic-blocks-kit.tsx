@@ -74,7 +74,11 @@ export const insertHorizontalRule = (editor: PlateEditor): void => {
 };
 
 export const BasicBlocksKit = [
-  ParagraphPlugin.withComponent(blockElement("p", "px-0.5")),
+  // Plate binds ⌘⌥0 and ⌘⇧0 to turning a block into text, which no shortcut table names; nulled
+  // from a function, since an object merges before Plate's own extension puts the chord back
+  ParagraphPlugin.extend(() => ({ shortcuts: { toggleParagraph: null } })).withComponent(
+    blockElement("p", "px-0.5"),
+  ),
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),

@@ -172,6 +172,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Daily notes and templates**: ask the agent to start a note from one, or choose Date from the `/` menu.
 - **Go to heading**: click a heading in the note's outline.
 - **⌘T no longer moves to the title.**
+- **⌥⌘0 and ⇧⌘0 no longer turn a line into text**: choose Turn into › Text from the block's menu.
 - **The Keyboard shortcuts page and What's new**: each release's notes are on GitHub.
 - **Run on an HTML block**: an HTML block shows its preview with its scripts off.
 - **Check for Updates… in the Inteligir menu**: choose Check for updates in Settings › About, which also says when you're up to date.
