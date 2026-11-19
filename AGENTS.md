@@ -92,7 +92,8 @@ silicon, or Linux). The root `.env`, which bootstrap writes from
 `.env.example`, is the one env file you edit (restart `pnpm dev:web` after an
 edit); `pnpm db:start` writes local Postgres's URL to `.env.local`, which the
 app and every script read first. Worktrees share one local Postgres on 54622:
-bootstrap reuses it when it already answers. `curl localhost:5174/api/health`
+bootstrap reuses it when it already answers, naming it in the worktree's
+`.env.local`, and `pnpm --filter @repo/db status` says whether it does. `curl localhost:5174/api/health`
 answers 200 once the database does; `pnpm bootstrap --dry-run` prints the steps.
 
 ### Seeded login

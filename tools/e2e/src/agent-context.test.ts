@@ -182,10 +182,16 @@ test("the filing rules start from the starter's and save, Tidy my library files 
     `call organize_items ${JSON.stringify({ folder: { path: "Birds" }, ids: [heron.item.id] })}\ncontext`,
   );
   await expect(page.getByText("Filed items")).toBeVisible();
-  const { folders } = await library.organize.outline();
-  const birds = folders.find((folder) => folder.name === "Birds");
+
+  const birdsId = async () => {
+    const { folders } = await library.organize.outline();
+
+    return folders.find((folder) => folder.name === "Birds")?.id;
+  };
+
+  await expect.poll(birdsId).toBeDefined();
   const { fields } = await library.items.read({ id: heron.item.id });
-  expect(fields.folderId).toBe(birds?.id);
+  expect(fields.folderId).toBe(await birdsId());
   const [asked] = await textsOf(library, "user.message");
   expect(asked).toMatch(/^Tidy my library:[\s\S]*organize_items/u);
   const [reply] = await textsOf(library, "agent.message");

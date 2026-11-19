@@ -103,6 +103,19 @@ const IMPORT_WORKER_PLATFORM = {
   regex: REACT_OR_UI,
 };
 
+const NEW_ID = "apps/web/src/library/library/new-id.ts";
+
+const IMPORT_WORKER_WALL = {
+  group: ["../**", "!../library/new-id", "./import-run"],
+  message:
+    "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+};
+
+const NEW_ID_LEAF = {
+  message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
+  regex: "^\\.",
+};
+
 // WARNING: an override's options replace the base's, so each no-restricted-imports row restates the repo-wide rows
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
   "error",
@@ -316,6 +329,19 @@ export default defineConfig({
           ...LIBRARY_IMPORTS,
           SHELL_API,
           IMPORT_WORKER_PLATFORM,
+          IMPORT_WORKER_WALL,
+          HEADLESS_ALONE,
+        ]),
+      },
+    },
+    {
+      files: [NEW_ID],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          ...LIBRARY_IMPORTS,
+          SHELL_API,
+          IMPORT_WORKER_PLATFORM,
+          NEW_ID_LEAF,
           HEADLESS_ALONE,
         ]),
       },

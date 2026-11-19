@@ -59,20 +59,40 @@ const createEnv = () => {
   console.log("  ✓ .env created");
 };
 
+const postgresUrlIn = (name: string) =>
+  fs.existsSync(envFile(name))
+    ? parseEnv(fs.readFileSync(envFile(name), "utf-8")).POSTGRES_URL
+    : undefined;
+
 const postgresUrl = () => {
-  const fromFiles = [".env.local", ".env", ".env.example"].flatMap((name) =>
-    fs.existsSync(envFile(name))
-      ? [parseEnv(fs.readFileSync(envFile(name), "utf-8")).POSTGRES_URL]
-      : [],
-  );
+  const dotEnv = fs.existsSync(envFile(".env")) ? ".env" : ".env.example";
+  const named = process.env.POSTGRES_URL ?? postgresUrlIn(".env.local") ?? postgresUrlIn(dotEnv);
 
-  const url = [process.env.POSTGRES_URL, ...fromFiles].find((value) => value !== undefined);
+  if (named !== undefined) {
+    return { url: new URL(named), named: true };
+  }
 
-  if (url === undefined) {
+  const example = postgresUrlIn(".env.example");
+
+  if (example === undefined) {
     throw new Error("No POSTGRES_URL in the shell, .env.local, .env or .env.example.");
   }
 
-  return new URL(url) satisfies URL;
+  return { url: new URL(example), named: false };
+};
+
+const namePostgresUrl = (url: URL) => {
+  if (DRY_RUN) {
+    console.log(`  [dry-run] write POSTGRES_URL=${url.href} into .env.local`);
+
+    return;
+  }
+
+  const file = envFile(".env.local");
+  const kept = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
+  const separator = kept === "" || kept.endsWith("\n") ? "" : "\n";
+  fs.writeFileSync(file, `${kept}${separator}POSTGRES_URL=${url.href}\n`);
+  console.log("  ✓ .env.local names it");
 };
 
 const answers = async ({ hostname, port }: URL) => {
@@ -91,10 +111,14 @@ const answers = async ({ hostname, port }: URL) => {
 
 const startPostgres = async () => {
   console.log("\nStarting local Postgres...");
-  const url = postgresUrl();
+  const { url, named } = postgresUrl();
 
   if (await answers(url)) {
     console.log(`  ✓ Postgres already answers on ${url.host}, reused`);
+
+    if (!named) {
+      namePostgresUrl(url);
+    }
 
     return;
   }

@@ -52,8 +52,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   deploys, and `verify:affected` lints and knips a change in any workspace,
   which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
-  fails without it.** Why: a bump fails the install until the patch is re-cut
-  or dropped. `patches/` (micromark:
+  fails without it; the release it keys is pinned exactly**, a catalog row or,
+  for one no manifest names, an override. Why: a bump fails the install until
+  the patch is re-cut or dropped, and a caret would let a resolution without the
+  lockfile take the next release and fail on the unused patch. `patches/` (micromark:
   `packages/editor/src/headless/markdown/parse-cost.test.ts`;
   @platejs/core: `packages/editor/src/typing-budget.test.tsx`; react-dom:
   `packages/editor/src/commit-selection-walk.test.tsx`; next, its react-dom:
@@ -113,6 +115,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   (`restrictedImports`), each row a regex rather than a group. Why: an
   override's options replace the base's, and a group matches gitignore-style,
   so `react` would also refuse `@platejs/react`. `oxlint.config.ts`.
+- **The import worker leaves `import/` only for `library/new-id.ts`, which
+  takes the worker's row too and imports none of the app.** Why: a row reads a
+  file's own imports, not theirs, so only a leaf that is itself walled keeps
+  React out of what the worker reaches. `oxlint.config.ts`.
 - **Rules off, and why**: `no-await-in-loop` (ordered awaits are deliberate: the
   outbox sends oldest first, an import lands a batch at a time),
   `typescript/consistent-return` (it flags the exhaustive switch tsc checks),
