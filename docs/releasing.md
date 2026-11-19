@@ -156,8 +156,9 @@ at it. Once:
    `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET`, `gh secret set SMOKE_EMAIL`,
    `gh secret set SMOKE_PASSWORD`. On CI a leg that cannot run fails, so a
    missing secret fails the check rather than passing it unsigned.
-3. **The checks.** Settings › Environments › Production keeps automatic
-   aliasing on. After a push whose Smoke run reported, Settings › Build and
+3. **The checks.** Settings › Git turns on repository dispatch events, which
+   is how Vercel sends `vercel.deployment.ready` to start the Smoke run, and
+   Settings › Environments › Production keeps automatic aliasing on. After a push whose Smoke run reported, Settings › Build and
    Deployment › Deployment Checks › Add Checks › GitHub requires `check` and
    `Vercel - inteligir: smoke`.
 
