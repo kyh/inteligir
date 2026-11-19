@@ -30,7 +30,7 @@ pnpm db:start                                # local Postgres 17 on 54622, its p
 pnpm db:push                                 # sql/extensions.sql, then drizzle-kit push
 pnpm --filter @repo/db push:check            # a second push must plan nothing
 pnpm --filter @repo/db studio                # Drizzle Studio on local Postgres
-pnpm --filter @repo/db reset                 # local Postgres emptied, then pushed
+pnpm --filter @repo/db reset                 # the local Postgres POSTGRES_URL names emptied, then pushed; starts one only if none answers
 pnpm --filter @repo/db status               # whether Postgres answers where POSTGRES_URL points, from any worktree
 pnpm --filter @repo/db stop                 # local Postgres stopped, from the checkout that started it
 ```
