@@ -21,14 +21,13 @@ const SERVER_ONLY = {
   message: "MCP and OpenAPI meta live in @repo/service alone",
   regex: "^(?:@orpc/(?:openapi|mcp)|@modelcontextprotocol/server)(?:/|$)",
 };
-const REACT_OR_UI = "^(?:react(?:-dom)?|@repo/ui)(?:/|$)";
 // what only a page loads: React, a package's React half (`platejs/react`, `@base-ui/react`,
 // `lucide-react`), @repo/ui, a stylesheet and the renderers katex and pele
 const PAGE_ONLY =
   "^(?:react(?:-dom)?(?:/|$)|@repo/ui(?:/|$)|lucide-react|katex|pele(?:/|$))|/react(?:/|$)|\\.css$";
 const SERVICE_PLATFORM = {
-  message: "@repo/service runs on the server: no DOM and no React",
-  regex: REACT_OR_UI,
+  message: "@repo/service runs on the server: no DOM, no React half and no stylesheet",
+  regex: PAGE_ONLY,
 };
 // Expo's DOM bundle transpiles classes, and oRPC's builder dies under it at boot
 const NO_ORPC_IN_PAGE = {
