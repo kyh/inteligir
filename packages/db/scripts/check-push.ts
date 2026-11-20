@@ -1,47 +1,22 @@
-import { spawnSync } from "node:child_process";
-import { z } from "zod";
+import { fileURLToPath } from "node:url";
+import { push } from "drizzle-kit/cli";
 
-const reportSchema = z.looseObject({ status: z.string() });
-
-const dbRoot = new URL("..", import.meta.url);
-
-const reportOf = (output: string) => {
-  const line = output
-    .split("\n")
-    .map((text) => text.trim())
-    .findLast((text) => text.startsWith("{"));
-
-  if (line === undefined) {
-    return null;
-  }
-
-  try {
-    const parsed = reportSchema.safeParse(JSON.parse(line));
-
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-};
-
-const run = spawnSync("drizzle-kit", ["push", "--explain", "--output", "json"], {
-  cwd: dbRoot,
-  encoding: "utf-8",
-  stdio: ["ignore", "pipe", "inherit"],
+const report = await push({
+  config: fileURLToPath(new URL("../drizzle.config.ts", import.meta.url)),
+  explain: true,
 });
 
-const output = run.stdout.trim();
-const report = reportOf(output);
-
-if (run.status === 0 && report?.status === "no_changes") {
+if (report.status === "no_changes") {
   console.log("Schema push is idempotent: a second push changes nothing.");
 } else {
   console.error(
     [
-      `A second schema push would not be a no-op (drizzle-kit exited ${String(run.status ?? run.signal)}, status ${report?.status ?? "unknown"}).`,
+      `A second schema push would not be a no-op (status ${report.status}).`,
       "What it planned:",
-      report === null ? output || "(no output)" : JSON.stringify(report, null, 2),
+      JSON.stringify(report, null, 2),
     ].join("\n"),
   );
-  process.exitCode = 1;
 }
+
+// WARNING: drizzle-kit's push keeps its connection open, so only an exit ends the script
+process.exit(report.status === "no_changes" ? 0 : 1);
