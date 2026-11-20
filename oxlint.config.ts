@@ -182,7 +182,7 @@ export default defineConfig({
   extends: [core, react, antiSlop, landmines],
   jsPlugins: landmines.jsPlugins,
   options: { denyWarnings: true, reportUnusedDisableDirectives: "error", typeAware: true },
-  ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".codex", ".wxt"],
+  ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".wxt"],
   overrides: [
     {
       files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
