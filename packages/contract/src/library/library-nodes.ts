@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { isIsoDate } from "../iso-date";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
-import { SHA256_HEX_RE } from "./library-item";
+import { shaSchema } from "./library-item";
 
 const LIBRARY_SECTIONS = ["note", "article"] as const;
 export const librarySectionSchema = z.enum(LIBRARY_SECTIONS);
@@ -49,7 +49,6 @@ export const alertVariantSchema = z.enum(ALERT_VARIANTS);
 export type AlertVariant = z.infer<typeof alertVariantSchema>;
 
 const isoDate = z.string().refine(isIsoDate, { error: "is not a calendar day" });
-const sha256Hex = z.string().regex(SHA256_HEX_RE);
 
 const oneSource = (value: { sha?: string | undefined; url?: string | undefined }) =>
   (value.sha === undefined) !== (value.url === undefined);
@@ -240,7 +239,7 @@ const imageProps = z.strictObject({
   caption: z.array(libraryTextSchema).optional(),
   children: voidChildren,
   indent: listIndent,
-  sha: sha256Hex.optional(),
+  sha: shaSchema.optional(),
   title: z.string().optional(),
   type: z.literal("img"),
   url: z.string().min(1).optional(),
@@ -251,7 +250,7 @@ const fileProps = z.strictObject({
   children: voidChildren,
   indent: listIndent,
   name: z.string().min(1).optional(),
-  sha: sha256Hex.optional(),
+  sha: shaSchema.optional(),
   type: z.literal("file"),
   url: z.string().min(1).optional(),
 });
@@ -259,7 +258,7 @@ const fileProps = z.strictObject({
 const videoProps = z.strictObject({
   children: voidChildren,
   indent: listIndent,
-  sha: sha256Hex.optional(),
+  sha: shaSchema.optional(),
   type: z.literal("video"),
   url: z.string().min(1).optional(),
 });

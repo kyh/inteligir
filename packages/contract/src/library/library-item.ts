@@ -7,9 +7,9 @@ import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
 
 export const SHA256_HEX_RE = /^[0-9a-f]{64}$/u;
-const sha256 = z.string().regex(SHA256_HEX_RE);
+export const shaSchema = z.string().regex(SHA256_HEX_RE);
 
-const instant = z.number().int().nonnegative();
+export const instant = z.number().int().nonnegative();
 
 export const ITEM_FIELD_CAPS = {
   description: 10_000,
@@ -64,14 +64,14 @@ const reading = z.discriminatedUnion("state", [
 export const libraryItemFieldsSchema = z.strictObject({
   aliases: listOf(text),
   author: text.nullable(),
-  coverSha: sha256.nullable(),
+  coverSha: shaSchema.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
   folderId: z.uuid().nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
   originalName: fileNameSchema.nullable(),
-  originalSha: sha256.nullable(),
+  originalSha: shaSchema.nullable(),
   pinnedAt: instant.nullable(),
   properties,
   published: text.nullable(),

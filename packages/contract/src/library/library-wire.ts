@@ -4,21 +4,19 @@ import { itemScopeSchema, LIBRARY_SELECTION_MAX, libraryScopeSchema } from "../l
 import { ITEM_KINDS } from "../items/item-kind";
 import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
-import { libraryItemFieldsSchema, SHA256_HEX_RE } from "./library-item";
+import { instant, libraryItemFieldsSchema } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
 import { listingSortSchema } from "./listing-sort";
 
 export const idSchema = z.uuid();
 export const newIdSchema = z.uuidv7();
 export const opIdSchema = z.uuid();
-export const shaSchema = z.string().regex(SHA256_HEX_RE);
 const eventIdSchema = z.string().min(1).max(128);
 
-const instant = z.number().int().nonnegative();
 export const seqSchema = z.number().int().nonnegative();
 const isoInstant = z.iso.datetime();
 export const isoDate = z.iso.date();
-const count = z.number().int().nonnegative();
+export const count = z.number().int().nonnegative();
 
 export const cursorSchema = z.number().int().nonnegative();
 

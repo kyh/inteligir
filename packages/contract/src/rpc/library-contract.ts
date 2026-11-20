@@ -2,7 +2,7 @@ import { eventIterator } from "@orpc/contract";
 import { z } from "zod";
 
 import { propertyOpSchema } from "../library/field-ops";
-import { importedFieldsSchema, libraryItemFieldsSchema } from "../library/library-item";
+import { importedFieldsSchema, libraryItemFieldsSchema, shaSchema } from "../library/library-item";
 import { storableBlockSchema } from "../library/library-nodes";
 import { listingSortSchema } from "../library/listing-sort";
 
@@ -23,6 +23,7 @@ import {
   bodyVersionSchema,
   bodyWriteSchema,
   BULK_ITEMS_MAX,
+  count,
   cursorSchema,
   folderCountSchema,
   folderNameSchema,
@@ -50,7 +51,6 @@ import {
   responseFormatSchema,
   searchHitSchema,
   seqSchema,
-  shaSchema,
   sweptSchema,
   bodyBlockSchema,
   tagCountSchema,
@@ -67,7 +67,6 @@ const cursor = cursorSchema.default(0);
 const nextCursor = cursorSchema.nullable();
 const responseFormat = responseFormatSchema.default("concise");
 const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
-const count = z.number().int().nonnegative();
 
 const landed = z.object({ item: liveItemRowSchema });
 const openItemRow = liveItemRowSchema.extend({ bodyVersion: bodyVersionSchema });

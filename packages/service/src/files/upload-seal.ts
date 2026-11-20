@@ -1,4 +1,4 @@
-import { shaSchema } from "@repo/contract/library/library-wire";
+import { shaSchema } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
 import { signerFor } from "./file-keys";

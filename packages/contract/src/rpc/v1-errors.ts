@@ -2,7 +2,8 @@ import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
-import { editRefusalSchema, shaSchema } from "../library/library-wire";
+import { shaSchema } from "../library/library-item";
+import { editRefusalSchema } from "../library/library-wire";
 
 export const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
