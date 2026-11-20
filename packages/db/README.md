@@ -19,7 +19,7 @@ src/run-databases.ts       a run's template database pushed once, its clones and
 src/test-database*.ts      dbSuite, and the vitest globalSetup and setup file that give each suite file a database
 sql/extensions.sql         the extensions push applies before the schema
 supabase/                  local Supabase: Postgres and its pooler alone, natively, no Docker
-scripts/                   push, its second-push check, and status
+scripts/                   push, its second-push check, reset and status
 drizzle.config.ts          Postgres, on POSTGRES_URL_NON_POOLING ?? POSTGRES_URL
 ```
 
