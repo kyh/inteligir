@@ -27,7 +27,7 @@ const MediaCard = ({
     data-slot="media-card"
     data-selected={selected ? "" : undefined}
     className={cn(
-      "group/card flex h-full min-w-0 cursor-default flex-col overflow-hidden rounded-lg border border-line bg-surface outline-none select-none",
+      "group/card flex h-full min-w-0 cursor-default flex-col overflow-hidden rounded-lg border border-border bg-background outline-none select-none",
       "transition-shadow duration-100 hover:shadow-surface-2",
       "focus-visible:ring-2 focus-visible:ring-focus-ring",
       selected && "border-primary/60 ring-2 ring-primary/50",
@@ -74,7 +74,10 @@ const MediaCardTitle = ({
   <p
     ref={ref}
     data-slot="media-card-title"
-    className={cn("m-0 line-clamp-2 text-subtitle font-medium break-words text-ink", className)}
+    className={cn(
+      "m-0 line-clamp-2 text-subtitle font-medium break-words text-foreground",
+      className,
+    )}
     {...props}
   />
 );
@@ -148,7 +151,7 @@ const MediaCardSkeleton = ({
     aria-busy
     data-slot="media-card-skeleton"
     className={cn(
-      "flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-line",
+      "flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border",
       className,
     )}
     {...props}

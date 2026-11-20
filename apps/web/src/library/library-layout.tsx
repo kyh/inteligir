@@ -39,7 +39,7 @@ const WorkspaceLayout = () => {
         covered={settings}
       />
       {settings ? (
-        <div className="fixed inset-0 bg-surface text-ink">
+        <div className="fixed inset-0 bg-background text-foreground">
           <SettingsPage />
         </div>
       ) : null}

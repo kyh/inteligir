@@ -158,7 +158,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
           <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
             <Rail scope={scope} itemOpen={openItem !== null} />
           </Sidebar>
-          <SidebarInset className="relative bg-surface">
+          <SidebarInset className="relative bg-background">
             <SidebarProvider
               className="h-full min-h-0 flex-1"
               open={panelOpen}
@@ -168,7 +168,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
               defaultWidth={`${String(panelWidth)}px`}
               onWidthCommitted={setPanelWidth}
             >
-              <SidebarInset className="relative bg-surface">
+              <SidebarInset className="relative bg-background">
                 {openItem === null ? (
                   <LibraryView
                     scope={scope}
@@ -202,7 +202,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
                 {dropInto === null ? null : (
                   <div
                     aria-live="polite"
-                    className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/50 bg-surface/80 text-title font-medium text-ink"
+                    className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/50 bg-background/80 text-title font-medium text-foreground"
                   >
                     Drop to save to {dropInto}
                   </div>

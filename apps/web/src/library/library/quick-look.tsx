@@ -35,7 +35,9 @@ const Look = ({ row }: { row: ListedItem }) => {
       </div>
       {notice === null ? null : <p className="m-0 text-body text-muted-foreground">{notice}</p>}
       {row.card.preview === "" ? null : (
-        <p className="m-0 text-subtitle break-words text-ink-2 select-text">{row.card.preview}</p>
+        <p className="m-0 text-subtitle break-words text-muted-foreground select-text">
+          {row.card.preview}
+        </p>
       )}
       {row.card.outline.length === 0 ? null : (
         <ul className="m-0 list-none p-0 text-body text-muted-foreground">

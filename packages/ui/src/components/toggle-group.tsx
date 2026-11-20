@@ -21,7 +21,7 @@ const ToggleChip = ({ className, ...props }: ComponentProps<typeof TogglePrimiti
   <TogglePrimitive
     data-slot="toggle-chip"
     className={cn(
-      "inline-flex h-6 items-center gap-1 rounded-full border border-line px-2.5 text-body whitespace-nowrap text-muted-foreground outline-none select-none",
+      "inline-flex h-6 items-center gap-1 rounded-full border border-border px-2.5 text-body whitespace-nowrap text-muted-foreground outline-none select-none",
       "transition-colors duration-100 hover:bg-hover hover:text-foreground",
       "focus-visible:ring-2 focus-visible:ring-focus-ring",
       "data-pressed:border-transparent data-pressed:bg-foreground data-pressed:text-background",

@@ -18,7 +18,7 @@ const LoaderGrid = () => (
     {DOTS.map(({ id, delayMs }) => (
       <span
         key={id}
-        className="bui-pixel size-[4px] rounded-full bg-ink opacity-[0.15]"
+        className="bui-pixel size-[4px] rounded-full bg-foreground opacity-[0.15]"
         style={{ animationDelay: `${String(delayMs)}ms` }}
       />
     ))}

@@ -46,7 +46,7 @@ const Thinking = ({
           width="16"
           height="16"
           viewBox="0 0 24 24"
-          fill={working ? "var(--ink-2)" : "var(--ink-3)"}
+          fill={working ? "var(--muted-foreground)" : "var(--ink-3)"}
         >
           <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
         </svg>
@@ -56,7 +56,7 @@ const Thinking = ({
               {label}
             </span>
           ) : (
-            <span className="animate-in fade-in text-subtitle font-medium whitespace-nowrap text-ink-2">
+            <span className="animate-in fade-in text-subtitle font-medium whitespace-nowrap text-muted-foreground">
               {doneLabel}
             </span>
           )}
@@ -70,7 +70,7 @@ const Thinking = ({
 
       <Collapse open={expanded}>
         <div className="relative mt-1 ml-[5px] pl-4">
-          <span aria-hidden className="absolute -top-2 bottom-2.5 left-[3px] w-px bg-line" />
+          <span aria-hidden className="absolute -top-2 bottom-2.5 left-[3px] w-px bg-border" />
           <div
             data-slot="thinking-trace"
             className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
@@ -98,7 +98,7 @@ const ThinkingReasoning = ({
     )}
     {...props}
   >
-    <span className="min-w-0 truncate text-body leading-relaxed whitespace-normal text-ink-2">
+    <span className="min-w-0 truncate text-body leading-relaxed whitespace-normal text-muted-foreground">
       {children}
     </span>
   </div>

@@ -37,7 +37,7 @@ const ToolChipList = ({
           setOpen(!open);
         }}
         data-slot="tool-chip-list-trigger"
-        className="-mx-1.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-1 text-body text-ink-2 transition-colors duration-100 hover:bg-hover"
+        className="-mx-1.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-1 text-body text-muted-foreground transition-colors duration-100 hover:bg-hover"
       >
         <ChevronDownIcon
           size={12}
@@ -114,12 +114,15 @@ const ToolChip = ({
           ) : null}
         </span>
         <span
-          className={cn("shrink-0 text-body font-medium", failed ? "text-destructive" : "text-ink")}
+          className={cn(
+            "shrink-0 text-body font-medium",
+            failed ? "text-destructive" : "text-foreground",
+          )}
         >
           {label}
         </span>
         {use.kind === "running" ? (
-          <span className="inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2">
+          <span className="inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-muted-foreground">
             …
           </span>
         ) : null}
@@ -127,10 +130,10 @@ const ToolChip = ({
 
       {failed ? (
         <Collapse open={open} innerClassName="min-h-0">
-          <div className="mt-0.5 mb-1 ml-2 flex flex-col border-l border-line py-0.5 pl-3.5">
+          <div className="mt-0.5 mb-1 ml-2 flex flex-col border-l border-border py-0.5 pl-3.5">
             <span
               data-slot="tool-chip-detail"
-              className="truncate text-caption leading-[1.6] text-ink-2"
+              className="truncate text-caption leading-[1.6] text-muted-foreground"
             >
               {use.message}
             </span>

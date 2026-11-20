@@ -48,8 +48,8 @@ const MonogramTile = ({ label }: { label: string }) => {
       aria-hidden="true"
       className="flex size-full items-center justify-center text-display font-semibold"
       style={{
-        backgroundColor: `color-mix(in srgb, hsl(${String(hue)} 55% 50%) 16%, var(--surface))`,
-        color: `color-mix(in srgb, hsl(${String(hue)} 55% 40%) 75%, var(--ink))`,
+        backgroundColor: `color-mix(in srgb, hsl(${String(hue)} 55% 50%) 16%, var(--background))`,
+        color: `color-mix(in srgb, hsl(${String(hue)} 55% 40%) 75%, var(--foreground))`,
       }}
     >
       {label.slice(0, 1).toLocaleUpperCase()}
@@ -133,7 +133,7 @@ const CoverArea = ({ row }: { row: ListedItem }) => {
         <FileTextIcon className="size-8 text-muted-foreground/60" strokeWidth={1.25} />
       </div>
     ) : (
-      <p className="m-0 line-clamp-6 px-3 py-2.5 text-body break-words text-ink-2">
+      <p className="m-0 line-clamp-6 px-3 py-2.5 text-body break-words text-muted-foreground">
         {row.card.preview}
       </p>
     );
