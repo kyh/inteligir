@@ -13,7 +13,8 @@ device draws the same rows, words and sends its own way (the tab with
 ```
 src/                one module per concern: what moved and what it reads again, a listing's pages,
                     a note's read and save, the labels, a thread's entries, stream and send, the
-                    agent's holds on an open note, the waiting saves, and a serial lock
+                    agent's holds on an open note, the waiting saves, a pass run one at a time,
+                    and a serial lock
 src/test-support/   the key-value store a suite drives
 ```
 

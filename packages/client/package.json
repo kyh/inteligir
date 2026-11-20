@@ -12,6 +12,7 @@
     "./library-labels": "./src/library-labels.ts",
     "./listing-view": "./src/listing-view.ts",
     "./note-bodies": "./src/note-bodies.ts",
+    "./one-at-a-time": "./src/one-at-a-time.ts",
     "./serial-lock": "./src/serial-lock.ts",
     "./test-support/memory-kv.test-utils": "./src/test-support/memory-kv.test-utils.ts",
     "./thread-entries": "./src/thread-entries.ts",

@@ -1,3 +1,4 @@
+import { oneAtATime } from "@repo/client/one-at-a-time";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
@@ -43,30 +44,10 @@ const stateOf = (note: OpenNote | null) => {
   return (note.unsaved() ? "editing" : "reading") satisfies NoteState;
 };
 
-const oneReadAtATime = (read: () => Promise<void>) => {
-  let reading = false;
-  let readAgain = false;
-
-  const run = async () => {
-    if (reading) {
-      readAgain = true;
-
-      return;
-    }
-
-    reading = true;
-
+const oneReadAtATime = (read: () => Promise<void>) =>
+  oneAtATime(async () => {
     await Promise.allSettled([read()]);
-    reading = false;
-
-    if (readAgain) {
-      readAgain = false;
-      await run();
-    }
-  };
-
-  return run;
-};
+  });
 
 // oxlint-disable-next-line no-empty-function -- the touch profile draws no Ask agent, and a tag chip does nothing on the phone
 const nothingToDo = () => {};

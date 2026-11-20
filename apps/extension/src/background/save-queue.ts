@@ -1,4 +1,5 @@
-import { oneAtATime, waitingSaves } from "@repo/client/waiting-saves";
+import { oneAtATime } from "@repo/client/one-at-a-time";
+import { waitingSaves } from "@repo/client/waiting-saves";
 import type { KvStorage, WaitingSave } from "@repo/client/waiting-saves";
 import { outcomeOf } from "@repo/contract/rpc/call-outcome";
 import type { CallOutcome } from "@repo/contract/rpc/call-outcome";

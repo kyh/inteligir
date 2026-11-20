@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { memoryKv } from "./test-support/memory-kv.test-utils";
 import type { MemoryKv } from "./test-support/memory-kv.test-utils";
-import { oneAtATime, savesWaiting, waitingSaves } from "./waiting-saves";
+import { savesWaiting, waitingSaves } from "./waiting-saves";
 import type { WaitingSave } from "./waiting-saves";
 
 const NOW = 1_700_000_000_000;
@@ -266,42 +266,4 @@ describe("a waiting save", () => {
 
 test("counts the saves that wait in one phrase for every device", () => {
   expect([1, 2].map(savesWaiting)).toStrictEqual(["1 save waiting", "2 saves waiting"]);
-});
-
-describe(oneAtATime, () => {
-  it("runs one pass at a time, and exactly one more for every ask made while one ran", async () => {
-    const holds = [deferred(), deferred()];
-    const began: string[] = [];
-
-    const pass = oneAtATime(async (asker: string) => {
-      began.push(asker);
-      await holds[began.length - 1]?.promise;
-    });
-
-    const asks = [pass("first"), pass("second"), pass("third"), pass("fourth")];
-    expect(began).toStrictEqual(["first"]);
-    holds[0]?.resolve();
-    await expect.poll(() => began).toStrictEqual(["first", "first"]);
-    holds[1]?.resolve();
-    await Promise.all(asks);
-    expect(began).toHaveLength(2);
-  });
-
-  it("starts over at the next ask after a pass that failed", async () => {
-    let fails = true;
-    let ran = 0;
-
-    const pass = oneAtATime(async () => {
-      ran += 1;
-
-      if (fails) {
-        throw new Error("the store would not open");
-      }
-    });
-
-    await expect(pass()).rejects.toThrow(/would not open/u);
-    fails = false;
-    await pass();
-    expect(ran).toBe(2);
-  });
 });

@@ -1,4 +1,5 @@
-import { oneAtATime, waitingSaves } from "@repo/client/waiting-saves";
+import { oneAtATime } from "@repo/client/one-at-a-time";
+import { waitingSaves } from "@repo/client/waiting-saves";
 import type { KvStorage, WaitingSave } from "@repo/client/waiting-saves";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
