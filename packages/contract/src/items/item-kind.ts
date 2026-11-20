@@ -84,7 +84,7 @@ export const fileKindOf = (path: string) => {
 export const keptFileType = (handed: string) =>
   (handed === "" ? UNKNOWN_FILE_TYPE : handed) satisfies string;
 
-export const COVERS_DIR = "assets/covers";
+export const COVERS_DIR = `${DEFAULT_ATTACHMENTS_FOLDER}/covers`;
 
 const CONTENT_ADDRESS_HEX_CHARS = 16;
 
