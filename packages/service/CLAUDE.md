@@ -105,6 +105,11 @@ DOM (`oxlint.config.ts`).
   and a body past Vercel's 4.5 MB.** One request is one call of the budget, and
   a browser page can't spend a person's token.
   `packages/service/src/mcp/connector-server.ts`.
+- **A 2026-07-28 request goes to the SDK's `createMcpHandler` with `legacy:
+  "reject"`, a 2025-era one to a stateless transport of ours answering JSON.**
+  The SDK's own fallback (`legacy: "stateless"`) answers every 2025 call as an
+  event stream, and the connector streams nothing.
+  `packages/service/src/mcp/connector-server.ts`.
 - **The registration hour is Better Auth's longest window, so its prune of
   `rate_limit` waits an hour.** The app's own windows stay within 60 s, pruned
   only after they lapse. `packages/service/src/auth/oauth.ts`.
