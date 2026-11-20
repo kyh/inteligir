@@ -16,7 +16,7 @@ const showTag = vi.fn<(tag: string) => void>();
 
 beforeEach(() => {
   showTag.mockClear();
-  installFakeEditorHost({ agent: { askAboutSelection: vi.fn<(text: string) => void>(), showTag } });
+  installFakeEditorHost({ showTag });
 });
 
 const renderValue = (value: Value) => {

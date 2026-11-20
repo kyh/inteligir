@@ -2,13 +2,7 @@ import { fileSha } from "@repo/contract/library/file-sha";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
-import type {
-  AgentRequestActions,
-  EditorHostIo,
-  ItemActions,
-  LinkTarget,
-  Reach,
-} from "@repo/editor/host-io";
+import type { EditorHostIo, ItemActions, LinkTarget, Reach } from "@repo/editor/host-io";
 
 import { memoryNotes } from "./memory-notes.test-utils";
 import type { MemoryNotes } from "./memory-notes.test-utils";
@@ -26,7 +20,7 @@ export interface FakeEditorHostOptions {
   readonly fileMaxBytes?: number;
   readonly savesFiles?: boolean;
   readonly createNote?: ItemActions["createNote"];
-  readonly agent?: AgentRequestActions;
+  readonly showTag?: ItemActions["showTag"];
   readonly offline?: boolean;
   readonly notes?: MemoryNotes;
 }
@@ -68,6 +62,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
 
       return await Promise.resolve(`note-${String(made)}`);
     },
+    showTag: options.showTag ?? ignore,
   };
 
   setLibraryTitles(options.titles ?? []);
@@ -113,7 +108,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
 
   installEditorHost({
     actions: {
-      agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
+      agent: { askAboutSelection: ignore },
       items,
     },
     io,

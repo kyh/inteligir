@@ -510,7 +510,7 @@ describe("where the tab is", () => {
     await screen.findByRole("textbox", { name: "Title" });
 
     act(() => {
-      getEditorHostActions().agent.showTag("field");
+      getEditorHostActions().items.showTag("field");
     });
 
     await shows("#field");

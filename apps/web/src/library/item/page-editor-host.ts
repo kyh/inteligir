@@ -100,9 +100,6 @@ export const installPageEditorHost = ({
           workspace.compose({ kind: "asked", passage: selection });
           workspace.revealPanel("agent");
         },
-        showTag: (tag) => {
-          goes.showScope({ kind: "tag", tag });
-        },
       },
       items: {
         createNote: async (note) => {
@@ -117,6 +114,9 @@ export const installPageEditorHost = ({
             into: { folderId: beside?.fields.folderId ?? null, tags: [] },
             note,
           });
+        },
+        showTag: (tag) => {
+          goes.showScope({ kind: "tag", tag });
         },
       },
     },

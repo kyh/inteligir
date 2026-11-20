@@ -21,7 +21,7 @@ export const TagChipLeaf = (props: PlateLeafProps) => {
         ...props.attributes,
         onClick: () => {
           if (tag !== "" && !hasRangeSelection()) {
-            getEditorHostActions().agent.showTag(tag);
+            getEditorHostActions().items.showTag(tag);
           }
         },
         title: `Show items tagged #${tag}`,

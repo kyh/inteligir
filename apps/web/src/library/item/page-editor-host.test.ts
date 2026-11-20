@@ -201,7 +201,7 @@ describe("the page's editor host", () => {
     const { goes } = install(refused);
 
     getEditorHostIo().openItem(PLANS);
-    getEditorHostActions().agent.showTag("field");
+    getEditorHostActions().items.showTag("field");
 
     expect(goes.openItem).toHaveBeenCalledExactlyOnceWith(PLANS);
     expect(goes.showScope).toHaveBeenCalledExactlyOnceWith({ kind: "tag", tag: "field" });

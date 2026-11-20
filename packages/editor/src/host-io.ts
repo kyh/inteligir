@@ -77,10 +77,8 @@ export interface NoteHost {
   readonly reach: Reach;
 }
 
-export interface AgentRequestActions {
+interface AgentRequestActions {
   askAboutSelection: (selectionText: string) => void;
-  /** The rail shows that tag's notes. */
-  showTag: (tag: string) => void;
 }
 
 interface NewNote {
@@ -90,6 +88,7 @@ interface NewNote {
 
 export interface ItemActions {
   readonly createNote: (note: NewNote) => Promise<string>;
+  readonly showTag: (tag: string) => void;
 }
 
 export interface EditorHostActions {

@@ -131,10 +131,11 @@ export const installPageHost = (first: PageProps) => {
 
   installEditorHost({
     actions: {
-      agent: { askAboutSelection: nothingToDo, showTag: nothingToDo },
+      agent: { askAboutSelection: nothingToDo },
       items: {
         createNote: async (made) =>
           await props.createNote({ blocks: [...made.blocks], title: made.title }),
+        showTag: nothingToDo,
       },
     },
     io: {
