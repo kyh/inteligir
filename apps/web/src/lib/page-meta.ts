@@ -55,7 +55,8 @@ export const PAGES = {
     title: "Privacy Policy",
   },
   terms: {
-    description: "The terms for using the Inteligir website, the Mac app and the iPhone app.",
+    description:
+      "The terms for using Inteligir: the website, your library in a browser, the Mac and iPhone apps, the browser extension and the connector.",
     image: card("terms", "Inteligir terms of use"),
     kind: "legal",
     path: "/terms",
