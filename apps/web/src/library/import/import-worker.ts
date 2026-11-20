@@ -22,18 +22,14 @@ const sessionEnded = (end: SessionEnd) => {
 self.addEventListener(
   "message",
   (event) => {
-    const ask = importAskSchema.safeParse(event.data);
-
-    if (!ask.success) {
-      return;
-    }
+    const ask = importAskSchema.parse(event.data);
 
     const transport: V1Transport = {
       fetch: async (request) => await fetch(request),
       origin: self.location.origin,
     };
 
-    void readImport(ask.data, importCellOver(transport, sessionEnded), tell);
+    void readImport(ask, importCellOver(transport, sessionEnded), tell);
   },
   { once: true },
 );
