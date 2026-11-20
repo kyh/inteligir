@@ -10,6 +10,10 @@ export interface InfoFolder {
 }
 
 const folderPath = (folders: readonly InfoFolder[], folderId: string | null) => {
+  if (folderId === null) {
+    return "Unsorted";
+  }
+
   const names: string[] = [];
   let at = folders.find((folder) => folder.id === folderId);
 
@@ -19,12 +23,12 @@ const folderPath = (folders: readonly InfoFolder[], folderId: string | null) => 
     at = folders.find((folder) => folder.id === parentId);
   }
 
-  return names.length === 0 ? "Unsorted" : names.join(" / ");
+  return names.length === 0 ? "A folder not here yet" : names.join(" / ");
 };
 
 const rowsOf = (fields: LibraryItemFields, folders: readonly InfoFolder[]) =>
   [
-    { label: "Link", value: fields.url },
+    { label: "Address", value: fields.url },
     { label: "Site", value: fields.site },
     { label: "Saved", value: new Date(fields.savedAt).toLocaleString() },
     { label: "Kind", value: KIND_LABELS[fields.kind] },
