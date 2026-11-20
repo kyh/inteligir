@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { JsonLd } from "#components/json-ld";
+import { SiteHeader } from "#components/site-header";
 import { SiteProviders } from "#components/site-providers";
 import { siteConfig } from "#lib/site-config";
 import { siteGraph } from "#lib/structured-data";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 const SiteLayout = ({ children }: LayoutProps<"/">) => (
   <SiteProviders>
     <JsonLd graph={siteGraph()} />
+    <SiteHeader />
     {children}
   </SiteProviders>
 );

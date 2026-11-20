@@ -5,7 +5,6 @@ import type { ExtraProps } from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
-import { SiteHeader } from "#components/site-header";
 import { siteConfig } from "#lib/site-config";
 
 const WideTable = ({ node: _node, ...props }: ComponentProps<"table"> & ExtraProps) => (
@@ -15,21 +14,18 @@ const WideTable = ({ node: _node, ...props }: ComponentProps<"table"> & ExtraPro
 );
 
 export const MarkdownPage = ({ markdown }: { markdown: string }) => (
-  <>
-    <SiteHeader />
-    <main className="mx-auto w-full max-w-2xl px-6 pt-16 pb-24">
-      <Link href="/" className="text-sm font-medium tracking-tight">
-        {siteConfig.name}
-      </Link>
-      <article className="typeset">
-        <Markdown
-          components={{ table: WideTable }}
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeSlug]}
-        >
-          {markdown}
-        </Markdown>
-      </article>
-    </main>
-  </>
+  <main className="mx-auto w-full max-w-2xl px-6 pt-16 pb-24">
+    <Link href="/" className="text-sm font-medium tracking-tight">
+      {siteConfig.name}
+    </Link>
+    <article className="typeset">
+      <Markdown
+        components={{ table: WideTable }}
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSlug]}
+      >
+        {markdown}
+      </Markdown>
+    </article>
+  </main>
 );

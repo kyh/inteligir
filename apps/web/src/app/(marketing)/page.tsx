@@ -5,7 +5,6 @@ import type { ExtraProps } from "react-markdown";
 
 import { HeroOrb } from "#components/hero-orb";
 import { JsonLd } from "#components/json-ld";
-import { SiteHeader } from "#components/site-header";
 import { PAGES } from "#lib/page-meta";
 import { pageMetadata } from "#lib/page-metadata";
 import { siteConfig } from "#lib/site-config";
@@ -41,7 +40,6 @@ const UntabbableAnchor = ({
 const HomePage = () => (
   <>
     <JsonLd graph={pageGraph(PAGES.home)} />
-    <SiteHeader />
     <main className="flex min-h-dvh w-full flex-col">
       <section className="sr-only">
         <Markdown components={{ a: UntabbableAnchor }}>{homeMarkdown}</Markdown>
