@@ -236,10 +236,6 @@ export const fileReadRoute = async (request: Request) => {
       return rpcRefusal(admission.refusal);
     }
 
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return plainText(405, "A file is read here.", { allow: "GET, HEAD" });
-    }
-
     const { accountId, actor } = admission.principal;
 
     const [held, name] = await Promise.all([

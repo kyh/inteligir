@@ -266,21 +266,18 @@ dbSuite("a file's read", () => {
     expect(held.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("refuses an old build, no session, a name that is no sha and any other method", async () => {
+  it("refuses an old build, no session and a name that is no sha", async () => {
     const { auth, phone } = await signedIn("blob-refusals@example.test");
     const { sha } = fileOf(TEN);
     const [major = "0", minor = "0"] = FLOOR_VERSION.split(".");
     const old = `${major}.${String(Number(minor) - 1)}.99+mobile`;
 
     const outdated = await drained(
-      read(sha, { [CLIENT_BUILD_HEADER]: old, cookie: phone, "expo-origin": PHONE_ORIGIN }, "PUT"),
+      read(sha, { [CLIENT_BUILD_HEADER]: old, cookie: phone, "expo-origin": PHONE_ORIGIN }),
     );
 
     expect(outdated.status).toBe(426);
     await expect(drained(read(sha, buildHeaders()))).resolves.toMatchObject({ status: 401 });
     await expect(drained(read("not-a-sha", auth))).resolves.toMatchObject({ status: 404 });
-    const post = await drained(read(sha, auth, "POST"));
-    expect(post.status).toBe(405);
-    expect(post.headers.get("allow")).toBe("GET, HEAD");
   });
 });
