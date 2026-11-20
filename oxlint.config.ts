@@ -181,7 +181,7 @@ const platformPurity = (dir: string, regex: string, message: string, ...more: Im
 export default defineConfig({
   extends: [core, react, antiSlop, landmines],
   jsPlugins: landmines.jsPlugins,
-  options: { reportUnusedDisableDirectives: "error", typeAware: true },
+  options: { denyWarnings: true, reportUnusedDisableDirectives: "error", typeAware: true },
   ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".codex", ".wxt"],
   overrides: [
     {
