@@ -12,6 +12,8 @@ import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import { V1_RPC_PATH } from "@repo/contract/rpc/v1-contract";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
+import manifest from "../package.json" with { type: "json" };
+
 interface Login {
   readonly email: string;
   readonly password: string;
@@ -57,7 +59,7 @@ const BYPASS: HeaderMap =
 
 const CRON_PATHS = ["/api/cron/agent", "/api/cron/housekeeping", "/api/cron/jobs"];
 
-const BUILD = clientBuildHeaders({ platform: "mobile", version: "0.7.0" });
+const BUILD = clientBuildHeaders({ platform: "mobile", version: manifest.version });
 const STALE_BUILD = clientBuildHeaders({ platform: "mobile", version: "0.0.1" });
 
 const deadline = () => AbortSignal.timeout(15_000);
