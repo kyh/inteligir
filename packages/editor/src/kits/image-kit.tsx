@@ -9,6 +9,7 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { editsLand } from "@repo/editor/edit-guard";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { OpenItemPlugin } from "@repo/editor/open-item";
 
@@ -56,6 +57,7 @@ const keepOne = async (io: EditorHostIo, file: File) => {
 
 const placeFiles = async (editor: SlateEditor, files: readonly File[], at: TRange | null) => {
   const io = getEditorHostIo();
+  const itemId = editor.getOption(OpenItemPlugin, "itemId");
   const place = at === null ? null : editor.api.rangeRef(at);
   let last: PathRef | null = null;
 
@@ -68,7 +70,12 @@ const placeFiles = async (editor: SlateEditor, files: readonly File[], at: TRang
 
       const kept = await keepOne(io, file);
 
-      if (kept === null || !editsLand(editor)) {
+      if (
+        kept === null ||
+        !editsLand(editor) ||
+        itemId === null ||
+        getLiveEditor(itemId) !== editor
+      ) {
         toast.error(fileNotKept(file.name));
         continue;
       }

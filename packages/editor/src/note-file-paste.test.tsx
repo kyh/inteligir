@@ -1,11 +1,14 @@
 import { createRef } from "react";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createSlateEditor } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
+import { deferred } from "@repo/contract/deferred";
 import { fileSha } from "@repo/contract/library/file-sha";
 
 import { fileNotKept, fileTooLarge, filesToKeep } from "@repo/editor/kits/image-kit";
+import { registerLiveEditor } from "@repo/editor/live-editor";
 import {
   FILES_ORIGIN,
   installFakeEditorHost,
@@ -24,6 +27,7 @@ vi.spyOn(toast, "success");
 
 vi.spyOn(toast, "warning");
 
+const ITEM = "0190a000-0000-7000-8000-00000000000a";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 const picture = () => new File([PNG], "shot.png", { type: "image/png" }) satisfies File;
 
@@ -54,6 +58,7 @@ const mount = (options: FakeEditorHostOptions = {}) => {
   const view = render(
     <EditorHarness
       ref={ref}
+      itemId={ITEM}
       value={[{ children: [{ text: "Before the picture." }], type: "p" }]}
     />,
   );
@@ -210,5 +215,20 @@ describe("a file dropped into a note's text", () => {
       expect(toast.error).toHaveBeenCalledExactlyOnceWith(fileNotKept("shot.png"));
     });
     expect(JSON.stringify(editor.children)).toBe(before);
+  });
+
+  it("says a file kept after its surface was drawn again was not added, and adds no block", async () => {
+    const kept = deferred<{ readonly sha: string }>();
+    const { editable, editor } = mount({ keepFile: async () => await kept.promise });
+
+    fireEvent.drop(editable, { dataTransfer: transfer([picture()]) });
+    const off = registerLiveEditor(ITEM, createSlateEditor());
+    kept.resolve({ sha: "a".repeat(64) });
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(fileNotKept("shot.png"));
+    });
+    expect(blocksOf(editor).some((block) => block.type === "img")).toBe(false);
+    off();
   });
 });

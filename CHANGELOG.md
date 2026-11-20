@@ -242,6 +242,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An item brought back from Deleted opens editable again**, by Undo, by Undo this turn after the agent deleted it, or by an import, instead of staying read-only under "This item is in Deleted".
 - **A page saved or read just as its note first opens is saved** instead of failing.
 - **A large file dropped or pasted in your browser or the Mac app leaves the window answering** while it gets ready to send, where the window froze first.
+- **A file pasted or dropped into a note just as a change made elsewhere redraws it says it couldn't be added**, instead of vanishing; paste or drop it again.
 - **Adding back a file you removed from your library a day ago lands the first time**, where adding it, pasting it into a note or importing a note holding it could fail with "isn't in your library anymore".
 - **A file added while the library clears out another lands the first time**: an upload, a saved page's cover or an imported note's picture is no longer sent again or dropped because a different file was being removed just then.
 - **Importing a zip of notes no longer stops on a note whose frontmatter names a YAML anchor that isn't there**: that note comes in with the block as text, as any block that isn't YAML does, and a long `title` or `site` line is cut between characters, never through an emoji.
