@@ -245,7 +245,6 @@ export default defineConfig({
       rules: {
         "no-restricted-imports": ["error", { patterns: [SERVER_ONLY] }],
         "no-empty-function": "off",
-        "promise/prefer-await-to-then": "off",
         "typescript/require-await": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
