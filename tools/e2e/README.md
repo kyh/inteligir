@@ -18,7 +18,7 @@ The run needs the Postgres server `POSTGRES_URL` names, read from the root
 run's globalSetup, pushes the schema once into a template database
 `e2e_<run>` on that server, and drops it and every clone when the run ends.
 
-`src/fixtures.ts` gives each Playwright worker one `next start` on a free port
+`src/app.fixture.ts` gives each Playwright worker one `next start` on a free port
 and the built-in agent eve built beside it on another, over its own clone,
 `e2e_<run>_<worker>`, started on a fixed set of variables and nothing of the
 root `.env`, their output in `test-results/next-start-<worker>.log` and

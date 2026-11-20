@@ -230,10 +230,10 @@ globalSetup pushes the schema once into a template database on the server
 `POSTGRES_URL` names; each Playwright worker runs one `next start` and the agent
 eve built beside it (`apps/web/.output`) over its own clone, on a fixed set of
 variables and nothing of `.env`, the app reaching that agent at `EVE_BASE_URL`,
-and each test signs up an account by invite (`tools/e2e/src/fixtures.ts`). It is deliberately outside
+and each test signs up an account by invite (`tools/e2e/src/app.fixture.ts`). It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
 runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
 retries are 0, since a flaky flow is a bug. `pnpm e2e:webkit` and
 `pnpm e2e:firefox` run the same flows in Playwright's other engines, and
 `pnpm e2e:mobile` the phone's in the iOS simulator under Maestro, on a Mac;
-none runs in CI (`tools/e2e/README.md` § The phone has what it needs).
+none runs in CI (`tools/e2e/README.md` § The phone).
