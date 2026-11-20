@@ -28,14 +28,14 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   tab, so every screen shares one cache, and an answer of what moved reaches a family by oRPC's
   key, never one of ours.
   `apps/web/src/library/cloud/library-queries.ts`.
-- **A write is mutation options beside the reads, and says how it went once.** A screen mounts only
-  the write it asks, and its refusal is said by the write's options or by the flow that awaits it,
-  never by a callback handed to `mutate`, since TanStack drops that with the screen that asked.
+- **A write is mutation options beside the reads, and says how it went once.** Its refusal is said
+  by the write's options or by the flow that awaits it, never by a callback handed to `mutate`,
+  since TanStack drops that with the screen that asked.
   `apps/web/src/library/cloud/library-writes.ts`.
-- **A cell call pauses offline and says so.** Every call only the cell answers runs with
+- **A cell call pauses offline and says so.** Every query and write of the tab's client runs with
   `networkMode: "online"`, so offline it waits under `NEEDS_CONNECTION`, the one sentence every
-  device says, and a read's standing is one value, `cellStanding`.
-  `apps/web/src/library/cloud/needs-connection.tsx`.
+  device says, and a read's standing is one value, `cellStanding`; an import or export starts only
+  online, and a drop ends it. `apps/web/src/library/cloud/needs-connection.tsx`.
 - **The library is its own chunks and sheet, and catches up as its connection returns.** A site page
   loads none of it, since the tab is the root's `next/dynamic` import and the site's stylesheet is
   its groups' own; what moved is asked the moment the browser is back online or in front.
@@ -86,9 +86,9 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   state per verb lets two stand at once and a draft outlive the ask it was typed for.
   `apps/web/src/library/library/ask.ts`.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a link to
-  a scope with the cell's count, a plain click moving the tab and any other the browser's, and a
-  waiting call is the layout's one notice, since an online tab has nothing queued to report.
-  `apps/web/src/library/sidebar/rail.tsx`.
+  a scope and all but Deleted with the cell's count, a plain click moving the tab and any other the
+  browser's, and a waiting call is the layout's one notice, since an online tab has nothing queued
+  to report. `apps/web/src/library/sidebar/rail.tsx`.
 - **A library scope has one spelling, `@repo/contract/library-scope`.** The address, a listing's
   page on the wire and a view context read one set of zod arms, a folder by its id, since a scope
   per surface drifts and a folder by path breaks every link to it on a rename.
@@ -128,8 +128,9 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The grid's selection is a store, of ids or of its scope less those left out.** Finder's
   grammar, a click selecting and a double-click opening, and ⌘A names the scope, read or not, since
   the grid holds only the pages it read; an id the listing no longer shows selects nothing, so no
-  effect prunes it, and the store outlives an open item, since the selection is the panel's subject
-  and the agent's context. `apps/web/src/library/library/library-selection.ts`.
+  effect prunes it id by id, a move to another scope or a scope selection left with no item clears
+  it whole, and the store outlives an open item, since the selection is the panel's subject and the
+  agent's context. `apps/web/src/library/library/library-selection.ts`.
 - **A verb that makes several calls is one run, under one toast with Stop.** A chunk of the items
   the device named or one link or file a call, in order, a failure saying how far it got beside
   Delete's Undo of what went, and a delete of more than fifty asks first, since a loop of a verb's
