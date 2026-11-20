@@ -35,6 +35,7 @@ const IPV6_SUBNETS: readonly (readonly [string, number])[] = [
   ["2002::", 16],
   ["fc00::", 7],
   ["fe80::", 10],
+  ["fec0::", 10],
   ["ff00::", 8],
 ];
 
@@ -48,14 +49,11 @@ for (const [network, prefix] of IPV6_SUBNETS) {
   PRIVATE.addSubnet(network, prefix, "ipv6");
 }
 
-const MAPPED = /^::ffff:(?<v4>\d+\.\d+\.\d+\.\d+)$/iu;
-
 export const isPrivateAddress = (address: string) => {
   const bare = address.replace(/%.*$/u, "");
-  const plain = MAPPED.exec(bare)?.groups?.v4 ?? bare;
-  const family = isIP(plain);
+  const family = isIP(bare);
 
-  return family === 0 || PRIVATE.check(plain, family === 4 ? "ipv4" : "ipv6");
+  return family === 0 || PRIVATE.check(bare, family === 4 ? "ipv4" : "ipv6");
 };
 
 export class PrivateAddressError extends Error {

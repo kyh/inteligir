@@ -39,6 +39,7 @@ describe("an address a name resolves to", () => {
     "::ffff:127.0.0.1",
     "::ffff:10.0.0.1",
     "fd00::1",
+    "fec0::1",
     "fe80::1%en0",
     "not an address",
   ])("refuses %s", (address) => {
