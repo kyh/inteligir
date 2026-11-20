@@ -35,7 +35,9 @@ export const libraryReadRows = {
       async ({ context, input }) => await namedFiles(db, context.library.accountId, input.shas),
     ),
     settle: reading.imports.settle.handler(async ({ context, input }) => ({
-      notes: await settleNotes(db, context.library.accountId, input.notes),
+      notes: await readLibrary(
+        async (tx) => await settleNotes(tx, context.library.accountId, input.notes),
+      ),
     })),
   },
   items: {

@@ -262,8 +262,10 @@ DOM (`oxlint.config.ts`).
   name added or dropped moves `touched_at`; a count kept beside those rows is a
   second spelling that drifts from them. `packages/service/src/files/file-names.ts`.
 - **A read of more than one query is one read-only, repeatable-read
-  transaction.** A page and its counts, or a hit and its passage, then read one
-  library. `packages/service/src/library/library-listing.ts`.
+  transaction, but `library.changes`.** A page and its counts, or a hit and its
+  passage, then read one library; `changes` reads the head first, so a write
+  between its queries repeats an id and hides none, and a poll stays one query.
+  `packages/service/src/library/library-listing.ts`.
 - **The listing is SQL held to the library model's by a seeded parity suite,
   its ids and titles ordered `collate "C"`.** The fake cell answers every
   client's suites by the model, and the database's collation orders case and
