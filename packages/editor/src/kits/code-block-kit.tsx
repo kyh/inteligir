@@ -67,11 +67,11 @@ const MermaidCodeBlock = (props: PlateElementProps) => {
 };
 
 const CodeBlockElement = (props: PlateElementProps) => {
-  if (props.element.lang === "mermaid") {
+  const lang = stringProp(props.element, "lang");
+
+  if (lang === "mermaid") {
     return <MermaidCodeBlock {...props} />;
   }
-
-  const lang = stringProp(props.element, "lang");
 
   return (
     <PlateElement {...props} as="pre" className="group/code relative">
