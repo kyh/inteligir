@@ -1,10 +1,9 @@
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
-import { IMPORT_SOURCES } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 export const importAskSchema = z.strictObject({
   file: z.instanceof(Blob),
-  source: z.enum(IMPORT_SOURCES),
+  source: z.enum(["raindrop", "markdown"]),
 });
 
 export type ImportAsk = z.infer<typeof importAskSchema>;

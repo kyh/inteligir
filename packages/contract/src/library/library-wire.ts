@@ -260,6 +260,4 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
   }),
 ]);
 
-export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
-
 export const IMPORT_STANDINGS = ["held", "deleted", "new"] as const;
