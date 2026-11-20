@@ -13,7 +13,7 @@ The runtime the screens use is composed platform-free
 (`src/lib/compose-runtime.ts`), so its suites run it under node; only its
 binding to the device (`src/lib/app-runtime.ts`) needs a phone. One sign-in is
 one library, made and closed together, and the route guard in
-`app/_layout.tsx` alone decides which screens exist.
+`src/app/_layout.tsx` alone decides which screens exist.
 
 ## Layout
 
@@ -36,13 +36,13 @@ modules/     the native module this app carries (backup exclusion)
 ## Testing
 
 `pnpm --filter @repo/mobile test` covers the composition (restore, sign-in,
-sign-out, revocation, an outdated build) over the contract's fake cell, what
-moved and the cache, the Keychain's accessibility over a stand-in, the
-transport, the file cache, the editor's actions, host and policies, the
-share outbox and the Library's query. `src/app-config.test.ts` holds the
-resolved config to what App Store Connect judges, and `src/styles.test.ts`
-compiles the sheet as Metro does. `pnpm build` runs `expo export --platform
-ios`, so `pnpm verify` bundles the phone and its editor's DOM bundle.
+sign-out, revocation) over the contract's fake cell, what moved and the cache,
+the Keychain's accessibility over a stand-in, the transport, the file cache,
+the editor's actions, host and policies, the share outbox and the Library's
+query. `src/app-config.test.ts` holds the resolved config to what App Store
+Connect judges, and `src/styles.test.ts` compiles the sheet as Metro does.
+`pnpm build` runs `expo export --platform ios`, so `pnpm verify` bundles the
+phone and its editor's DOM bundle.
 `pnpm e2e:mobile` builds a Release `.app` for the simulator (`pnpm --filter
 @repo/mobile simulator`, its cloud the origin `EXPO_PUBLIC_CLOUD_URL` names),
 signs it in and types into a note under Maestro (`tools/e2e/README.md` § The

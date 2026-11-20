@@ -58,4 +58,4 @@ carries, and updates.
   `docs/releasing.md`.
 - **The shell's plumbing is copied between repos and diverges on purpose.** The window, pin and
   updater are shared with kyh/init and the pin and packaging with kyh/idlebiz, each shaped to its
-  product, so a fix is ported by hand. `apps/desktop/rust-toolchain.toml`.
+  product, so a fix is ported by hand. `apps/desktop/src-tauri/src/navigation.rs`.

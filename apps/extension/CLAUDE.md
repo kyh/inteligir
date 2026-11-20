@@ -25,9 +25,9 @@ what it may reach, and how it builds.
   No device opens a copy, and an `activeTab` extension cannot fetch a page's stylesheets, fonts and
   pictures across origins. `apps/extension/src/background/save-page.ts`.
 - **A save is queued before its first call, as its address and title, and what it waits for sends
-  it.** One `storage.local` key a save: an alarm every 30 s only while a call went unanswered, since
-  the worker dies 30 s after its last event, and the site's session cookie or the worker's start
-  for a save that waits on a sign-in or an update, which no timer brings.
+  it.** One `storage.local` key a save: an alarm every 30 s while a call is on its way or went
+  unanswered, since the worker dies 30 s after its last event, and the site's session cookie or the
+  worker's start for a save that waits on a sign-in or an update, which no timer brings.
   `apps/extension/src/background/save-queue.ts`.
 - **The queue is `@repo/client`'s waiting saves, the phone's too, and the extension keeps only what
   is its own.** The send under a save's own account, a first try outside a pass and the alarm are
@@ -47,7 +47,8 @@ what it may reach, and how it builds.
   every listener registers in `main()`'s first turn. `apps/extension/src/entrypoints/background.ts`.
 - **`activeTab` and the cloud's site, never `<all_urls>`.** The site's host reads its session cookie
   with no CORS and a click grants the tab a save is made over, since `<all_urls>` warns that every
-  page is readable at any time. `apps/extension/src/manifest.ts`.
+  page is readable at any time; the dev build adds `127.0.0.1` for the e2e's fixture pages.
+  `apps/extension/src/manifest.ts`.
 - **The build floor holds the extension as it holds every client.** Every call names
   `<version>+extension`, the product's version, so the one `MIN_CLIENT_BUILD` refuses it, since a
   version of its own needs a floor per platform. `apps/extension/src/background/cloud.ts`.
