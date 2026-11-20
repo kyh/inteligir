@@ -128,7 +128,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "blockquote",
       }),
       turnIntoRow("callout", {
-        description: "Highlighted note (info, warning, priority).",
+        description: "Note, tip, important, warning or caution.",
         icon: <InfoIcon />,
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
         value: "callout",

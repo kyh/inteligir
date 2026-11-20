@@ -216,6 +216,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Enter at the start of a saved page's paragraph keeps your new line yours**: Read the page again no longer deletes it or repeats the paragraph.
 - **PDFs preview in Chrome, Arc, Brave and Edge**, where they showed an empty box and a Download button.
 - **A callout from the / menu takes what you type**, under its Note label, instead of the line above, and shows no raw `[!NOTE]`.
+- **The / menu's Callout row names the callouts it makes**: Note, Tip, Important, Warning and Caution.
 - **Turning a quote or callout into another block keeps each of its paragraphs**, where they ran together on one line; with the caret in one, Turn into names it, and Quote or Callout changes it instead of putting a second quote inside.
 - **Enter on a link pasted into ⌘P saves it**, ahead of any items its words match.
 - **Sign in stays busy until your library opens**, and Back no longer returns to the form you just sent.
