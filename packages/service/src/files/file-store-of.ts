@@ -26,7 +26,7 @@ export const fileStoreModeOf = (
   ) satisfies FileStoreMode;
 };
 
-const MODE = fileStoreModeOf(env, process.env.VERCEL !== undefined);
+const MODE = fileStoreModeOf(env, process.env.VERCEL === "1");
 
 const NO_STORE =
   "This deployment keeps no files: connect a Blob store, which sets BLOB_READ_WRITE_TOKEN.";
