@@ -21,7 +21,7 @@ const isValue = (key: string): key is keyof Palette => Object.hasOwn(paletteFor(
 
 const VALUES = Object.keys(paletteFor(false)).filter(isValue);
 
-const SIZES = [12, 13, 14, 15, 16, 30] as const;
+const SIZES = [12, 13, 14, 16, 30] as const;
 
 const cssName = (token: string) =>
   token.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
