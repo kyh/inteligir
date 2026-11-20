@@ -1,19 +1,18 @@
 #!/bin/sh
 # runs the format CHECK, never the fix: a hook that rewrites files mid-commit stages bytes
-# nobody looked at, and a post-gate format run once rewrote the byte-pinned round-trip fixtures.
-# bypass with --no-verify.
+# nobody looked at. Bypass with --no-verify.
 
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "pre-commit: pnpm not on PATH — skipping the format check." >&2
   exit 0
 fi
 
-if ! pnpm exec turbo run format >/dev/null 2>&1; then
+if ! output=$(pnpm exec turbo run format --output-logs=errors-only 2>&1); then
+  printf '%s\n' "$output" >&2
   echo >&2
   echo "  ✗ Formatting check failed." >&2
   echo >&2
-  echo "    Run:  pnpm format:fix" >&2
-  echo "    Then restage and commit again." >&2
+  echo "    Run pnpm format:fix, then restage and commit again." >&2
   echo >&2
   echo "    (This is the same check CI runs. Bypass with --no-verify.)" >&2
   echo >&2
