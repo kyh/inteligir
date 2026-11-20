@@ -6,6 +6,9 @@
       // the licences page and the vendored texts are gitignored, so a cache hit that left them out
       // would serve a 404
       // eve's build is the agent `next start` serves
+      // /privacy and /terms bundle docs/privacy.md and docs/terms.md, which sit in no workspace, so
+      // turbo hashes them only where named
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md", "$TURBO_ROOT$/docs/terms.md"],
       "outputs": [
         ".next/**",
         ".output/**",

@@ -49,7 +49,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the output with no error, and the e2e and `package:*` ship it. `apps/web/turbo.json`.
 - **A changed file counts for every task whose inputs name it**, under
   `futureFlags.affectedUsingTaskInputs`. Why: an edit to the legal texts alone
-  deploys, and `verify:affected` lints and knips a change in any workspace,
+  rebuilds the site, and `verify:affected` lints and knips a change in any workspace,
   which only the root's tasks do. `turbo.json`.
 - **A dependency's cost we cannot wait out upstream is a pnpm patch, and a test
   fails without it; the release it keys is pinned exactly**, a catalog row or,
