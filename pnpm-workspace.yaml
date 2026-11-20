@@ -242,7 +242,7 @@ overrides:
 patchedDependencies:
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
-  # note's save. The patch answers from `editor.plugins`, dropped once a release does
+  # note's save. The patch answers from `editor.plugins` (udecode/plate#5341), dropped once a release does
   "@platejs/core@53.5.2": patches/@platejs__core@53.5.2.patch
   # micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
@@ -263,5 +263,5 @@ patchedDependencies:
   # on a selectionchange with the caret outside Slate's text, slate-react puts the page's selection
   # back on the editor's, though an input inside a void holds the focus, so a picker's query or a
   # rich block's field stops taking typing a moment after it opens; the patch restores only while
-  # the editor itself is focused, dropped once a release does
+  # the editor itself is focused (ianstormtaylor/slate#6360), dropped once a release does
   slate-react@0.145.1: patches/slate-react@0.145.1.patch
