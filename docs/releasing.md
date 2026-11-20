@@ -203,7 +203,10 @@ assets in `apps/desktop/.output/bin`. A pack is a release or it fails: Tauri
 stops one with no updater key, and `apps/desktop/scripts/release-assets.ts`
 one whose app carries no notarization ticket. Package only through
 `pnpm package:desktop`: turbo's strict env mode strips every `APPLE_*`
-exported in a shell, so a pack signs with `release.env` alone.
+exported in a shell, so a pack signs with `release.env` alone. A notarization
+refused with a 403 saying "A required agreement is missing or has expired"
+waits on the team's Account Holder accepting Apple's updated agreement at
+developer.apple.com/account; pack again once it is accepted.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
 green: `gh run list --commit "$(git rev-parse HEAD)"`.
