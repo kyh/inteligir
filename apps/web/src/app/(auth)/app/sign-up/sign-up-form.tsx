@@ -58,7 +58,7 @@ export const SignUpForm = ({ next }: { next: string | undefined }) => {
   return (
     <AuthShell
       title="Create an account"
-      subtitle="inteligir is invite-only while it's early."
+      subtitle="Inteligir is invite-only while it's early."
       footer={
         <>
           Already have an account?{" "}

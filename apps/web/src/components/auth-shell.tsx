@@ -51,7 +51,7 @@ export const fieldValue = (form: FormData, name: string) => {
   return value === null || value instanceof File ? "" : value;
 };
 
-export const CONNECTION_FAILED = "Couldn't reach inteligir — check your connection.";
+export const CONNECTION_FAILED = `Couldn't reach ${siteConfig.name} — check your connection.`;
 
 type AuthSubmit = (form: FormData) => Promise<string | null>;
 
