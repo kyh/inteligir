@@ -1,5 +1,3 @@
-import { serveHousekeeping } from "@repo/service/jobs/housekeeping";
-
-export const GET = async (request: Request) => await serveHousekeeping(request);
+export { serveHousekeeping as GET } from "@repo/service/jobs/housekeeping";
 
 export const maxDuration = 300;
