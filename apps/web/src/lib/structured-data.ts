@@ -1,4 +1,5 @@
 import type { PageMeta } from "#lib/page-meta";
+import { absoluteUrl, pageTitle } from "#lib/page-metadata";
 import { siteConfig } from "#lib/site-config";
 
 const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
@@ -57,11 +58,9 @@ const PAGE_TYPE = {
   legal: "WebPage",
 } as const satisfies Record<PageMeta["kind"], string>;
 
-const absolute = (path: string) => `${url}${path === "/" ? "" : path}`;
-
 /** The page's own node and its breadcrumb, beside the site-wide graph the root document carries. */
 export const pageGraph = (page: PageMeta, options: { dateModified?: string | null } = {}) => {
-  const pageUrl = absolute(page.path);
+  const pageUrl = absoluteUrl(page.path);
   const isHome = page.kind === "home";
 
   return {
@@ -76,12 +75,12 @@ export const pageGraph = (page: PageMeta, options: { dateModified?: string | nul
         description: page.description,
         inLanguage: "en-US",
         isPartOf: { "@id": WEBSITE_ID },
-        name: isHome ? `${name}: ${page.title}` : `${page.title} · ${name}`,
+        name: pageTitle(page),
         primaryImageOfPage: {
           "@type": "ImageObject",
           caption: page.image.alt,
           height: page.image.height,
-          url: absolute(page.image.path),
+          url: absoluteUrl(page.image.path),
           width: page.image.width,
         },
         url: pageUrl,
