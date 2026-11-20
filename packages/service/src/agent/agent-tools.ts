@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import type { LibraryContext } from "../library/library-access";
 import { TAGGED_ROWS } from "../library/library-tools";
+import { errorFields } from "../log";
 import { libraryRouter } from "../rpc/library-router";
 import type { agentCallOutcomeSchema } from "./thread-events";
 
@@ -190,7 +191,7 @@ export const callAgentTool = async (
       return { kind: "failed", text: errorText(error) } satisfies AgentCallOutcome;
     }
 
-    console.error({ error, event: "agent-tool-failed", tool: tool.name });
+    console.error({ event: "agent-tool-failed", tool: tool.name, ...errorFields(error) });
 
     return { kind: "failed", text: "That could not be done right now." } satisfies AgentCallOutcome;
   }

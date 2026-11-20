@@ -1,10 +1,12 @@
 import { after } from "next/server";
 
+import { errorFields } from "./log";
+
 const guarded = (task: () => Promise<void>, label: string) => async () => {
   try {
     await task();
   } catch (error) {
-    console.error(`[background] ${label} failed`, error);
+    console.error({ event: "background-failed", label, ...errorFields(error) });
   }
 };
 

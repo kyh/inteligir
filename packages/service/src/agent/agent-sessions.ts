@@ -61,7 +61,7 @@ const platformRefusal = (cause: unknown) => {
     ) satisfies Error;
   }
 
-  console.error({ error: cause, event: "agent-platform-failed" });
+  console.error({ event: "agent-platform-failed", ...errorFields(cause) });
 
   return (
     cause.failure === "refused" ? new NotFoundError() : new AgentUnavailableError()
