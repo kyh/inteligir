@@ -67,7 +67,7 @@ export const libraryItemFieldsSchema = z.strictObject({
   coverSha: sha256.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
-  folderId: text.nullable(),
+  folderId: z.uuid().nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
   originalName: fileNameSchema.nullable(),
