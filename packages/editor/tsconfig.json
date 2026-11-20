@@ -1,7 +1,7 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // the stdlib of the Mac's WebKit 16.6 and iOS 16.4: Vite lowers syntax, never stdlib
+    // the stdlib of the Mac's WebKit 16.6 and iOS 16.4: each app's bundler lowers syntax, never stdlib
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     // the markdown suites read their fixtures off disk

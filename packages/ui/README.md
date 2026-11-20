@@ -11,7 +11,7 @@ package's [`CLAUDE.md`](CLAUDE.md).
 ## Layout
 
 ```text
-src/components/  shadcn, Fluid Functionalism, the local confirm-dialog
+src/components/  shadcn, Fluid Functionalism and this repo's own
 src/ai/          Beautiful UI components
 src/hooks/       shared hooks
 src/lib/         UI system helpers and the controlled theme provider
@@ -32,7 +32,6 @@ licenses/        the licences of shadcn, Fluid Functionalism and Beautiful UI
   its own rows.
 - `SidebarProvider` listens for no key: the app's shortcut table owns the
   toggle.
-- "Added" and "done" draw the `success` tokens, never a raw hue.
 - `globals.css` keeps `@source "../**/*.{ts,tsx}"`, so Tailwind sees this
   package through workspace imports.
 
