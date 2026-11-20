@@ -1,3 +1,4 @@
+import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { createAuthClient } from "better-auth/client";
 import { browser } from "wxt/browser";
@@ -40,10 +41,7 @@ const signedOut = async () => {
   ) satisfies SignIn;
 };
 
-const digestOf = async (cookie: string) =>
-  bytesToHex(
-    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cookie))),
-  );
+const digestOf = (cookie: string) => bytesToHex(sha256(new TextEncoder().encode(cookie)));
 
 export const heldSignIn = async () => {
   const connection = await readConnection();
@@ -60,7 +58,7 @@ export const heldSignIn = async () => {
   }
 
   return (
-    (await digestOf(bearer)) === connection.cookie
+    digestOf(bearer) === connection.cookie
       ? { kind: "signed-in", session: { bearer, email: connection.email, origin } }
       : { kind: "none" }
   ) satisfies SignIn;
@@ -112,7 +110,7 @@ export const cloudSignIn = async () => {
     }
 
     case "account": {
-      await keepConnection({ cookie: await digestOf(bearer), email: answer.email });
+      await keepConnection({ cookie: digestOf(bearer), email: answer.email });
 
       return {
         kind: "signed-in",

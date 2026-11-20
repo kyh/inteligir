@@ -1,5 +1,5 @@
-import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
+import { fileSha } from "@repo/contract/library/file-sha";
 import { outcomeOf, uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome";
 import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
@@ -64,7 +64,7 @@ export const cloudOf = (session: Session, version: string, keepAwake: () => void
 };
 
 export const sendFile = async (cloud: Cloud, bytes: Uint8Array<ArrayBuffer>, mime: string) => {
-  const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const sha = fileSha(bytes);
   const awake = setInterval(cloud.keepAwake, KEEP_AWAKE_MS);
 
   try {
