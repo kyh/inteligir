@@ -1,7 +1,7 @@
 name: 🛠 Feature Request
 description: Suggest something Inteligir could do for saving, reading or writing
 title: "feat: "
-labels: ["✨ enhancement"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:

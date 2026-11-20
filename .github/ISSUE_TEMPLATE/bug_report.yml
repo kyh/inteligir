@@ -1,7 +1,7 @@
 name: 🐞 Bug Report
 description: Tell us about something in Inteligir that doesn't work as it should
 title: "bug: "
-labels: ["🐞❔ unconfirmed bug"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
