@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, KEYS, NodeApi } from "platejs";
+import { ElementApi, NodeApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
+import { HEADING_RANK } from "@repo/editor/heading-collapse";
 import { reveal } from "@repo/editor/scroll-reveal";
 import { shownText } from "@repo/editor/shown-text";
 
@@ -15,12 +16,6 @@ export interface HeadingItem {
   depth: number;
   title: string;
 }
-
-const HEADING_DEPTH = new Map<string, number>([
-  [KEYS.h1, 1],
-  [KEYS.h2, 2],
-  [KEYS.h3, 3],
-]);
 
 const HEADER_OFFSET = 64;
 
@@ -45,7 +40,7 @@ const blockHeadings = (editor: SlateEditor, block: TElement) => {
     pass: ([n]) =>
       ElementApi.isElement(n) && (editor.api.isVoid(n) || editor.api.isElementReadOnly(n)),
   })) {
-    const depth = ElementApi.isElement(node) ? HEADING_DEPTH.get(node.type) : undefined;
+    const depth = ElementApi.isElement(node) ? HEADING_RANK.get(node.type) : undefined;
     const title = depth === undefined ? "" : shownText(node).trim();
 
     if (depth !== undefined && title) {
@@ -76,7 +71,7 @@ export const headingElement = (editor: SlateEditor, heading: HeadingItem) => {
 
   const [node] = entry;
 
-  if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) {
+  if (!ElementApi.isElement(node) || !HEADING_RANK.has(node.type)) {
     return null;
   }
 

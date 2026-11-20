@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
+import { KEYS } from "platejs";
 import type { TElement } from "platejs";
 import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 import type { RenderNodeWrapper } from "platejs/react";
@@ -18,10 +19,10 @@ import { OpenItemPlugin } from "@repo/editor/open-item";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
-const HEADING_RANK = new Map<string, number>([
-  ["h1", 1],
-  ["h2", 2],
-  ["h3", 3],
+export const HEADING_RANK = new Map<string, number>([
+  [KEYS.h1, 1],
+  [KEYS.h2, 2],
+  [KEYS.h3, 3],
 ]);
 
 type Folds = Readonly<Record<string, readonly string[]>>;
