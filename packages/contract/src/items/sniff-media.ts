@@ -25,9 +25,7 @@ const SVG_SNIFF_BYTES = 1024;
 const looksLikeSvg = (bytes: Uint8Array) => {
   const head = new TextDecoder("utf-8").decode(bytes.subarray(0, SVG_SNIFF_BYTES)).toLowerCase();
 
-  return /^(?:﻿)?\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*|<!doctype[^>]*>\s*)*<svg[\s>]/u.test(
-    head,
-  );
+  return /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*|<!doctype[^>]*>\s*)*<svg[\s>]/u.test(head);
 };
 
 export const sniffMedia = (bytes: Uint8Array) => {

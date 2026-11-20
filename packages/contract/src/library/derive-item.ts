@@ -174,7 +174,7 @@ const joinChildren = (children: readonly LibraryNode[], read: (node: LibraryNode
   return lines.join("\n");
 };
 
-const ZWSP = /​/gu;
+const ZWSP = /\u200B/gu;
 
 const nodeText: (node: LibraryNode) => string = (node: LibraryNode) => {
   if (isText(node)) {
