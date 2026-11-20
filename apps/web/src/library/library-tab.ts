@@ -3,6 +3,7 @@ import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createLibraryChanges } from "@repo/client/library-changes";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { createStore } from "zustand/vanilla";
 
 import { activeSession, keepSession } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
@@ -67,17 +68,17 @@ interface TabSessionArgs {
 }
 
 export const createTabSession = ({ read, forget, location }: TabSessionArgs) => {
-  let session: TabSession = { kind: "live" };
-  const listeners = new Set<() => void>();
+  const standing = createStore<TabSession>()(() => ({ kind: "live" }));
 
   const end = (cause: TabEnd) => {
-    const next = tabAfter(session, cause, location);
+    const now = standing.getState();
+    const next = tabAfter(now, cause, location);
 
-    if (next.session === session) {
+    if (next.session === now) {
       return;
     }
 
-    ({ session } = next);
+    standing.setState(next.session, true);
 
     for (const effect of next.effects) {
       switch (effect.kind) {
@@ -96,10 +97,6 @@ export const createTabSession = ({ read, forget, location }: TabSessionArgs) => 
         }
       }
     }
-
-    for (const heard of listeners) {
-      heard();
-    }
   };
 
   keepSession(async () => {
@@ -110,16 +107,7 @@ export const createTabSession = ({ read, forget, location }: TabSessionArgs) => 
     }
   });
 
-  const store: TabSessionStore = {
-    get: () => session,
-    subscribe: (heard) => {
-      listeners.add(heard);
-
-      return () => {
-        listeners.delete(heard);
-      };
-    },
-  };
+  const store: TabSessionStore = { get: standing.getState, subscribe: standing.subscribe };
 
   return { end, store };
 };
