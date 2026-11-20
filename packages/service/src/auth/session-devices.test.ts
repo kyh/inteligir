@@ -68,7 +68,6 @@ dbSuite("Better Auth's routes for every device", () => {
     const callers: readonly Record<string, string>[] = [
       { origin: ORIGIN },
       { "expo-origin": PHONE_ORIGIN },
-      { origin: EXTENSION_ORIGIN },
     ];
 
     for (const headers of callers) {
@@ -80,25 +79,24 @@ dbSuite("Better Auth's routes for every device", () => {
     }
   });
 
-  it("trusts the extension's and the phone's origins, and no other extension's", async () => {
+  it("trusts the phone's origin, and no extension's", async () => {
     const email = "routes-origins@example.test";
     const { cookie } = await signUpUser(email);
-    const other = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     const refused = await authPost(
       "/sign-in/email",
-      { origin: other },
+      { origin: EXTENSION_ORIGIN },
       { email, password: PASSWORD },
     );
 
     expect(refused.status).toBe(403);
-    const keptOut = await authPost("/sign-out", { cookie, origin: other });
+    const keptOut = await authPost("/sign-out", { cookie, origin: EXTENSION_ORIGIN });
     expect(keptOut.status).toBe(403);
     expect(keptOut.headers.get("clear-site-data")).toBeNull();
     const accountId = await userIdOf(cookie);
     await expect(liveSessionsOf(accountId)).resolves.toHaveLength(1);
 
-    const signedOut = await authPost("/sign-out", { cookie, origin: EXTENSION_ORIGIN });
+    const signedOut = await authPost("/sign-out", { cookie, origin: ORIGIN });
     expect(signedOut.status).toBe(200);
     expect(signedOut.headers.get("clear-site-data")).toBe('"cache"');
     await expect(liveSessionsOf(accountId)).resolves.toHaveLength(0);

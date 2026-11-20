@@ -2,7 +2,6 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { expo } from "@better-auth/expo";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { db } from "@repo/db/drizzle-client";
 import { betterAuth } from "better-auth";
 import { createAuthMiddleware, isAPIError } from "better-auth/api";
@@ -88,11 +87,7 @@ const createAuth = (disableSignUp: boolean) =>
       expiresIn: 60 * DAY_SECONDS,
       updateAge: DAY_SECONDS,
     },
-    trustedOrigins: [
-      EXTENSION_ORIGIN,
-      PHONE_ORIGIN,
-      ...(DEPLOYMENT_ORIGIN === null ? [] : [DEPLOYMENT_ORIGIN]),
-    ],
+    trustedOrigins: [PHONE_ORIGIN, ...(DEPLOYMENT_ORIGIN === null ? [] : [DEPLOYMENT_ORIGIN])],
     user: {
       deleteUser: {
         beforeDelete: async (user) => {
