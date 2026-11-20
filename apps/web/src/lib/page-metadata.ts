@@ -10,7 +10,7 @@ export const pageTitle = (page: PageMeta) =>
 
 /**
  * A page's title, description, canonical address and its own card. A page's `openGraph` and
- * `twitter` replace the layout's whole objects, so each restates the site-wide fields.
+ * `twitter` replace a layout's whole objects, so no layout sets them and each page's are complete.
  */
 export const pageMetadata = (
   page: PageMeta,
