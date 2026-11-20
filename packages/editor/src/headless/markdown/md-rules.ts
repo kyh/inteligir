@@ -668,8 +668,7 @@ const listOf = (list: List) =>
 const BR_RE = /^<br\s*\/?>$/iu;
 
 const isBreakLeaf = (child: Descendant): child is TText =>
-  TextApi.isText(child) &&
-  (child.rawHtml === true ? BR_RE.test(child.text) : child.text.includes("\n"));
+  TextApi.isText(child) && child.text.includes("\n");
 
 const cellBlocks = (block: Descendant) => {
   if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
@@ -688,7 +687,7 @@ const cellBlocks = (block: Descendant) => {
       continue;
     }
 
-    const parts = child.rawHtml === true ? ["", ""] : child.text.split("\n");
+    const parts = child.text.split("\n");
 
     for (const [index, part] of parts.entries()) {
       if (index > 0) {
