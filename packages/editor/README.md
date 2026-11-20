@@ -1,9 +1,9 @@
 # @repo/editor
 
 The item editor: Plate saving a note's body whole, the dialect's markdown
-on Plate's stock reader and writer, and the headless codec an import and the
-agent read and write an item through. Its decisions are this package's
-[`CLAUDE.md`](CLAUDE.md).
+on Plate's stock reader and writer, and the headless codec an import, an
+export and the agent read and write an item through. Its decisions are this
+package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Why it exists
 
@@ -29,7 +29,7 @@ src/
     kits/        the base kits the codec's editor is built from, the mirror of the React kits
     body/        a note's body as blocks: what an editor holds, a merge, a body laid in, a writer's edits
     formulas/    a pill's source, what it shows and its nodes
-    knowledge/, items/, text/, lib/    an import's link targets, an item's instants, the one diff,
+    knowledge/, items/, text/, lib/    a word's matches in a text, an item's instants, the one diff,
                  what a url embeds as
     *.ts         the Slate decode boundary, the dialect's node keys, a picker's input
   kits/          the plugin kits: the shared content kit, the desktop and touch profiles

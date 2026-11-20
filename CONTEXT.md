@@ -181,8 +181,9 @@ GFM with directives, item links, pills, alerts and **fence blocks**
 (`packages/service/src/agent/prompt/`): the built-in agent's prompt holds it,
 and a **connected assistant** reads it as the **connector**'s guide. The
 **codec** is the headless converter between an item and its dialect
-(`@repo/editor/headless/codec`), which an import and the agent's reads and
-edits run. Not the editor: the editor edits **blocks**, never markdown.
+(`@repo/editor/headless/codec`), which an import, an export, the page reader
+and the agent's reads and edits run. Not the editor: the editor edits
+**blocks**, never markdown.
 
 **node set** — the one vocabulary of what a body may hold, checked on every
 write (`@repo/contract/library/library-nodes`). Not the editor's kits, which

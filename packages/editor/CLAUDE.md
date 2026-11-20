@@ -9,8 +9,9 @@ The Plate WYSIWYG: a kit and node per dialect construct, the md-rules table over
 markdown, and the item editor (`packages/editor/src/item/item-editor.tsx`) saving its note whole.
 A host drives it through the `EditorHost` singleton (`packages/editor/src/host-io.ts`),
 installed once per host by `installEditorHost`, so no host keeps a store of its own.
-`packages/editor/src/headless/node-props.ts` is the Slate decode boundary: a node's dialect fields
-arrive as `unknown` and become domain values there alone.
+`packages/editor/src/headless/node-props.ts` parses a node's string, number and alert fields, which
+arrive from Slate as `unknown`; a whole block parses through the contract's `storableBlockSchema`,
+and no read casts.
 
 ## Editor and dialect
 
@@ -129,10 +130,10 @@ arrive as `unknown` and become domain values there alone.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
   `readItemBlocks` and `notes` take ids, and `fileSrc` and `readFile` a sha, since paths a host
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
-- **A file in a note draws from an address the host hands, and the editor reads no bytes.** An
+- **A file in a note draws from an address the host hands, and drawing reads no bytes.** An
   `<img>` or a `<video>` loads, caches and seeks it, since every block of a note is mounted and a
-  read of the bytes fetches each file whole at open; only the phone reads them, once a file.
-  `packages/editor/src/nodes/library-file.ts`.
+  read of the bytes fetches each file whole at open; the phone's host reads them once a file, and
+  Download where a host hands `readFile`. `packages/editor/src/nodes/library-file.ts`.
 - **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
@@ -205,9 +206,9 @@ arrive as `unknown` and become domain values there alone.
   type, which the caller reads before it writes, since an import reads a file's kind off its name.
   `packages/editor/src/headless/codec/item-export.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
-  and its landing both read through `readFrontmatter`, each key one row and the filename the title,
-  since a second reader plans a title or an address the landing reads otherwise.
-  `packages/editor/src/headless/codec/item-fields.ts`.
+  and its landing both read through `readFrontmatter`, each key one row and the title its `title`
+  key, else the filename, since a second reader plans a title or an address the landing reads
+  otherwise. `packages/editor/src/headless/codec/item-fields.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
   the item's id, so no rename breaks it, and its rows are data handed to Base UI's Autocomplete,
   since a trigger and input of our own respell what Plate's mention does.
