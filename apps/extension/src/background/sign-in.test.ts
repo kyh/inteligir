@@ -98,7 +98,7 @@ describe("the browser's sign-in, asked of the cloud", () => {
     await expect(readConnection()).resolves.toStrictEqual(KEPT);
   });
 
-  it("reads the cookie Better Auth names on plain http, a local Worker's", async () => {
+  it("reads the cookie Better Auth names on plain http, a local app's", async () => {
     jarHolds({
       [`${LOCAL} __Secure-better-auth.session_token`]: "the wrong one",
       [`${LOCAL} better-auth.session_token`]: COOKIE,

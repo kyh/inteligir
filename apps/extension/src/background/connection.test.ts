@@ -21,7 +21,7 @@ describe("the cloud a build saves to", () => {
     await expect(cloudOrigin()).resolves.toBe("https://inteligir.com");
   });
 
-  it("is `pnpm dev:web`'s Worker in the dev build, or the local Worker its storage names", async () => {
+  it("is `pnpm dev:web`'s app in the dev build, or the local app its storage names", async () => {
     await expect(cloudOrigin()).resolves.toBe("http://localhost:5174");
     await browser.storage.local.set({ [NAMED]: "http://localhost:51234" });
     await expect(cloudOrigin()).resolves.toBe("http://localhost:51234");
