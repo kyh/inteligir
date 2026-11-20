@@ -1,5 +1,6 @@
 import { AgentBudgetError, AgentUnavailableError } from "@repo/contract/rpc/v1-errors";
 import { agentUsage } from "@repo/db/agent-schema";
+import type { agentTurnStop } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
@@ -19,7 +20,7 @@ const dayStartOf = (now: number) => now - (now % DAY_MS);
 
 export const nextDayAt = (now: number) => dayStartOf(now) + DAY_MS;
 
-export type TurnStop = "allowance" | "budget" | "steps";
+export type TurnStop = (typeof agentTurnStop.enumValues)[number];
 
 export interface UsageAt {
   readonly accountId: string;

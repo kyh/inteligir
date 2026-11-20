@@ -1,3 +1,5 @@
+import { TURN_END_REASONS } from "@repo/contract/library/agent-events";
+import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -17,24 +19,12 @@ import {
 
 import { user } from "./auth-schema";
 
-const THREAD_STATUSES = ["idle", "running"] as const;
-
-const TURN_OUTCOMES = [
-  "done",
-  "cancelled",
-  "allowance",
-  "budget",
-  "steps",
-  "failed",
-  "unavailable",
-] as const;
-
 const TURN_STOPS = ["allowance", "budget", "steps"] as const;
 
 const USAGE_KINDS = ["turn", "model", "search"] as const;
 
 export const agentThreadStatus = pgEnum("agent_thread_status", THREAD_STATUSES);
-export const agentTurnOutcome = pgEnum("agent_turn_outcome", TURN_OUTCOMES);
+export const agentTurnOutcome = pgEnum("agent_turn_outcome", TURN_END_REASONS);
 export const agentTurnStop = pgEnum("agent_turn_stop", TURN_STOPS);
 export const agentUsageKind = pgEnum("agent_usage_kind", USAGE_KINDS);
 

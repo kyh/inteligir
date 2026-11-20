@@ -5,7 +5,7 @@ const TOOL_RESULT_SUMMARY_MAX = 2000;
 const toolUseIdSchema = z.string().min(1).max(128);
 const toolNameSchema = z.string().min(1).max(128);
 
-const TURN_END_REASONS = [
+export const TURN_END_REASONS = [
   "done",
   "cancelled",
   "allowance",

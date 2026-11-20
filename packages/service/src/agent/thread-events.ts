@@ -1,5 +1,4 @@
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
-import type { agentTurn } from "@repo/db/agent-schema";
 import type { CallSettled, Fact, JsonValue, Progress, TurnSettled } from "eve/events";
 import { z } from "zod";
 
@@ -32,8 +31,6 @@ export const parseCursor = (cursor: string | undefined) => {
 
 export const comparePositions = (a: ThreadPosition, b: ThreadPosition) =>
   a.session - b.session || a.line - b.line || a.index - b.index;
-
-type TurnOutcome = NonNullable<(typeof agentTurn.$inferSelect)["outcome"]> & TurnEndReason;
 
 const SUMMARY_MAX_CHARS = 2000;
 
@@ -151,7 +148,7 @@ export const turnOutcomeOf = ({ data }: TurnSettled, turn: KeptTurn) => {
     }
 
     case "cancelled": {
-      return (turn.stopReason ?? "cancelled") satisfies TurnOutcome;
+      return (turn.stopReason ?? "cancelled") satisfies TurnEndReason;
     }
 
     case "failed": {
