@@ -7,11 +7,12 @@ DOM (`oxlint.config.ts`).
 
 ## The environment
 
-- **Every key the cloud reads is one zod schema, each optional or defaulted.**
-  A missing key turns its feature off instead of crashing boot, while a value
-  that is there but wrong fails it: a flag takes only `true` or `false`, the
-  build floor only a release version, `resend` only with its key and sender.
-  `packages/service/src/env.ts`.
+- **Every key a deployer sets is one zod schema, each optional or defaulted;
+  the platform's own (`VERCEL*`, `NODE_ENV`, `PORT`) are read where they are
+  used.** A missing key turns its feature off instead of crashing boot, while a
+  value that is there but wrong fails it: a flag takes only `true` or `false`,
+  the build floor only a release version, `resend` only with its key and
+  sender. `packages/service/src/env.ts`.
 - **`turbo.json`'s `globalEnv` and `.env.example` name exactly the keys the
   schema parses.** turbo hands a task only the variables it lists, and the
   example is the one list a deployer reads, so a key added to one and not the
@@ -397,10 +398,11 @@ DOM (`oxlint.config.ts`).
   page can't reach a session, and `proxy.ts` can't gate eve's routes, so the
   channel admits each request itself; `/eve/v1/health` is public.
   `packages/service/src/agent/eve-admission.ts`.
-- **A thread is ours, over one numbered eve session at a time: one that ended
-  or idled 7 days goes on in the next, created under `<thread>.<number>`.** eve
-  ends a session on a failed model call, and a create retried under its
-  operation id answers the same session. `packages/service/src/agent/agent-sessions.ts`.
+- **A thread is ours, over one numbered eve session at a time: one that ended,
+  or is idle and a week old, goes on in the next, created under
+  `<thread>.<number>`.** eve ends a session on a failed model call or a week
+  idle, and a create retried under its operation id answers the same session.
+  `packages/service/src/agent/agent-sessions.ts`.
 - **The record hook keeps what eve did as rows keyed by where eve recorded it,
   and a turn by its eve turn id in its session.** eve delivers a hook at least
   once and numbers turns per session, so a replay writes nothing and session
