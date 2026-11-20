@@ -26,7 +26,7 @@ const NAMED_REFERENCES_TABLE = `./${path.relative(
   require.resolve("decode-named-character-reference"),
 )}`;
 
-export const siteConfig: NextConfig = {
+export const nextConfig: NextConfig = {
   agentRules: false,
   cacheComponents: true,
   headers: async () =>
@@ -46,4 +46,4 @@ export const siteConfig: NextConfig = {
   },
 };
 
-export default withEve(siteConfig);
+export default withEve(nextConfig);
