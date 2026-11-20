@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from "react";
-import { ElementApi } from "platejs";
+import { ElementApi, KEYS } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 import { PlateElement, useEditorRef, useElement, usePath } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -42,7 +42,7 @@ const TabGroupElement = (props: PlateElementProps) => {
 
     editor.tf.insertNodes(
       {
-        children: [{ children: [{ text: "" }], type: "p" }],
+        children: [{ children: [{ text: "" }], type: editor.getType(KEYS.p) }],
         label: `Tab ${String(panels.length + 1)}`,
         type: TAB_PANEL_KEY,
       },
@@ -164,12 +164,12 @@ export const insertTabGroup = (editor: SlateEditor) => {
   editor.tf.insertNodes({
     children: [
       {
-        children: [{ children: [{ text: "" }], type: "p" }],
+        children: [{ children: [{ text: "" }], type: editor.getType(KEYS.p) }],
         label: "Tab 1",
         type: TAB_PANEL_KEY,
       },
       {
-        children: [{ children: [{ text: "" }], type: "p" }],
+        children: [{ children: [{ text: "" }], type: editor.getType(KEYS.p) }],
         label: "Tab 2",
         type: TAB_PANEL_KEY,
       },
