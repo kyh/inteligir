@@ -33,6 +33,7 @@ import {
 } from "../auth/oauth-auth";
 import { FUNCTION_MAX_BODY_BYTES } from "../function-limits";
 import { kickJobs } from "../jobs/drain-jobs";
+import { errorFields } from "../log";
 import { changesLibrary } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
 import { spendHolderBudget } from "../rate-limit";
@@ -105,10 +106,11 @@ const serveModern: (
   const response = await entry.fetch(request, { parsedBody: body });
 
   if (response.status >= 500) {
-    console.error(
-      `[connector] a 2026-07-28 request failed (${String(response.status)})`,
-      ...reported,
-    );
+    console.error({
+      event: "connector-request-failed",
+      status: response.status,
+      errors: reported.map(errorFields),
+    });
   }
 
   return response;

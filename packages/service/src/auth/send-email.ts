@@ -4,6 +4,7 @@ import type { ErrorResponse } from "resend";
 import { Resend } from "resend";
 
 import { env } from "../env";
+import { errorFields } from "../log";
 
 export type EmailMode =
   | { readonly kind: "resend"; readonly apiKey: string; readonly from: string }
@@ -103,7 +104,7 @@ const sendThroughResend = async (
 
     return "failed" as const;
   } catch (error) {
-    console.error(`[send-email] ${message.label}: the Resend client failed`, error);
+    console.error({ event: "send-email-failed", label: message.label, ...errorFields(error) });
 
     return "failed" as const;
   }
