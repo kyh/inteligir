@@ -1,4 +1,4 @@
-/* flat, top-level rules only: the style-hooks guard reads this with a flat-rule parser. */
+/* flat, top-level rules only, but for the dark palette's @media not print: the style-hooks guard reads this with a flat-rule parser. */
 
 /* collapses in css rather than by splitting react children, because plate hands the element
    all rendered children as one child; blocks stay mounted since slate needs their dom. */
