@@ -31,13 +31,17 @@ export const libraryTextSchema = z.strictObject({
 
 const voidChildren = z.tuple([libraryTextSchema.extend({ text: z.literal("") })]);
 
-const listChecked = z.boolean().optional();
 const listIndent = z.number().int().min(1).max(LIST_MAX_INDENT).optional();
 const listNumber = z.number().int().nonnegative().optional();
-const listStart = listNumber;
-const listRestart = listNumber;
-const listRestartPolite = listNumber;
-const listStyleType = z.enum(["disc", "decimal", "todo"]).optional();
+
+const listProps = {
+  checked: z.boolean().optional(),
+  indent: listIndent,
+  listRestart: listNumber,
+  listRestartPolite: listNumber,
+  listStart: listNumber,
+  listStyleType: z.enum(["disc", "decimal", "todo"]).optional(),
+};
 
 export const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
 export const alertVariantSchema = z.enum(ALERT_VARIANTS);
@@ -52,137 +56,97 @@ const oneSource = (value: { sha?: string | undefined; url?: string | undefined }
 
 const ONE_SOURCE = { error: "names its bytes by sha or its address by url, exactly one" };
 
-const paragraph = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("p"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const paragraph = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("p"),
+  })
+  .extend(listProps);
 
-const heading1 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h1"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading1 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h1"),
+  })
+  .extend(listProps);
 
-const heading2 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h2"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading2 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h2"),
+  })
+  .extend(listProps);
 
-const heading3 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h3"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading3 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h3"),
+  })
+  .extend(listProps);
 
-const heading4 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h4"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading4 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h4"),
+  })
+  .extend(listProps);
 
-const heading5 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h5"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading5 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h5"),
+  })
+  .extend(listProps);
 
-const heading6 = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("h6"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const heading6 = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("h6"),
+  })
+  .extend(listProps);
 
-const blockquote = z.strictObject({
-  alert: alertVariantSchema.optional(),
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("blockquote"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const blockquote = z
+  .strictObject({
+    alert: alertVariantSchema.optional(),
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("blockquote"),
+  })
+  .extend(listProps);
 
-const toggle = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  type: z.literal("toggle"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const toggle = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    type: z.literal("toggle"),
+  })
+  .extend(listProps);
 
-const codeBlock = z.strictObject({
-  get children() {
-    return z.array(libraryNodeSchema);
-  },
-  lang: z.string().optional(),
-  type: z.literal("code_block"),
-  checked: listChecked,
-  indent: listIndent,
-  listRestart,
-  listRestartPolite,
-  listStart,
-  listStyleType,
-});
+const codeBlock = z
+  .strictObject({
+    get children() {
+      return z.array(libraryNodeSchema);
+    },
+    lang: z.string().optional(),
+    type: z.literal("code_block"),
+  })
+  .extend(listProps);
 
 const codeLine = z.strictObject({
   get children() {
