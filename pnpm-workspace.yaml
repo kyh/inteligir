@@ -208,7 +208,6 @@ catalogPrune: true
 blockExoticSubdeps: true
 
 allowBuilds:
-  "@tailwindcss/oxide": true
   # a postinstall that only prints a funding notice
   core-js: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
