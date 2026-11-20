@@ -29,6 +29,7 @@ const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 const FRESH_MS = 30_000;
 const CACHE_KEY = "library-cache";
 const CACHE_WRITE_MS = 1000;
+const COPY_TO_CLEAR_KEY = "copy-to-clear";
 
 export interface ComposeRuntimeArgs {
   readonly cloudUrl: string;
@@ -91,6 +92,10 @@ export interface AppRuntime {
 }
 
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
+
+export const COPY_NOT_CLEARED =
+  "The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens";
+
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
 export const composeRuntime = (args: ComposeRuntimeArgs) => {
@@ -154,6 +159,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs) => {
     await files.clear();
     queryClient.clear();
     await persister.removeClient();
+    await args.storage.removeItem(COPY_TO_CLEAR_KEY);
   };
 
   const leave = async (library: PhoneLibrary, notice: string | null) => {
@@ -166,10 +172,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs) => {
     try {
       await leave(library, notice);
     } catch (error) {
-      move({
-        kind: "signed-out",
-        notice: `${notice} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: ${messageOf(error)}`,
-      });
+      await Promise.allSettled([
+        args.auth.signOut(),
+        args.storage.setItem(COPY_TO_CLEAR_KEY, "owed"),
+      ]);
+      move({ kind: "signed-out", notice: `${notice} ${COPY_NOT_CLEARED}: ${messageOf(error)}` });
     }
 
     return { kind: "signed-out" } satisfies LogoutOutcome;
@@ -338,6 +345,17 @@ export const composeRuntime = (args: ComposeRuntimeArgs) => {
       }
 
       started = true;
+
+      try {
+        if ((await args.storage.getItem(COPY_TO_CLEAR_KEY)) !== null) {
+          await forgetAccount(null);
+        }
+      } catch (error) {
+        move({ kind: "signed-out", notice: `${COPY_NOT_CLEARED}: ${messageOf(error)}` });
+
+        return;
+      }
+
       let kept: string | null = null;
 
       try {

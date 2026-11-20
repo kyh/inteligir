@@ -63,7 +63,10 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **A device signs out through Better Auth's own `/api/auth/sign-out`, and no
   unreachable cloud holds that sign-out open.** The phone drops its copy first
   and keeps the session if the copy will not go; a tab, holding nothing, ends
-  the session first. `apps/mobile/src/lib/compose-runtime.ts`.
+  the session first. A session the cloud ended drops its cookie even when the
+  copy will not go, and the copy it owes clears at the next launch before
+  anything opens, since a kept cookie would reopen it offline.
+  `apps/mobile/src/lib/compose-runtime.ts`.
 - **A phone save is one create where the library's scope saves.** A link waits for the cloud's
   fill and a thought is a note named by its first line, and a save, a new note or a delete needs a
   connection and says so, since only a share waits. `apps/mobile/src/items/phone-saves.ts`.

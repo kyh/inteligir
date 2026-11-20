@@ -14,7 +14,7 @@ import type { MemoryFolder } from "../test-support/memory-folder.test-utils";
 import { memoryKv } from "@repo/client/test-support/memory-kv.test-utils";
 import { threadQueries } from "@repo/client/thread-queries";
 import type { MemoryKv } from "@repo/client/test-support/memory-kv.test-utils";
-import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
+import { composeRuntime, COPY_NOT_CLEARED, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
 import { nextTask } from "../test-support/async.test-utils";
 
@@ -353,12 +353,13 @@ describe("the phone's runtime", () => {
     expect(cell.calls).toStrictEqual([]);
   });
 
-  it("is signed out of a sign-in the cloud ended though its copy would not go, and clears it at the next launch", async () => {
+  it("drops a sign-in the cloud ended though its copy would not go, and clears the copy at the next launch before anything opens", async () => {
     const cell = createFakeCell();
     const keys = fakePhoneAuth(KEPT_SESSION);
+    const storage = memoryKv();
     const memory = memoryFolder();
     const folder = refusingOnce(memory);
-    const first = runtimeOver(cell, { folder: folder.port, keys });
+    const first = runtimeOver(cell, { folder: folder.port, keys, storage });
     await first.runtime.start();
     await memory.write("cached", new Uint8Array([1, 2, 3]));
 
@@ -369,18 +370,60 @@ describe("the phone's runtime", () => {
       .poll(() => first.runtime.session.get())
       .toStrictEqual({
         kind: "signed-out",
-        notice: `${SIGNED_OUT_ELSEWHERE} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: database or disk is full`,
+        notice: `${SIGNED_OUT_ELSEWHERE} ${COPY_NOT_CLEARED}: database or disk is full`,
       });
-    expect(keys.held()).toBe(KEPT_SESSION);
+    expect(keys.held()).toBeNull();
     expect(memory.held()).toStrictEqual(["cached"]);
 
-    const again = runtimeOver(cell, { folder: memory, keys });
+    const again = runtimeOver(cell, { folder: memory, keys, storage });
     await again.runtime.start();
-    await expect
-      .poll(() => again.runtime.session.get())
-      .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
-    expect(keys.held()).toBeNull();
+    expect(again.runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
     expect(memory.held()).toStrictEqual([]);
+  });
+
+  it("stays signed out at a launch whose owed copy will not clear either", async () => {
+    const cell = createFakeCell();
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    const storage = memoryKv();
+    const memory = memoryFolder();
+    const folder = refusingOnce(memory);
+    const first = runtimeOver(cell, { folder: folder.port, keys, storage });
+    await first.runtime.start();
+
+    cell.signOut();
+    folder.refuseNext();
+    await expect(signedIn(first.runtime).client.library.changes({})).rejects.toThrow(/sign/u);
+    await expect.poll(() => first.runtime.session.get().kind).toBe("signed-out");
+
+    folder.refuseNext();
+    const again = runtimeOver(cell, { folder: folder.port, keys, storage });
+    await again.runtime.start();
+    expect(again.runtime.session.get()).toStrictEqual({
+      kind: "signed-out",
+      notice: `${COPY_NOT_CLEARED}: database or disk is full`,
+    });
+  });
+
+  it("owes no copy once a sign-in has cleared it, so the next launch keeps the new library", async () => {
+    const cell = createFakeCell();
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    const storage = memoryKv();
+    const memory = memoryFolder();
+    const folder = refusingOnce(memory);
+    const first = runtimeOver(cell, { folder: folder.port, keys, storage });
+    await first.runtime.start();
+
+    cell.signOut();
+    folder.refuseNext();
+    await expect(signedIn(first.runtime).client.library.changes({})).rejects.toThrow(/sign/u);
+    await expect.poll(() => first.runtime.session.get().kind).toBe("signed-out");
+    await first.runtime.login.login(SIGN_IN);
+    await memory.write("cached", new Uint8Array([1, 2, 3]));
+
+    const again = runtimeOver(cell, { folder: memory, keys, storage });
+    await again.runtime.start();
+    expect(again.runtime.session.get().kind).toBe("signed-in");
+    expect(memory.held()).toStrictEqual(["cached"]);
   });
 
   it("fails the launch when the phone's store will not read", async () => {
