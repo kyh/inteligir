@@ -9,7 +9,7 @@ import type { LibraryToolName, WebToolName } from "@repo/contract/library/agent-
 import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { z } from "zod";
-import { isOrpcError } from "@repo/contract/rpc/v1-errors";
+import { AgentBudgetError, AgentUnavailableError, isOrpcError } from "@repo/contract/rpc/v1-errors";
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
@@ -95,11 +95,11 @@ export const sendRefusalWords = (cause: unknown, nowMs: number) => {
   const named = resetsAtSchema.safeParse(cause.data);
   const resetsAt = named.success ? named.data.resetsAt : null;
 
-  if (cause.code === "AGENT_BUDGET") {
+  if (cause.code === AgentBudgetError.code) {
     return `The agent has used today’s allowance.${backAt(resetsAt, nowMs)}`;
   }
 
-  if (cause.code === "SERVICE_UNAVAILABLE") {
+  if (cause.code === AgentUnavailableError.code) {
     return resetsAt === null
       ? "The built-in agent is off or can’t be reached right now. You can turn it on in Settings."
       : `The built-in agent is at capacity for today.${backAt(resetsAt, nowMs)}`;
