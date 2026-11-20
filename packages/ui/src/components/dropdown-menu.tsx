@@ -155,30 +155,26 @@ const DropdownMenuContent = ({
   );
 };
 
-const DropdownMenuLabel = ({
-  className,
-  ref,
-  ...props
-}: ComponentProps<"div"> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
+interface DropdownMenuLabelProps extends Omit<ComponentProps<typeof Menu.GroupLabel>, "className"> {
+  className?: string | undefined;
+}
+
+const DropdownMenuLabel = ({ className, ...props }: DropdownMenuLabelProps) => (
+  <Menu.GroupLabel
     className={cn("px-2 py-1.5 shrink-0 text-caption text-muted-foreground", className)}
     {...props}
   />
 );
 
-const DropdownMenuSeparator = ({
-  className,
-  ref,
-  ...props
-}: ComponentProps<"div"> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <hr> cannot carry the div ref and props this slot exposes
-    role="separator"
-    className={cn("my-1 -mx-1 h-px shrink-0 bg-border/60", className)}
-    {...props}
-  />
+interface DropdownMenuSeparatorProps extends Omit<
+  ComponentProps<typeof Menu.Separator>,
+  "className"
+> {
+  className?: string | undefined;
+}
+
+const DropdownMenuSeparator = ({ className, ...props }: DropdownMenuSeparatorProps) => (
+  <Menu.Separator className={cn("my-1 -mx-1 h-px shrink-0 bg-border/60", className)} {...props} />
 );
 
 type MenuRowVariant = "default" | "destructive";
