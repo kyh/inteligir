@@ -1,5 +1,6 @@
 import { HOLDS_ANSWER_MS } from "@repo/client/note-bodies";
 
+import { createExternalStore } from "../lib/external-store";
 import type { NoteState, Settled } from "./page/page-host";
 
 type NotePageLife =
@@ -153,8 +154,11 @@ const lifeAfter = (page: NotePage, event: LifeEvent) => {
 };
 
 export const notePageLife = ({ deep }: { readonly deep: boolean }) => {
-  let page: NotePage = { asked: 0, deep, life: { kind: deep ? "released" : "reading" } };
-  const listeners = new Set<() => void>();
+  const store = createExternalStore<NotePage>({
+    asked: 0,
+    deep,
+    life: { kind: deep ? "released" : "reading" },
+  });
 
   let leaving: { readonly go: () => void; readonly confirm: (discard: () => void) => void } | null =
     null;
@@ -164,7 +168,7 @@ export const notePageLife = ({ deep }: { readonly deep: boolean }) => {
   const run = (effect: LifeEffect, again: (event: LifeEvent) => void) => {
     switch (effect) {
       case "ask": {
-        const ask = page.asked;
+        const ask = store.get().asked;
         timer = setTimeout(() => {
           again({ ask, holds: false, kind: "answered" });
         }, HOLDS_ANSWER_MS);
@@ -194,19 +198,15 @@ export const notePageLife = ({ deep }: { readonly deep: boolean }) => {
   };
 
   const step = (event: LifeEvent) => {
+    const page = store.get();
     const { effect, page: next } = lifeAfter(page, event);
 
     if (page.life.kind === "asking" && next.life.kind !== "asking") {
       clearTimeout(timer);
     }
 
-    const moved = next !== page;
-    page = next;
-
-    if (moved) {
-      for (const listener of listeners) {
-        listener();
-      }
+    if (next !== page) {
+      store.set(next);
     }
 
     run(effect, step);
@@ -216,9 +216,11 @@ export const notePageLife = ({ deep }: { readonly deep: boolean }) => {
     answer: ({ ask, holds }) => {
       step({ ask, holds, kind: "answered" });
     },
-    get: () => page,
+    get: store.get,
     leave: (go, confirm) => {
-      if (page.life.kind !== "asking" || page.life.for !== "leave") {
+      const { life } = store.get();
+
+      if (life.kind !== "asking" || life.for !== "leave") {
         leaving = { confirm, go };
       }
 
@@ -233,12 +235,6 @@ export const notePageLife = ({ deep }: { readonly deep: boolean }) => {
     report: (state) => {
       step({ kind: "reported", state });
     },
-    subscribe: (listener) => {
-      listeners.add(listener);
-
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: store.subscribe,
   } satisfies NotePageLifeStore;
 };
