@@ -57,14 +57,7 @@ const EntryRow = ({
     }
 
     case "agent.message": {
-      return (
-        <StreamingText
-          className="select-text"
-          text={event.text}
-          streaming={false}
-          animate={false}
-        />
-      );
+      return <StreamingText className="select-text" text={event.text} />;
     }
 
     case "agent.progress":
@@ -143,15 +136,7 @@ const Block = ({
     }
 
     case "draft": {
-      return (
-        <StreamingText
-          className="select-text"
-          text={block.text}
-          streaming
-          animate={false}
-          data-agent-draft
-        />
-      );
+      return <StreamingText className="select-text" text={block.text} streaming data-agent-draft />;
     }
 
     case "entry": {

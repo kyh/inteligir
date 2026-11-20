@@ -1,13 +1,9 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { Profiler } from "react";
 import type { ProfilerOnRenderCallback } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { StreamingText } from "./streaming-text";
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 describe(StreamingText, () => {
   it("commits a text change once when the caller grows the text itself", () => {
@@ -15,7 +11,7 @@ describe(StreamingText, () => {
 
     const view = (text: string) => (
       <Profiler id="streaming-text" onRender={onRender}>
-        <StreamingText text={text} animate={false} />
+        <StreamingText text={text} />
       </Profiler>
     );
 
@@ -25,15 +21,5 @@ describe(StreamingText, () => {
     rerender(view("Reading the note"));
     expect(onRender).toHaveBeenCalledOnce();
     expect(screen.getByText("Reading the note")).toBeTruthy();
-  });
-
-  it("stops its reveal timer once every word is shown", () => {
-    vi.useFakeTimers();
-    render(<StreamingText text="one two three" />);
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(screen.getByText("one two three")).toBeTruthy();
-    expect(vi.getTimerCount()).toBe(0);
   });
 });
