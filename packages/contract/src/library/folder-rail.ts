@@ -12,6 +12,9 @@ export interface ListingFolder {
   readonly sort: string;
 }
 
+export const compareFolders = (a: ListingFolder, b: ListingFolder) =>
+  compareText(a.sort, b.sort) || compareText(a.name, b.name) || compareText(a.id, b.id);
+
 export class FolderRail {
   private readonly live: ReadonlySet<string>;
   private readonly children = new Map<string | null, ListingFolder[]>();
@@ -29,10 +32,7 @@ export class FolderRail {
     }
 
     for (const siblings of this.children.values()) {
-      siblings.sort(
-        (a, b) =>
-          compareText(a.sort, b.sort) || compareText(a.name, b.name) || compareText(a.id, b.id),
-      );
+      siblings.sort(compareFolders);
     }
   }
 

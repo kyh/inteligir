@@ -26,6 +26,14 @@ describe("the folder rows", () => {
     ]);
   });
 
+  it("breaks a tie on the order key by name in code-point order, as the rail does", () => {
+    expect(
+      folderPaths([folder("a", "apple", null), folder("b", "Banana", null)]).map(
+        (row) => row.label,
+      ),
+    ).toStrictEqual(["Banana", "apple"]);
+  });
+
   it("shows a folder whose parent is not listed at the top", () => {
     expect(folderPaths([folder("x", "Lost", "gone")]).map((row) => row.label)).toStrictEqual([
       "Lost",

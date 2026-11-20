@@ -102,7 +102,7 @@ const bySort = (a: ListingRow, b: ListingRow, sort: ListingSort) => {
 };
 
 export const compareTagCounts = (a: TagCount, b: TagCount) =>
-  b.items - a.items || a.tag.localeCompare(b.tag);
+  b.items - a.items || compareText(a.tag.toLowerCase(), b.tag.toLowerCase());
 
 export class LibraryIndex<R extends ListingRow> {
   private readonly entries = new Map<string, Entry<R>>();

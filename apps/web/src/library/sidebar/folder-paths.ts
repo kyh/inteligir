@@ -1,5 +1,5 @@
+import { compareFolders } from "@repo/contract/library/folder-rail";
 import type { ListingFolder } from "@repo/contract/library/folder-rail";
-import { compareText } from "@repo/contract/library/order-key";
 
 export interface FolderRow {
   readonly id: string;
@@ -7,9 +7,6 @@ export interface FolderRow {
   readonly depth: number;
   readonly label: string;
 }
-
-const bySortThenName = (a: ListingFolder, b: ListingFolder) =>
-  compareText(a.sort, b.sort) || a.name.localeCompare(b.name);
 
 export const folderPaths = (folders: readonly ListingFolder[]) => {
   const children = new Map<string | null, ListingFolder[]>();
@@ -23,7 +20,7 @@ export const folderPaths = (folders: readonly ListingFolder[]) => {
   const rows: FolderRow[] = [];
 
   const walk = (parent: string | null, depth: number, above: string) => {
-    for (const folder of (children.get(parent) ?? []).toSorted(bySortThenName)) {
+    for (const folder of (children.get(parent) ?? []).toSorted(compareFolders)) {
       const label = above === "" ? folder.name : `${above} / ${folder.name}`;
       rows.push({ depth, id: folder.id, label, name: folder.name });
       walk(folder.id, depth + 1, label);

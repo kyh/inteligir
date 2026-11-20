@@ -163,6 +163,18 @@ describe(LibraryIndex, () => {
     ]);
   });
 
+  it("orders tags held as often by code point, case aside, whatever the runtime's locale", () => {
+    const index = filled();
+    index.upsert(row("e", { tags: ["éclair"] }));
+    index.upsert(row("f", { tags: ["fig"] }));
+    expect(index.scopes().tags.map(({ tag }) => tag)).toStrictEqual([
+      "fig",
+      "read",
+      "Read/later",
+      "éclair",
+    ]);
+  });
+
   it("lists nothing under a folder no longer live, and what was in it as unsorted", () => {
     const index = filled();
     index.setFolders([{ id: "plans", name: "Plans", parentId: "work", sort: "a0" }]);
