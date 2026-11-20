@@ -297,10 +297,10 @@ back only this device's typing.
 Deleted…", which removes them for good.
 
 **Sign in to Inteligir** — the browser extension's sign-in, which is the
-browser's own: it sends that browser's **session** cookie for the site with
-each save, so signing out of the site signs it out too
-(`apps/extension/src/background/sign-in.ts`). The extension adds no row to
-**Devices**.
+browser's own: it reads that browser's **session** cookie for the site and
+sends its signed value as each save's bearer, so signing out of the site signs
+it out too (`apps/extension/src/background/sign-in.ts`). The extension adds no
+row to **Devices**.
 
 **session** — one device's sign-in, Better Auth's own row: a browser tab or
 the Mac app's window holds its cookie, the iPhone keeps it in the Keychain,
