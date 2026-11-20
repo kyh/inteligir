@@ -6,7 +6,7 @@ import { resetViewOf } from "#lib/reset-link";
 
 import { ResetPasswordForm } from "./reset-password-form";
 
-export const metadata: Metadata = { referrer: "no-referrer", title: "Choose a new password" };
+export const metadata: Metadata = { title: "Choose a new password" };
 
 const ResetPasswordEntry = async ({
   searchParams,
