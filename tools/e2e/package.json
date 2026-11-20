@@ -19,7 +19,7 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@types/node": "catalog:",
-    "@zip.js/zip.js": "^2.25.0",
+    "@zip.js/zip.js": "catalog:",
     "dotenv-cli": "catalog:",
     "postgres": "catalog:",
     "typescript": "catalog:",
