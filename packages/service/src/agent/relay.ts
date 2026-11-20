@@ -17,8 +17,6 @@ type ThreadStreamEvent = z.infer<typeof threadStreamEventSchema>;
 
 const NEXT_SESSION_POLL_MS = 2000;
 
-const RECONNECT_MS = 1000;
-
 const HISTORY_PAGE = 500;
 
 const SETTLE_POLL_MS = 100;
@@ -174,7 +172,7 @@ const relayThread: (
     }
   }
 
-  yield withEventMeta({ kind: "caughtUp" }, { retry: RECONNECT_MS });
+  yield { kind: "caughtUp" };
   let followed: string | null = null;
 
   while (!stop.aborted) {
