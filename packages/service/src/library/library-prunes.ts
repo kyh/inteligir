@@ -1,7 +1,7 @@
 import { agentThread } from "@repo/db/agent-schema";
 import type { Tx } from "@repo/db/drizzle-client";
 import { changeSet, changeSetFile, changeSetItem, file, opAnswer } from "@repo/db/library-schema";
-import { and, eq, inArray, isNotNull, isNull, lt, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, notExists, or, sql } from "drizzle-orm";
 
 import { idleAccounts } from "./idle-accounts";
 import { takeLibraryHead } from "./library-store";
@@ -39,16 +39,18 @@ const stampExpiredThreads = async (
 export const pruneChangeSets = async (tx: Tx, now: number) => {
   const reach = now - UNDO_REACH_MS;
 
+  const idle = await idleAccounts(
+    tx,
+    tx
+      .selectDistinct({ accountId: changeSet.accountId })
+      .from(changeSet)
+      .where(isNotNull(changeSet.sealedAt)),
+  );
+
   const past = and(
-    inArray(
+    anyOf(
       changeSet.accountId,
-      idleAccounts(
-        tx,
-        tx
-          .selectDistinct({ accountId: changeSet.accountId })
-          .from(changeSet)
-          .where(isNotNull(changeSet.sealedAt)),
-      ),
+      idle.map(({ accountId }) => accountId),
     ),
     isNotNull(changeSet.sealedAt),
   );
@@ -71,21 +73,21 @@ export const pruneChangeSets = async (tx: Tx, now: number) => {
         .where(expired)}`,
     );
 
+  const emptied = notExists(
+    tx
+      .select({ held: sql`1` })
+      .from(changeSetItem)
+      .where(
+        and(
+          eq(changeSetItem.accountId, changeSet.accountId),
+          eq(changeSetItem.changeSetId, changeSet.id),
+        ),
+      ),
+  );
+
   const gone = await tx
     .delete(changeSet)
-    .where(
-      sql`${expired} or (${past} and ${notExists(
-        tx
-          .select({ held: sql`1` })
-          .from(changeSetItem)
-          .where(
-            and(
-              eq(changeSetItem.accountId, changeSet.accountId),
-              eq(changeSetItem.changeSetId, changeSet.id),
-            ),
-          ),
-      )})`,
-    )
+    .where(and(past, or(lt(changeSet.sealedAt, reach), emptied)))
     .returning({
       accountId: changeSet.accountId,
       sealedAt: changeSet.sealedAt,
