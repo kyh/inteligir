@@ -30,7 +30,7 @@ const AGENT_SELECTION_MAX = 4000;
 export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;
 export const PAGE_MAX = 50;
-const LISTING_PAGE_MAX = 1000;
+export const LISTING_PAGE_MAX = 1000;
 
 const itemFieldsRowSchema = z.object(libraryItemFieldsSchema.shape);
 

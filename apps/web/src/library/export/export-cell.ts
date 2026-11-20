@@ -2,6 +2,7 @@ import { deferred } from "@repo/contract/deferred";
 import type { ListingFolder } from "@repo/contract/library/folder-rail";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { v1Client } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
@@ -24,8 +25,6 @@ export interface ExportCell {
   readonly item: (id: string) => Promise<WholeItem | null>;
   readonly file: (sha: string) => Promise<Blob | null>;
 }
-
-const LISTING_PAGE = 1000;
 
 const FILE_TRIES = 5;
 const BUSY_STATUS = 429;
@@ -86,7 +85,7 @@ export const exportCellOver = (transport: V1Transport, onSessionEnd: (end: Sessi
     listed: async (cursor) =>
       await library.listing.page({
         cursor,
-        limit: LISTING_PAGE,
+        limit: LISTING_PAGE_MAX,
         scope: { kind: "all" },
         sort: "saved",
       }),
