@@ -1,7 +1,7 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // WebWorker, not DOM: a socket and timers with no document, as on every client this loads in
+    // WebWorker, not DOM: timers with no document, as on every client this loads in
     "lib": ["ES2023", "WebWorker"],
     "types": []
   },

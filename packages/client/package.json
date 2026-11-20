@@ -2,7 +2,7 @@
   "name": "@repo/client",
   "version": "0.1.0",
   "private": true,
-  "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, how each device keeps what it shows of the library and learns what moved in it, and the saves the phone and the extension keep until the cloud takes them.",
+  "description": "What the library tab and the phone share above the contract: a conversation as every device reads and follows it, what a send asks, the agent's holds on an open note, how each device keeps what it shows of the library, reads and saves a note and learns what moved in it, and the saves the phone and the extension keep until the cloud takes them.",
   "type": "module",
   "exports": {
     "./agent-note-holds": "./src/agent-note-holds.ts",
