@@ -188,7 +188,7 @@ knip runs once, over every workspace. On its own it is
 `pnpm turbo run //#knip`: it reads the extension's program, which extends the
 `.wxt/tsconfig.json` its `generate` task writes, so a bare `pnpm knip` on a
 fresh checkout sees none of the extension's suites and calls the exports they
-use unused. Lint, oxlint over ultracite's core, react, tanstack, anti-slop and landmines
+use unused. Lint, oxlint over ultracite's core, react, anti-slop and landmines
 presets, is `pnpm turbo run //#lint` on its own for the same reason: its
 type-aware pass reads the site's route types and the extension's
 `.wxt/tsconfig.json`, which their `generate` tasks write.

@@ -3,7 +3,6 @@ import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import landmines from "ultracite/oxlint/landmines";
 import react from "ultracite/oxlint/react";
-import tanstack from "ultracite/oxlint/tanstack";
 
 const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 
@@ -180,7 +179,7 @@ const platformPurity = (dir: string, regex: string, message: string, ...more: Im
 });
 
 export default defineConfig({
-  extends: [core, react, tanstack, antiSlop, landmines],
+  extends: [core, react, antiSlop, landmines],
   jsPlugins: landmines.jsPlugins,
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
   ignorePatterns: [...(core.ignorePatterns ?? []), ".agents", ".claude", ".codex", ".wxt"],
