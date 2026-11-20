@@ -1,9 +1,8 @@
 import { deferred } from "@repo/contract/deferred";
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { sameBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
-import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
+import { BODY_MAX_BYTES, bodyBytes } from "@repo/contract/library/library-wire";
 
 import { mergeBlocks } from "@repo/editor/headless/body/merge-blocks";
 import type { NoteHost, NoteStanding } from "@repo/editor/host-io";
@@ -48,8 +47,6 @@ type Phase =
   | { readonly kind: "conflict"; readonly theirs: HeldNote };
 
 const IDLE: Phase = { kind: "idle" };
-
-const bytesOf = (blocks: readonly BodyBlock[]) => utf8ByteLength(JSON.stringify(blocks));
 
 const earliest = (a: number | null, b: number | null) => {
   if (a === null) {
@@ -219,7 +216,7 @@ export class NoteSaver {
 
     const mine = this.body?.mine() ?? null;
 
-    return mine === null || bytesOf(mine) > KEEPALIVE_MAX_BYTES;
+    return mine === null || bodyBytes(mine) > KEEPALIVE_MAX_BYTES;
   };
 
   readonly agentEditing = (callId: string) => {
@@ -392,7 +389,7 @@ export class NoteSaver {
       return;
     }
 
-    const bytes = bytesOf(blocks);
+    const bytes = bodyBytes(blocks);
     this.full = bytes > BODY_MAX_BYTES;
     const outlives = bytes <= KEEPALIVE_MAX_BYTES;
     const refused = this.fileMissing !== null && sameBody(blocks, this.fileMissing);

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { itemScopeSchema, LIBRARY_SELECTION_MAX, libraryScopeSchema } from "../library-scope";
 import { ITEM_KINDS } from "../items/item-kind";
+import { utf8ByteLength } from "./canonical-json";
 import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
 import { instant, libraryItemFieldsSchema } from "./library-item";
@@ -24,6 +25,7 @@ export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
 export const MARKDOWN_MAX = 1_000_000;
 export const BODY_MAX_BYTES = 1024 * 1024;
+export const bodyBytes = (blocks: readonly unknown[]) => utf8ByteLength(JSON.stringify(blocks));
 const AGENT_SELECTION_MAX = 4000;
 export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;

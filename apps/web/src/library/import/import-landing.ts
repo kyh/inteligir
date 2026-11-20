@@ -3,6 +3,7 @@ import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import {
   BODY_MAX_BYTES,
+  bodyBytes,
   BULK_ITEMS_MAX,
   FOLDER_NAME_MAX,
   folderPathNames,
@@ -149,10 +150,7 @@ export const createBatcher = (cell: ImportCell, tally: ImportTally, heard: () =>
       return;
     }
 
-    if (
-      parsed.data.kind === "new" &&
-      utf8ByteLength(JSON.stringify(parsed.data.blocks)) > BODY_MAX_BYTES
-    ) {
+    if (parsed.data.kind === "new" && bodyBytes(parsed.data.blocks) > BODY_MAX_BYTES) {
       tally.unreadable += 1;
 
       return;

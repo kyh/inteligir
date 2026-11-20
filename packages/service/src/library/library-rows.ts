@@ -1,4 +1,3 @@
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import type {
   BodyBlock,
   BodyDigest,
@@ -8,6 +7,7 @@ import type {
 } from "@repo/contract/library/derive-item";
 import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { bodyBytes } from "@repo/contract/library/library-wire";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import type { itemSearch } from "@repo/db/library-schema";
 import { item, itemBody, itemTag, libraryState } from "@repo/db/library-schema";
@@ -186,7 +186,7 @@ export const bodyRowOf = (accountId: string, itemId: string, body: StoredBody) =
   ({
     ...body,
     accountId,
-    bytes: utf8ByteLength(JSON.stringify(body.blocks)),
+    bytes: bodyBytes(body.blocks),
     itemId,
   }) satisfies typeof itemBody.$inferInsert;
 

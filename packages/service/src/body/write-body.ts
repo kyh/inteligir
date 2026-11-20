@@ -1,7 +1,6 @@
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { sameBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
+import { BODY_MAX_BYTES, bodyBytes } from "@repo/contract/library/library-wire";
 import type { bodyWriteSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
@@ -33,7 +32,7 @@ export const writeBody = async (scope: WriteScope, save: BodySave) => {
     return { kind: "deleted" } satisfies BodyWrite;
   }
 
-  if (utf8ByteLength(JSON.stringify(blocks)) > BODY_MAX_BYTES) {
+  if (bodyBytes(blocks) > BODY_MAX_BYTES) {
     return { kind: "full", maxBytes: BODY_MAX_BYTES } satisfies BodyWrite;
   }
 

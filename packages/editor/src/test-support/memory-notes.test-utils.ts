@@ -1,9 +1,8 @@
 import { deferred } from "@repo/contract/deferred";
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { sameBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
-import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
+import { BODY_MAX_BYTES, bodyBytes } from "@repo/contract/library/library-wire";
 
 import type { NoteHost, NoteStanding, Reach } from "../host-io";
 
@@ -55,7 +54,7 @@ export const memoryNotes = () => {
       return { kind: "deleted" } satisfies NoteSaved;
     }
 
-    if (utf8ByteLength(JSON.stringify(blocks)) > BODY_MAX_BYTES) {
+    if (bodyBytes(blocks) > BODY_MAX_BYTES) {
       return { kind: "full" } satisfies NoteSaved;
     }
 

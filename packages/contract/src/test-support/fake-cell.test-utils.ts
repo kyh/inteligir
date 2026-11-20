@@ -9,6 +9,7 @@ import type { AgentEvent } from "../library/agent-events";
 import type { bodyWriteSchema, folderOpSchema, listedItemSchema } from "../library/library-wire";
 import {
   BODY_MAX_BYTES,
+  bodyBytes,
   folderRowSchema,
   liveItemRowSchema,
   threadEventRowSchema,
@@ -27,7 +28,7 @@ import {
 } from "../rpc/v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { canonicalJson, utf8ByteLength } from "../library/canonical-json";
+import { canonicalJson } from "../library/canonical-json";
 import { folderOpLanding, folderOpRefusal, itemFilesOf, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
@@ -324,7 +325,7 @@ export const createFakeCell = () => {
       return { kind: "deleted" } satisfies BodyWrite;
     }
 
-    if (utf8ByteLength(JSON.stringify(input.blocks)) > BODY_MAX_BYTES) {
+    if (bodyBytes(input.blocks) > BODY_MAX_BYTES) {
       return { kind: "full", maxBytes: BODY_MAX_BYTES } satisfies BodyWrite;
     }
 
