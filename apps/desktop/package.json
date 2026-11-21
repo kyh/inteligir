@@ -8,7 +8,7 @@
     "dev": "tauri dev --config src-tauri/tauri.local.conf.json",
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "package": "dotenv --no-expand -e ../../.release/release.env -- tauri build --config src-tauri/tauri.package.conf.json && node scripts/release-assets.ts",
+    "package": "dotenv --no-expand -e ../../.release/release.env -- tauri build --config src-tauri/tauri.package.conf.json && dotenv --no-expand -e ../../.release/release.env -- node scripts/release-assets.ts",
     "tauri": "tauri",
     "test": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p scripts && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"

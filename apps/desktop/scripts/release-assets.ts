@@ -16,12 +16,42 @@ execFileSync("xcrun", ["stapler", "validate", path.join(bundleDir, "macos", "Int
   stdio: "inherit",
 });
 
+const releaseValue = (name: string) => {
+  const value = process.env[name];
+
+  if (value === undefined || value === "") {
+    throw new Error(
+      `${name} is unset: package through pnpm package:desktop, which reads .release/release.env`,
+    );
+  }
+
+  return value;
+};
+
 mkdirSync(outDir, { recursive: true });
 
-copyFileSync(
-  path.join(bundleDir, "dmg", `Inteligir_${version}_aarch64.dmg`),
-  path.join(outDir, DMG_NAME),
+const dmg = path.join(outDir, DMG_NAME);
+
+copyFileSync(path.join(bundleDir, "dmg", `Inteligir_${version}_aarch64.dmg`), dmg);
+
+execFileSync(
+  "xcrun",
+  [
+    "notarytool",
+    "submit",
+    dmg,
+    "--wait",
+    "--key",
+    releaseValue("APPLE_API_KEY_PATH"),
+    "--key-id",
+    releaseValue("APPLE_API_KEY"),
+    "--issuer",
+    releaseValue("APPLE_API_ISSUER"),
+  ],
+  { stdio: "inherit" },
 );
+
+execFileSync("xcrun", ["stapler", "staple", dmg], { stdio: "inherit" });
 
 const archive = path.join(bundleDir, "macos", UPDATER_ARCHIVE);
 

@@ -198,7 +198,7 @@ pnpm format:fix && pnpm verify && pnpm e2e && pnpm package:desktop && pnpm packa
 
 `package:desktop` is `tauri build` on the release's config
 (`apps/desktop/src-tauri/tauri.package.conf.json`) with `.release/release.env`:
-it signs and notarizes the app, signs the update, and leaves the release's
+it signs and notarizes the app and its dmg, signs the update, and leaves the release's
 assets in `apps/desktop/.output/bin`. A pack is a release or it fails: Tauri
 stops one with no updater key, and `apps/desktop/scripts/release-assets.ts`
 one whose app carries no notarization ticket. Package only through
