@@ -32,7 +32,8 @@ type Shortcut =
       | "select-all"
       | "delete-selection"
     >
-  | Row<"item", "back-to-library">;
+  | Row<"item", "back-to-library">
+  | Row<"list", "previous-in-list" | "next-in-list">;
 
 type ShortcutScope = Shortcut["scope"];
 
@@ -61,6 +62,8 @@ const SHORTCUTS: readonly Shortcut[] = [
   { action: "select-all", key: "a", mod: true, scope: "grid" },
   { action: "delete-selection", key: "backspace", mod: true, scope: "grid" },
   { action: "back-to-library", key: "escape", scope: "item" },
+  { action: "previous-in-list", key: "[", mod: true, scope: "list" },
+  { action: "next-in-list", key: "]", mod: true, scope: "list" },
 ];
 
 export const hotkeyFor = (action: Shortcut["action"]) => {

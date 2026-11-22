@@ -57,6 +57,18 @@ describe("Info over an item", () => {
     });
   });
 
+  it("names a note an item is filed under by its title, under the folders that hold the note", async () => {
+    const cell = createFakeCell();
+    const folder = cell.seed.folder("Trips");
+    const trip = cell.seed.item({ parentId: folder, title: "Lisbon" });
+    const id = cell.seed.item({ parentId: trip, title: "Day one" });
+    const { library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+
+    await expect(screen.findByText("Trips / Lisbon")).resolves.toBeDefined();
+  });
+
   it("pins the item at once, before the cell answers", async () => {
     const { cell, id } = cellWithALink();
     const landed = deferred();

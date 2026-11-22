@@ -90,6 +90,12 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   browser's, and a waiting call is the layout's one notice, since an online tab has nothing queued
   to report. Folders lists the scopes' containers, folders and lists both, each a scope of its own.
   `apps/web/src/library/sidebar/rail.tsx`.
+- **Folders is the library's tree: folders open with their lists and notes, the root's notes after
+  the root's containers, and a note opens in place.** Containers come from the scopes and a note's
+  rows from `listing.children` read only as its parent opens, so the sidebar holds no library-wide
+  list of notes; folders start open and a note starts closed, each remembered per device in
+  `windowLayout` (`railClosed`, `railOpenNotes`), and a list is a leaf since its view shows what it
+  holds. `apps/web/src/library/sidebar/library-tree.tsx`.
 - **A folder or list is an item, so its writes are item writes.** Creating one is `items.create`
   with its kind, renaming and moving it `items.organize`, deleting it `items.delete`, which takes
   the folders and lists under it too; the tab lays each over the scopes until the cell answers,
@@ -131,6 +137,17 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   of the rail's scope; an item opens full size in its place, a file in its viewer and a note in the
   editor over its saved body, since a list beside an open item reads saved pages as text files.
   `apps/web/src/library/item/item-view.tsx`.
+- **A list's scope draws its view, grouped by its select, not the grid, and an item opens beside
+  it.** The groups are `groupsOf`'s, the empty ones offered while the list groups so a note can be
+  made in any; moving a row, by its menu or a drag onto a group, is one property op, and a new note
+  in a group is made and then set. With an item open the list keeps its column, its width dragged
+  and kept as `listWidth`, and ⌘[ and ⌘] step through its rows in the order drawn, since a list is
+  worked down row by row. `apps/web/src/library/library/list-view.tsx`,
+  `apps/web/src/library/library/list-split.tsx`.
+- **A list's properties are edited in one popover and land as one `items.setList`.** A rename
+  carries `renames`, so what the list holds keeps its values; a deleted property leaves values in
+  place, harmless, and the settings are parsed before the write so a name used twice is said here.
+  `apps/web/src/library/library/list-properties.tsx`.
 - **The grid's selection is a store, of ids or of its scope less those left out.** Finder's
   grammar, a click selecting and a double-click opening, and ⌘A names the scope, read or not, since
   the grid holds only the pages it read; an id the listing no longer shows selects nothing, so no

@@ -142,6 +142,13 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         toast.error(refusalText(error, "The note couldn't be made."));
       }
     }),
+    newNoteIn: press(async (parentId: string) => {
+      try {
+        goes.openItem(await verbs.createNote({ parentId, tags: [] }));
+      } catch (error) {
+        toast.error(refusalText(error, "The note couldn't be made."));
+      }
+    }),
     openItem: goes.openItem,
     openPalette: () => {
       workspace.setPaletteOpen(true);

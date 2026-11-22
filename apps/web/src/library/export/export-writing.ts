@@ -60,20 +60,28 @@ const inOrderAhead = async <T, A>(
   }
 };
 
+const UNTITLED_PARENT = "Untitled";
+
 const listLibrary = async (cell: ExportCell) => {
   const titles = new Map<string, string>();
+  const notes: ContainerNode[] = [];
 
   for (let cursor: number | null = 0; cursor !== null;) {
     const page = await cell.listed(cursor);
 
     for (const { fields, id } of page.items) {
       titles.set(id, fields.title);
+
+      if (fields.kind === "note") {
+        const title = fields.title.trim() === "" ? UNTITLED_PARENT : fields.title;
+        notes.push({ id, parentId: fields.parentId, title });
+      }
     }
 
     ({ cursor } = page);
   }
 
-  return titles satisfies ReadonlyMap<string, string>;
+  return { notes, titles };
 };
 
 const folderNamesOf = (folders: readonly ContainerNode[]) => {
@@ -102,8 +110,8 @@ const writeZip = async (
   counts: ExportCounts,
   tell: (news: ExportNews) => void,
 ) => {
-  const [titles, folders] = await Promise.all([listLibrary(cell), cell.folders()]);
-  const folderNames = folderNamesOf(folders);
+  const [{ notes, titles }, folders] = await Promise.all([listLibrary(cell), cell.folders()]);
+  const folderNames = folderNamesOf([...folders, ...notes]);
   const total = titles.size;
   tell({ kind: "writing", total, written: 0 });
   const types = new Map<string, string>();

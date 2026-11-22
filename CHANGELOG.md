@@ -8,6 +8,12 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 - **Lists sit in the sidebar beside folders**: choose New list inside… on a folder for a list of its own; a folder holds folders, lists and anything else, and a list holds anything but a folder or list.
 - **A note can hold notes**, and a saved link or file can be filed under a note; a folder lists everything filed anywhere under it.
+- **The sidebar is your library's tree**: open a folder to see its lists and notes, open a note that holds notes to see them, and click a note to open it. Folders start open and stay as you leave them; your notes outside any folder follow the folders, with More in Unsorted when there are many.
+- **A list shows its notes grouped by Status**, To do, In progress and Done, with a + on each group for a new note in it; move a note to another group from its menu or by dragging it there.
+- **Give a list the properties you need**: choose Properties to add text, link or select properties, rename them (what the list holds keeps its values), add options to a select, and pick which select it groups by, or none.
+- **Open a note from a list and the list stays beside it**: drag the line between them to resize, and press ⌘[ or ⌘] to step to the previous or next note in the list.
+- **An export keeps a note's notes inside it**: what you filed under a note lands in a folder named after the note, beside the note's own file.
+- **New note inside** on a folder's menu writes a note straight into it, and the sidebar's New list makes a list beside New folder.
 - **Type into a note with no connection**: what you type is kept on this device, through a reload too, and saves once you're back, merging with what changed elsewhere meanwhile. Adding a picture or file still needs a connection.
 
 ### Changed

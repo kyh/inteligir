@@ -133,6 +133,7 @@ export const spyCommands = () =>
     newFolder: vi.fn<LibraryCommands["newFolder"]>(),
     newList: vi.fn<LibraryCommands["newList"]>(),
     newNote: vi.fn<LibraryCommands["newNote"]>(),
+    newNoteIn: vi.fn<LibraryCommands["newNoteIn"]>(),
     openItem: vi.fn<LibraryCommands["openItem"]>(),
     openPalette: vi.fn<LibraryCommands["openPalette"]>(),
     openSettings: vi.fn<LibraryCommands["openSettings"]>(),

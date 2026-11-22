@@ -10,6 +10,7 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
@@ -21,14 +22,57 @@ import { useWindowCapture } from "./library/capture/window-capture";
 import { useLibraryCommands } from "./library/library-commands";
 import { createLibrarySelection, selectedIn } from "./library/library-selection";
 import { LibraryView } from "./library/library-view";
+import { ListSplit } from "./library/list-split";
 import type { ListingPlaceholder } from "./library/library-view";
 import { listingQuery } from "./library/listing";
+import type { ListedItem } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
 const NOTHING_LISTED = { items: [], total: 0 };
+
+const listIdOf = (
+  scope: LibraryScope,
+  containers: readonly { readonly id: string; readonly kind: "folder" | "list" }[],
+) =>
+  scope.kind === "parent" &&
+  containers.some((held) => held.id === scope.parentId && held.kind === "list")
+    ? scope.parentId
+    : null;
+
+interface WorkspaceMainProps {
+  readonly listId: string | null;
+  readonly openItem: string | null;
+  readonly view: { readonly items: readonly ListedItem[]; readonly total: number } | undefined;
+  readonly placeholder: ListingPlaceholder;
+  readonly onNote: (note: OpenNote | null) => void;
+  readonly library: ReactElement;
+}
+
+const WorkspaceMain = ({
+  listId,
+  openItem,
+  view,
+  placeholder,
+  onNote,
+  library,
+}: WorkspaceMainProps) => {
+  if (listId !== null) {
+    return (
+      <ListSplit
+        listId={listId}
+        rows={view?.items ?? []}
+        total={placeholder === "other-scope" ? null : (view?.total ?? null)}
+        openItem={openItem}
+        onNote={onNote}
+      />
+    );
+  }
+
+  return openItem === null ? library : <ItemView itemId={openItem} onNote={onNote} />;
+};
 
 export interface WorkspaceProps {
   readonly scope: LibraryScope;
@@ -55,6 +99,8 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
 
   const folders = useQuery(queries.scopes()).data?.containers ?? [];
   const scopeName = scopeTitle(scope, folders, "All items");
+  const listId = listIdOf(scope, folders);
+
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
   const scopeKey = JSON.stringify(scope);
@@ -156,7 +202,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
           onWidthCommitted={setRailWidth}
         >
           <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
-            <Rail scope={scope} itemOpen={openItem !== null} />
+            <Rail scope={scope} openItem={openItem} />
           </Sidebar>
           <SidebarInset className="relative bg-background">
             <SidebarProvider
@@ -169,36 +215,38 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
               onWidthCommitted={setPanelWidth}
             >
               <SidebarInset className="relative bg-background">
-                {openItem === null ? (
-                  <LibraryView
-                    scope={scope}
-                    title={scopeName}
-                    listing={{
-                      more: () => {
-                        if (listing.hasNextPage && !listing.isFetchingNextPage) {
-                          void listing.fetchNextPage();
-                        }
-                      },
-                      placeholder,
-                      standing: cellStanding({
-                        data: view,
-                        error: listing.error,
-                        fetchStatus: listing.fetchStatus,
-                      }),
-                    }}
-                    kind={kind}
-                    sort={sort}
-                    onSortChange={setSort}
-                    selection={selection}
-                  />
-                ) : (
-                  <ItemView
-                    itemId={openItem}
-                    onNote={(opened) => {
-                      noteRef.current = opened;
-                    }}
-                  />
-                )}
+                <WorkspaceMain
+                  listId={listId}
+                  openItem={openItem}
+                  view={view}
+                  placeholder={placeholder}
+                  onNote={(opened) => {
+                    noteRef.current = opened;
+                  }}
+                  library={
+                    <LibraryView
+                      scope={scope}
+                      title={scopeName}
+                      listing={{
+                        more: () => {
+                          if (listing.hasNextPage && !listing.isFetchingNextPage) {
+                            void listing.fetchNextPage();
+                          }
+                        },
+                        placeholder,
+                        standing: cellStanding({
+                          data: view,
+                          error: listing.error,
+                          fetchStatus: listing.fetchStatus,
+                        }),
+                      }}
+                      kind={kind}
+                      sort={sort}
+                      onSortChange={setSort}
+                      selection={selection}
+                    />
+                  }
+                />
                 {dropInto === null ? null : (
                   <div
                     aria-live="polite"

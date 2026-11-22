@@ -271,6 +271,12 @@ const deletedNow = () => deletedAt(Date.now());
 
 const PURGED: Overlay = { item: (item) => item, row: () => null };
 
+const listOverlay = (list: Inputs["items"]["setList"]["list"]) =>
+  ({
+    item: (item) => ({ ...item, fields: { ...item.fields, list } }),
+    row: (row) => ({ ...row, fields: { ...row.fields, list } }),
+  }) satisfies Overlay;
+
 const containersAfter = (scopes: ScopesAnswer, op: ContainerOp) => {
   switch (op.op) {
     case "create": {
@@ -411,6 +417,14 @@ export const libraryWrites = ({
           (input: Inputs["write"]) => [input.itemId],
           (input) => fieldsOverlay(input.ops),
           "That couldn't be changed.",
+        ),
+      ),
+    setList: () =>
+      orpc.library.items.setList.mutationOptions(
+        overlaid(
+          (input: Inputs["items"]["setList"]) => [input.id],
+          (input) => listOverlay(input.list),
+          "That list couldn't be changed.",
         ),
       ),
     containers: () =>

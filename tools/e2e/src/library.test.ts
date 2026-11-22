@@ -346,6 +346,8 @@ test("the rail's rows are links, and a folder row answers the pointer and the ke
   await linkOf("Archive").hover();
   await linkOf("Projects").focus();
   await page.keyboard.press("ArrowDown");
+  await expect(folders.getByRole("button", { exact: true, name: "Projects" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   await expect(linkOf("Reading")).toBeFocused();
   const muted = await colorOf(labelOf(page.getByRole("link", { name: /^Unsorted/u })));
   await expect.poll(async () => await colorOf(labelOf(linkOf("Archive")))).toBe(muted);

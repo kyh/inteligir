@@ -8,7 +8,7 @@ export interface ContainerNode {
   readonly title: string;
 }
 
-export interface FolderRow {
+interface FolderRow {
   readonly id: string;
   readonly kind: ContainerKind;
   readonly name: string;

@@ -11,6 +11,7 @@ import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/li
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { isUrlItem } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
+import { folderPaths } from "../sidebar/folder-paths";
 import { PropertiesPanel } from "./properties-panel";
 
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -27,13 +28,35 @@ const ReadFailure = ({ reading }: { reading: Reading }) =>
     <p className="m-0 text-body text-muted-foreground">{reading.error}</p>
   ) : null;
 
-const folderName = (
-  folders: readonly { readonly id: string; readonly title: string }[],
-  parentId: string | null,
-) =>
-  parentId === null
-    ? "Unsorted"
-    : (folders.find((folder) => folder.id === parentId)?.title ?? "A folder not here yet");
+const ParentName = ({ parentId }: { readonly parentId: string | null }) => {
+  const queries = useLibraryQueries();
+  const containers = useQuery(queries.scopes()).data?.containers ?? [];
+  const paths = new Map(folderPaths(containers).map((row) => [row.id, row.label]));
+  const held = parentId === null ? undefined : paths.get(parentId);
+  const asked = parentId !== null && held === undefined;
+
+  const parent = useQuery({
+    ...queries.item(parentId ?? ""),
+    enabled: asked,
+  }).data;
+
+  if (parentId === null) {
+    return "Unsorted";
+  }
+
+  if (held !== undefined) {
+    return held;
+  }
+
+  if (parent === undefined || parent.fields.deletedAt !== null) {
+    return asked && parent === undefined ? "…" : "Unsorted";
+  }
+
+  const above = parent.fields.parentId === null ? undefined : paths.get(parent.fields.parentId);
+  const title = parent.card.title === "" ? "Untitled" : parent.card.title;
+
+  return above === undefined ? title : `${above} / ${title}`;
+};
 
 const propertyText = (value: PropertyValue) => {
   const words = z.string().safeParse(value);
@@ -50,7 +73,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
   const refresh = useMutation(writes.refresh());
   const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
-  const folders = useQuery(queries.scopes()).data?.containers ?? [];
   const refreshing = useIsMutating({ mutationKey: orpc.library.items.refresh.mutationKey() }) > 0;
 
   if (cellStanding(item).kind === "missing") {
@@ -80,7 +102,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
             <Row label="Words">{formatCount(card.words)}</Row>
             <Row label="Folder">
               <span className="flex items-center gap-2">
-                {folderName(folders, fields.parentId)}
+                <ParentName parentId={fields.parentId} />
                 <Button
                   size="compact"
                   variant="ghost"

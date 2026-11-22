@@ -2,7 +2,7 @@ import { SIDEBAR_MAX_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { APPEARANCE_DEFAULTS } from "./appearance-options";
-import { accountPrefs, devicePrefs, windowLayout } from "./prefs";
+import { accountPrefs, devicePrefs, LIST_MIN_WIDTH, windowLayout } from "./prefs";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -54,9 +54,12 @@ describe("a store with nothing stored", () => {
     });
     expect(windowLayout.getState()).toStrictEqual({
       librarySort: "saved",
+      listWidth: 360,
       panelOpen: false,
       panelWidth: 320,
+      railClosed: [],
       railOpen: true,
+      railOpenNotes: [],
       railTagsOpen: true,
       railWidth: 260,
     });
@@ -74,9 +77,12 @@ describe("a blob already in storage", () => {
       "inteligir.layout",
       blob({
         librarySort: "size",
+        listWidth: 10,
         panelOpen: "yes",
         panelWidth: 280.4,
+        railClosed: ["work"],
         railOpen: false,
+        railOpenNotes: "trip",
         railTagsOpen: false,
         railWidth: 9999,
       }),
@@ -93,9 +99,12 @@ describe("a blob already in storage", () => {
     });
     expect(windowLayout.getState()).toStrictEqual({
       librarySort: "saved",
+      listWidth: LIST_MIN_WIDTH,
       panelOpen: false,
       panelWidth: 280,
+      railClosed: ["work"],
       railOpen: false,
+      railOpenNotes: [],
       railTagsOpen: false,
       railWidth: SIDEBAR_MAX_WIDTH,
     });
