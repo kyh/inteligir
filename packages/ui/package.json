@@ -26,7 +26,7 @@
     "@base-ui/react": "catalog:",
     "@fontsource-variable/inter": "catalog:",
     "@tailwindcss/postcss": "catalog:",
-    "@tanstack/react-virtual": "^3.14.13",
+    "@tanstack/react-virtual": "^3.14.26",
     "class-variance-authority": "^0.7.1",
     "cn": "catalog:",
     "lucide-react": "catalog:",
