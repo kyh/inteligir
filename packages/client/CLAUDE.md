@@ -7,10 +7,11 @@ say one thing of one library.
 ## The library on a device
 
 - **A device learns what moved by asking `library.changes` for what moved after the head it
-  holds: one query observer, every 15 s while in front, at once on focus and reconnect.** Its beat,
-  focus and reconnect are TanStack's own, so the host drives one focus and one online manager; the
-  cloud holds no socket, and refetching every screen instead reads the whole library each time and
-  never tells an open note its item moved. `packages/client/src/library-changes.ts`.
+  holds: one query observer, asked the moment `library.heads` tells a new head, every minute
+  besides while in front, at once on focus and reconnect.** The heads are one streamed `/v1`
+  call the device opens again as it ends, so another device's write shows in about a second with
+  no socket server, pub/sub or second wire; the beat, focus and reconnect stay TanStack's, for a
+  stream that drops. `packages/client/src/library-changes.ts`.
 - **What a write waiting in the library's queue is laid over is read again once the queue is
   empty.** An answer of what moved reads an item's body and the threads at once, and the listings
   and rows only after every write that waits has landed and read again, since a read while one

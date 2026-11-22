@@ -367,7 +367,7 @@ The unpacked store build, against production, with no dev build loaded.
 - **A note saved whole**: type into a note, switch to another app at once,
   come back and see the text, then open the note on the Mac and see it there
   too; type again, switch away and remove the app from the app switcher, and
-  the text is there when it opens again. A Mac edit shows within 15 seconds
+  the text is there when it opens again. A Mac edit shows within a few seconds
   while the note is open and not typed in, Back and the edge swipe leave a note
   not typed in at once, and Leave without saving asks over typing made in
   airplane mode.

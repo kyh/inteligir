@@ -5,6 +5,7 @@ import { db } from "@repo/db/drizzle-client";
 import { DIALECT_SPEC } from "../agent/agent-prompt";
 import { reading } from "./library-access";
 import { libraryChanges } from "./library-changes";
+import { libraryHeads } from "./library-heads";
 import { namedFiles, settleNotes } from "./library-imports";
 import { listingPage, listingScopes, listingTitles, readLibrary } from "./library-listing";
 import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
@@ -30,6 +31,9 @@ export const libraryReadRows = {
     async ({ context, input }) => await libraryChanges(db, context.library.accountId, input.after),
   ),
   guide: reading.guide.handler(() => ({ markdown: DIALECT_SPEC })),
+  heads: reading.heads.handler(({ context, signal }) =>
+    libraryHeads(db, context.library.accountId, signal ?? new AbortController().signal),
+  ),
   imports: {
     named: reading.imports.named.handler(
       async ({ context, input }) => await namedFiles(db, context.library.accountId, input.shas),

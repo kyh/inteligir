@@ -1053,8 +1053,10 @@ and is one of these:
 - **Reading and changing your library and your account** (your devices, your
   connected assistants, the built-in agent, deleting the account), each one
   request, its contents in its body and never its address, made with your
-  device's session. A window or app in front asks what changed every 15
-  seconds, and when you come back to it.
+  device's session. A window or app holds one response open that says when
+  your library changed, ending within five minutes, when it opens another, and
+  then asks what changed; it also asks every minute in front, and when you come
+  back to it.
 - **A conversation with the built-in agent, followed** as one response that
   carries the agent's work as it happens and ends within five minutes, when the
   device asks again from where it left off.

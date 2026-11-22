@@ -142,3 +142,25 @@ dbSuite("what moved in the library after a head", () => {
     });
   });
 });
+
+dbSuite("the library's heads, as a device follows them", () => {
+  it("tells the head at once, then each head a write moves it to, and ends when the device stops", async () => {
+    const { library } = await personalLibrary();
+    const stop = new AbortController();
+    const heads = await library.heads(undefined, { signal: stop.signal });
+    const told: number[] = [];
+
+    for await (const { head } of heads) {
+      told.push(head);
+
+      if (told.length === 1) {
+        await note(library, "Moves the head.");
+      } else {
+        stop.abort();
+      }
+    }
+
+    expect(told).toHaveLength(2);
+    expect(told[1]).toBeGreaterThan(told[0] ?? 0);
+  });
+});

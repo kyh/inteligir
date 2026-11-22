@@ -5,6 +5,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import { implement, withEventMeta } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
+import { deferred } from "../deferred";
 import type { AgentEvent } from "../library/agent-events";
 import type { bodyWriteSchema, folderOpSchema, listedItemSchema } from "../library/library-wire";
 import {
@@ -77,6 +78,8 @@ type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 type OpenRow = LiveRow & { readonly bodyVersion: number };
 
 type HeldItem = OpenRow & { readonly blocks: BodyBlock[] };
+
+const HEAD_POLL_MS = 1000;
 
 type Changes = Awaited<ReturnType<V1Client["library"]["changes"]>>;
 
@@ -579,6 +582,29 @@ export const createFakeCell = () => {
         }),
       },
       changes: os.library.changes.handler(({ input }) => changes(input.after)),
+      heads: os.library.heads.handler(async function* heads({ signal }) {
+        const stop = signal ?? new AbortController().signal;
+        let told: number | null = null;
+
+        while (!stop.aborted) {
+          if (head !== told) {
+            told = head;
+            yield { head };
+          }
+
+          const waited = deferred();
+          const timer = setTimeout(waited.resolve, HEAD_POLL_MS);
+          stop.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              waited.resolve();
+            },
+            { once: true },
+          );
+          await waited.promise;
+        }
+      }),
       files: {
         reserve: os.library.files.reserve.handler(({ input }) =>
           blobs.has(input.sha)

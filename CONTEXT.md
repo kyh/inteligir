@@ -79,11 +79,18 @@ moved since (`packages/db/src/library-schema.ts`).
 **what moved** — `library.changes`' answer to a device holding a **head**: the
 library's head now, and which items moved past the one sent and at which
 sequence, whether a folder moved, and which threads, a long list saying "all"
-(`packages/service/src/library/library-changes.ts`). A device asks every 15 s
-while in front and at once on focus and reconnect, its first ask learning the
-head alone (`@repo/client/library-changes`), and asks again for what it shows
+(`packages/service/src/library/library-changes.ts`). A device asks the moment
+the **heads** it follows say the library moved, every minute besides while in
+front, and at once on focus and reconnect, its first ask learning the head alone
+(`@repo/client/library-changes`), and asks again for what it shows
 of those (`@repo/client/library-cache`). A hint, never the state: an answer
 carries no row, so one missed loses nothing.
+
+**heads** — `library.heads`, one response a device holds open that tells the
+library's **head** at once and again each time a write moves it, about a second
+after (`packages/service/src/library/library-heads.ts`), ending within five
+minutes, when the device opens another. It says only that something moved, so
+the device asks **what moved**; it carries no row.
 
 **waiting save** — a save a device keeps before its first call and sends until
 the cloud answers it, through a relaunch too. One queue

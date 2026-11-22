@@ -2,6 +2,12 @@
 
 What changed in Inteligir (the Mac app, the iPhone app, the browser extension and inteligir.com), newest first. The top section becomes the next release's notes on GitHub, word for word; earlier releases' notes are on their release pages.
 
+## Unreleased
+
+### Changed
+
+- **What another device changed shows in about a second**, not up to 15 seconds later: a save, move, tag or delete made elsewhere appears in the window or app you have in front almost at once.
+
 ## 0.7.0 — 2026-11-20
 
 **Moving from 0.6.0.** Inteligir is now a library of everything you save, in your Inteligir account, which your Mac, your iPhone and inteligir.com/library all show, so it needs a connection. Download this version from inteligir.com (the version you have can't update itself to it; it needs macOS 13.5 or later), sign in or create an account with an invite code, and update every iPhone you use. Nothing on your Mac comes in by itself: zip your notes folder and choose Import a zip of notes… in Settings › Import, keeping the window open until it says what it added. Before you zip, open the iPhone app online so what you wrote there has reached your Mac, copy any comment or agent reply you want to keep into its note, and paste what your `AGENTS.md` tells the agent into Settings › Account › Filing rules. An earlier version's formulas, highlights, underlines and toggles, columns or dates written as tags come in as the text they were written as, and your theme, editor settings, window layout and folded headings start over once.

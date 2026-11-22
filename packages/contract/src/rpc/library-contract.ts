@@ -552,6 +552,8 @@ export const libraryContract = {
 
   guide: signedBase.output(z.object({ markdown: z.string() })),
 
+  heads: signedBase.output(eventIterator(z.object({ head: seqSchema }))),
+
   imports: importsContract,
   items: itemsContract,
   listing: listingContract,
