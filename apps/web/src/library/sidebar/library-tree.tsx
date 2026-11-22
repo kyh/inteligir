@@ -238,10 +238,12 @@ const ContainerRow = ({
 
 const NoteRows = ({
   parentId,
+  under,
   depth,
   tree,
 }: {
   readonly parentId: string | null;
+  readonly under: "container" | "note";
   readonly depth: number;
   readonly tree: TreeState;
 }) => {
@@ -277,7 +279,11 @@ const NoteRows = ({
                 />
               ) : null
             }
-            below={open ? <NoteRows parentId={note.id} depth={depth + 1} tree={tree} /> : null}
+            below={
+              open ? (
+                <NoteRows parentId={note.id} under="note" depth={depth + 1} tree={tree} />
+              ) : null
+            }
           />
         );
       })}
@@ -293,7 +299,11 @@ const NoteRows = ({
           <SidebarMenuButton
             style={indentOf(depth)}
             onClick={() => {
-              commands.showScope({ kind: "parent", parentId });
+              if (under === "container") {
+                commands.showScope({ kind: "parent", parentId });
+              } else {
+                commands.openItem(parentId);
+              }
             }}
           >
             More…
@@ -356,7 +366,9 @@ const Level = ({
     {(branches.get(parentId) ?? []).map((node) => (
       <ContainerBranch key={node.id} node={node} depth={depth} tree={tree} branches={branches} />
     ))}
-    {parentId === null ? null : <NoteRows parentId={parentId} depth={depth} tree={tree} />}
+    {parentId === null ? null : (
+      <NoteRows parentId={parentId} under="container" depth={depth} tree={tree} />
+    )}
   </>
 );
 
@@ -410,7 +422,7 @@ export const LibraryTree = ({
   return (
     <SidebarMenu aria-label="Folders">
       <Level parentId={null} depth={0} tree={tree} branches={branches} />
-      <NoteRows parentId={null} depth={0} tree={tree} />
+      <NoteRows parentId={null} under="container" depth={0} tree={tree} />
     </SidebarMenu>
   );
 };

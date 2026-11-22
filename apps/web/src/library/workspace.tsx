@@ -63,7 +63,7 @@ const WorkspaceMain = ({
     return (
       <ListSplit
         listId={listId}
-        rows={view?.items ?? []}
+        rows={placeholder === "other-scope" ? [] : (view?.items ?? [])}
         total={placeholder === "other-scope" ? null : (view?.total ?? null)}
         openItem={openItem}
         onNote={onNote}

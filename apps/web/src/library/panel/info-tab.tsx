@@ -35,10 +35,12 @@ const ParentName = ({ parentId }: { readonly parentId: string | null }) => {
   const held = parentId === null ? undefined : paths.get(parentId);
   const asked = parentId !== null && held === undefined;
 
-  const parent = useQuery({
+  const read = useQuery({
     ...queries.item(parentId ?? ""),
     enabled: asked,
-  }).data;
+  });
+
+  const parent = read.data;
 
   if (parentId === null) {
     return "Unsorted";
@@ -49,7 +51,7 @@ const ParentName = ({ parentId }: { readonly parentId: string | null }) => {
   }
 
   if (parent === undefined || parent.fields.deletedAt !== null) {
-    return asked && parent === undefined ? "…" : "Unsorted";
+    return asked && parent === undefined && !read.isError ? "…" : "Unsorted";
   }
 
   const above = parent.fields.parentId === null ? undefined : paths.get(parent.fields.parentId);

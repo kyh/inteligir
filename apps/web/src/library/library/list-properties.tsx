@@ -75,7 +75,7 @@ interface Shaping {
   readonly commit: (
     next: ListSettings,
     renames?: readonly { readonly from: string; readonly to: string }[],
-  ) => void;
+  ) => boolean;
 }
 
 const PropertyEditor = ({
@@ -101,13 +101,17 @@ const PropertyEditor = ({
       return;
     }
 
-    commit(
+    const taken = commit(
       {
         groupBy: list.groupBy === property.name ? to : list.groupBy,
         properties: replace(renamedProperty(property, to)),
       },
       [{ from: property.name, to }],
     );
+
+    if (!taken) {
+      setName(property.name);
+    }
   };
 
   const options = property.type === "select" ? property.options.map((held) => held.name) : [];
@@ -304,7 +308,7 @@ export const ListProperties = ({
       if (!read.success) {
         toast.error("Each property and option needs a name of its own.");
 
-        return;
+        return false;
       }
 
       setList.mutate({
@@ -313,6 +317,8 @@ export const ListProperties = ({
         opId: crypto.randomUUID(),
         renames: [...renames],
       });
+
+      return true;
     },
     list,
   };

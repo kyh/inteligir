@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useOnline } from "@/lib/app-runtime";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
@@ -29,6 +29,7 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
   const offline = !useOnline();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
+  const keeping = useRef<Promise<unknown>>(Promise.resolve());
   const [kept, setKept] = useState<{ readonly note: UnsentNote | null } | null>(null);
 
   useEffect(() => {
@@ -67,11 +68,19 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
   }, [life, offline]);
 
   const keepUnsent: PageProps["keepUnsent"] = async (id, note) => {
-    await actions.keepUnsent(id, note);
-
     if (id === itemId) {
       setKept({ note });
     }
+
+    const before = keeping.current;
+
+    const write = (async () => {
+      await before;
+      await actions.keepUnsent(id, note);
+    })();
+
+    keeping.current = write.catch(() => null);
+    await write;
   };
 
   return {
