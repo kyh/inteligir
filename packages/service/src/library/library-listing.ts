@@ -391,6 +391,7 @@ export const listingChildren = async (
             and(
               eq(under.accountId, item.accountId),
               eq(under.parentId, item.id),
+              eq(under.kind, "note"),
               isNull(under.deletedAt),
             ),
           ),

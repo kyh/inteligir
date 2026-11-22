@@ -300,7 +300,9 @@ export class LibraryIndex<R extends ListingRow> {
 
     const parents = new Set(
       [...this.entries.values()].flatMap(({ row }) =>
-        row.deletedAt === null && row.parentId !== null ? [row.parentId] : [],
+        row.deletedAt === null && row.kind === "note" && row.parentId !== null
+          ? [row.parentId]
+          : [],
       ),
     );
 

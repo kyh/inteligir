@@ -200,6 +200,10 @@ describe(LibraryIndex, () => {
     });
     expect(index.children("new").children.map(({ id }) => id)).toStrictEqual(["sub"]);
     expect(index.children(null).children.map(({ id }) => id)).toStrictEqual(["old", "pinned"]);
+    index.upsert(row("saved", { kind: "link", parentId: "old", title: "Saved" }));
+    expect(index.children(null).children.find(({ id }) => id === "old")).toMatchObject({
+      hasChildren: false,
+    });
   });
 
   it("files an item under a note and lists it in the note's folder too", () => {

@@ -18,18 +18,23 @@ export interface LibraryChanges {
 }
 
 const pause = async (ms: number, stop: AbortSignal) => {
+  if (stop.aborted) {
+    return;
+  }
+
   const waited = deferred();
-  const timer = setTimeout(waited.resolve, ms);
 
-  stop.addEventListener(
-    "abort",
-    () => {
-      clearTimeout(timer);
-      waited.resolve();
-    },
-    { once: true },
-  );
+  const stopped = () => {
+    clearTimeout(timer);
+    waited.resolve();
+  };
 
+  const timer = setTimeout(() => {
+    stop.removeEventListener("abort", stopped);
+    waited.resolve();
+  }, ms);
+
+  stop.addEventListener("abort", stopped, { once: true });
   await waited.promise;
 };
 
