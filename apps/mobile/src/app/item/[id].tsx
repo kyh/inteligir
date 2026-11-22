@@ -15,6 +15,7 @@ import { useNotePage } from "@/editor/use-note-page";
 import { EVERY_ORIGIN, loadVerdict, openWindowVerdict } from "@/editor/web-view-policy";
 import type { LoadVerdict } from "@/editor/web-view-policy";
 import { ItemInfoSheet } from "@/items/item-info-sheet";
+import type { InfoFolder } from "@/items/item-info-sheet";
 import { useItem, useLibrary, useMoveToDeleted } from "@/lib/library-hooks";
 import { FOCUS, firstParam, openAgent } from "@/lib/routes";
 import { screenStyle, useTheme } from "@/lib/theme";
@@ -44,6 +45,34 @@ const followVerdict = (verdict: LoadVerdict) => {
   return verdict.kind === "allow";
 };
 
+interface HeldParent {
+  readonly id: string;
+  readonly card: { readonly title: string };
+  readonly fields: { readonly parentId: string | null; readonly deletedAt: number | null };
+}
+
+const filedPlace = (
+  containers: readonly InfoFolder[],
+  parent: HeldParent | undefined,
+  parentId: string | null,
+) => {
+  if (parent === undefined) {
+    return { folders: containers, parentId };
+  }
+
+  if (parent.fields.deletedAt !== null) {
+    return { folders: containers, parentId: null };
+  }
+
+  return {
+    folders: [
+      ...containers,
+      { id: parent.id, parentId: parent.fields.parentId, title: shownTitle(parent.card.title) },
+    ],
+    parentId,
+  };
+};
+
 const ItemScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
@@ -64,13 +93,7 @@ const ItemScreen = () => {
     enabled: parentNoted,
   }).data;
 
-  const folders =
-    parentNote === undefined || !parentNoted
-      ? containers
-      : [
-          ...containers,
-          { id: parentNote.id, parentId: parentNote.fields.parentId, title: parentNote.card.title },
-        ];
+  const filed = filedPlace(containers, parentNoted ? parentNote : undefined, parentId);
 
   const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
@@ -212,8 +235,8 @@ const ItemScreen = () => {
       </KeyboardAvoidingView>
       {item === null ? null : (
         <ItemInfoSheet
-          fields={item.fields}
-          folders={folders}
+          fields={{ ...item.fields, parentId: filed.parentId }}
+          folders={filed.folders}
           visible={showInfo}
           onClose={() => {
             setShowInfo(false);
