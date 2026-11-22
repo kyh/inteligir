@@ -4,6 +4,7 @@ import { bytesFromBase64 } from "@repo/contract/bytes";
 import type { HeldNote } from "@repo/contract/library/held-note";
 import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "@repo/contract/deferred";
@@ -27,12 +28,17 @@ const pageOver = () => {
   const opened: string[] = [];
   let targets = [{ id: NOTE, title: "Plans" }];
   let reads = 0;
+  const keptByNative: (readonly [string, UnsentNote | null])[] = [];
 
   const first: PageProps = {
     createNote: async () => await Promise.resolve(OTHER),
     focus: false,
     itemId: NOTE,
     keepFile: async () => await Promise.resolve({ sha: "kept" }),
+    keepUnsent: async (itemId, note) => {
+      keptByNative.push([itemId, note]);
+      await Promise.resolve();
+    },
     linkTargets: async () => {
       reads += 1;
 
@@ -55,6 +61,7 @@ const pageOver = () => {
     settled: (answer) => {
       answers.push(answer);
     },
+    unsent: null,
   };
 
   const host = installPageHost(first);
@@ -63,6 +70,7 @@ const pageOver = () => {
     answers,
     first,
     host,
+    keptByNative,
     opened,
     reads: () => reads,
     retitle: (next: typeof targets) => {
@@ -197,7 +205,27 @@ describe("the note page's host", () => {
     expect(reads).toBe(2);
   });
 
-  it("turns the note read-only the moment native says there is no connection", () => {
+  it("keeps a note's unsent typing through native, and reads first what native handed it", () => {
+    const { first, host, keptByNative } = pageOver();
+    const { notes } = getEditorHostIo();
+    const typed = { baseBlocks: HELD.blocks, baseVersion: 3, blocks: HELD.blocks, title: "Plans" };
+
+    expect(notes.unsent.read(NOTE)).toBeNull();
+    host.follow({ ...first, itemId: OTHER, unsent: typed });
+    expect(notes.unsent.read(OTHER)).toStrictEqual(typed);
+    expect(notes.unsent.write(NOTE, typed)).toBe(true);
+    expect(notes.unsent.read(NOTE)).toStrictEqual(typed);
+    notes.unsent.write(NOTE, null);
+    expect(notes.unsent.read(NOTE)).toBeNull();
+    host.follow({ ...first, unsent: typed });
+    expect(notes.unsent.read(NOTE)).toBeNull();
+    expect(keptByNative).toStrictEqual([
+      [NOTE, typed],
+      [NOTE, null],
+    ]);
+  });
+
+  it("tells the note the moment native says there is no connection", () => {
     const { first, host } = pageOver();
     const { notes } = getEditorHostIo();
     const heard = vi.fn<() => void>();

@@ -19,9 +19,9 @@ const itemId = z.uuid();
 
 const EVERY_ITEM: LibraryScope = { kind: "all" };
 
-const namedScope = (named: string | null, folderId: string | null, tag: string | null) => {
-  if (folderId !== null && folderId !== "") {
-    return { folderId, kind: "folder" };
+const namedScope = (named: string | null, parentId: string | null, tag: string | null) => {
+  if (parentId !== null && parentId !== "") {
+    return { parentId, kind: "parent" };
   }
 
   if (tag !== null && tag !== "") {
@@ -33,15 +33,15 @@ const namedScope = (named: string | null, folderId: string | null, tag: string |
 
 const scopeOf = (search: URLSearchParams) => {
   const named = search.get("scope");
-  const folderId = search.get("folder");
+  const parentId = search.get("folder");
   const tag = search.get("tag");
-  const given = [named, folderId, tag].filter((value) => value !== null && value !== "");
+  const given = [named, parentId, tag].filter((value) => value !== null && value !== "");
 
   if (given.length !== 1) {
     return EVERY_ITEM;
   }
 
-  const scope = libraryScopeSchema.safeParse(namedScope(named, folderId, tag));
+  const scope = libraryScopeSchema.safeParse(namedScope(named, parentId, tag));
 
   return scope.success ? scope.data : EVERY_ITEM;
 };
@@ -66,8 +66,8 @@ const scopeParams = (scope: LibraryScope) => {
       return [];
     }
 
-    case "folder": {
-      return [["folder", scope.folderId]];
+    case "parent": {
+      return [["folder", scope.parentId]];
     }
 
     case "tag": {
@@ -117,5 +117,5 @@ export const libraryHref = (address: LibraryAddress) => {
 
 export const shownScope = (
   addressed: LibraryScope,
-  listed: { readonly folders: readonly { readonly id: string }[] } | undefined,
-) => (listed === undefined ? addressed : listedScope(addressed, listed.folders));
+  listed: { readonly containers: readonly { readonly id: string }[] } | undefined,
+) => (listed === undefined ? addressed : listedScope(addressed, listed.containers));

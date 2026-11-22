@@ -183,6 +183,11 @@ DOM (`oxlint.config.ts`).
   stamps the rows it touches and a purge keeps the id at its sequence, so one
   indexed read per table answers it, with no socket held per device.
   `packages/service/src/library/library-changes.ts`.
+- **`library.heads` reads the account's head once a second inside the open
+  response, never a `LISTEN`.** A `LISTEN` holds a session connection per open
+  response, which Supabase's transaction pooler refuses, and a primary-key read
+  a second per open window costs less than a pub/sub to run.
+  `packages/service/src/library/library-heads.ts`.
 - **The library's rows split into a reading module and a writing one, merged
   by the router where both route under `items`.** Reads and writes land apart,
   and neither side edits the other's file.

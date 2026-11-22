@@ -313,7 +313,7 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number) =>
 export const bookmarkFields = (item: PlannedItem) =>
   importedFields({
     ...stubFields({
-      folderId: null,
+      parentId: null,
       savedAt: item.savedMs,
       tags: item.tags,
       title: item.title?.slice(0, ITEM_FIELD_CAPS.line),

@@ -1,5 +1,6 @@
 import { titleKey } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
@@ -70,11 +71,19 @@ export interface NoteStanding {
   readonly deleted: boolean;
 }
 
+export type { UnsentNote } from "@repo/contract/library/unsent-note";
+
+export interface UnsentNotes {
+  readonly read: (itemId: string) => UnsentNote | null;
+  readonly write: (itemId: string, note: UnsentNote | null) => boolean;
+}
+
 export interface NoteHost {
   readonly read: (itemId: string) => Promise<HeldNote | null>;
   readonly save: (save: NoteSave, outlives: boolean) => Promise<NoteSaved>;
   readonly follow: (itemId: string, listener: (standing: NoteStanding) => void) => () => void;
   readonly reach: Reach;
+  readonly unsent: UnsentNotes;
 }
 
 interface AgentRequestActions {

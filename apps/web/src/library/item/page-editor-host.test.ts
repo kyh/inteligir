@@ -98,7 +98,7 @@ describe("the page's editor host", () => {
   it("answers an embedded item's blocks as the cell holds them, and none for an item it lacks", async () => {
     await client.library.items.create({
       blocks: [{ block: paragraph, section: "note" }],
-      folderId: null,
+      parentId: null,
       id: PLANS,
       savedAt: 1_700_000_000_000,
       tags: [],
@@ -218,14 +218,14 @@ describe("the page's editor host", () => {
   });
 
   it("makes a note in the folder of the item open now, as its view read it", async () => {
-    const folderId = cell.seed.folder("Reading");
-    const article = cell.seed.item({ folderId, title: "An article" });
+    const parentId = cell.seed.folder("Reading");
+    const article = cell.seed.item({ parentId, title: "An article" });
     const { queryClient } = install(refused, article);
     await queryClient.query(libraryQueries(wire).item(article));
 
     const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Cut" });
 
-    expect(cell.item(id)?.fields).toMatchObject({ folderId, title: "Cut" });
+    expect(cell.item(id)?.fields).toMatchObject({ parentId, title: "Cut" });
   });
 
   it("hands the editor the library's titles as the page's query of them answers", async () => {

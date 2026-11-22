@@ -17,10 +17,10 @@ afterEach(() => {
 
 const cellWithALink = () => {
   const cell = createFakeCell();
-  const folderId = cell.seed.folder("Reading");
+  const parentId = cell.seed.folder("Reading");
 
   const id = cell.seed.item({
-    folderId,
+    parentId,
     kind: "link",
     reading: { at: 1_700_000_000_000, state: "read" },
     tags: ["reading"],
@@ -55,6 +55,18 @@ describe("Info over an item", () => {
     await waitFor(() => {
       expect(cell.item(id)?.fields.reading.state).toBe("pending");
     });
+  });
+
+  it("names a note an item is filed under by its title, under the folders that hold the note", async () => {
+    const cell = createFakeCell();
+    const folder = cell.seed.folder("Trips");
+    const trip = cell.seed.item({ parentId: folder, title: "Lisbon" });
+    const id = cell.seed.item({ parentId: trip, title: "Day one" });
+    const { library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+
+    await expect(screen.findByText("Trips / Lisbon")).resolves.toBeDefined();
   });
 
   it("pins the item at once, before the cell answers", async () => {

@@ -16,7 +16,14 @@ import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-edito
 
 import { memoryNotes } from "../test-support/memory-notes.test-utils";
 import type { MemoryNotes } from "../test-support/memory-notes.test-utils";
-import { ItemEditor, KEEP_MINE, MISSING_ITEM, NOTICES, SHOW_LATEST } from "./item-editor";
+import {
+  ItemEditor,
+  KEEP_MINE,
+  MISSING_ITEM,
+  NOTICES,
+  OFFLINE_KEEPS,
+  SHOW_LATEST,
+} from "./item-editor";
 import type { OpenNote } from "./item-editor";
 import { SAVE_PAUSE_MS } from "./note-save";
 import { PASTE_MAX_BYTES, PASTE_REFUSED } from "./paste-cap";
@@ -386,26 +393,23 @@ describe("an item's surface with no connection", () => {
     window.HTMLElement.prototype.scrollIntoView = () => {};
   });
 
-  it("reads the note but takes no edit, says it needs a connection, and saves once it is back", async () => {
+  it("takes edits with no connection, says they wait on the device, and saves once it is back", async () => {
     const { goOffline, notes } = oneNote();
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    expect(editable()).not.toBeNull();
     act(() => {
       goOffline(true);
     });
-    expect(editable()).toBeNull();
-    expect(screen.getByText(NEEDS_CONNECTION)).toBeDefined();
+    expect(editable()).not.toBeNull();
+    expect(screen.getByText(OFFLINE_KEEPS)).toBeDefined();
     typeInto(A, " offline");
-    expect(Node.string(editorOf(A))).toBe("A one");
+    expect(Node.string(editorOf(A))).toBe("A one offline");
     act(() => {
       goOffline(false);
     });
-    expect(editable()).not.toBeNull();
-    expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
-    typeInto(A, " online");
+    expect(screen.queryByText(OFFLINE_KEEPS)).toBeNull();
     await expect(lastNote().holds()).resolves.toBe(true);
-    expect(textsOf(notes, A)).toStrictEqual(["A one online"]);
+    expect(textsOf(notes, A)).toStrictEqual(["A one offline"]);
   });
 
   it("says a note in Deleted is there even with no connection", async () => {
@@ -433,12 +437,9 @@ describe("an item's surface with no connection", () => {
   });
 
   it("finds in the note but offers no replace", async () => {
-    const { goOffline } = oneNote();
+    oneNote({ deleted: true });
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    act(() => {
-      goOffline(true);
-    });
     act(() => {
       openFindBar(editorOf(A), { replace: true });
     });
@@ -447,7 +448,7 @@ describe("an item's surface with no connection", () => {
     expect(screen.queryByRole("button", { name: "Toggle replace" })).toBeNull();
   });
 
-  it("draws no formatting toolbar on a touch screen", async () => {
+  it("draws a formatting toolbar on a touch screen while it takes edits", async () => {
     const { goOffline } = oneNote();
     render(
       <EditorProfileProvider profile="touch">
@@ -457,10 +458,6 @@ describe("an item's surface with no connection", () => {
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     act(() => {
       goOffline(true);
-    });
-    expect(screen.queryByRole("toolbar", { name: "Formatting" })).toBeNull();
-    act(() => {
-      goOffline(false);
     });
     expect(screen.getByRole("toolbar", { name: "Formatting" })).toBeDefined();
   });
@@ -537,7 +534,7 @@ describe("a file still being kept in an open note", () => {
     });
     const leaving = lastNote().holds();
     act(() => {
-      host.goOffline(true);
+      host.notes.setDeleted(A, true);
     });
     await expect(leaving).resolves.toBe(true);
     expect(lastNote().unsaved()).toBe(false);
@@ -546,14 +543,14 @@ describe("a file still being kept in an open note", () => {
   it("adds no block for a file kept once the note took no more edits", async () => {
     const { host, kept } = await pasteHeld();
     act(() => {
-      host.goOffline(true);
+      host.notes.setDeleted(A, true);
     });
     kept.resolve({ sha: SHA });
     await act(async () => {
       await delay(0);
     });
     act(() => {
-      host.goOffline(false);
+      host.notes.setDeleted(A, false);
     });
     await expect(lastNote().holds()).resolves.toBe(true);
     expect(storedShas(host.notes)).toStrictEqual([]);

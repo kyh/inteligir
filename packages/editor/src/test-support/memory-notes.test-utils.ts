@@ -4,7 +4,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import { BODY_MAX_BYTES, bodyBytes } from "@repo/contract/library/library-wire";
 
-import type { NoteHost, NoteStanding, Reach } from "../host-io";
+import type { NoteHost, NoteStanding, Reach, UnsentNote, UnsentNotes } from "../host-io";
 
 export interface StoredNote {
   readonly blocks: readonly BodyBlock[];
@@ -30,6 +30,20 @@ export const memoryNotes = () => {
   const unheldFiles = new Set<string>();
   let gate: SaveGate = "answer";
   let reads = 0;
+  const kept = new Map<string, UnsentNote>();
+
+  const unsent: UnsentNotes = {
+    read: (itemId) => kept.get(itemId) ?? null,
+    write: (itemId, note) => {
+      if (note === null) {
+        kept.delete(itemId);
+      } else {
+        kept.set(itemId, note);
+      }
+
+      return true;
+    },
+  };
 
   const tell = (itemId: string) => {
     const note = stored.get(itemId);
@@ -115,10 +129,12 @@ export const memoryNotes = () => {
 
         return answer(save);
       },
+      unsent,
     }) satisfies NoteHost;
 
   return {
     host,
+    kept: (itemId: string) => kept.get(itemId) ?? null,
     note: (itemId: string) => stored.get(itemId),
     reads: () => reads,
     seed: (

@@ -10,6 +10,9 @@ const SEARCH_LIMIT = 20;
 export const libraryQueries = ({ client, orpc }: CloudWire) => ({
   ...threadQueries({ client, orpc }),
 
+  children: (parentId: string | null) =>
+    orpc.library.listing.children.queryOptions({ input: { parentId } }),
+
   item: (id: string) => orpc.library.items.row.queryOptions({ input: { id } }),
 
   listing: (query: ListingQuery) =>

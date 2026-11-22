@@ -65,6 +65,15 @@ const paneWidth = z
   .number()
   .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px))));
 
+export const LIST_MIN_WIDTH = 240;
+export const LIST_MAX_WIDTH = 720;
+
+const listWidth = z
+  .number()
+  .overwrite((px) => Math.min(LIST_MAX_WIDTH, Math.max(LIST_MIN_WIDTH, Math.round(px))));
+
+const TREE_IDS_MAX = 500;
+
 export const LIBRARY_SORTS = listingSortSchema.options;
 
 export type LibrarySort = z.infer<typeof listingSortSchema>;
@@ -82,9 +91,12 @@ export const windowLayout = persisted(
   "inteligir.layout",
   z.object({
     librarySort: field(listingSortSchema, "saved"),
+    listWidth: field(listWidth, 360),
     panelOpen: field(z.boolean(), false),
     panelWidth: field(paneWidth, 320),
     railOpen: field(z.boolean(), true),
+    railClosed: field(z.array(z.string()).max(TREE_IDS_MAX), []),
+    railOpenNotes: field(z.array(z.string()).max(TREE_IDS_MAX), []),
     railTagsOpen: field(z.boolean(), true),
     railWidth: field(paneWidth, 260),
   }),

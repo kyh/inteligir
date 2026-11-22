@@ -3,7 +3,7 @@ import { cleanUrl, kindForUrl } from "../items/item-url";
 import type { LibraryItemFields } from "./library-item";
 
 interface Filing {
-  readonly folderId: string | null;
+  readonly parentId: string | null;
   readonly savedAt: number;
   readonly tags: readonly string[];
 }
@@ -15,9 +15,10 @@ export const blankItemFields = (savedAt: number) =>
     coverSha: null,
     deletedAt: null,
     description: null,
-    folderId: null,
+    parentId: null,
     kind: "note",
     lang: null,
+    list: null,
     originalName: null,
     originalSha: null,
     pinnedAt: null,
@@ -34,7 +35,7 @@ export const blankItemFields = (savedAt: number) =>
 const filedFields = (input: Filing) =>
   ({
     ...blankItemFields(input.savedAt),
-    folderId: input.folderId,
+    parentId: input.parentId,
     tags: [...new Set(input.tags)],
   }) satisfies LibraryItemFields;
 
@@ -100,6 +101,6 @@ export const fileFields = (
 
 export const importedFields = ({
   deletedAt: _deletedAt,
-  folderId: _folderId,
+  parentId: _parentId,
   ...fields
 }: LibraryItemFields) => fields;

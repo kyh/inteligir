@@ -1,3 +1,4 @@
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import type { LinkTarget, NoteStanding } from "@repo/editor/host-io";
@@ -17,4 +18,5 @@ export interface LibraryActions {
   readonly keepFile: (file: FileBytes) => Promise<{ sha: string }>;
   readonly createNote: (note: { title: string; blocks: LibraryBlock[] }) => Promise<string>;
   readonly openItem: (itemId: string) => void;
+  readonly keepUnsent: (itemId: string, note: UnsentNote | null) => Promise<void>;
 }

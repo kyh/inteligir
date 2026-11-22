@@ -10,11 +10,15 @@ import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { mintLibraryId } from "../library/library-ids";
 import { landItem } from "../library/library-landing";
 import { readItem } from "../library/library-rows";
 import { writeLibrary } from "../library/library-store";
-import { makeAccount, personalLibrary, seedItem } from "../test-support/library.fixture";
+import {
+  createFolder,
+  makeAccount,
+  personalLibrary,
+  seedItem,
+} from "../test-support/library.fixture";
 import { planSearchQuery } from "./search-query";
 import { bodyTsqueryOf, isPrintableAscii, likeLiteral, tsqueryOf } from "./search-sql";
 
@@ -242,12 +246,9 @@ dbSuite("a search in Postgres", () => {
     };
 
     const written = await rowVersion();
-    const folderId = mintLibraryId(Date.now());
-    await library.folders.write({
-      ops: [{ id: folderId, name: "Plans", op: "create", parentId: null, sort: "a0" }],
-    });
+    const parentId = await createFolder(library, "Shelf");
     await library.items.organize({ ids: [id], pinned: true });
-    await library.items.organize({ folder: { id: folderId }, ids: [id] });
+    await library.items.organize({ ids: [id], parent: { id: parentId } });
     await library.items.delete({ ids: [id] });
     await expect(found("planning")).resolves.toStrictEqual([]);
     await library.items.restore({ ids: [id] });

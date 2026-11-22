@@ -33,8 +33,23 @@ random bytes and fresh ids are injected.
 - **A conflict is a code and a sentence.** A screen that meets one puts back
   what it showed and reads again, so a payload to merge against has no reader.
   `packages/contract/src/rpc/v1-errors.ts`.
-- **A folder's place is a fractional key.** An integer position renumbers on
-  insert, and two renumberings conflict. `packages/contract/src/library/order-key.ts`.
+- **A folder is an item of kind `folder`, and the tree is built from items' live parents.** A
+  second table for folders is a second write per move and a second spelling of a title, and a
+  list or a note holds children the same way. `packages/contract/src/library/item-tree.ts`.
+- **The tree orders by kind, then title in code point order, with no stored place.** No surface
+  drags a folder into place, and a stored key is a write per insert for an order nobody chose.
+  `packages/contract/src/library/item-tree.ts`.
+- **What may hold what is one table, checked by every writer before a parent lands.** A folder
+  holds anything, a list anything but a container, a note notes and saved things; a cycle or a
+  kind no parent takes is a conflict. `packages/contract/src/items/item-kind.ts`.
+- **A list's settings are its `list` field: its properties (text, url or select) and the select
+  it groups by, and what it holds keeps each value in its own `properties` by the property's
+  name.** Values keyed by name read as themselves in Info, export and the agent's reads; a rename
+  is `items.setList`'s `renames`, which rewrites what the list holds in the same transaction.
+  `packages/contract/src/library/list-settings.ts`.
+- **A live listing never lists a folder or list, and Deleted does.** The tree shows containers,
+  so a card is a second place for one, and Deleted is where one is restored.
+  `packages/contract/src/library/library-index.ts`.
 - **The listing's rules are the model's, pinned first and text in code-point
   order: the fake cell lists in memory, the cloud in SQL held to it.** One
   assembly answers the apps and an agent, and code point is the one order JS

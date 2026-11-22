@@ -52,6 +52,49 @@ const properties = z
     error: `holds more than ${String(ITEM_FIELD_CAPS.propertiesBytes)} bytes of properties`,
   });
 
+export const LIST_PROPERTIES_MAX = 50;
+const LIST_OPTIONS_MAX = 100;
+
+const optionNameSchema = z.string().trim().min(1).max(200);
+
+const listPropertySchema = z.discriminatedUnion("type", [
+  z.strictObject({ name: propertyKeySchema, type: z.literal("text") }),
+  z.strictObject({ name: propertyKeySchema, type: z.literal("url") }),
+  z.strictObject({
+    name: propertyKeySchema,
+    options: z.array(z.strictObject({ name: optionNameSchema })).max(LIST_OPTIONS_MAX),
+    type: z.literal("select"),
+  }),
+]);
+
+const namedOnce = (names: readonly string[]) =>
+  new Set(names.map((name) => name.toLowerCase())).size === names.length;
+
+export const listSettingsSchema = z
+  .strictObject({
+    groupBy: propertyKeySchema.nullable(),
+    properties: z.array(listPropertySchema).max(LIST_PROPERTIES_MAX),
+  })
+  .refine((list) => namedOnce(list.properties.map(({ name }) => name)), {
+    error: "names a property twice",
+  })
+  .refine(
+    (list) =>
+      list.properties.every(
+        (property) =>
+          property.type !== "select" || namedOnce(property.options.map(({ name }) => name)),
+      ),
+    { error: "names an option twice" },
+  )
+  .refine(
+    (list) =>
+      list.groupBy === null ||
+      list.properties.some(({ name, type }) => name === list.groupBy && type === "select"),
+    { error: "groups by no select property" },
+  );
+
+export type ListSettings = z.infer<typeof listSettingsSchema>;
+
 const readingErrorSchema = text;
 
 const reading = z.discriminatedUnion("state", [
@@ -67,9 +110,10 @@ export const libraryItemFieldsSchema = z.strictObject({
   coverSha: shaSchema.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
-  folderId: z.uuid().nullable(),
+  parentId: z.uuid().nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
+  list: listSettingsSchema.nullable(),
   originalName: fileNameSchema.nullable(),
   originalSha: shaSchema.nullable(),
   pinnedAt: instant.nullable(),
@@ -91,7 +135,7 @@ export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
 
 export const importedFieldsSchema = libraryItemFieldsSchema.omit({
   deletedAt: true,
-  folderId: true,
+  parentId: true,
 });
 
 export type ImportedFields = z.infer<typeof importedFieldsSchema>;

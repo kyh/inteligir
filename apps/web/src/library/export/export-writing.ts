@@ -1,10 +1,10 @@
 import { keptFileType } from "@repo/contract/items/item-kind";
-import type { ListingFolder } from "@repo/contract/library/folder-rail";
+
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { exportWriter, heldShas } from "@repo/editor/headless/codec/item-export";
 import { BlobReader, TextReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
 
-import type { ExportCell, WholeItem } from "./export-cell";
+import type { ContainerNode, ExportCell, WholeItem } from "./export-cell";
 import type { ExportAsk, ExportCounts, ExportNews } from "./export-news";
 
 export const EXPORT_INTERRUPTED = "The export stopped before it finished. Try again.";
@@ -60,23 +60,31 @@ const inOrderAhead = async <T, A>(
   }
 };
 
+const UNTITLED_PARENT = "Untitled";
+
 const listLibrary = async (cell: ExportCell) => {
   const titles = new Map<string, string>();
+  const notes: ContainerNode[] = [];
 
   for (let cursor: number | null = 0; cursor !== null;) {
     const page = await cell.listed(cursor);
 
     for (const { fields, id } of page.items) {
       titles.set(id, fields.title);
+
+      if (fields.kind === "note") {
+        const title = fields.title.trim() === "" ? UNTITLED_PARENT : fields.title;
+        notes.push({ id, parentId: fields.parentId, title });
+      }
     }
 
     ({ cursor } = page);
   }
 
-  return titles satisfies ReadonlyMap<string, string>;
+  return { notes, titles };
 };
 
-const folderNamesOf = (folders: readonly ListingFolder[]) => {
+const folderNamesOf = (folders: readonly ContainerNode[]) => {
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
 
   return ((id) => {
@@ -89,7 +97,7 @@ const folderNamesOf = (folders: readonly ListingFolder[]) => {
       folder = folder.parentId === null ? undefined : byId.get(folder.parentId)
     ) {
       seen.add(folder.id);
-      names.unshift(folder.name);
+      names.unshift(folder.title);
     }
 
     return names;
@@ -102,8 +110,8 @@ const writeZip = async (
   counts: ExportCounts,
   tell: (news: ExportNews) => void,
 ) => {
-  const [titles, folders] = await Promise.all([listLibrary(cell), cell.folders()]);
-  const folderNames = folderNamesOf(folders);
+  const [{ notes, titles }, folders] = await Promise.all([listLibrary(cell), cell.folders()]);
+  const folderNames = folderNamesOf([...folders, ...notes]);
   const total = titles.size;
   tell({ kind: "writing", total, written: 0 });
   const types = new Map<string, string>();
@@ -142,7 +150,7 @@ const writeZip = async (
       }
     }
 
-    const file = write({ ...item, folder: folderNames(item.fields.folderId) });
+    const file = write({ ...item, folder: folderNames(item.fields.parentId) });
     await zip.add(file.path, new TextReader(file.text));
 
     for (const { path, sha } of file.files) {

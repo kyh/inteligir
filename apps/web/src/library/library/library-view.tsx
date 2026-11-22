@@ -88,7 +88,7 @@ const emptyWords = (scope: LibraryScope) => {
       } satisfies EmptyWords;
     }
 
-    case "folder": {
+    case "parent": {
       return {
         body: "Save a link here, add a file, or write a note.",
         title: "This folder is empty",

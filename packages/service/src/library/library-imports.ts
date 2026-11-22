@@ -7,7 +7,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { askFills } from "./library-fills";
-import { folderOfTarget } from "./library-folders";
+import { parentOfTarget } from "./library-parents";
 import { mintLibraryId } from "./library-ids";
 import { restoreDeleted } from "./library-items";
 import { landNewItems } from "./library-landing";
@@ -112,7 +112,7 @@ const foldersOf = async (scope: WriteScope, made: readonly NewImported[]) => {
   const folders = new Map<string, string | null>();
 
   for (const path of new Set(made.flatMap(({ folder }) => folder ?? []))) {
-    folders.set(path, (await folderOfTarget(scope, { path })) ?? null);
+    folders.set(path, (await parentOfTarget(scope, { path }, [])) ?? null);
   }
 
   return folders;
@@ -157,7 +157,7 @@ const landNew = async (scope: WriteScope, made: readonly NewImported[]) => {
           fields: {
             ...each.fields,
             deletedAt: null,
-            folderId: each.folder === null ? null : (folders.get(each.folder) ?? null),
+            parentId: each.folder === null ? null : (folders.get(each.folder) ?? null),
           },
           id: each.id,
         }) satisfies NewItem,

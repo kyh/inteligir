@@ -144,12 +144,14 @@ and no read casts.
 - **A table cell keeps a code span's and an equation's pipes, and its `<br/>` parts its blocks.**
   gfm splits a row at every bare pipe and the writer joins a cell's blocks with `<br/>`, so both
   read back as written. `packages/editor/src/headless/markdown/md-rules.ts`.
-- **With no connection an item reads but takes no edit.** It goes read-only under Plate's
-  `readOnly` and says "Needs a connection", every writing handler `editOnly`, since the cloud is the
-  truth; typing from before the drop reaches the note once it is back.
-  `packages/editor/src/kits/read-only-handlers.test.ts`.
-- **A note that takes no edit refuses one in the model.** Offline, in Deleted, held for the agent
-  or in conflict, it drops every local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
+- **With no connection a note takes edits and keeps them on the device** (owner decision: one
+  person, offline editing). The saver writes what is unsaved, with the version and blocks it was
+  typed over, to the host's `unsent` store instead of sending, reopens it on the next open (with no
+  connection too) and saves it once back, where a stale save merges by block as any other; one
+  person rarely edits a note on two devices apart, so a conflict is the existing ask. A file still
+  needs a connection to be kept; the tab keeps it in its page's storage, the phone in native's.
+  `packages/editor/src/item/note-save.ts`, `packages/contract/src/library/unsent-note.ts`.
+- **A note that takes no edit refuses one in the model.** In Deleted or in conflict, it drops every local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
   Plate's `readOnly` gates handlers and drawing, never a transform.
   `packages/editor/src/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the

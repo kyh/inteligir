@@ -110,7 +110,7 @@ const reencoded = async ({ type, uri }: PickedPhoto) => {
   return new Uint8Array(bytes) satisfies Uint8Array<ArrayBuffer>;
 };
 
-export const ingestPhoto = async (saves: Pick<PhoneSaves, "addFile">, folderId: string | null) => {
+export const ingestPhoto = async (saves: Pick<PhoneSaves, "addFile">, parentId: string | null) => {
   const source = await chooseSource();
 
   if (source === null) {
@@ -130,7 +130,7 @@ export const ingestPhoto = async (saves: Pick<PhoneSaves, "addFile">, folderId: 
         mime: picked.type,
         name: photoName(new Date(), picked.type),
       },
-      { folderId },
+      { parentId },
     );
 
     switch (saved.kind) {

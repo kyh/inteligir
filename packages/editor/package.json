@@ -78,6 +78,7 @@
     "./inline-combobox": "./src/inline-combobox.tsx",
     "./insert-void": "./src/insert-void.ts",
     "./item/item-editor": "./src/item/item-editor.tsx",
+    "./item/unsent-notes": "./src/item/unsent-notes.ts",
     "./kits/basic-blocks-kit": "./src/kits/basic-blocks-kit.tsx",
     "./kits/basic-marks-kit": "./src/kits/basic-marks-kit.tsx",
     "./kits/block-menu-kit": "./src/kits/block-menu-kit.tsx",

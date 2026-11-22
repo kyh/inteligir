@@ -2,9 +2,44 @@ import { DEFAULT_ATTACHMENTS_FOLDER } from "../knowledge/asset-name";
 import { isDocPath, isDotEntryPath } from "../knowledge/doc-file";
 import { extnamePath } from "../knowledge/folder-path";
 
-export const ITEM_KINDS = ["note", "link", "video", "audio", "image", "pdf", "file"] as const;
+export const ITEM_KINDS = [
+  "note",
+  "link",
+  "video",
+  "audio",
+  "image",
+  "pdf",
+  "file",
+  "folder",
+  "list",
+] as const;
 
 export type ItemKind = (typeof ITEM_KINDS)[number];
+
+export const CONTAINER_KINDS = ["folder", "list"] as const satisfies readonly ItemKind[];
+
+export type ContainerKind = (typeof CONTAINER_KINDS)[number];
+
+export const isContainerKind = (kind: ItemKind): kind is ContainerKind =>
+  CONTAINER_KINDS.some((container) => container === kind);
+
+const PARENT_KINDS_OF: Readonly<Record<ItemKind, readonly ItemKind[]>> = {
+  audio: ["folder", "list", "note"],
+  file: ["folder", "list", "note"],
+  folder: ["folder"],
+  image: ["folder", "list", "note"],
+  link: ["folder", "list", "note"],
+  list: ["folder"],
+  note: ["folder", "list", "note"],
+  pdf: ["folder", "list", "note"],
+  video: ["folder", "list", "note"],
+};
+
+export const canHoldKind = (parent: ItemKind, child: ItemKind) =>
+  PARENT_KINDS_OF[child].includes(parent) satisfies boolean;
+
+export const canHoldChildren = (kind: ItemKind) =>
+  ITEM_KINDS.some((child) => canHoldKind(kind, child)) satisfies boolean;
 
 export const isItemKind = (value: string): value is ItemKind =>
   ITEM_KINDS.some((kind) => kind === value);

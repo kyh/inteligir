@@ -77,6 +77,7 @@ const envSchema = z
 
     LIBRARY_STORAGE_CAP_BYTES: byteCount(GIB),
 
+    // WARNING: the next release owes the floor: /v1 dropped folders.write and the folder fields 0.7.0 reads
     MIN_CLIENT_BUILD: buildFloor("0.7.0"),
 
     PAGE_FETCH_RELAY_URL: optionalText.pipe(z.url({ protocol: /^https?$/u }).optional()),

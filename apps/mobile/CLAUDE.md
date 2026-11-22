@@ -33,6 +33,12 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **New note opens with the caret at the end and the keyboard up, and a tag chip does nothing on
   the phone** (owner decision). `apps/mobile/src/editor/page/page-host.ts`.
 
+- **A note's typing kept offline is native's, by item, and the page reads it before it draws.** The
+  DOM page's own storage outlives a sign-out it cannot see, so the page host keeps what the saver
+  hands it in memory and in `unsent:` keys of the phone's storage, which `forgetAccount` clears,
+  and the note page waits on that read so the saver opens over it.
+  `apps/mobile/src/editor/unsent-store.ts`.
+
 ## Cloud and accounts
 
 - **On the phone, the runtime that moves a value is the one that notifies.** A sign-in is one

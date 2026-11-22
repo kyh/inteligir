@@ -3,6 +3,7 @@ import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
+import { pageUnsentNotes } from "@repo/editor/item/unsent-notes";
 import { MutationObserver, onlineManager, QueryObserver } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -81,6 +82,7 @@ export const installPageEditorHost = ({
       },
       read: async (itemId) => await readNote(wire.orpc, queryClient, itemId),
       save: async (save, outlives) => await saveNote(outlives ? outliving : client, save),
+      unsent: pageUnsentNotes(),
     },
     openItem: (itemId) => {
       goes.openItem(itemId);
@@ -111,7 +113,7 @@ export const installPageEditorHost = ({
               : queryClient.getQueryData(queries.item(openItem).queryKey);
 
           return await makeNote.mutate({
-            into: { folderId: beside?.fields.folderId ?? null, tags: [] },
+            into: { parentId: beside?.fields.parentId ?? null, tags: [] },
             note,
           });
         },

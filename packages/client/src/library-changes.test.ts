@@ -7,7 +7,9 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils
 import { createLibraryChanges } from "./library-changes";
 import type { ItemsMoved } from "./library-cache";
 
-const BEAT_MS = 15_000;
+const BEAT_MS = 60_000;
+
+const HEAD_POLL_MS = 1000;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -76,7 +78,7 @@ describe("what moved in the library, as a device asks it", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     await tab.mac.library.items.organize({ ids: [tab.noteId], title: "Renamed" });
-    await vi.advanceTimersByTimeAsync(BEAT_MS);
+    await vi.advanceTimersByTimeAsync(HEAD_POLL_MS);
 
     expect(tab.asks()).toBe(2);
     expect(tab.stale.row()).toBe(true);

@@ -27,7 +27,7 @@ const line = (text: string, section: "note" | "article" = "note") =>
 
 const noteOf = (blocks: readonly BodyBlock[]) => ({
   blocks: [...blocks],
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

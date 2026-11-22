@@ -1,5 +1,5 @@
 import { urlKey } from "@repo/contract/items/item-url";
-import type { FolderTarget } from "@repo/contract/library/cell-rules";
+import type { ParentTarget } from "@repo/contract/library/cell-rules";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
 import { takesRead, withPage } from "@repo/contract/library/item-reading";
@@ -11,7 +11,7 @@ import { z } from "zod";
 import { withArticle } from "../body/article-body";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
-import { folderOfTarget } from "./library-folders";
+import { parentOfTarget } from "./library-parents";
 import { mintLibraryId } from "./library-ids";
 import { landNew } from "./library-items";
 import { landItem } from "./library-landing";
@@ -42,7 +42,7 @@ interface SavePageInput extends ReadPage {
   readonly id: string;
   readonly url: string;
   readonly article: readonly LibraryBlock[];
-  readonly folderId: string | null;
+  readonly parentId: string | null;
   readonly note?: string | undefined;
   readonly savedAt: number;
   readonly tags: readonly string[];
@@ -90,7 +90,7 @@ interface SaveLinkInput {
   readonly url: string;
   readonly id?: string | undefined;
   readonly note?: string | undefined;
-  readonly folder?: FolderTarget | undefined;
+  readonly parent?: ParentTarget | undefined;
   readonly savedAt?: number | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly title?: string | undefined;
@@ -103,18 +103,19 @@ export const saveLink = async (scope: WriteScope, input: SaveLinkInput) => {
     return { created: false, item: liveRowOf(held) } satisfies SavedItem;
   }
 
-  const folderId = await folderOfTarget(scope, input.folder);
+  const id = input.id ?? mintLibraryId(scope.now);
+  const parentId = await parentOfTarget(scope, input.parent, [{ id, kind: "link" }]);
 
   const stub = await landNew(scope, {
     blocks: await noteOf(scope, input.note),
     fields: stubFields({
-      folderId: folderId ?? null,
+      parentId: parentId ?? null,
       savedAt: input.savedAt ?? scope.now,
       tags: input.tags ?? [],
       title: input.title,
       url: input.url,
     }),
-    id: input.id ?? mintLibraryId(scope.now),
+    id,
   });
 
   await askFills(scope, [stub]);

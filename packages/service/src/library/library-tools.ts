@@ -32,7 +32,7 @@ export const libraryTools = {
       tagTool({
         annotations: ADDS,
         description:
-          "Creates a note from markdown, optionally titled, tagged and filed in a folder. A link to another item is written [Title](mention:id), or [[Title]] for the one item so titled.",
+          "Creates a note from markdown, optionally titled, tagged and filed under a parent: a folder, list or note by its id, or a folder path made when new. A link to another item is written [Title](mention:id), or [[Title]] for the one item so titled.",
         name: "create_note",
         title: "Create a note",
       }),
@@ -68,7 +68,7 @@ export const libraryTools = {
       tagTool({
         annotations: { ...CHANGES, idempotentHint: true },
         description:
-          "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one write. A #tag written in an item's text, which its answer and list_items name among the item's tags, stays after a remove: only edit_item takes one out of the text.",
+          "Adds and removes tags, files under a parent (a folder, list or note by its id, or a folder path made when new), pins or unpins, and renames, for one or more items in one write. A #tag written in an item's text, which its answer and list_items name among the item's tags, stays after a remove: only edit_item takes one out of the text.",
         name: "organize_items",
         title: "Organize items",
       }),
@@ -98,7 +98,8 @@ export const libraryTools = {
     outline: organize.outline.meta(
       tagTool({
         annotations: READ,
-        description: "Lists the folder tree and every tag, each with how many items it holds.",
+        description:
+          "Lists the folders and lists as a tree, and every tag, each with how many items it holds.",
         name: "list_tags_and_folders",
         title: "List tags and folders",
       }),

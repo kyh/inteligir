@@ -2,20 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { folderPaths } from "./folder-paths";
 
-const folder = (id: string, name: string, parentId: string | null, sort = "a0") => ({
+const folder = (id: string, title: string, parentId: string | null) => ({
   id,
-  name,
+  kind: "folder" as const,
   parentId,
-  sort,
+  title,
 });
 
 describe("the folder rows", () => {
-  it("lists a parent before its children, siblings by their order key, each with its path", () => {
+  it("lists a parent before its children, siblings by title, each with its path", () => {
     const rows = folderPaths([
-      folder("p", "Papers", "r", "a0"),
-      folder("w", "Work", null, "a1"),
-      folder("r", "Reading", null, "a0"),
-      folder("b", "Books", "r", "Zz"),
+      folder("p", "Papers", "r"),
+      folder("w", "Work", null),
+      folder("r", "Reading", null),
+      folder("b", "Books", "r"),
     ]);
 
     expect(rows.map((row) => [row.label, row.depth])).toStrictEqual([
@@ -26,12 +26,14 @@ describe("the folder rows", () => {
     ]);
   });
 
-  it("breaks a tie on the order key by name in code-point order, as the rail does", () => {
+  it("orders titles case aside, and folders before lists", () => {
     expect(
-      folderPaths([folder("a", "apple", null), folder("b", "Banana", null)]).map(
-        (row) => row.label,
-      ),
-    ).toStrictEqual(["Banana", "apple"]);
+      folderPaths([
+        { ...folder("l", "Alpha", null), kind: "list" },
+        folder("a", "apple", null),
+        folder("b", "Banana", null),
+      ]).map((row) => row.label),
+    ).toStrictEqual(["apple", "Banana", "Alpha"]);
   });
 
   it("shows a folder whose parent is not listed at the top", () => {

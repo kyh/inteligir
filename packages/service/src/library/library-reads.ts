@@ -171,7 +171,7 @@ export const readItemView = async (
       author: fields.author,
       deletedAt: fields.deletedAt === null ? null : isoOf(fields.deletedAt),
       description: fields.description,
-      folderId: fields.folderId,
+      parentId: fields.parentId,
       kind: fields.kind,
       pinned: fields.pinnedAt !== null,
       properties: detailed ? fields.properties : undefined,
@@ -203,7 +203,7 @@ export const listItems = async (
 ) => {
   const page = await listingItems(db, accountId, {
     deleted: false,
-    folderId: input.folderId,
+    parentId: input.parentId,
     kinds: input.kinds,
     limit: input.limit,
     offset: input.cursor,
@@ -234,7 +234,7 @@ export const searchItems = async (
   const page = await listingItems(db, accountId, {
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,
-    folderId: input.folderId,
+    parentId: input.parentId,
     kinds: input.kinds,
     limit: input.limit,
     offset: input.cursor,
@@ -264,10 +264,7 @@ export const searchItems = async (
 };
 
 export const libraryOutline = async (db: DbExecutor, accountId: string) => {
-  const { folders, tags } = await listingScopes(db, accountId);
+  const { containers, tags } = await listingScopes(db, accountId);
 
-  return {
-    folders: folders.map(({ id, items, name, parentId }) => ({ id, items, name, parentId })),
-    tags,
-  };
+  return { containers, tags };
 };

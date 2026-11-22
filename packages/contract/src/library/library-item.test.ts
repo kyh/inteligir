@@ -36,7 +36,7 @@ describe("an item's fields", () => {
       "short tags past a list's bytes",
       { tags: Array.from({ length: 100 }, (_, i) => `t${String(i)}${"x".repeat(900)}`) },
     ],
-    ["a kind no item is", { kind: "folder" }],
+    ["a kind no item is", { kind: "parent" }],
     ["an original's name that holds a folder", { originalName: "assets/report.pdf" }],
     ["an original's name that is a folder's own", { originalName: ".." }],
     ["a field no column holds", { colour: "red" }],

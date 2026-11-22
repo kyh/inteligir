@@ -1,6 +1,5 @@
 import type { InferClientInputs } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import { ordBetween } from "@repo/contract/library/order-key";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { toast } from "@repo/ui/components/sonner";
@@ -31,14 +30,14 @@ export const useLibraryVerbs = () => {
   const restore = useMutation(writes.restore());
   const purge = useMutation(writes.purge());
   const sweep = useMutation(writes.sweep());
-  const writeFolders = useMutation(writes.folders());
+  const writeContainers = useMutation(writes.containers());
   const refresh = useMutation(writes.refresh());
   const createNote = useMutation(writes.createNote());
   const saveLink = useMutation(writes.saveLink());
   const addFile = useMutation(writes.addFile());
 
-  const folders = () =>
-    queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.folders ?? [];
+  const containers = () =>
+    queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.containers ?? [];
 
   const bulk = async (
     target: Target,
@@ -105,17 +104,17 @@ export const useLibraryVerbs = () => {
       });
     },
     createNote: async (into: SaveInto) => await createNote.mutateAsync({ into }),
-    move: async (target: Target, folderId: string | null) => {
-      const folder = folderId === null ? null : { id: folderId };
+    move: async (target: Target, parentId: string | null) => {
+      const parent = parentId === null ? null : { id: parentId };
       await bulk(target, {
         done: (count) => `Moved ${plural(count, "item")}.`,
         past: "moved",
         run: async (chunk) => {
-          const { items } = await organize.mutateAsync({ folder, ids: [...chunk] });
+          const { items } = await organize.mutateAsync({ ids: [...chunk], parent });
 
           return items.length;
         },
-        sweep: { folder, kind: "organize" },
+        sweep: { kind: "organize", parent },
         verb: "Moving",
       });
     },
@@ -203,7 +202,7 @@ export const useLibraryVerbs = () => {
         run: async (chunk) => {
           for (const { title, url } of chunk) {
             const link = {
-              folder: into.folderId === null ? null : { id: into.folderId },
+              parent: into.parentId === null ? null : { id: into.parentId },
               tags: [...into.tags],
               url,
             };
@@ -235,32 +234,17 @@ export const useLibraryVerbs = () => {
       });
     },
 
-    createFolder: (name: string, parentId: string | null) => {
-      const siblings = folders()
-        .filter((folder) => folder.parentId === parentId)
-        .map((folder) => folder.sort)
-        .toSorted();
-
-      writeFolders.mutate({
-        ops: [
-          {
-            id: newId(),
-            name,
-            op: "create",
-            parentId,
-            sort: ordBetween(siblings.at(-1) ?? null, null),
-          },
-        ],
-      });
+    createFolder: (name: string, parentId: string | null, kind: "folder" | "list" = "folder") => {
+      writeContainers.mutate({ id: newId(), kind, op: "create", parentId, title: name });
     },
-    deleteFolder: (folderId: string) => {
-      writeFolders.mutate({ ops: [{ id: folderId, op: "delete" }] });
+    deleteFolder: (parentId: string) => {
+      writeContainers.mutate({ id: parentId, op: "delete" });
     },
-    renameFolder: (folderId: string, name: string) => {
-      const held = folders().find((folder) => folder.id === folderId);
+    renameFolder: (parentId: string, name: string) => {
+      const held = containers().find((container) => container.id === parentId);
 
-      if (held !== undefined && held.name !== name) {
-        writeFolders.mutate({ ops: [{ base: held.name, id: folderId, name, op: "rename" }] });
+      if (held !== undefined && held.title !== name) {
+        writeContainers.mutate({ id: parentId, op: "rename", title: name });
       }
     },
   };

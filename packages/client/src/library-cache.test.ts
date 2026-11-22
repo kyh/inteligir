@@ -63,7 +63,7 @@ describe("what an answer of what moved reads again", () => {
     const { moved, note, other, staleOf } = heldReads();
 
     const items = moved({
-      folders: false,
+      tree: false,
       items: [
         { id: note.id, seq: note.seq + 1 },
         { id: other.id, seq: other.seq },
@@ -77,13 +77,13 @@ describe("what an answer of what moved reads again", () => {
 
   it("reads again the rail's scopes for a folder that moved, and a thread for its turn or its undo", () => {
     const { moved, staleOf } = heldReads();
-    expect(moved({ folders: true, items: [], threads: [THREAD] })).toStrictEqual(new Set());
+    expect(moved({ tree: true, items: [], threads: [THREAD] })).toStrictEqual(new Set());
     expect(staleOf()).toStrictEqual(["scopes", "threads", "undoable"]);
   });
 
   it("reads every item and every thread again when more moved than an answer names", () => {
     const { moved, staleOf } = heldReads();
-    expect(moved({ folders: false, items: "all", threads: "all" })).toBeNull();
+    expect(moved({ tree: false, items: "all", threads: "all" })).toBeNull();
     expect(staleOf()).toStrictEqual([
       "note",
       "other",
@@ -109,7 +109,7 @@ describe("what moved, while a write waits in the library's queue", () => {
     }).mutate();
 
     moved({
-      folders: true,
+      tree: true,
       items: [
         { id: note.id, seq: note.seq + 1 },
         { id: other.id, seq: other.seq + 1 },

@@ -28,7 +28,7 @@ describe("the rows a suite seeds in the fake cell", () => {
     const cell = createFakeCell();
     const { library } = cell.device("laptop").client;
     const reading = cell.seed.folder("Reading");
-    const id = cell.seed.item({ folderId: reading, tags: ["spring"], title: "Plans" });
+    const id = cell.seed.item({ parentId: reading, tags: ["spring"], title: "Plans" });
     const gone = cell.seed.item({ deletedAt: 1 });
 
     const page = await library.listing.page({ limit: 10, scope: { kind: "all" } });
@@ -36,7 +36,7 @@ describe("the rows a suite seeds in the fake cell", () => {
     await expect(library.items.get({ id })).resolves.toStrictEqual(cell.held(id));
     await expect(library.listing.scopes()).resolves.toMatchObject({
       deleted: 1,
-      folders: [{ id: reading, items: 1, name: "Reading" }],
+      containers: [{ id: reading, items: 1, kind: "folder", title: "Reading" }],
     });
     expect(cell.held(gone).fields.deletedAt).toBe(1);
     expect(cell.calls).toStrictEqual([

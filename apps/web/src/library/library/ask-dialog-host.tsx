@@ -10,8 +10,8 @@ import { folderPaths } from "../sidebar/folder-paths";
 import { asks, dismissAsk } from "./ask";
 import type { Ask } from "./ask";
 
-const FolderForm = ({ ask }: { ask: Extract<Ask, { kind: "folder" }> }) => {
-  const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
+const FolderForm = ({ ask }: { ask: Extract<Ask, { kind: "parent" }> }) => {
+  const folders = useQuery(useLibraryQueries().scopes()).data?.containers ?? [];
 
   return (
     <>
@@ -25,7 +25,7 @@ const FolderForm = ({ ask }: { ask: Extract<Ask, { kind: "folder" }> }) => {
             variant="ghost"
             className="justify-start"
             onClick={() => {
-              ask.answer({ folderId: choice.id });
+              ask.answer({ parentId: choice.id });
             }}
           >
             {choice.label}
@@ -139,7 +139,7 @@ const NameForm = ({ ask }: { ask: Extract<Ask, { kind: "name" }> }) => {
 
 const AskForm = ({ ask }: { ask: Ask }) => {
   switch (ask.kind) {
-    case "folder": {
+    case "parent": {
       return <FolderForm ask={ask} />;
     }
 

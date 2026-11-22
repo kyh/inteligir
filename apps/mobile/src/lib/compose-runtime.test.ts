@@ -100,7 +100,7 @@ const sharesKept = (storage: MemoryKv) =>
 const noteOnTheMac = async (cell: FakeCell) => {
   await cell.device("mac").client.library.items.create({
     blocks: [{ block: paragraph("p1", "first"), section: "note" }],
-    folderId: null,
+    parentId: null,
     id: NOTE,
     opId: "0190a000-0000-7000-8000-0000000000b1",
     savedAt: 1_700_000_000_000,
@@ -264,6 +264,20 @@ describe("the phone's runtime", () => {
     expect(keys.held()).toBeNull();
     expect(sharesKept(storage)).toStrictEqual([]);
     expect(keys.calls).toContain("signOut");
+  });
+
+  it("forgets a note's typing kept offline when it signs out", async () => {
+    const { runtime, storage } = runtimeOver(createFakeCell(), {
+      keys: fakePhoneAuth(KEPT_SESSION),
+    });
+
+    await runtime.start();
+    const typed = { baseBlocks: [], baseVersion: 1, blocks: [], title: "Plans" };
+    await signedIn(runtime).unsent.write("note", typed);
+    await expect(signedIn(runtime).unsent.read("note")).resolves.toStrictEqual(typed);
+
+    await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
+    expect([...storage.held.keys()].filter((key) => key.startsWith("unsent:"))).toStrictEqual([]);
   });
 
   it("signs out at once though the cloud never answers", async () => {

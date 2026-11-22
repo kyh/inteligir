@@ -1,5 +1,4 @@
-import { noteFields } from "@repo/contract/library/item-makes";
-import { bodyWriteSchema, folderRowSchema } from "@repo/contract/library/library-wire";
+import { bodyWriteSchema } from "@repo/contract/library/library-wire";
 import { organizedSchema } from "@repo/contract/rpc/library-contract";
 import { TooManyRequestsError } from "@repo/contract/rpc/v1-errors";
 import { z } from "zod";
@@ -9,19 +8,18 @@ import { writeBody } from "../body/write-body";
 import { reserveFile, settleFile } from "../files/file-landing";
 import { spendHolderBudget } from "../rate-limit";
 import { answer, writing } from "./library-access";
-import { writeFolders } from "./library-folders";
 import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
 import {
   createFile,
+  createItem,
   createNote,
   landedSummaries,
-  landNew,
   organizeItems,
   purgeItems,
   refreshItem,
   setDeleted,
+  setList,
 } from "./library-items";
-import { libraryHead } from "./library-rows";
 import { savedSchema, saveLink, savePage } from "./library-saves";
 import { writeLibrary } from "./library-store";
 import { sweepItems, sweptAnswerSchema } from "./library-sweeps";
@@ -30,7 +28,6 @@ import { landedSchema, landPropertyOps } from "./library-writes";
 
 const ids = z.array(z.string());
 const changedSchema = z.object({ addressHeld: ids, changed: ids, missing: ids });
-const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
 const purgedSchema = z.object({ missing: ids, purged: ids });
 
 export const libraryWriteRows = {
@@ -54,21 +51,6 @@ export const libraryWriteRows = {
       answer(await settleFile(context.library, input)),
     ),
   },
-  folders: {
-    write: writing.folders.write.handler(async ({ context, input }) =>
-      answer(
-        await writeLibrary(
-          context.library,
-          { answer: foldersWrittenSchema, opId: input.opId },
-          async (scope) => {
-            const folders = await writeFolders(scope, input.ops);
-
-            return { folders, seq: await libraryHead(scope.tx, scope.accountId) };
-          },
-        ),
-      ),
-    ),
-  },
   imports: {
     land: writing.imports.land.handler(async ({ context, input }) =>
       answer(
@@ -86,13 +68,16 @@ export const libraryWriteRows = {
         await writeLibrary(
           context.library,
           { answer: landedSchema, opId: input.opId },
-          async (scope) => ({
-            item: await landNew(scope, {
-              blocks: input.blocks,
-              fields: noteFields(input),
-              id: input.id,
-            }),
-          }),
+          async (scope) => ({ item: await createItem(scope, input) }),
+        ),
+      ),
+    ),
+    setList: writing.items.setList.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: landedSchema, opId: input.opId },
+          async (scope) => ({ item: await setList(scope, input) }),
         ),
       ),
     ),

@@ -73,10 +73,10 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
   return { actions, network, opened };
 };
 
-const noteFiled = async (cell: FakeCell, folderId: string | null) => {
+const noteFiled = async (cell: FakeCell, parentId: string | null) => {
   await cell.device("mac").client.library.items.create({
     blocks: [{ block: paragraph("p1", "first"), section: "note" }],
-    folderId,
+    parentId,
     id: NOTE,
     opId: "0190a000-0000-7000-8000-0000000000b1",
     savedAt: 1_700_000_000_000,
@@ -206,8 +206,8 @@ describe("the note page's actions, as the page receives them", () => {
 
   it("makes a note the editor moves out in the open item's folder, and answers its id", async () => {
     const cell = createFakeCell();
-    const folderId = cell.seed.folder("Work");
-    await noteFiled(cell, folderId);
+    const parentId = cell.seed.folder("Work");
+    await noteFiled(cell, parentId);
     const { actions } = await pageOver(cell);
 
     const made = await overTheWire(
@@ -215,7 +215,7 @@ describe("the note page's actions, as the page receives them", () => {
     );
 
     const note = cell.item(z.string().parse(made));
-    expect(note?.fields.folderId).toBe(folderId);
+    expect(note?.fields.parentId).toBe(parentId);
     expect(note?.fields.title).toBe("Moved");
     expect(note?.blocks).toStrictEqual([{ block: paragraph("m1", "moved"), section: "note" }]);
   });

@@ -1,19 +1,20 @@
-import { ITEM_KINDS } from "@repo/contract/items/item-kind";
+import { CONTAINER_KINDS, ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import { FolderRail } from "@repo/contract/library/folder-rail";
+import { ItemTree } from "@repo/contract/library/item-tree";
 import {
   compareTagCounts,
   emptyKindCounts,
   itemListing,
   listedItem,
   scopeFilter,
+  treeChildrenOf,
 } from "@repo/contract/library/library-index";
 import type { ListingPage, ListingQuery, ListingRow } from "@repo/contract/library/library-index";
 import type { listingPageInputSchema, sweptSchema } from "@repo/contract/library/library-wire";
 import { compareText } from "@repo/contract/library/order-key";
 import { db as pool } from "@repo/db/drizzle-client";
 import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
-import { folder, item, itemTag } from "@repo/db/library-schema";
+import { item, itemTag } from "@repo/db/library-schema";
 import {
   and,
   count,
@@ -31,6 +32,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 import { likeLiteral, searchHits } from "../search/search-sql";
@@ -50,11 +52,25 @@ const BROWSE_ORDER = {
   title: [desc(item.pinned), sql`${item.titleSort} collate "C"`, ID_ORDER],
 } as const;
 
-const liveFolders = async (db: DbExecutor, accountId: string) =>
-  await db
-    .select({ id: folder.id, name: folder.name, parentId: folder.parentId, sort: folder.sort })
-    .from(folder)
-    .where(and(eq(folder.accountId, accountId), isNull(folder.deletedAt)));
+const PARENT_KINDS = ["folder", "list", "note"] as const satisfies readonly ItemKind[];
+
+const CARD_TITLE = sql<string>`${item.card}->>'title'`;
+
+const liveTree = async (db: DbExecutor, accountId: string) =>
+  new ItemTree(
+    await db
+      .select({ id: item.id, kind: item.kind, parentId: item.parentId, title: CARD_TITLE })
+      .from(item)
+      .where(
+        and(
+          eq(item.accountId, accountId),
+          isNull(item.deletedAt),
+          inArray(item.kind, [...PARENT_KINDS]),
+        ),
+      ),
+  );
+
+const notContainer = not(inArray(item.kind, [...CONTAINER_KINDS]));
 
 const inTagFamily = (tag: string) => {
   const key = tag.toLowerCase();
@@ -74,38 +90,45 @@ const inTagFamily = (tag: string) => {
   );
 };
 
-const unsorted = or(
-  isNull(item.folderId),
+const parentItem = alias(item, "parent_item");
+
+const atRoot = or(
+  isNull(item.parentId),
+  eq(item.parentId, item.id),
   notExists(
     pool
       .select({ held: sql`1` })
-      .from(folder)
+      .from(parentItem)
       .where(
         and(
-          eq(folder.accountId, item.accountId),
-          eq(folder.id, item.folderId),
-          isNull(folder.deletedAt),
+          eq(parentItem.accountId, item.accountId),
+          eq(parentItem.id, item.parentId),
+          isNull(parentItem.deletedAt),
+          inArray(parentItem.kind, [...PARENT_KINDS]),
         ),
       ),
   ),
 );
 
-const folderFilter = async (
+const parentFilter = async (
   db: DbExecutor,
   accountId: string,
-  folderId: string | null | undefined,
+  parentId: string | null | undefined,
 ) => {
-  if (folderId === undefined) {
+  if (parentId === undefined) {
     return;
   }
 
-  if (folderId === null) {
-    return unsorted;
+  if (parentId === null) {
+    return atRoot;
   }
 
-  const tree = new FolderRail(await liveFolders(db, accountId)).tree(folderId);
+  const tree = await liveTree(db, accountId);
+  const within = tree.subtree(parentId);
 
-  return tree.size === 0 ? sql`false` : inArray(item.folderId, [...tree]);
+  return within.size === 0
+    ? sql`false`
+    : and(inArray(item.parentId, [...within]), sql`${item.parentId} <> ${item.id}`);
 };
 
 const pinnedFilter = (pinned: boolean | undefined) => {
@@ -118,14 +141,14 @@ const pinnedFilter = (pinned: boolean | undefined) => {
 
 type ListingFilter = Pick<
   ListingQuery,
-  "beforeMs" | "deleted" | "folderId" | "pinned" | "sinceMs" | "tag"
+  "beforeMs" | "deleted" | "parentId" | "pinned" | "sinceMs" | "tag"
 >;
 
 const filterOf = async (db: DbExecutor, accountId: string, query: ListingFilter) =>
   and(
     eq(item.accountId, accountId),
-    query.deleted ? isNotNull(item.deletedAt) : isNull(item.deletedAt),
-    await folderFilter(db, accountId, query.folderId),
+    query.deleted ? isNotNull(item.deletedAt) : and(isNull(item.deletedAt), notContainer),
+    await parentFilter(db, accountId, query.parentId),
     query.tag === undefined ? undefined : inTagFamily(query.tag),
     pinnedFilter(query.pinned),
     query.sinceMs === undefined ? undefined : gte(item.savedAt, query.sinceMs),
@@ -291,36 +314,38 @@ export const sweptItems = async (
 };
 
 export const listingScopes = async (db: DbExecutor, accountId: string) => {
-  const rail = new FolderRail(await liveFolders(db, accountId));
+  const tree = await liveTree(db, accountId);
 
-  const byFolder = await db
+  const byParent = await db
     .select({
       deleted: sql<number>`count(*) filter (where ${item.deletedAt} is not null)`.mapWith(Number),
-      folderId: item.folderId,
-      live: sql<number>`count(*) filter (where ${item.deletedAt} is null)`.mapWith(Number),
+      live: sql<number>`count(*) filter (where ${item.deletedAt} is null and ${notContainer})`.mapWith(
+        Number,
+      ),
+      parentId: item.parentId,
     })
     .from(item)
     .where(eq(item.accountId, accountId))
-    .groupBy(item.folderId);
+    .groupBy(item.parentId);
 
   const direct = new Map<string, number>();
   let deleted = 0;
   let total = 0;
   let unsortedItems = 0;
 
-  for (const row of byFolder) {
+  for (const row of byParent) {
     deleted += row.deleted;
     total += row.live;
 
-    if (row.folderId !== null && rail.has(row.folderId)) {
-      direct.set(row.folderId, row.live);
+    if (row.parentId !== null && tree.has(row.parentId)) {
+      direct.set(row.parentId, row.live);
     } else {
       unsortedItems += row.live;
     }
   }
 
   const itemOfTag = and(eq(item.accountId, itemTag.accountId), eq(item.id, itemTag.itemId));
-  const liveTags = and(eq(itemTag.accountId, accountId), isNull(item.deletedAt));
+  const liveTags = and(eq(itemTag.accountId, accountId), isNull(item.deletedAt), notContainer);
 
   const tags = await db
     .select({
@@ -339,8 +364,8 @@ export const listingScopes = async (db: DbExecutor, accountId: string) => {
     .where(liveTags);
 
   return {
+    containers: tree.containers(direct),
     deleted,
-    folders: rail.counted(direct),
     tags: tags.toSorted(compareTagCounts),
     total,
     unsorted: unsortedItems,
@@ -348,10 +373,47 @@ export const listingScopes = async (db: DbExecutor, accountId: string) => {
   };
 };
 
+export const listingChildren = async (
+  db: DbExecutor,
+  accountId: string,
+  parentId: string | null,
+) => {
+  const tree = await liveTree(db, accountId);
+  const under = alias(item, "under");
+
+  const notes = await db
+    .select({
+      hasChildren: exists(
+        pool
+          .select({ held: sql`1` })
+          .from(under)
+          .where(
+            and(
+              eq(under.accountId, item.accountId),
+              eq(under.parentId, item.id),
+              eq(under.kind, "note"),
+              isNull(under.deletedAt),
+            ),
+          ),
+      ).mapWith(Boolean),
+      id: item.id,
+      kind: item.kind,
+      parentId: item.parentId,
+      title: CARD_TITLE,
+    })
+    .from(item)
+    .where(and(eq(item.accountId, accountId), isNull(item.deletedAt), eq(item.kind, "note")));
+
+  const placed = notes.filter((row) => tree.liveParentOf(row.parentId, row.id) === parentId);
+  const parents = new Set(placed.flatMap((row) => (row.hasChildren ? [row.id] : [])));
+
+  return treeChildrenOf(placed, parents);
+};
+
 export const listingTitles = async (db: DbExecutor, accountId: string) => ({
   targets: await db
     .select({ id: item.id, title: sql<string>`${item.card}->>'title'` })
     .from(item)
-    .where(and(eq(item.accountId, accountId), isNull(item.deletedAt)))
+    .where(and(eq(item.accountId, accountId), isNull(item.deletedAt), notContainer))
     .orderBy(...BROWSE_ORDER.title),
 });

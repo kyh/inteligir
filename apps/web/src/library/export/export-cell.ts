@@ -1,5 +1,7 @@
 import { deferred } from "@repo/contract/deferred";
-import type { ListingFolder } from "@repo/contract/library/folder-rail";
+import type { containerCountSchema } from "@repo/contract/library/library-wire";
+import type { z } from "zod";
+
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
@@ -7,6 +9,8 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { v1Client } from "@repo/contract/rpc/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/rpc/call-outcome";
 import { isOrpcError, NotFoundError } from "@repo/contract/rpc/v1-errors";
+
+export type ContainerNode = Pick<z.infer<typeof containerCountSchema>, "id" | "parentId" | "title">;
 
 interface ListedPage {
   readonly items: readonly { readonly id: string; readonly fields: LibraryItemFields }[];
@@ -20,7 +24,7 @@ export interface WholeItem {
 }
 
 export interface ExportCell {
-  readonly folders: () => Promise<readonly ListingFolder[]>;
+  readonly folders: () => Promise<readonly ContainerNode[]>;
   readonly listed: (cursor: number) => Promise<ListedPage>;
   readonly item: (id: string) => Promise<WholeItem | null>;
   readonly file: (sha: string) => Promise<Blob | null>;
@@ -67,9 +71,9 @@ export const exportCellOver = (transport: V1Transport, onSessionEnd: (end: Sessi
       throw new Error("the library stayed busy");
     },
     folders: async () => {
-      const { folders } = await library.listing.scopes();
+      const { containers } = await library.listing.scopes();
 
-      return folders;
+      return containers;
     },
     item: async (id) => {
       try {

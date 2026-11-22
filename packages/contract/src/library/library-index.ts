@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { canHoldChildren, isContainerKind } from "../items/item-kind";
 import type { ItemKind } from "../items/item-kind";
 import type { LibraryScope } from "../library-scope";
 import type { ItemCard } from "./derive-item";
@@ -10,17 +11,18 @@ import type {
   listingPageInputSchema,
   sweptSchema,
   tagCountSchema,
+  treeChildrenSchema,
 } from "./library-wire";
+import { TREE_CHILDREN_MAX } from "./library-wire";
 import { listingSortSchema } from "./listing-sort";
-import { FolderRail } from "./folder-rail";
-import type { ListingFolder } from "./folder-rail";
+import { compareTreeNodes, ItemTree } from "./item-tree";
 import { compareText } from "./order-key";
 
 export interface ListingRow {
   readonly id: string;
   readonly kind: ItemKind;
   readonly title: string;
-  readonly folderId: string | null;
+  readonly parentId: string | null;
   readonly tags: readonly string[];
   readonly url: string | null;
   readonly savedAt: number;
@@ -37,7 +39,7 @@ export interface ListingQuery {
   readonly deleted: boolean;
   readonly kinds?: readonly ItemKind[];
   readonly tag?: string;
-  readonly folderId?: string | null;
+  readonly parentId?: string | null;
   readonly pinned?: boolean;
   readonly sinceMs?: number;
   readonly beforeMs?: number;
@@ -66,8 +68,10 @@ export const emptyKindCounts = () =>
   ({
     audio: 0,
     file: 0,
+    folder: 0,
     image: 0,
     link: 0,
+    list: 0,
     note: 0,
     pdf: 0,
     video: 0,
@@ -101,17 +105,48 @@ const bySort = (a: ListingRow, b: ListingRow, sort: ListingSort) => {
   }
 };
 
+export const treeChildrenOf = (
+  rows: readonly Pick<ListingRow, "id" | "kind" | "title">[],
+  parents: ReadonlySet<string>,
+) => {
+  const notes = rows
+    .flatMap((row) =>
+      row.kind === "note" ? [{ id: row.id, kind: row.kind, parentId: null, title: row.title }] : [],
+    )
+    .toSorted(compareTreeNodes);
+
+  return {
+    children: notes.slice(0, TREE_CHILDREN_MAX).map(({ id, kind, title }) => ({
+      hasChildren: parents.has(id),
+      id,
+      kind,
+      title,
+    })),
+    more: notes.length > TREE_CHILDREN_MAX,
+  } satisfies z.infer<typeof treeChildrenSchema>;
+};
+
 export const compareTagCounts = (a: TagCount, b: TagCount) =>
   b.items - a.items || compareText(a.tag.toLowerCase(), b.tag.toLowerCase());
 
 export class LibraryIndex<R extends ListingRow> {
   private readonly entries = new Map<string, Entry<R>>();
   private readonly sorted = new Map<string, readonly string[]>();
-  private rail = new FolderRail([]);
+  private held: ItemTree | null = null;
 
   upsert(row: R) {
     const prior = this.entries.get(row.id)?.row;
     this.entries.set(row.id, { row, tagKeys: row.tags.map((tag) => tag.toLowerCase()) });
+
+    if (
+      prior === undefined ||
+      prior.parentId !== row.parentId ||
+      prior.title !== row.title ||
+      prior.kind !== row.kind ||
+      prior.deletedAt !== row.deletedAt
+    ) {
+      this.held = null;
+    }
 
     if (
       prior === undefined ||
@@ -133,11 +168,18 @@ export class LibraryIndex<R extends ListingRow> {
   remove(id: string) {
     if (this.entries.delete(id)) {
       this.sorted.clear();
+      this.held = null;
     }
   }
 
-  setFolders(folders: readonly ListingFolder[]) {
-    this.rail = new FolderRail(folders);
+  tree() {
+    this.held ??= new ItemTree(
+      [...this.entries.values()].flatMap(({ row }) =>
+        row.deletedAt === null && canHoldChildren(row.kind) ? [row] : [],
+      ),
+    );
+
+    return this.held;
   }
 
   items(query: ListingQuery) {
@@ -148,10 +190,10 @@ export class LibraryIndex<R extends ListingRow> {
         ? this.rankOrder(query.deleted, query.order.rank)
         : this.membersSorted(query.deleted, query.order.by);
 
-    const folderIds =
-      query.folderId === undefined || query.folderId === null
+    const within =
+      query.parentId === undefined || query.parentId === null
         ? null
-        : this.rail.tree(query.folderId);
+        : this.tree().subtree(query.parentId);
 
     const kindCounts = emptyKindCounts();
     const matched: R[] = [];
@@ -159,7 +201,7 @@ export class LibraryIndex<R extends ListingRow> {
     for (const id of order) {
       const entry = this.entries.get(id);
 
-      if (entry === undefined || !this.passes(entry, query, folderIds)) {
+      if (entry === undefined || !this.passes(entry, query, within)) {
         continue;
       }
 
@@ -188,6 +230,10 @@ export class LibraryIndex<R extends ListingRow> {
     let untagged = 0;
 
     for (const row of this.rowsOf(this.membersSorted(false, "saved"))) {
+      if (isContainerKind(row.kind)) {
+        continue;
+      }
+
       total += 1;
 
       if (row.tags.length === 0) {
@@ -206,12 +252,12 @@ export class LibraryIndex<R extends ListingRow> {
         }
       }
 
-      const folderId = this.liveFolderOf(row);
+      const parentId = this.tree().liveParentOf(row.parentId, row.id);
 
-      if (folderId === null) {
+      if (parentId === null) {
         unsorted += 1;
       } else {
-        direct.set(folderId, (direct.get(folderId) ?? 0) + 1);
+        direct.set(parentId, (direct.get(parentId) ?? 0) + 1);
       }
     }
 
@@ -225,7 +271,7 @@ export class LibraryIndex<R extends ListingRow> {
 
     return {
       deleted,
-      folders: this.rail.counted(direct),
+      containers: this.tree().containers(direct),
       tags: [...tags.values()].toSorted(compareTagCounts),
       total,
       unsorted,
@@ -235,10 +281,9 @@ export class LibraryIndex<R extends ListingRow> {
 
   titles() {
     return {
-      targets: this.rowsOf(this.membersSorted(false, "title")).map(({ id, title }) => ({
-        id,
-        title,
-      })),
+      targets: this.rowsOf(this.membersSorted(false, "title")).flatMap(({ id, kind, title }) =>
+        isContainerKind(kind) ? [] : [{ id, title }],
+      ),
     };
   }
 
@@ -246,17 +291,32 @@ export class LibraryIndex<R extends ListingRow> {
     return ids.flatMap((id) => this.entries.get(id)?.row ?? []);
   }
 
-  private liveFolderOf(row: ListingRow) {
-    return row.folderId !== null && this.rail.has(row.folderId) ? row.folderId : null;
+  children(parentId: string | null) {
+    const tree = this.tree();
+
+    const rows = [...this.entries.values()].flatMap(({ row }) =>
+      row.deletedAt === null && tree.liveParentOf(row.parentId, row.id) === parentId ? [row] : [],
+    );
+
+    const parents = new Set(
+      [...this.entries.values()].flatMap(({ row }) =>
+        row.deletedAt === null && row.kind === "note" && row.parentId !== null
+          ? [row.parentId]
+          : [],
+      ),
+    );
+
+    return treeChildrenOf(rows, parents);
   }
 
-  private passes(entry: Entry<R>, query: ListingQuery, folderIds: ReadonlySet<string> | null) {
+  private passes(entry: Entry<R>, query: ListingQuery, within: ReadonlySet<string> | null) {
     const { row } = entry;
-    const folderId = this.liveFolderOf(row);
+    const parentId = this.tree().liveParentOf(row.parentId, row.id);
 
     return (
-      (query.folderId !== null || folderId === null) &&
-      (folderIds === null || (folderId !== null && folderIds.has(folderId))) &&
+      (query.deleted || !isContainerKind(row.kind)) &&
+      (query.parentId !== null || parentId === null) &&
+      (within === null || (parentId !== null && within.has(parentId))) &&
       (query.tag === undefined || inTagFamily(entry.tagKeys, query.tag)) &&
       (query.pinned === undefined || (row.pinnedAt !== null) === query.pinned) &&
       (query.sinceMs === undefined || row.savedAt >= query.sinceMs) &&
@@ -325,7 +385,7 @@ export const itemListing = (
     card: item.card,
     deletedAt: item.fields.deletedAt,
     fields: item.fields,
-    folderId: item.fields.folderId,
+    parentId: item.fields.parentId,
     id: item.id,
     kind: item.fields.kind,
     pinnedAt: item.fields.pinnedAt,
@@ -366,32 +426,32 @@ export interface SearchHits {
 export const scopeFilter = (scope: LibraryScope) => {
   switch (scope.kind) {
     case "all": {
-      return { deleted: false } satisfies Pick<ListingQuery, "deleted" | "folderId" | "tag">;
+      return { deleted: false } satisfies Pick<ListingQuery, "deleted" | "parentId" | "tag">;
     }
 
     case "unsorted": {
-      return { deleted: false, folderId: null } satisfies Pick<
+      return { deleted: false, parentId: null } satisfies Pick<
         ListingQuery,
-        "deleted" | "folderId" | "tag"
+        "deleted" | "parentId" | "tag"
       >;
     }
 
-    case "folder": {
-      return { deleted: false, folderId: scope.folderId } satisfies Pick<
+    case "parent": {
+      return { deleted: false, parentId: scope.parentId } satisfies Pick<
         ListingQuery,
-        "deleted" | "folderId" | "tag"
+        "deleted" | "parentId" | "tag"
       >;
     }
 
     case "tag": {
       return { deleted: false, tag: scope.tag } satisfies Pick<
         ListingQuery,
-        "deleted" | "folderId" | "tag"
+        "deleted" | "parentId" | "tag"
       >;
     }
 
     case "deleted": {
-      return { deleted: true } satisfies Pick<ListingQuery, "deleted" | "folderId" | "tag">;
+      return { deleted: true } satisfies Pick<ListingQuery, "deleted" | "parentId" | "tag">;
     }
 
     default: {
@@ -446,7 +506,7 @@ export const sweptIds = <R extends ListingRow>(
 
 export const itemSummary = (row: ListingRow) =>
   ({
-    folderId: row.folderId,
+    parentId: row.parentId,
     id: row.id,
     kind: row.kind,
     pinned: row.pinnedAt !== null,

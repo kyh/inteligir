@@ -16,7 +16,7 @@ describe("the tab's address", () => {
   });
 
   it("links a scope with nothing open over it by its one parameter, All items by none", () => {
-    expect(libraryHref(scopeAddress({ folderId: FOLDER, kind: "folder" }))).toBe(
+    expect(libraryHref(scopeAddress({ parentId: FOLDER, kind: "parent" }))).toBe(
       `/library?folder=${FOLDER}`,
     );
     expect(libraryHref(scopeAddress({ kind: "deleted" }))).toBe("/library?scope=deleted");

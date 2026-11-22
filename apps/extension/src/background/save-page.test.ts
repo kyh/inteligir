@@ -154,7 +154,7 @@ describe("a tab saved", () => {
     expect(save).toMatchObject({
       coverSha: fileSha(PNG),
       facts: { author: "Steph Ango" },
-      folderId: null,
+      parentId: null,
       tags: [],
       title: "File over app",
       url: URL_SAVED,

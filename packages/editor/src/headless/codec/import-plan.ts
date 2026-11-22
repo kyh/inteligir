@@ -298,7 +298,7 @@ const isCoverPath = (path: string) => path.startsWith(`${COVERS_DIR}/`);
 const fileItemFields = (file: PlannedFile, now: number) =>
   importedFields(
     fileFields({
-      folderId: null,
+      parentId: null,
       mime: fileTypeOf(file.path),
       name: basenamePath(file.path),
       savedAt: now,

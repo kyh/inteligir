@@ -41,7 +41,7 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   });
 
   const field = await library.items.createNote({
-    folder: { path: "Reading" },
+    parent: { path: "Reading" },
     markdown: "# Field notes\n\nNotes from the field.\n",
     tags: ["field"],
     title: "Field notes",
@@ -50,7 +50,7 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   const sha = await upload(cloud, account, new Uint8Array(PIXEL), "image/png");
 
   const pier = await library.items.createFile({
-    folderId: null,
+    parentId: null,
     id: newId(),
     name: "pier.png",
     savedAt: Date.now(),
@@ -166,14 +166,14 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
   await expect(more).toHaveAttribute("data-popup-open", "");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toBeHidden();
-  const { folders } = await library.organize.outline();
-  const archive = folders.find((folder) => folder.name === "Archive");
+  const { containers: folders } = await library.organize.outline();
+  const archive = folders.find((folder) => folder.title === "Archive");
   await cardOf(page, "Welcome").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Move to…" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Archive" }).click();
   await expect
     .poll(async () => await fieldsOf(welcome.item.id))
-    .toMatchObject({ folderId: archive?.id });
+    .toMatchObject({ parentId: archive?.id });
   await expect(page.getByRole("dialog")).toBeHidden();
 
   await cardOf(page, "Field notes").dblclick();
@@ -203,7 +203,7 @@ test("a paste and a drop on the grid land a link, a picture and a PDF", async ({
   skipScriptedPaste(browserName);
   const sha = await upload(cloud, account, new Uint8Array(PIXEL), "image/png");
   await library.items.createFile({
-    folderId: null,
+    parentId: null,
     id: newId(),
     name: "pier.png",
     savedAt: Date.now(),
@@ -256,7 +256,7 @@ test("a write from another device appears", async ({ cloud, library, page }) => 
 
   await library.items.create({
     blocks: [],
-    folderId: null,
+    parentId: null,
     id: newId(),
     opId: newId(),
     savedAt: Date.now(),
@@ -283,11 +283,11 @@ test("the rail's rows are links, and a folder row answers the pointer and the ke
   page,
 }) => {
   for (const name of ["Archive", "Projects", "Reading"]) {
-    await library.items.createNote({ folder: { path: name }, markdown: "Notes.\n", title: name });
+    await library.items.createNote({ parent: { path: name }, markdown: "Notes.\n", title: name });
   }
 
-  const { folders: outline } = await library.organize.outline();
-  const reading = outline.find((folder) => folder.name === "Reading");
+  const { containers: outline } = await library.organize.outline();
+  const reading = outline.find((folder) => folder.title === "Reading");
   await openLibrary(page, cloud);
   const folders = page.getByRole("list", { name: "Folders" });
 
@@ -345,6 +345,8 @@ test("the rail's rows are links, and a folder row answers the pointer and the ke
 
   await linkOf("Archive").hover();
   await linkOf("Projects").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(folders.getByRole("button", { exact: true, name: "Projects" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(linkOf("Reading")).toBeFocused();
   const muted = await colorOf(labelOf(page.getByRole("link", { name: /^Unsorted/u })));
@@ -414,7 +416,7 @@ test("a PDF item draws in the browser's own viewer, under its own name", async (
   const name = "Lecture notes é.pdf";
 
   const lecture = await library.items.createFile({
-    folderId: null,
+    parentId: null,
     id: newId(),
     name,
     savedAt: Date.now(),

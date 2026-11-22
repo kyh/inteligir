@@ -15,6 +15,7 @@ import { useNotePage } from "@/editor/use-note-page";
 import { EVERY_ORIGIN, loadVerdict, openWindowVerdict } from "@/editor/web-view-policy";
 import type { LoadVerdict } from "@/editor/web-view-policy";
 import { ItemInfoSheet } from "@/items/item-info-sheet";
+import type { InfoFolder } from "@/items/item-info-sheet";
 import { useItem, useLibrary, useMoveToDeleted } from "@/lib/library-hooks";
 import { FOCUS, firstParam, openAgent } from "@/lib/routes";
 import { screenStyle, useTheme } from "@/lib/theme";
@@ -44,6 +45,34 @@ const followVerdict = (verdict: LoadVerdict) => {
   return verdict.kind === "allow";
 };
 
+interface HeldParent {
+  readonly id: string;
+  readonly card: { readonly title: string };
+  readonly fields: { readonly parentId: string | null; readonly deletedAt: number | null };
+}
+
+const filedPlace = (
+  containers: readonly InfoFolder[],
+  parent: HeldParent | undefined,
+  parentId: string | null,
+) => {
+  if (parent === undefined) {
+    return { folders: containers, parentId };
+  }
+
+  if (parent.fields.deletedAt !== null) {
+    return { folders: containers, parentId: null };
+  }
+
+  return {
+    folders: [
+      ...containers,
+      { id: parent.id, parentId: parent.fields.parentId, title: shownTitle(parent.card.title) },
+    ],
+    parentId,
+  };
+};
+
 const ItemScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
@@ -55,7 +84,17 @@ const ItemScreen = () => {
   const { queries } = useLibrary();
   const read = useItem(itemId);
   const item = read.kind === "held" ? read.item : null;
-  const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.folders ?? [];
+  const containers = useQuery(queries.library.listing.scopes.queryOptions()).data?.containers ?? [];
+  const parentId = item?.fields.parentId ?? null;
+  const parentNoted = parentId !== null && !containers.some(({ id }) => id === parentId);
+
+  const parentNote = useQuery({
+    ...queries.library.items.row.queryOptions({ input: { id: parentId ?? "" } }),
+    enabled: parentNoted,
+  }).data;
+
+  const filed = filedPlace(containers, parentNoted ? parentNote : undefined, parentId);
+
   const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
 
@@ -118,7 +157,7 @@ const ItemScreen = () => {
     body = (
       <Text className="px-6 py-24 text-center text-16 text-muted-foreground">{UNREACHABLE}</Text>
     );
-  } else if (page.shown) {
+  } else if (page.shown && page.ready) {
     body = (
       <NotePage
         {...page.props}
@@ -196,8 +235,8 @@ const ItemScreen = () => {
       </KeyboardAvoidingView>
       {item === null ? null : (
         <ItemInfoSheet
-          fields={item.fields}
-          folders={folders}
+          fields={{ ...item.fields, parentId: filed.parentId }}
+          folders={filed.folders}
           visible={showInfo}
           onClose={() => {
             setShowInfo(false);

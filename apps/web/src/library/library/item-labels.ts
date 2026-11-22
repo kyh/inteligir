@@ -34,7 +34,9 @@ export const cardMeta = (row: ListedItem, nowMs: number) => {
       break;
     }
 
+    case "folder":
     case "image":
+    case "list":
     case "pdf":
     case "note": {
       parts.push(KIND_LABELS[row.fields.kind]);

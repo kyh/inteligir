@@ -48,7 +48,7 @@ const item = (id: string, fields: Partial<LibraryItemFields>, blocks: BodyBlock[
   }) satisfies WholeItem;
 
 const LIBRARY: readonly WholeItem[] = [
-  item(PLAN, { folderId: Q4, title: "Launch plan" }, [
+  item(PLAN, { parentId: Q4, title: "Launch plan" }, [
     ...note([
       {
         children: [
@@ -90,8 +90,8 @@ const fakeCell = (options: { readonly failOn?: string } = {}) => {
     },
     folders: async () =>
       await Promise.resolve([
-        { id: PROJECTS, name: "Projects", parentId: null, sort: "a" },
-        { id: Q4, name: "Q4", parentId: PROJECTS, sort: "a" },
+        { id: PROJECTS, parentId: null, title: "Projects" },
+        { id: Q4, parentId: PROJECTS, title: "Q4" },
       ]),
     item: async (id) => {
       if (id === options.failOn) {
@@ -169,6 +169,42 @@ describe(exportLibrary, () => {
     expect(entries.get("Projects/Q4/Launch plan.md")).toContain(`(mention:${IDEAS})`);
     expect(entries.get(bytesFolderPath(NOTES_FILE, "notes.txt"))).toBe("plain words");
     expect(Object.fromEntries(reads)).toStrictEqual({ [NOTES_FILE]: 1, [PICTURE]: 1, [REPORT]: 1 });
+  });
+
+  it("files an item under a note in the note's own folder, so a note's children keep their nesting", async () => {
+    const trip = "0195f3a0-5c1e-7000-8000-000000000011";
+    const day = "0195f3a0-5c1e-7000-8000-000000000012";
+
+    const held = [
+      item(trip, { parentId: PROJECTS, title: "Trip" }),
+      item(day, { parentId: trip, title: "Day one" }),
+    ];
+
+    const cell: ExportCell = {
+      file: async () => await Promise.resolve(null),
+      folders: async () =>
+        await Promise.resolve([{ id: PROJECTS, parentId: null, title: "Projects" }]),
+      item: async (id) => await Promise.resolve(held.find((one) => one.id === id) ?? null),
+      listed: async () =>
+        await Promise.resolve({
+          cursor: null,
+          items: held.map(({ fields, id }) => ({ fields, id })),
+        }),
+    };
+
+    const told = await run(cell);
+    const done = told.at(-1);
+
+    if (done?.kind !== "done" || done.zip === null) {
+      throw new Error(`the export ended ${JSON.stringify(done)}`);
+    }
+
+    const entries = await entriesOf(done.zip);
+
+    expect([...entries.keys()].toSorted()).toStrictEqual([
+      "Projects/Trip.md",
+      "Projects/Trip/Day one.md",
+    ]);
   });
 
   it("says it stopped short when the library can't be read to the end", async () => {

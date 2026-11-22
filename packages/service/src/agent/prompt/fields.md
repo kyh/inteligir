@@ -6,12 +6,12 @@ the item's markdown, so a field is never something you type into the text.
 
 ## What You Change
 
-| Field      | Change it with                                  | Contract                                          |
-| ---------- | ----------------------------------------------- | ------------------------------------------------- |
-| `title`    | `organize_items` with `title`, one item at once | What the person sees on the card and in links     |
-| `tags`     | `organize_items` with `addTags` / `removeTags`  | A letter first, no spaces, no `#`; `a/b` nests    |
-| `folderId` | `organize_items` with `folder` (id or path)     | A path names folders that are made when new       |
-| `pinned`   | `organize_items` with `pinned`                  | Keeps the item first; the person's choice, mostly |
+| Field      | Change it with                                  | Contract                                                          |
+| ---------- | ----------------------------------------------- | ----------------------------------------------------------------- |
+| `title`    | `organize_items` with `title`, one item at once | What the person sees on the card and in links                     |
+| `tags`     | `organize_items` with `addTags` / `removeTags`  | A letter first, no spaces, no `#`; `a/b` nests                    |
+| `parentId` | `organize_items` with `parent` (id or path)     | An id names a folder, list or note; a path, folders made when new |
+| `pinned`   | `organize_items` with `pinned`                  | Keeps the item first; the person's choice, mostly                 |
 
 A note's title is its own field: an H1 in its text is a heading, not the title, and renaming an
 item rewrites nothing, since every link to it names it by id and shows its title as it is now.

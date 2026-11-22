@@ -145,7 +145,7 @@ dbSuite("what the library answers a read of one item", () => {
 
     for (const [reading, read] of readings) {
       const fields = stubFields({
-        folderId: null,
+        parentId: null,
         savedAt: SAVED_AT,
         tags: [],
         url: `https://example.com/${randomUUID()}`,

@@ -5,18 +5,12 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { user } from "@repo/db/auth-schema";
 import { db } from "@repo/db/drizzle-client";
-import {
-  file,
-  folder,
-  item,
-  itemBody,
-  itemLink,
-  itemSearch,
-  itemTag,
-} from "@repo/db/library-schema";
+import { blankItemFields } from "@repo/contract/library/item-makes";
+import { file, item, itemBody, itemLink, itemSearch, itemTag } from "@repo/db/library-schema";
 import { createRouterClient } from "@orpc/server";
 
 import type { LibraryPrincipal } from "../library/library-principal";
+import { mintLibraryId } from "../library/library-ids";
 import type { JobKick } from "../library/library-store";
 import { bodyRowOf, itemRowOf, linkRowsOf, searchRowOf, tagRowsOf } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
@@ -112,14 +106,47 @@ export const personalLibrary = async () => {
 export interface FolderSeed {
   readonly name: string;
   readonly id?: string;
+  readonly kind?: "folder" | "list" | "note";
   readonly parentId?: string | null;
-  readonly sort?: string;
   readonly deletedAt?: number | null;
+  readonly savedAt?: number;
 }
 
 export const seedFolder = async (accountId: string, seed: FolderSeed) => {
-  const { deletedAt = null, id = randomUUID(), name, parentId = null, sort = "a0" } = seed;
-  await db.insert(folder).values({ accountId, deletedAt, id, name, parentId, seq: 0, sort });
+  const {
+    deletedAt = null,
+    id = randomUUID(),
+    kind = "folder",
+    name,
+    parentId = null,
+    savedAt = 1,
+  } = seed;
+
+  await seedItem(accountId, {
+    fields: { ...blankItemFields(savedAt), deletedAt, kind, parentId, title: name },
+    id,
+  });
+
+  return id;
+};
+
+type FixtureLibrary = ReturnType<typeof libraryAs>;
+
+export const createFolder = async (
+  library: FixtureLibrary,
+  title: string,
+  more: { readonly kind?: "folder" | "list"; readonly parentId?: string | null } = {},
+) => {
+  const id = mintLibraryId(Date.now());
+  await library.items.create({
+    blocks: [],
+    id,
+    kind: more.kind ?? "folder",
+    parentId: more.parentId ?? null,
+    savedAt: 1,
+    tags: [],
+    title,
+  });
 
   return id;
 };

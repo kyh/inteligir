@@ -4,8 +4,10 @@ import type { LibraryScope } from "@repo/contract/library-scope";
 export const KIND_LABELS = {
   audio: "Audio",
   file: "File",
+  folder: "Folder",
   image: "Image",
   link: "Link",
+  list: "List",
   note: "Note",
   pdf: "PDF",
   video: "Video",
@@ -14,8 +16,10 @@ export const KIND_LABELS = {
 export const KIND_CHIP_LABELS = {
   audio: "Audio",
   file: "Files",
+  folder: "Folders",
   image: "Images",
   link: "Links",
+  list: "Lists",
   note: "Notes",
   pdf: "PDFs",
   video: "Videos",
@@ -33,7 +37,7 @@ export const CHIP_ORDER: readonly ItemKind[] = [
 
 export const scopeTitle = (
   scope: LibraryScope,
-  folders: readonly { readonly id: string; readonly name: string }[],
+  containers: readonly { readonly id: string; readonly title: string }[],
   all: string,
 ) => {
   switch (scope.kind) {
@@ -45,8 +49,8 @@ export const scopeTitle = (
       return "Unsorted";
     }
 
-    case "folder": {
-      return folders.find((folder) => folder.id === scope.folderId)?.name ?? "Folder";
+    case "parent": {
+      return containers.find((held) => held.id === scope.parentId)?.title ?? "Folder";
     }
 
     case "tag": {
@@ -64,4 +68,4 @@ export const scopeTitle = (
 };
 
 export const saveFolderOf = (scope: LibraryScope) =>
-  scope.kind === "folder" ? scope.folderId : null;
+  scope.kind === "parent" ? scope.parentId : null;

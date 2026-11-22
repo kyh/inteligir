@@ -1,11 +1,11 @@
 import { deferred } from "@repo/contract/deferred";
-import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import { OFFLINE_KEEPS } from "@repo/editor/item/item-editor";
 import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -313,7 +313,7 @@ describe("an open link nobody named", () => {
 });
 
 describe("an open item's body", () => {
-  it("is its note's saved body, saved a moment after typing stops, and read-only offline", async () => {
+  it("is its note's saved body, saved a moment after typing stops, and still takes edits offline", async () => {
     const { cell, id } = await pageOverASavedNote();
 
     await typeInto(id, " And here.");
@@ -330,8 +330,8 @@ describe("an open item's body", () => {
       onlineManager.setOnline(false);
     });
 
-    await screen.findByText(NEEDS_CONNECTION);
-    expect(document.querySelector('[contenteditable="true"]')).toBeNull();
+    await screen.findByText(OFFLINE_KEEPS);
+    expect(document.querySelector('[contenteditable="true"]')).not.toBeNull();
   });
 
   it("opens with the find bar on the words its address carries, and the address drops them", async () => {
@@ -414,13 +414,13 @@ describe("a new note", () => {
 describe("what the editor asks of the page", () => {
   it("makes a note in the open item's folder", async () => {
     const cell = createFakeCell();
-    const folderId = cell.seed.folder("Reading");
-    await pageAt(`/library?item=${cell.seed.item({ folderId, title: "An article" })}`, cell);
+    const parentId = cell.seed.folder("Reading");
+    await pageAt(`/library?item=${cell.seed.item({ parentId, title: "An article" })}`, cell);
     await screen.findByRole("textbox", { name: "Title" });
 
     const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Extract" });
 
-    expect(cell.item(id)?.fields.folderId).toBe(folderId);
+    expect(cell.item(id)?.fields.parentId).toBe(parentId);
   });
 
   it("quotes a passage asked about in the agent's composer, which takes the keyboard", async () => {
@@ -447,11 +447,11 @@ const railRow = (list: string, name: RegExp) =>
 
 const readingFolder = () => {
   const cell = createFakeCell();
-  const folderId = cell.seed.folder("Reading");
-  cell.seed.item({ folderId, tags: ["field"], title: NOTE });
-  cell.seed.item({ folderId, kind: "image", title: "Pier" });
+  const parentId = cell.seed.folder("Reading");
+  cell.seed.item({ parentId, tags: ["field"], title: NOTE });
+  cell.seed.item({ parentId, kind: "image", title: "Pier" });
 
-  return { cell, folderId };
+  return { cell, parentId };
 };
 
 describe("where the tab is", () => {
@@ -479,8 +479,8 @@ describe("where the tab is", () => {
   });
 
   it("opens the scope its address names", async () => {
-    const { cell, folderId } = readingFolder();
-    await pageAt(`/library?folder=${folderId}`, cell);
+    const { cell, parentId } = readingFolder();
+    await pageAt(`/library?folder=${parentId}`, cell);
 
     await shows("Reading");
   });
@@ -606,8 +606,8 @@ describe("a scope or kind whose listing is on its way", () => {
 
   it("keeps the scope's kinds while another kind of it is on its way", async () => {
     layOutCardGrids({ height: 800, width: 1200 });
-    const { cell, folderId } = readingFolder();
-    const page = await pageHoldingListings(`/library?folder=${folderId}`, cell);
+    const { cell, parentId } = readingFolder();
+    const page = await pageHoldingListings(`/library?folder=${parentId}`, cell);
     await shows("Reading");
     const chips = await screen.findByLabelText("Kind");
 
@@ -637,8 +637,8 @@ describe("a scope or kind whose listing is on its way", () => {
 
   it("tells the agent of no selection counted over the kind the tab left", async () => {
     layOutCardGrids({ height: 800, width: 1200 });
-    const { cell, folderId } = readingFolder();
-    const page = await pageHoldingListings(`/library?folder=${folderId}`, cell);
+    const { cell, parentId } = readingFolder();
+    const page = await pageHoldingListings(`/library?folder=${parentId}`, cell);
     fireEvent.keyDown(await screen.findByRole("grid", { name: "Library" }), chord("a"));
 
     page.hold();
@@ -661,7 +661,7 @@ describe("a scope or kind whose listing is on its way", () => {
           viewContext: {
             itemIds: [],
             kinds: ["image"],
-            scope: { folderId, kind: "folder" },
+            scope: { parentId, kind: "parent" },
             selected: 0,
             surface: "library",
           },

@@ -97,7 +97,7 @@ const commandsAt = async (
 const folderAsk = () => {
   const ask = asks.getState().standing;
 
-  if (ask?.kind !== "folder") {
+  if (ask?.kind !== "parent") {
     throw new Error("no ask for a folder stands");
   }
 
@@ -120,7 +120,7 @@ describe("a command", () => {
 
     commands.move(idsOf("a", "b"));
     expect(folderAsk().count).toBe(2);
-    folderAsk().answer({ folderId: "f1" });
+    folderAsk().answer({ parentId: "f1" });
     await heard.move.promise;
     expect(verbs.move).toHaveBeenCalledExactlyOnceWith(idsOf("a", "b"), "f1");
 
@@ -149,12 +149,12 @@ describe("a command", () => {
 
   it("makes a note where the shown scope saves and opens it: a listed folder's, a tag's, or none for a folder the library no longer lists", async () => {
     const cell = createFakeCell();
-    const folderId = cell.seed.folder("Reading");
-    const inFolder = await commandsAt({ scope: { folderId, kind: "folder" } }, cell);
+    const parentId = cell.seed.folder("Reading");
+    const inFolder = await commandsAt({ scope: { parentId, kind: "parent" } }, cell);
     const underTag = await commandsAt({ scope: { kind: "tag", tag: "field" } }, cell);
 
     const gone = await commandsAt(
-      { scope: { folderId: "deleted-elsewhere", kind: "folder" } },
+      { scope: { parentId: "deleted-elsewhere", kind: "parent" } },
       cell,
     );
 
@@ -164,9 +164,9 @@ describe("a command", () => {
 
     await inFolder.heard.openItem.promise;
     expect(inFolder.goes.openItem).toHaveBeenCalledExactlyOnceWith(NOTE);
-    expect(inFolder.verbs.createNote).toHaveBeenCalledWith({ folderId, tags: [] });
-    expect(underTag.verbs.createNote).toHaveBeenCalledWith({ folderId: null, tags: ["field"] });
-    expect(gone.verbs.createNote).toHaveBeenCalledWith({ folderId: null, tags: [] });
+    expect(inFolder.verbs.createNote).toHaveBeenCalledWith({ parentId, tags: [] });
+    expect(underTag.verbs.createNote).toHaveBeenCalledWith({ parentId: null, tags: ["field"] });
+    expect(gone.verbs.createNote).toHaveBeenCalledWith({ parentId: null, tags: [] });
   });
 
   it("leaves the open item unasked when it is among what a delete takes", async () => {

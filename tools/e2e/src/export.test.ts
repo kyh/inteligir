@@ -25,7 +25,7 @@ const exportFromSettings = async (page: Page, said: string) => {
 };
 
 const folderPathsOf = async (library: V1Client["library"]) => {
-  const { folders } = await library.listing.scopes();
+  const { containers: folders } = await library.listing.scopes();
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
 
   return (id: string | null) => {
@@ -36,7 +36,7 @@ const folderPathsOf = async (library: V1Client["library"]) => {
       folder !== undefined;
       folder = folder.parentId === null ? undefined : byId.get(folder.parentId)
     ) {
-      names.unshift(folder.name);
+      names.unshift(folder.title);
     }
 
     return names satisfies string[];
@@ -57,7 +57,7 @@ const libraryAsHeld = async (library: V1Client["library"]) => {
       return {
         fields: {
           ...whole.fields,
-          folderId: folderPath(whole.fields.folderId),
+          parentId: folderPath(whole.fields.parentId),
           pinnedAt: whole.fields.pinnedAt !== null,
         },
         id,
@@ -79,7 +79,7 @@ test("Settings › Export writes the library as a zip Import reads back into a f
   web,
 }) => {
   const plan = await library.items.createNote({
-    folder: { path: "Projects/Q4 plans" },
+    parent: { path: "Projects/Q4 plans" },
     markdown: "# Launch\n\nShip it.\n\n- [ ] tell everyone\n",
     tags: ["work", "launch"],
     title: "Launch plan",
@@ -96,7 +96,7 @@ test("Settings › Export writes the library as a zip Import reads back into a f
   });
   await library.items.organize({ ids: [plan.item.id], pinned: true });
   await library.items.createNote({
-    folder: { path: "Projects" },
+    parent: { path: "Projects" },
     markdown: `Read the [Launch plan](mention:${plan.item.id}) first.\n`,
     title: "Ideas",
   });
@@ -111,7 +111,7 @@ test("Settings › Export writes the library as a zip Import reads back into a f
       published: "2026-10-01",
       site: "The Example Journal",
     },
-    folderId: null,
+    parentId: null,
     id: newId(),
     note: "My take: keep it short.",
     savedAt: Date.now(),
@@ -121,7 +121,7 @@ test("Settings › Export writes the library as a zip Import reads back into a f
   });
   const pdfSha = await upload(cloud, account, new Uint8Array(PDF), "application/pdf");
   await library.items.createFile({
-    folderId: null,
+    parentId: null,
     id: newId(),
     name: "Lecture.pdf",
     savedAt: Date.now(),
@@ -143,7 +143,7 @@ test("Settings › Export writes the library as a zip Import reads back into a f
         section: "note",
       },
     ],
-    folderId: null,
+    parentId: null,
     id: newId(),
     savedAt: Date.now(),
     tags: [],

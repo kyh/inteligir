@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import type { JobRun } from "../jobs/job-kinds";
 import { searchVectorOf } from "../search/search-vector";
-import { folderOfTarget } from "./library-folders";
+import { sweepParent } from "./library-parents";
 import { mintLibraryId } from "./library-ids";
 import { purgeItems, restoreDeleted } from "./library-items";
 import { sweptItems } from "./library-listing";
@@ -71,13 +71,13 @@ const pinMoves = (pinned: boolean | undefined) => {
 const place = async (
   scope: WriteScope,
   ids: readonly string[],
-  folderId: string | null | undefined,
+  parentId: string | null | undefined,
   pinned: boolean | undefined,
 ) => {
   const { accountId, now, tx } = scope;
 
   const moves = or(
-    folderId === undefined ? undefined : sql`${item.folderId} is distinct from ${folderId}`,
+    parentId === undefined ? undefined : sql`${item.parentId} is distinct from ${parentId}`,
     pinMoves(pinned),
   );
 
@@ -95,7 +95,7 @@ const place = async (
   const seq = await scope.seq();
   await tx
     .update(item)
-    .set({ folderId, pinnedAt: pinnedAtOf(pinned, now), seq, updatedAt: now })
+    .set({ parentId, pinnedAt: pinnedAtOf(pinned, now), seq, updatedAt: now })
     .where(moving);
 };
 
@@ -209,8 +209,9 @@ const organizeSwept = async (
   ids: readonly string[],
   verb: Extract<SweepVerb, { kind: "organize" }>,
 ) => {
-  const { addTags, folder, pinned, removeTags } = verb;
-  await place(scope, ids, await folderOfTarget(scope, folder), pinned);
+  const { addTags, parent, pinned, removeTags } = verb;
+  const filed = await sweepParent(scope, parent, ids);
+  await place(scope, filed.ids, filed.parentId, pinned);
 
   if (addTags === undefined && removeTags === undefined) {
     return [] satisfies string[];

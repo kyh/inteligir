@@ -1,9 +1,8 @@
 import { z } from "zod";
 
 import { itemScopeSchema, LIBRARY_SELECTION_MAX, libraryScopeSchema } from "../library-scope";
-import { ITEM_KINDS } from "../items/item-kind";
+import { CONTAINER_KINDS, ITEM_KINDS } from "../items/item-kind";
 import { utf8ByteLength } from "./canonical-json";
-import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
 import { instant, libraryItemFieldsSchema } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
@@ -57,15 +56,6 @@ export const folderPathNames = (path: string) =>
     .map((segment) => segment.trim())
     .filter((name) => name !== "");
 
-export const folderRowSchema = z.object({
-  deletedAt: instant.nullable(),
-  id: idSchema,
-  name: z.string(),
-  parentId: idSchema.nullable(),
-  seq: seqSchema,
-  sort: ordSchema,
-});
-
 export const THREAD_STATUSES = ["idle", "running"] as const;
 
 export const threadRowSchema = z.object({
@@ -91,7 +81,7 @@ export const threadStreamEventSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const libraryMovedSchema = z.object({
-  folders: z.boolean(),
+  tree: z.boolean(),
   items: z.union([z.literal("all"), z.array(z.object({ id: idSchema, seq: seqSchema }))]),
   threads: z.union([z.literal("all"), z.array(idSchema)]),
 });
@@ -113,30 +103,6 @@ export const bodyWriteSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("stale"), version: bodyVersionSchema }),
   z.object({ kind: z.literal("full"), maxBytes: z.number().int().positive() }),
   z.object({ kind: z.literal("deleted") }),
-]);
-
-export const folderOpSchema = z.discriminatedUnion("op", [
-  z.strictObject({
-    id: newIdSchema,
-    name: folderNameSchema,
-    op: z.literal("create"),
-    parentId: idSchema.nullable(),
-    sort: ordSchema,
-  }),
-  z.strictObject({
-    base: z.string(),
-    id: idSchema,
-    name: folderNameSchema,
-    op: z.literal("rename"),
-  }),
-  z.strictObject({
-    baseParentId: idSchema.nullable(),
-    id: idSchema,
-    op: z.literal("move"),
-    parentId: idSchema.nullable(),
-    sort: ordSchema,
-  }),
-  z.strictObject({ id: idSchema, op: z.literal("delete") }),
 ]);
 
 const editIndex = z.number().int().nonnegative();
@@ -165,12 +131,26 @@ export const sweptSchema = z.strictObject({
   scope: libraryScopeSchema,
 });
 
-export const folderCountSchema = z.object({
+export const containerCountSchema = z.object({
   id: idSchema,
   items: count,
-  name: z.string(),
+  kind: z.enum(CONTAINER_KINDS),
   parentId: idSchema.nullable(),
-  sort: z.string(),
+  title: z.string(),
+});
+
+const treeChildSchema = z.object({
+  hasChildren: z.boolean(),
+  id: idSchema,
+  kind: itemKindSchema,
+  title: z.string(),
+});
+
+export const TREE_CHILDREN_MAX = 500;
+
+export const treeChildrenSchema = z.object({
+  children: z.array(treeChildSchema),
+  more: z.boolean(),
 });
 
 export const tagCountSchema = z.object({ items: count, tag: z.string() });
@@ -188,7 +168,7 @@ export const listedItemSchema = z.object({
 export const responseFormatSchema = z.enum(["concise", "detailed"]);
 
 export const itemSummarySchema = z.object({
-  folderId: idSchema.nullable(),
+  parentId: idSchema.nullable(),
   id: idSchema,
   kind: itemKindSchema,
   pinned: z.boolean(),
@@ -217,7 +197,7 @@ export const itemReadSchema = z.object({
     author: z.string().nullable(),
     deletedAt: isoInstant.nullable(),
     description: z.string().nullable(),
-    folderId: idSchema.nullable(),
+    parentId: idSchema.nullable(),
     kind: itemKindSchema,
     pinned: z.boolean(),
     properties: z.record(z.string(), z.json()).optional(),

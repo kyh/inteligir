@@ -11,7 +11,6 @@ import {
 import { db } from "@repo/db/drizzle-client";
 import {
   file,
-  folder,
   item,
   itemBody,
   itemFile,
@@ -26,6 +25,7 @@ import { describe, expect, it } from "vitest";
 
 import { signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import {
+  createFolder,
   libraryAs,
   makeAccount,
   personalLibrary,
@@ -65,6 +65,7 @@ const codeOf = async (call: Promise<unknown>) => {
 interface Filing {
   readonly title?: string;
   readonly tags?: string[];
+  readonly parentId?: string;
 }
 
 const noteOf = (lines: readonly string[], filing: Filing = {}) => {
@@ -78,8 +79,8 @@ const noteOf = (lines: readonly string[], filing: Filing = {}) => {
           section: "note",
         }) satisfies BodyBlock,
     ),
-    folderId: null,
     id,
+    parentId: filing.parentId ?? null,
     savedAt: SAVED_AT,
     tags: filing.tags ?? [],
     title: filing.title ?? "",
@@ -112,10 +113,10 @@ const itemCount = async (accountId: string) => {
 
 const liveFolders = async (accountId: string) =>
   await db
-    .select({ id: folder.id, name: folder.name, parentId: folder.parentId })
-    .from(folder)
-    .where(and(eq(folder.accountId, accountId), isNull(folder.deletedAt)))
-    .orderBy(asc(folder.name));
+    .select({ id: item.id, name: item.title, parentId: item.parentId })
+    .from(item)
+    .where(and(eq(item.accountId, accountId), eq(item.kind, "folder"), isNull(item.deletedAt)))
+    .orderBy(asc(item.title));
 
 const propertiesOf = async (library: Library, id: string) => {
   const { fields } = await library.items.row({ id });
@@ -167,10 +168,7 @@ dbSuite("the library's rows that write", () => {
 
     it("organizes: tags case by case, a folder by its id, a pin and a title, and answers every tag the item carries", async () => {
       const { library } = await personalLibrary();
-      const reading = newId();
-      await library.folders.write({
-        ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
-      });
+      const reading = await createFolder(library, "Reading");
 
       const id = await note(library, ["Plans for #later."], {
         tags: ["Spring", "trips"],
@@ -179,18 +177,18 @@ dbSuite("the library's rows that write", () => {
 
       const { items } = await library.items.organize({
         addTags: ["SPRING", "plans"],
-        folder: { id: reading },
         ids: [id],
+        parent: { id: reading },
         pinned: true,
         removeTags: ["TRIPS"],
         title: "Trip",
       });
 
       expect(items).toMatchObject([
-        { folderId: reading, id, pinned: true, tags: ["Spring", "later", "plans"], title: "Trip" },
+        { parentId: reading, id, pinned: true, tags: ["Spring", "later", "plans"], title: "Trip" },
       ]);
       await expect(library.items.get({ id })).resolves.toMatchObject({
-        fields: { folderId: reading, tags: ["Spring", "plans"], title: "Trip" },
+        fields: { parentId: reading, tags: ["Spring", "plans"], title: "Trip" },
       });
     });
 
@@ -203,10 +201,10 @@ dbSuite("the library's rows that write", () => {
         codeOf(library.items.organize({ ids: [id, newId()], pinned: true })),
       ).resolves.toBe("NOT_FOUND");
       await expect(
-        codeOf(library.items.organize({ folder: { id: newId() }, ids: [id] })),
+        codeOf(library.items.organize({ ids: [id], parent: { id: newId() } })),
       ).resolves.toBe("NOT_FOUND");
       await expect(library.items.get({ id })).resolves.toMatchObject({
-        fields: { folderId: null, pinnedAt: null },
+        fields: { parentId: null, pinnedAt: null },
       });
       expect(await headOf(accountId)).toBe(head);
     });
@@ -331,47 +329,79 @@ dbSuite("the library's rows that write", () => {
     });
   });
 
-  describe("folders", () => {
-    it("writes folders guarded by name and parent, a deleted one taking its children", async () => {
+  describe("folders and lists", () => {
+    it("makes folders and lists as items, refusing a parent gone or of a kind that holds no such child", async () => {
       const { accountId, library } = await personalLibrary();
-      const a = newId();
-      const b = newId();
-      const under = newId();
+      const travel = await createFolder(library, "Travel");
+      const rome = await createFolder(library, "Rome", { parentId: travel });
+      const shelf = await createFolder(library, "Shelf", { kind: "list", parentId: travel });
+      const inShelf = await note(library, ["Read."], { parentId: shelf });
 
-      const made = await library.folders.write({
-        ops: [
-          { id: a, name: "Recipes", op: "create", parentId: null, sort: "a0" },
-          { id: b, name: "Travel", op: "create", parentId: null, sort: "a1" },
-          { id: under, name: "Rome", op: "create", parentId: b, sort: "a0" },
-        ],
+      await expect(library.items.row({ id: rome })).resolves.toMatchObject({
+        fields: { kind: "folder", parentId: travel, title: "Rome" },
       });
-
-      expect(made.folders.map(({ name }) => name)).toStrictEqual(["Recipes", "Travel", "Rome"]);
-      expect(made.seq).toBe(await headOf(accountId));
+      await expect(library.items.row({ id: inShelf })).resolves.toMatchObject({
+        fields: { kind: "note", parentId: shelf },
+      });
       await expect(
-        refusalOf(
-          library.folders.write({
-            ops: [{ base: "Travel", id: b, name: "recipes", op: "rename" }],
-          }),
-        ),
+        refusalOf(createFolder(library, "Lost", { parentId: newId() })),
+      ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true });
+      await expect(
+        refusalOf(createFolder(library, "Nested", { parentId: shelf })),
       ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
       await expect(
-        refusalOf(
-          library.folders.write({
-            ops: [{ id: newId(), name: "Lost", op: "create", parentId: newId(), sort: "a0" }],
-          }),
-        ),
-      ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true });
-
-      const deleted = await library.folders.write({ ops: [{ id: b, op: "delete" }] });
-      expect(deleted.folders).toMatchObject([
-        { deletedAt: expect.any(Number), id: b },
-        { deletedAt: expect.any(Number), id: under },
+        refusalOf(createFolder(library, "Under a note", { kind: "list", parentId: inShelf })),
+      ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
+      await expect(liveFolders(accountId)).resolves.toMatchObject([
+        { name: "Rome" },
+        { name: "Travel" },
       ]);
-      await expect(liveFolders(accountId)).resolves.toMatchObject([{ name: "Recipes" }]);
+    });
+
+    it("refuses moving a folder under itself or below, and an item under a kind that holds no such child", async () => {
+      const { library } = await personalLibrary();
+      const top = await createFolder(library, "Top");
+      const under = await createFolder(library, "Under", { parentId: top });
+      const idea = await note(library, ["Idea."]);
+      const link = await library.items.saveLink({ url: "https://example.com/held" });
+
       await expect(
-        library.folders.write({ ops: [{ id: b, op: "delete" }] }),
-      ).resolves.toStrictEqual({ folders: [], seq: deleted.seq });
+        refusalOf(library.items.organize({ ids: [top], parent: { id: under } })),
+      ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
+      await expect(
+        refusalOf(library.items.organize({ ids: [top], parent: { id: top } })),
+      ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
+      await expect(
+        refusalOf(library.items.organize({ ids: [idea], parent: { id: link.item.id } })),
+      ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
+      await expect(
+        library.items.organize({ ids: [link.item.id], parent: { id: idea } }),
+      ).resolves.toMatchObject({ items: [{ id: link.item.id, parentId: idea }] });
+      await expect(library.items.organize({ ids: [under], parent: null })).resolves.toMatchObject({
+        items: [{ id: under, parentId: null }],
+      });
+    });
+
+    it("deletes the folders and lists under a folder it deletes, and lists what they held as unsorted", async () => {
+      const { accountId, library } = await personalLibrary();
+      const travel = await createFolder(library, "Travel");
+      const rome = await createFolder(library, "Rome", { parentId: travel });
+      const shelf = await createFolder(library, "Shelf", { kind: "list", parentId: travel });
+      const kept = await note(library, ["Kept."], { parentId: rome });
+
+      const deleted = await library.items.delete({ ids: [travel] });
+      expect(deleted.deleted.toSorted()).toStrictEqual([travel, rome, shelf].toSorted());
+      await expect(liveFolders(accountId)).resolves.toStrictEqual([]);
+      await expect(library.items.row({ id: kept })).resolves.toMatchObject({
+        fields: { deletedAt: null, parentId: rome },
+      });
+
+      const unsorted = await library.listing.page({ limit: 10, scope: { kind: "unsorted" } });
+      expect(unsorted.items.map(({ id }) => id)).toStrictEqual([kept]);
+      const binned = await library.listing.page({ limit: 10, scope: { kind: "deleted" } });
+      expect(binned.items.map(({ id }) => id).toSorted()).toStrictEqual(
+        [travel, rome, shelf].toSorted(),
+      );
     });
 
     it("files items into a folder by its path, making what is missing, and by its id", async () => {
@@ -381,8 +411,8 @@ dbSuite("the library's rows that write", () => {
 
       const filed = await library.items.organize({
         addTags: ["work"],
-        folder: { path: "Projects/Garden" },
         ids: [one, two],
+        parent: { path: "Projects/Garden" },
         pinned: true,
       });
 
@@ -390,22 +420,22 @@ dbSuite("the library's rows that write", () => {
       expect(projects).toMatchObject({ name: "Projects", parentId: null });
       expect(garden).toMatchObject({ name: "Garden", parentId: projects?.id });
       expect(filed.items).toMatchObject([
-        { folderId: garden?.id, id: one, pinned: true, tags: ["work"] },
-        { folderId: garden?.id, id: two, pinned: true, tags: ["work"] },
+        { parentId: garden?.id, id: one, pinned: true, tags: ["work"] },
+        { parentId: garden?.id, id: two, pinned: true, tags: ["work"] },
       ]);
 
-      await library.items.organize({ folder: { path: "projects/GARDEN" }, ids: [one] });
+      await library.items.organize({ ids: [one], parent: { path: "projects/GARDEN" } });
       await expect(liveFolders(accountId)).resolves.toHaveLength(2);
 
       const moved = await library.items.organize({
-        folder: { id: projects?.id ?? "" },
         ids: [one],
+        parent: { id: projects?.id ?? "" },
         removeTags: ["WORK"],
         title: "One, renamed",
       });
 
       expect(moved.items).toMatchObject([
-        { folderId: projects?.id, pinned: true, tags: [], title: "One, renamed" },
+        { parentId: projects?.id, pinned: true, tags: [], title: "One, renamed" },
       ]);
     });
 
@@ -413,9 +443,9 @@ dbSuite("the library's rows that write", () => {
       const { accountId, library } = await personalLibrary();
 
       const input = {
-        folder: { path: "Journal" },
         markdown: "# Plan\n\nWater the **garden**.",
         opId: OP_ID,
+        parent: { path: "Journal" },
         tags: ["home"],
         title: "Plan",
       };
@@ -423,11 +453,11 @@ dbSuite("the library's rows that write", () => {
       const { item: made } = await library.items.createNote(input);
       expect(made.fields).toMatchObject({ kind: "note", tags: ["home"], title: "Plan" });
       const [journal] = await liveFolders(accountId);
-      expect(made.fields.folderId).toBe(journal?.id);
+      expect(made.fields.parentId).toBe(journal?.id);
       const { blocks } = await library.items.get({ id: made.id });
       expect(blocks.map(({ section }) => section)).toStrictEqual(["note", "note"]);
       await expect(library.items.createNote(input)).resolves.toStrictEqual({ item: made });
-      await expect(itemCount(accountId)).resolves.toBe(1);
+      await expect(itemCount(accountId)).resolves.toBe(2);
     });
 
     it("takes a path's names trimmed, and refuses one no folder can hold", async () => {
@@ -435,19 +465,19 @@ dbSuite("the library's rows that write", () => {
       const id = await note(library, ["Short."]);
 
       for (const path of [`Work/${"x".repeat(256)}`, " / "]) {
-        await expect(codeOf(library.items.organize({ folder: { path }, ids: [id] }))).resolves.toBe(
+        await expect(codeOf(library.items.organize({ ids: [id], parent: { path } }))).resolves.toBe(
           "BAD_REQUEST",
         );
       }
 
       const { items } = await library.items.organize({
-        folder: { path: " Work / Reading " },
         ids: [id],
+        parent: { path: " Work / Reading " },
       });
 
       const folders = await liveFolders(accountId);
       expect(folders.map(({ name }) => name)).toStrictEqual(["Reading", "Work"]);
-      expect(items[0]?.folderId).toBe(folders[0]?.id);
+      expect(items[0]?.parentId).toBe(folders[0]?.id);
     });
   });
 
@@ -546,7 +576,7 @@ dbSuite("the library's rows that write", () => {
       const { accountId, library } = await personalLibrary();
 
       const input = {
-        folderId: null,
+        parentId: null,
         id: newId(),
         name: "photo.png",
         savedAt: SAVED_AT,
@@ -603,7 +633,7 @@ dbSuite("the library's rows that write", () => {
       await seedFile(accountId, SHA, { touchedAt: 1 });
       const id = newId();
       await library.items.createFile({
-        folderId: null,
+        parentId: null,
         id,
         name: "photo.png",
         savedAt: SAVED_AT,
