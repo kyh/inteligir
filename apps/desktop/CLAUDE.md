@@ -31,6 +31,11 @@ carries, and updates.
   `bundle.resources` on every cargo build, so a checkout that never packed would fail its typecheck
   for want of the notices, and a build with no update feed reports its updates off.
   `apps/desktop/src-tauri/tauri.package.conf.json`.
+- **The icon is a committed `Assets.car` compiled from the phone's `app.icon`, never the `.icon`
+  itself.** Tauri hands actool a lone `.icon`, which Xcode 27's actool refuses ("Bad file
+  descriptor"); compile it beside an empty `.xcassets` with `--app-icon app`, macOS 13.5 as the
+  minimum deployment target, so the catalog carries older Macs' bitmaps too.
+  `apps/desktop/src-tauri/icons/Assets.car`.
 - **The .app asks for macOS 13.5, the oldest the owner's smoke opens it on.** Its WebKit runs the
   page's ES2023, and a floor nobody opened the app on is a promise nobody checked.
   `apps/desktop/src-tauri/tauri.package.conf.json`.
