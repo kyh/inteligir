@@ -299,7 +299,11 @@ const itemsContract = {
     .output(z.object({ seq: seqSchema })),
 
   setList: signedBase
-    .errors({ [ConflictError.code]: ConflictError, [NotFoundError.code]: NotFoundError })
+    .errors({
+      [ConflictError.code]: ConflictError,
+      [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+    })
     .input(
       z.strictObject({
         id: idSchema,

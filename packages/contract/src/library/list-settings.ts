@@ -57,11 +57,23 @@ export const renamedProperties = <V>(
   properties: Readonly<Record<string, V>>,
   renames: readonly PropertyRename[],
 ) => {
-  const to = new Map(renames.map((rename) => [rename.from, rename.to]));
+  const from = new Set(renames.map((rename) => rename.from));
   const renamed: Record<string, V> = {};
 
   for (const [key, value] of Object.entries(properties)) {
-    renamed[to.get(key) ?? key] = value;
+    if (!from.has(key)) {
+      renamed[key] = value;
+    }
+  }
+
+  const held = new Map(Object.entries(properties));
+
+  for (const rename of renames) {
+    const value = held.get(rename.from);
+
+    if (value !== undefined) {
+      renamed[rename.to] = value;
+    }
   }
 
   return renamed;

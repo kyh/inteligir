@@ -57,6 +57,15 @@ describe("a list's settings", () => {
     ).toBe(false);
   });
 
+  it("lets a renamed value win over a key the item already held, whatever the keys' order", () => {
+    expect(
+      renamedProperties({ Stage: "Old", Status: "Done" }, [{ from: "Status", to: "Stage" }]),
+    ).toStrictEqual({ Stage: "Done" });
+    expect(
+      renamedProperties({ Status: "Done", Stage: "Old" }, [{ from: "Status", to: "Stage" }]),
+    ).toStrictEqual({ Stage: "Done" });
+  });
+
   it("carries a value across a rename and leaves the rest", () => {
     expect(
       renamedProperties({ Notes: "x", Status: "Done" }, [{ from: "Status", to: "Stage" }]),
