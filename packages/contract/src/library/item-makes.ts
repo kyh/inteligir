@@ -101,6 +101,6 @@ export const fileFields = (
 
 export const importedFields = ({
   deletedAt: _deletedAt,
-  parentId: _folderId,
+  parentId: _parentId,
   ...fields
 }: LibraryItemFields) => fields;
