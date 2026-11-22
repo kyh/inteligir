@@ -55,7 +55,23 @@ const ItemScreen = () => {
   const { queries } = useLibrary();
   const read = useItem(itemId);
   const item = read.kind === "held" ? read.item : null;
-  const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.containers ?? [];
+  const containers = useQuery(queries.library.listing.scopes.queryOptions()).data?.containers ?? [];
+  const parentId = item?.fields.parentId ?? null;
+  const parentNoted = parentId !== null && !containers.some(({ id }) => id === parentId);
+
+  const parentNote = useQuery({
+    ...queries.library.items.row.queryOptions({ input: { id: parentId ?? "" } }),
+    enabled: parentNoted,
+  }).data;
+
+  const folders =
+    parentNote === undefined || !parentNoted
+      ? containers
+      : [
+          ...containers,
+          { id: parentNote.id, parentId: parentNote.fields.parentId, title: parentNote.card.title },
+        ];
+
   const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
 
