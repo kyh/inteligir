@@ -1,9 +1,10 @@
 # Releasing
 
 THE runbook. One product version ships as three artifacts, and every step here
-is the owner's: each needs a credential no agent and no CI run holds (the
+runs on the owner's machine: each needs a credential no CI run holds (the
 Developer ID and the notary key, the Apple team behind EAS, production's
-database), and the agent environment refuses release operations outright.
+database). An agent there can pack and publish the Mac app; production's
+schema push and the store uploads stay the owner's.
 
 | Artifact       | Who gets it                                                     | How it ships                                                           |
 | -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- |

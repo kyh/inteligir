@@ -40,16 +40,12 @@ const appConfig = ({ config }) => ({
     reactCompiler: true,
     typedRoutes: true,
   },
-  icon: "./assets/icon-light.png",
   ios: {
     bundleIdentifier: "com.inteligir.mobile",
     config: {
       usesNonExemptEncryption: false,
     },
-    icon: {
-      dark: "./assets/icon-dark.png",
-      light: "./assets/icon-light.png",
-    },
+    icon: "./assets/app.icon",
     privacyManifests: {
       NSPrivacyAccessedAPITypes: accessedApiTypes,
     },
@@ -83,9 +79,9 @@ const appConfig = ({ config }) => ({
         backgroundColor: "#FAFAFA",
         dark: {
           backgroundColor: "#171717",
-          image: "./assets/icon-dark.png",
+          image: "./assets/splash-dark.png",
         },
-        image: "./assets/icon-light.png",
+        image: "./assets/splash-light.png",
       },
     ],
   ],
