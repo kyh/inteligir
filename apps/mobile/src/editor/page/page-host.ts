@@ -65,9 +65,22 @@ export const installPageHost = (first: PageProps) => {
 
   const fileSrcs = new Map<string, Promise<string>>();
 
-  const kept = new Map<string, UnsentNote>(
-    first.unsent === null ? [] : [[first.itemId, first.unsent]],
-  );
+  const kept = new Map<string, UnsentNote>();
+  const seeded = new Set<string>();
+
+  const seed = (next: PageProps) => {
+    if (seeded.has(next.itemId)) {
+      return;
+    }
+
+    seeded.add(next.itemId);
+
+    if (next.unsent !== null) {
+      kept.set(next.itemId, next.unsent);
+    }
+  };
+
+  seed(first);
 
   const srcOf = async (sha: string) => {
     const [made] = await Promise.allSettled([
@@ -183,9 +196,7 @@ export const installPageHost = (first: PageProps) => {
       const before = props;
       props = next;
 
-      if (next.unsent !== null && !kept.has(next.itemId)) {
-        kept.set(next.itemId, next.unsent);
-      }
+      seed(next);
 
       if (!followed) {
         followed = true;

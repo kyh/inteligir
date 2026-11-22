@@ -217,6 +217,8 @@ describe("the note page's host", () => {
     expect(notes.unsent.read(NOTE)).toStrictEqual(typed);
     notes.unsent.write(NOTE, null);
     expect(notes.unsent.read(NOTE)).toBeNull();
+    host.follow({ ...first, unsent: typed });
+    expect(notes.unsent.read(NOTE)).toBeNull();
     expect(keptByNative).toStrictEqual([
       [NOTE, typed],
       [NOTE, null],

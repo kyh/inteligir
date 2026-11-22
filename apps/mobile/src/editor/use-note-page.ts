@@ -66,6 +66,14 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
     }
   }, [life, offline]);
 
+  const keepUnsent: PageProps["keepUnsent"] = async (id, note) => {
+    await actions.keepUnsent(id, note);
+
+    if (id === itemId) {
+      setKept({ note });
+    }
+  };
+
   return {
     guarded: now.kind === "editing" || now.kind === "asking",
     leave: life.leave,
@@ -73,6 +81,7 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
       ...actions,
       focus,
       itemId,
+      keepUnsent,
       moved,
       noteState: life.report,
       offline,
