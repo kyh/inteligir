@@ -21,7 +21,7 @@
     "@repo/editor": "workspace:*",
     "defuddle": "catalog:",
     "hast-util-from-html": "^2.1.0",
-    "hast-util-to-mdast": "^10.1.3",
+    "hast-util-to-mdast": "^10.1.4",
     "linkedom": "0.18.13",
     "zod": "catalog:"
   },

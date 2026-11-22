@@ -17,8 +17,8 @@ catalog:
   # exact, as its client sibling: @orpc/mcp's peer, whose tool annotations the library's tools carry
   "@modelcontextprotocol/server": 2.4.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
-  # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
-  # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's
+  # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, its
+  # next 0.x minor and so a breaking one; the core stays on 7, the major the compiler's
   # Babel plugin is built against (its @babel/types ^7)
   "@babel/core": ^7.29.0
   "@rolldown/plugin-babel": ^0.2.4
@@ -38,34 +38,34 @@ catalog:
   "@playwright/test": 1.65.1
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
-  "@tailwindcss/postcss": ^4.3.3
-  "@tailwindcss/vite": ^4.3.3
+  "@tailwindcss/postcss": ^4.3.5
+  "@tailwindcss/vite": ^4.3.5
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
-  "@tanstack/react-query": ^5.104.5
+  "@tanstack/react-query": ^5.108.2
   # exact, the react-query build the lockfile resolves: each persister peers react-query at its own
   # version, and the phone's persisted cache is read back in the shape that build dehydrates
-  "@tanstack/query-async-storage-persister": 5.105.0
-  "@tanstack/react-query-persist-client": 5.105.0
+  "@tanstack/query-async-storage-persister": 5.108.2
+  "@tanstack/react-query-persist-client": 5.108.2
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
-  "@vitejs/plugin-react": ^6.1.2
+  "@vitejs/plugin-react": ^6.3.0
   # exact, the build sp-presigned-put and sp-ranged-stream proved: a ranged read of a private blob
   # is passed through `get`'s headers, which its docs do not promise
   "@vercel/blob": 2.9.0
   "@zip.js/zip.js": ^2.25.0
   # the built-in agent's SDK, eve's peer: the agent's tools and hooks type against its model output
-  ai: ^7.0.173
+  ai: ^7.0.179
   # exact, and the same as the @better-auth/core override: they are released in lockstep, and a
   # pair one patch apart resolves a second core
-  "@better-auth/cimd": 1.7.25
-  "@better-auth/drizzle-adapter": 1.7.25
-  "@better-auth/expo": 1.7.25
-  "@better-auth/oauth-provider": 1.7.25
-  better-auth: 1.7.25
+  "@better-auth/cimd": 1.7.27
+  "@better-auth/drizzle-adapter": 1.7.27
+  "@better-auth/expo": 1.7.27
+  "@better-auth/oauth-provider": 1.7.27
+  better-auth: 1.7.27
   cn: ^0.4.0
   # what the shared packages call that the phone's Hermes lacks (Array.prototype.toSorted)
   core-js: ^3.51.0
@@ -107,10 +107,10 @@ catalog:
   # entry reads twenty formats, and `sniffMedia` alone says what a file is
   image-size: ^2.1.0
   jsdom: ^30.1.3
-  lucide-react: ^1.61.0
+  lucide-react: ^1.77.0
   mdast-util-to-markdown: ^2.2.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
-  motion: ^14.9.1
+  motion: ^14.14.0
   # the suites' network: a test answers a request it names, and an unnamed one fails it
   msw: ^2.15.0
   # exact: the patch below keys this release
@@ -161,20 +161,20 @@ catalog:
   # exact: `pnpm db:start` runs local Postgres on its experimental native stack, whose flags and
   # output move between releases; a bump re-runs `pnpm db:start`
   supabase: 2.122.1
-  tailwindcss: ^4.3.3
+  tailwindcss: ^4.3.5
   # runs a script whose imports name no extension, the seed's among them, which node's own type
   # stripping refuses
   tsx: ^4.23.15
   typescript: ^7.0.2
   # the fill's fetch on Node: its own `fetch`, matched to the Agent whose lookup refuses private
   # addresses, where Node's global fetch runs an older undici beside it
-  undici: ^8.12.4
+  undici: ^8.13.1
   unified: ^11.0.5
-  vite: ^8.3.5
+  vite: ^8.3.8
   vitest: ^4.1.12
   yaml: ^2.9.1
   zod: ^4.6.7
-  zustand: ^5.0.16
+  zustand: ^5.1.0
 
 catalogs:
   # the SDK-blessed typescript; bump only with an Expo SDK upgrade
@@ -220,7 +220,7 @@ allowBuilds:
 
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
-  "@better-auth/core": 1.7.25
+  "@better-auth/core": 1.7.27
   # NativeWind 5's install pins lightningcss at 1.30.1, since past it react-native-css "may encounter
   # deserialization errors" on the phone's sheet (nativewind.dev/v5/getting-started/installation);
   # scoped to the two that compile that sheet, since Tailwind pins its own, exactly

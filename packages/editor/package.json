@@ -198,7 +198,7 @@
     "remark-parse": "catalog:",
     "slate": "catalog:",
     "unified": "catalog:",
-    "unist-util-visit": "^5.1.0",
+    "unist-util-visit": "^5.2.0",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"
