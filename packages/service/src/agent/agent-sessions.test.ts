@@ -29,7 +29,7 @@ const deleting = (id: string) => `call delete_items {"ids":["${id}"]}`;
 
 const noteOf = (title: string) => ({
   blocks: [{ block: paragraph(randomUUID(), title), section: "note" as const }],
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

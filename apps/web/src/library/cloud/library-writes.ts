@@ -37,9 +37,19 @@ type ScopesAnswer = Outputs["listing"]["scopes"];
 
 type OrganizeInput = Inputs["items"]["organize"];
 
-type FolderOp = Inputs["folders"]["write"]["ops"][number];
+type Container = ScopesAnswer["containers"][number];
 
-type Folder = ScopesAnswer["folders"][number];
+export type ContainerOp =
+  | {
+      readonly op: "create";
+      readonly id: string;
+      readonly kind: Container["kind"];
+      readonly parentId: string | null;
+      readonly title: string;
+    }
+  | { readonly op: "rename"; readonly id: string; readonly title: string }
+  | { readonly op: "move"; readonly id: string; readonly parentId: string | null }
+  | { readonly op: "delete"; readonly id: string };
 
 interface Overlay {
   readonly row: (row: ListedItem) => ListedItem | null;
@@ -200,12 +210,12 @@ const putBack = (queryClient: QueryClient, laid: Laid | undefined) => {
   });
 };
 
-const knownFolderId = (folder: OrganizeInput["folder"]) => {
-  if (folder === undefined || folder === null) {
-    return folder;
+const knownParentId = (parent: OrganizeInput["parent"]) => {
+  if (parent === undefined || parent === null) {
+    return parent;
   }
 
-  return "id" in folder ? folder.id : undefined;
+  return "id" in parent ? parent.id : undefined;
 };
 
 export const organizedOverlay = (input: OrganizeInput) => {
@@ -219,10 +229,10 @@ export const organizedOverlay = (input: OrganizeInput) => {
       input.addTags ?? [],
     );
 
-  const folderId = knownFolderId(input.folder);
+  const parentId = knownParentId(input.parent);
   const now = Date.now();
 
-  const fields = (held: LibraryItemFields) => organized(held, input, folderId, now);
+  const fields = (held: LibraryItemFields) => organized(held, input, parentId, now);
 
   const retitled = <C extends { readonly title: string }>(card: C) =>
     (input.title === undefined ? card : { ...card, title: input.title }) satisfies C;
@@ -261,54 +271,60 @@ const deletedNow = () => deletedAt(Date.now());
 
 const PURGED: Overlay = { item: (item) => item, row: () => null };
 
-const foldersAfter = (scopes: ScopesAnswer, ops: readonly FolderOp[]) => {
-  let folders = [...scopes.folders];
+const containersAfter = (scopes: ScopesAnswer, op: ContainerOp) => {
+  switch (op.op) {
+    case "create": {
+      const { id, kind, parentId, title } = op;
 
-  for (const op of ops) {
-    switch (op.op) {
-      case "create": {
-        const { id, name, parentId, sort } = op;
-        folders.push({ id, items: 0, name, parentId, sort });
-        break;
-      }
+      return {
+        ...scopes,
+        containers: [...scopes.containers, { id, items: 0, kind, parentId, title }],
+      } satisfies ScopesAnswer;
+    }
 
-      case "rename": {
-        folders = folders.map((folder) =>
-          folder.id === op.id ? { ...folder, name: op.name } : folder,
-        );
-        break;
-      }
+    case "rename": {
+      return {
+        ...scopes,
+        containers: scopes.containers.map((held) =>
+          held.id === op.id ? { ...held, title: op.title } : held,
+        ),
+      } satisfies ScopesAnswer;
+    }
 
-      case "delete": {
-        const gone = new Set([op.id]);
+    case "move": {
+      return {
+        ...scopes,
+        containers: scopes.containers.map((held) =>
+          held.id === op.id ? { ...held, parentId: op.parentId } : held,
+        ),
+      } satisfies ScopesAnswer;
+    }
 
-        for (const folder of folders) {
-          if (folder.parentId !== null && gone.has(folder.parentId)) {
-            gone.add(folder.id);
-          }
+    case "delete": {
+      const gone = new Set([op.id]);
+
+      for (const held of scopes.containers) {
+        if (held.parentId !== null && gone.has(held.parentId)) {
+          gone.add(held.id);
         }
-
-        folders = folders.filter((folder) => !gone.has(folder.id));
-        break;
       }
 
-      case "move": {
-        break;
-      }
+      return {
+        ...scopes,
+        containers: scopes.containers.filter((held) => !gone.has(held.id)),
+      } satisfies ScopesAnswer;
+    }
 
-      default: {
-        throw new Error(`unexpected ${String(op satisfies never)}`);
-      }
+    default: {
+      throw new Error(`unexpected ${String(op satisfies never)}`);
     }
   }
-
-  return { ...scopes, folders } satisfies ScopesAnswer;
 };
 
 type Settled = NonNullable<MutationOptions<unknown, unknown, unknown>["onSettled"]>;
 
 export interface SaveInto {
-  readonly folderId: string | null;
+  readonly parentId: string | null;
   readonly tags: readonly string[];
 }
 
@@ -397,17 +413,51 @@ export const libraryWrites = ({
           "That couldn't be changed.",
         ),
       ),
-    folders: () =>
-      orpc.library.folders.write.mutationOptions<readonly Change<Folder>[]>({
-        onError: (cause, _input, changes, { client: queryClient }) => {
+    containers: () =>
+      mutationOptions<unknown, Error, ContainerOp, readonly Change<Container>[]>({
+        mutationFn: async (op: ContainerOp) => {
+          switch (op.op) {
+            case "create": {
+              return await client.library.items.create({
+                blocks: [],
+                id: op.id,
+                kind: op.kind,
+                parentId: op.parentId,
+                savedAt: Date.now(),
+                tags: [],
+                title: op.title,
+              });
+            }
+
+            case "rename": {
+              return await client.library.items.organize({ ids: [op.id], title: op.title });
+            }
+
+            case "move": {
+              return await client.library.items.organize({
+                ids: [op.id],
+                parent: op.parentId === null ? null : { id: op.parentId },
+              });
+            }
+
+            case "delete": {
+              return await client.library.items.delete({ ids: [op.id] });
+            }
+
+            default: {
+              throw new Error(`unexpected ${String(op satisfies never)}`);
+            }
+          }
+        },
+        onError: (cause, _op, changes, { client: queryClient }) => {
           queryClient.setQueryData(orpc.library.listing.scopes.queryKey(), (scopes) =>
             scopes === undefined || changes === undefined
               ? scopes
-              : { ...scopes, folders: undoneIn(scopes.folders, changes) },
+              : { ...scopes, containers: undoneIn(scopes.containers, changes) },
           );
           toast.error(refusalText(cause, "That folder couldn't be changed."));
         },
-        onMutate: async ({ ops }, { client: queryClient }) => {
+        onMutate: async (op, { client: queryClient }) => {
           const scopesKey = orpc.library.listing.scopes.queryKey();
           await queryClient.cancelQueries({ queryKey: scopesKey });
           const before = queryClient.getQueryData(scopesKey);
@@ -416,9 +466,9 @@ export const libraryWrites = ({
             return [];
           }
 
-          const after = queryClient.setQueryData(scopesKey, foldersAfter(before, ops));
+          const after = queryClient.setQueryData(scopesKey, containersAfter(before, op));
 
-          return changesIn(before.folders, after?.folders ?? before.folders);
+          return changesIn(before.containers, after?.containers ?? before.containers);
         },
         onSettled: readAgain,
         scope: LIBRARY_WRITES,
@@ -437,7 +487,7 @@ export const libraryWrites = ({
         mutationFn: async ({ into, note = EMPTY_NOTE }: { into: SaveInto; note?: NoteMade }) => {
           const { item } = await client.library.items.create({
             blocks: note.blocks.map((block) => ({ block, section: "note" })),
-            folderId: into.folderId,
+            parentId: into.parentId,
             id: newId(),
             savedAt: Date.now(),
             tags: [...into.tags],
@@ -459,7 +509,7 @@ export const libraryWrites = ({
           );
 
           const { item } = await client.library.items.createFile({
-            folderId: into.folderId,
+            parentId: into.parentId,
             id: newId(),
             name: file.name,
             savedAt: Date.now(),

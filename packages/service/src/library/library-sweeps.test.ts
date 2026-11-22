@@ -25,7 +25,7 @@ const noteOf = (text: string, tags: readonly string[] = []) => {
 
   return {
     blocks: [{ block: paragraph(`${id}-p`, text), section: "note" }],
-    fields: noteFields({ folderId: null, savedAt: SAVED_AT, tags: [...tags], title: "" }),
+    fields: noteFields({ parentId: null, savedAt: SAVED_AT, tags: [...tags], title: "" }),
     id,
   } satisfies NewItem;
 };
@@ -88,7 +88,7 @@ dbSuite("a sweep over a scope", () => {
 
       const link: NewItem = {
         blocks: [],
-        fields: stubFields({ folderId: null, savedAt: SAVED_AT, tags: [], url }),
+        fields: stubFields({ parentId: null, savedAt: SAVED_AT, tags: [], url }),
         id: mintLibraryId(Date.now()),
       };
 
@@ -115,11 +115,11 @@ dbSuite("a sweep over a scope", () => {
       await expect(
         library.items.sweep({
           ...all,
-          verb: { folder: { path: "Archive" }, kind: "organize", pinned: true },
+          verb: { kind: "organize", parent: { path: "Archive" }, pinned: true },
         }),
       ).resolves.toStrictEqual({ items: 5000, refused: [] });
       await expect(library.items.row({ id: holder.id })).resolves.toMatchObject({
-        fields: { folderId: expect.any(String), pinnedAt: expect.any(Number) },
+        fields: { parentId: expect.any(String), pinnedAt: expect.any(Number) },
       });
 
       await library.items.sweep({ ...all, verb: { kind: "delete" } });
@@ -214,7 +214,7 @@ dbSuite("a sweep over a scope", () => {
     const link: NewItem = {
       blocks: [],
       fields: stubFields({
-        folderId: null,
+        parentId: null,
         savedAt: SAVED_AT,
         tags: [],
         url: `https://pages.example/${randomUUID()}`,
@@ -239,6 +239,32 @@ dbSuite("a sweep over a scope", () => {
     });
     await expect(library.items.row({ id: link.id })).resolves.toMatchObject({
       fields: { tags: [] },
+    });
+  });
+
+  it("files a scope under a note, leaving the note and the notes above it where they stand", async () => {
+    const { accountId, library } = await personalLibrary();
+    const top = noteOf("Top.");
+    const under = { ...noteOf("Under."), fields: { ...noteOf("").fields, parentId: top.id } };
+    const loose = noteOf("Loose.");
+    await seed(accountId, [top, loose]);
+    await seed(accountId, [under]);
+
+    await expect(
+      library.items.sweep({
+        except: [],
+        scope: { kind: "all" },
+        verb: { kind: "organize", parent: { id: under.id } },
+      }),
+    ).resolves.toStrictEqual({ items: 3, refused: [] });
+    await expect(library.items.row({ id: loose.id })).resolves.toMatchObject({
+      fields: { parentId: under.id },
+    });
+    await expect(library.items.row({ id: top.id })).resolves.toMatchObject({
+      fields: { parentId: null },
+    });
+    await expect(library.items.row({ id: under.id })).resolves.toMatchObject({
+      fields: { parentId: top.id },
     });
   });
 });

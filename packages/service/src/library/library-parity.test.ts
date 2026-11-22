@@ -2,7 +2,6 @@ import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import type { ListingFolder } from "@repo/contract/library/folder-rail";
 import { LibraryIndex, scopeFilter } from "@repo/contract/library/library-index";
 import type { ListingPage, ListingQuery, ListingRow } from "@repo/contract/library/library-index";
 import { listingSortSchema } from "@repo/contract/library/listing-sort";
@@ -13,8 +12,9 @@ import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { expect, it } from "vitest";
 
-import { makeAccount, seedFolder, seedItem } from "../test-support/library.fixture";
-import { listingItems, listingScopes, listingTitles } from "./library-listing";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { makeAccount, seedItem } from "../test-support/library.fixture";
+import { listingChildren, listingItems, listingScopes, listingTitles } from "./library-listing";
 
 const SAVED_AT = Date.UTC(2026, 9, 1);
 const ITEMS = 500;
@@ -63,46 +63,66 @@ const idOf = (rand: () => number) => {
 
 const chance = (rand: () => number, odds: number) => rand() < odds;
 
-const randomFolders = async (accountId: string, rand: () => number) => {
-  const live: ListingFolder[] = [];
+const rowOf = (id: string, fields: LibraryItemFields, blocks: BodyBlock[], updatedAt: number) => {
+  const derived = deriveItem(fields, deriveBody(blocks).digest);
+
+  return {
+    deletedAt: fields.deletedAt,
+    id,
+    kind: fields.kind,
+    parentId: fields.parentId,
+    pinnedAt: fields.pinnedAt,
+    savedAt: fields.savedAt,
+    tags: [...new Set(derived.tags.map(({ tag }) => tag))].toSorted(compareText),
+    title: derived.card.title,
+    updatedAt,
+    url: fields.url,
+  } satisfies ListingRow;
+};
+
+const PARENT_KINDS = ["folder", "folder", "folder", "list", "note"] as const;
+
+const randomParents = async (
+  accountId: string,
+  rand: () => number,
+  index: LibraryIndex<ListingRow>,
+) => {
   const all: string[] = [];
 
   for (let n = 0; n < 12; n += 1) {
-    const folder = {
-      id: idOf(rand),
-      name: pick(rand, FOLDER_NAMES),
+    const id = idOf(rand);
+
+    const fields = noteFixture({
+      deletedAt: n % 5 === 4 ? SAVED_AT : null,
+      kind: pick(rand, PARENT_KINDS),
       parentId: all.length === 0 || chance(rand, 0.4) ? null : pick(rand, all),
-      sort: pick(rand, ["a0", "a1", "a2"]),
-    };
+      savedAt: SAVED_AT,
+      title: pick(rand, FOLDER_NAMES),
+    });
 
-    const deletedAt = n % 5 === 4 ? SAVED_AT : null;
-    await seedFolder(accountId, { ...folder, deletedAt });
-    all.push(folder.id);
-
-    if (deletedAt === null) {
-      live.push(folder);
-    }
+    await seedItem(accountId, { fields, id, updatedAt: SAVED_AT });
+    index.upsert(rowOf(id, fields, [], SAVED_AT));
+    all.push(id);
   }
 
-  return { all, live };
+  return all;
 };
 
-const folderOf = (rand: () => number, folders: readonly string[]) => {
+const parentOf = (rand: () => number, parents: readonly string[]) => {
   const roll = rand();
 
   if (roll < 0.35) {
     return null;
   }
 
-  return roll < 0.95 ? pick(rand, folders) : idOf(rand);
+  return roll < 0.95 ? pick(rand, parents) : idOf(rand);
 };
 
 const randomLibrary = async (seed: number) => {
   const rand = mulberry32(seed);
   const accountId = await makeAccount();
-  const { all: folderIds, live } = await randomFolders(accountId, rand);
   const index = new LibraryIndex<ListingRow>();
-  index.setFolders(live);
+  const folderIds = await randomParents(accountId, rand, index);
   const ids: string[] = [];
 
   for (let n = 0; n < ITEMS; n += 1) {
@@ -122,8 +142,8 @@ const randomLibrary = async (seed: number) => {
 
     const fields = noteFixture({
       deletedAt: chance(rand, 0.15) ? savedAt + 1 : null,
-      folderId: folderOf(rand, folderIds),
       kind,
+      parentId: parentOf(rand, folderIds),
       pinnedAt: chance(rand, 0.1) ? savedAt : null,
       savedAt,
       tags: [...new Set(Array.from({ length: Math.floor(rand() * 4) }, () => pick(rand, TAGS)))],
@@ -133,19 +153,7 @@ const randomLibrary = async (seed: number) => {
 
     const updatedAt = savedAt + Math.floor(rand() * 30) * 1000;
     await seedItem(accountId, { blocks, fields, id, updatedAt });
-    const derived = deriveItem(fields, deriveBody(blocks).digest);
-    index.upsert({
-      deletedAt: fields.deletedAt,
-      folderId: fields.folderId,
-      id,
-      kind,
-      pinnedAt: fields.pinnedAt,
-      savedAt,
-      tags: [...new Set(derived.tags.map(({ tag }) => tag))].toSorted(compareText),
-      title: derived.card.title,
-      updatedAt,
-      url: fields.url,
-    });
+    index.upsert(rowOf(id, fields, blocks, updatedAt));
     ids.push(id);
   }
 
@@ -189,10 +197,10 @@ dbSuite("the SQL listing beside the library model's", () => {
         { kind: "unsorted" },
         { kind: "deleted" },
         ...[...folderIds, idOf(rand)].map(
-          (folderId) =>
+          (parentId) =>
             ({
-              folderId,
-              kind: "folder",
+              parentId,
+              kind: "parent",
             }) satisfies LibraryScope,
         ),
         ...[...TAGS, "WORK", "tag_", "nope", "Inline"].map(
@@ -228,14 +236,14 @@ dbSuite("the SQL listing beside the library model's", () => {
         }
       }
 
-      const [folderId] = folderIds;
+      const [parentId] = folderIds;
 
       for (const filters of [
         { pinned: true },
         { pinned: false, tag: "work" },
         { sinceMs: SAVED_AT + 20_000 },
         { beforeMs: SAVED_AT + 30_000, sinceMs: SAVED_AT + 10_000 },
-        { folderId, pinned: false, tag: "read" },
+        { parentId, pinned: false, tag: "read" },
       ]) {
         await expectAlike(query({ ...filters, kinds: ["note", "link"] }), JSON.stringify(filters));
       }
@@ -248,7 +256,7 @@ dbSuite("the SQL listing beside the library model's", () => {
         { deleted: false },
         { deleted: true },
         { deleted: false, tag: "work" },
-        { deleted: false, folderId: null },
+        { deleted: false, parentId: null },
       ]) {
         for (const kinds of KIND_FILTERS) {
           await expectAlike(
@@ -259,6 +267,14 @@ dbSuite("the SQL listing beside the library model's", () => {
       }
 
       await expect(listingScopes(db, accountId)).resolves.toStrictEqual(index.scopes());
+
+      for (const under of [null, ...folderIds, ...ids.slice(0, 40)]) {
+        await expect(
+          listingChildren(db, accountId, under),
+          `children of ${String(under)}`,
+        ).resolves.toStrictEqual(index.children(under));
+      }
+
       await expect(listingTitles(db, accountId)).resolves.toStrictEqual(index.titles());
     },
   );

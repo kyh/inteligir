@@ -8,7 +8,7 @@ import {
   createFakeAgentPlatform,
   fakeAgentRuntime,
 } from "../test-support/fake-agent-platform.test-utils";
-import { personalLibrary, seedItem } from "../test-support/library.fixture";
+import { createFolder, personalLibrary, seedItem } from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
 
 const SAVED_AT = 1_700_000_000_000;
@@ -20,7 +20,7 @@ const note = async (library: Library, text: string) => {
   const blocks: BodyBlock[] = [{ block: paragraph(`${id}-0`, text), section: "note" }];
   await library.items.create({
     blocks,
-    folderId: null,
+    parentId: null,
     id,
     savedAt: SAVED_AT,
     tags: [],
@@ -58,27 +58,21 @@ dbSuite("what moved in the library after a head", () => {
     await library.items.purge({ ids: [gone] });
     const after = await library.changes({ after: head });
     expect(after.moved).toStrictEqual({
-      folders: false,
       items: [
         { id: kept, seq: await seqOf(library, kept) },
         { id: gone, seq: after.head },
       ],
       threads: [],
+      tree: true,
     });
 
-    await library.folders.write({
-      ops: [
-        {
-          id: mintLibraryId(Date.now()),
-          name: "Reading",
-          op: "create",
-          parentId: null,
-          sort: "a0",
-        },
-      ],
-    });
+    const reading = await createFolder(library, "Reading");
     const folders = await library.changes({ after: after.head });
-    expect(folders.moved).toStrictEqual({ folders: true, items: [], threads: [] });
+    expect(folders.moved).toStrictEqual({
+      items: [{ id: reading, seq: folders.head }],
+      threads: [],
+      tree: true,
+    });
   });
 
   it("names a thread as it starts running, idles and is deleted, each by the next ask, as its list shows it", async () => {
@@ -134,11 +128,11 @@ dbSuite("what moved in the library after a head", () => {
 
     await expect(library.changes({ after: head - 1 })).resolves.toStrictEqual({
       head,
-      moved: { folders: false, items: "all", threads: [] },
+      moved: { items: "all", threads: [], tree: true },
     });
     await expect(library.changes({ after: head + 5 })).resolves.toStrictEqual({
       head,
-      moved: { folders: true, items: "all", threads: "all" },
+      moved: { items: "all", threads: "all", tree: true },
     });
   });
 });

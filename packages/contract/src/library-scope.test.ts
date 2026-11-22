@@ -8,7 +8,7 @@ describe("a library scope", () => {
     const scopes: LibraryScope[] = [
       { kind: "all" },
       { kind: "unsorted" },
-      { folderId: "01a0f4c2-c400-78d9-a955-7935ec13d6d5", kind: "folder" },
+      { parentId: "01a0f4c2-c400-78d9-a955-7935ec13d6d5", kind: "parent" },
       { kind: "tag", tag: "design" },
       { kind: "deleted" },
     ];
@@ -17,15 +17,15 @@ describe("a library scope", () => {
       expect(libraryScopeSchema.parse(scope)).toStrictEqual(scope);
     }
 
-    expect(libraryScopeSchema.validate({ folderId: "", kind: "folder" })).toBe(false);
-    expect(libraryScopeSchema.validate({ kind: "folder", path: "Reading" })).toBe(false);
+    expect(libraryScopeSchema.validate({ parentId: "", kind: "parent" })).toBe(false);
+    expect(libraryScopeSchema.validate({ kind: "parent", path: "Reading" })).toBe(false);
   });
 
   it("refuses a tag past a line and a folder by anything but its id, wherever a scope is read", () => {
     const refused = [
       { kind: "tag", tag: "t".repeat(1001) },
-      { folderId: "Reading", kind: "folder" },
-      { folderId: "01a0f4c2-c400-78d9-a955", kind: "folder" },
+      { parentId: "Reading", kind: "parent" },
+      { parentId: "01a0f4c2-c400-78d9-a955", kind: "parent" },
     ];
 
     for (const scope of refused) {
@@ -45,11 +45,11 @@ describe("a library scope", () => {
 describe("a scope as the library reads it now", () => {
   it("reads a folder the library no longer lists as every item, and keeps one it holds", () => {
     const reading = { id: "01a0f4c2-c400-78d9-a955-7935ec13d6d5" };
-    expect(listedScope({ folderId: "gone", kind: "folder" }, [reading])).toStrictEqual({
+    expect(listedScope({ parentId: "gone", kind: "parent" }, [reading])).toStrictEqual({
       kind: "all",
     });
-    expect(listedScope({ folderId: "gone", kind: "folder" }, [])).toStrictEqual({ kind: "all" });
-    const held: LibraryScope = { folderId: reading.id, kind: "folder" };
+    expect(listedScope({ parentId: "gone", kind: "parent" }, [])).toStrictEqual({ kind: "all" });
+    const held: LibraryScope = { parentId: reading.id, kind: "parent" };
     expect(listedScope(held, [reading])).toBe(held);
     const tag: LibraryScope = { kind: "tag", tag: "design" };
     expect(listedScope(tag, [])).toBe(tag);

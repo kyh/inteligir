@@ -224,7 +224,7 @@ dbSuite("a held answer", () => {
     const savedAt = Date.now();
     await expect(
       library.items.createFile({
-        folderId: null,
+        parentId: null,
         id: mintLibraryId(savedAt),
         name: "photo.png",
         savedAt,

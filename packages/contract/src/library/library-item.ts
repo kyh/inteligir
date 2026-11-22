@@ -67,7 +67,7 @@ export const libraryItemFieldsSchema = z.strictObject({
   coverSha: shaSchema.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
-  folderId: z.uuid().nullable(),
+  parentId: z.uuid().nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
   originalName: fileNameSchema.nullable(),
@@ -91,7 +91,7 @@ export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
 
 export const importedFieldsSchema = libraryItemFieldsSchema.omit({
   deletedAt: true,
-  folderId: true,
+  parentId: true,
 });
 
 export type ImportedFields = z.infer<typeof importedFieldsSchema>;

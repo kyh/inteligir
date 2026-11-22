@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { listingView } from "./listing-view";
 
-const COUNTS = { audio: 0, file: 0, image: 0, link: 0, note: 0, pdf: 0, video: 0 };
+const COUNTS = {
+  audio: 0,
+  file: 0,
+  folder: 0,
+  image: 0,
+  link: 0,
+  list: 0,
+  note: 0,
+  pdf: 0,
+  video: 0,
+};
 
 const rowsOf = (ids: readonly string[]) => ids.map((id) => ({ id }));
 

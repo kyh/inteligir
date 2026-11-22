@@ -203,7 +203,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave) => {
           article: [...read.article.blocks],
           coverSha: cover.answer,
           facts: savedFacts(read.facts),
-          folderId: null,
+          parentId: null,
           id: queued.id,
           opId: queued.opId,
           savedAt: queued.savedAt,
@@ -290,7 +290,7 @@ export const savePicture = async (
       ? await outcomeOf(
           async () =>
             await cloud.createFile({
-              folderId: null,
+              parentId: null,
               id: uuidV7(now, deps.randomBytes(16)),
               name: originalFileName(picture.pageUrl, sniffed.mediaType),
               opId: uuidV7(now, deps.randomBytes(16)),

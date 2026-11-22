@@ -11,33 +11,37 @@ search, every device and you work on every item alike.
 An item's `kind` is `note`, `link`, `video`, `audio`, `image`, `pdf` or `file`. `read_item` answers
 its fields; the ones you change, you change with `organize_items`, and the rest are the library's.
 
-| Field         | What it is                                    | Who changes it             |
-| ------------- | --------------------------------------------- | -------------------------- |
-| `title`       | What the item is called                       | you, with `organize_items` |
-| `tags`        | The person's tags                             | you, with `organize_items` |
-| `folderId`    | The folder it is filed in, or none (Unsorted) | you, with `organize_items` |
-| `pinned`      | Kept first                                    | you, with `organize_items` |
-| `kind`        | What the item is                              | the save and the page read |
-| `url`         | Where a saved link points, as it was saved    | the save, once             |
-| `site`        | The publisher's name                          | the page read              |
-| `author`      | Who wrote the page                            | the page read              |
-| `published`   | When the page says it was published           | the page read              |
-| `description` | One line on what the item is                  | the page read              |
-| `savedAt`     | When it was saved                             | the save, once             |
-| `reading`     | Where the page's read stands, by its `state`  | the page read              |
+| Field         | What it is                                                     | Who changes it             |
+| ------------- | -------------------------------------------------------------- | -------------------------- |
+| `title`       | What the item is called                                        | you, with `organize_items` |
+| `tags`        | The person's tags                                              | you, with `organize_items` |
+| `parentId`    | The folder, list or note it is filed under, or none (Unsorted) | you, with `organize_items` |
+| `pinned`      | Kept first                                                     | you, with `organize_items` |
+| `kind`        | What the item is                                               | the save and the page read |
+| `url`         | Where a saved link points, as it was saved                     | the save, once             |
+| `site`        | The publisher's name                                           | the page read              |
+| `author`      | Who wrote the page                                             | the page read              |
+| `published`   | When the page says it was published                            | the page read              |
+| `description` | One line on what the item is                                   | the page read              |
+| `savedAt`     | When it was saved                                              | the save, once             |
+| `reading`     | Where the page's read stands, by its `state`                   | the page read              |
 
 A link whose `reading` is `pending` is waiting for the library to read its page; leave it, and its
 text fills in on its own. One whose read `failed` keeps its address and says why in the reading's
 `error`. A note or a file has no page, so its `reading` is `none`.
 
-## Unsorted, Folders And Tags
+## Unsorted, Folders, Lists And Tags
 
-A save lands in Unsorted unless it names a folder. Folders nest, and `organize_items` files into a
-folder by its id or by its path (`Reading/Essays`), making the folders a new path needs. Tags are
+A save lands in Unsorted unless it names a `parent`. Folders and lists are items too: a folder holds
+anything, folders and lists among it, a list holds notes, links and files, and a note can hold
+notes, links and files under it. `organize_items` files under a parent by its id, or into a folder
+by its path (`Reading/Essays`), making the folders a new path needs; it refuses a folder filed
+under itself, or a list or folder under a list or a note. Deleting a folder deletes the folders and
+lists under it, and what they held shows as Unsorted until they come back. Tags are
 spelled without the `#`, a letter first, `a/b` nesting. An item that is not a note takes its tags
 from its fields alone: a `#word` in a saved page's text is the page's, not the person's.
 
-`list_tags_and_folders` lists the folder tree and every tag with how many items each holds. Reuse
+`list_tags_and_folders` lists the folders and lists, as a tree, and every tag with how many items each holds. Reuse
 what is there: a tag `reading` next to forty `to-read` items splits one group in two. Without the
 person's own filing rules, file by topic into folders that exist, make a new folder only for five
 or more items, and tag by topic, never by kind.

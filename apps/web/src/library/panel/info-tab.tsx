@@ -28,12 +28,12 @@ const ReadFailure = ({ reading }: { reading: Reading }) =>
   ) : null;
 
 const folderName = (
-  folders: readonly { readonly id: string; readonly name: string }[],
-  folderId: string | null,
+  folders: readonly { readonly id: string; readonly title: string }[],
+  parentId: string | null,
 ) =>
-  folderId === null
+  parentId === null
     ? "Unsorted"
-    : (folders.find((folder) => folder.id === folderId)?.name ?? "A folder not here yet");
+    : (folders.find((folder) => folder.id === parentId)?.title ?? "A folder not here yet");
 
 const propertyText = (value: PropertyValue) => {
   const words = z.string().safeParse(value);
@@ -50,7 +50,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
   const refresh = useMutation(writes.refresh());
   const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
-  const folders = useQuery(queries.scopes()).data?.folders ?? [];
+  const folders = useQuery(queries.scopes()).data?.containers ?? [];
   const refreshing = useIsMutating({ mutationKey: orpc.library.items.refresh.mutationKey() }) > 0;
 
   if (cellStanding(item).kind === "missing") {
@@ -80,7 +80,7 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
             <Row label="Words">{formatCount(card.words)}</Row>
             <Row label="Folder">
               <span className="flex items-center gap-2">
-                {folderName(folders, fields.folderId)}
+                {folderName(folders, fields.parentId)}
                 <Button
                   size="compact"
                   variant="ghost"

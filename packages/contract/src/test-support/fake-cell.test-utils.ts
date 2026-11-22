@@ -7,11 +7,10 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
 import { deferred } from "../deferred";
 import type { AgentEvent } from "../library/agent-events";
-import type { bodyWriteSchema, folderOpSchema, listedItemSchema } from "../library/library-wire";
+import type { bodyWriteSchema, listedItemSchema } from "../library/library-wire";
 import {
   BODY_MAX_BYTES,
   bodyBytes,
-  folderRowSchema,
   liveItemRowSchema,
   threadEventRowSchema,
 } from "../library/library-wire";
@@ -27,16 +26,17 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "../rpc/v1-errors";
-import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
+import { canHoldChildren, isContainerKind, UNKNOWN_FILE_TYPE } from "../items/item-kind";
+import type { ItemKind } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
 import { canonicalJson } from "../library/canonical-json";
-import { folderOpLanding, folderOpRefusal, itemFilesOf, organized } from "../library/cell-rules";
-import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
+import { itemFilesOf, lineOf, organized, parentRefusal } from "../library/cell-rules";
+import type { OrganizeInput, ParentReader, ParentTarget } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
 import { takesRead, withPage, withReading } from "../library/item-reading";
 import type { ReadPage } from "../library/item-reading";
 import type { PropertyOp } from "../library/field-ops";
-import { compareText, ordBetween } from "../library/order-key";
+import { compareText } from "../library/order-key";
 import { deriveBody, deriveItem, sameBody } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
@@ -68,10 +68,6 @@ import type { V1Transport } from "../rpc/call-outcome";
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 
 type ListedItem = z.infer<typeof listedItemSchema>;
-
-type FolderOp = z.infer<typeof folderOpSchema>;
-
-type FolderRow = z.infer<typeof folderRowSchema>;
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
@@ -146,7 +142,6 @@ export const createFakeCell = () => {
   let signedOut = false;
   const items = new Map<string, CellItem>();
   const tombstones = new Map<string, number>();
-  const folders = new Map<string, FolderRow>();
 
   const blobs = new Map<
     string,
@@ -204,8 +199,6 @@ export const createFakeCell = () => {
     for (const [id, item] of items) {
       index.upsert(listingRow(id, item));
     }
-
-    index.setFolders([...folders.values()].filter(({ deletedAt }) => deletedAt === null));
 
     return index;
   };
@@ -365,22 +358,63 @@ export const createFakeCell = () => {
   const landRead = (id: string, item: CellItem, page: ReadPage, article: readonly BodyBlock[]) =>
     land(id, withPage(item.fields, page, NOW), [...item.blocks, ...article]);
 
-  const folderIdOf = (target: FolderTarget | undefined) => {
+  const parents: ParentReader = {
+    item: (id) => items.get(id)?.fields ?? null,
+  };
+
+  const parentIdOf = (
+    target: ParentTarget | undefined,
+    children: readonly { readonly id: string; readonly kind: ItemKind }[],
+  ) => {
     if (target === undefined || target === null) {
       return target;
     }
 
     if (!("id" in target)) {
-      throw new Error("the fake cell files by a folder's id, never its path");
+      throw new Error("the fake cell files by a parent's id, never its path");
     }
 
-    const folder = folders.get(target.id);
+    for (const child of children) {
+      const refusal = parentRefusal(parents, child, target.id);
 
-    if (folder === undefined || folder.deletedAt !== null) {
-      throw new NotFoundError();
+      if (refusal === "not-found") {
+        throw new NotFoundError();
+      }
+
+      if (refusal === "conflict") {
+        throw new ConflictError();
+      }
     }
 
     return target.id;
+  };
+
+  const childrenOf = (ids: readonly string[]) =>
+    ids.flatMap((id) => {
+      const kind = items.get(id)?.fields.kind;
+
+      return kind === undefined ? [] : [{ id, kind }];
+    });
+
+  const withContainersUnder = (ids: readonly string[]) => {
+    const found = [...ids];
+
+    for (const id of found) {
+      for (const [childId, child] of items) {
+        const { deletedAt, kind, parentId } = child.fields;
+
+        if (
+          parentId === id &&
+          deletedAt === null &&
+          isContainerKind(kind) &&
+          !found.includes(childId)
+        ) {
+          found.push(childId);
+        }
+      }
+    }
+
+    return found;
   };
 
   const deletedAtOf = (id: string) => items.get(id)?.fields.deletedAt ?? 0;
@@ -389,7 +423,7 @@ export const createFakeCell = () => {
     const at = NOW + head + 1;
     const changed: string[] = [];
     const addressHeld: string[] = [];
-    const unique = [...new Set(ids)];
+    const unique = [...new Set(deleted ? withContainersUnder(ids) : ids)];
     const missing = unique.filter((id) => !items.has(id));
     const present = unique.filter((id) => items.has(id));
 
@@ -414,10 +448,10 @@ export const createFakeCell = () => {
   };
 
   const organize = (input: OrganizeInput) => {
-    const folderId = folderIdOf(input.folder);
+    const parentId = parentIdOf(input.parent, childrenOf(input.ids));
 
     const next = [...new Set(input.ids)].map((itemId) => {
-      const fields = organized(holding(itemId).fields, input, folderId, NOW);
+      const fields = organized(holding(itemId).fields, input, parentId, NOW);
 
       if (!libraryItemFieldsSchema.validate(fields)) {
         throw new PayloadTooLargeError();
@@ -429,16 +463,18 @@ export const createFakeCell = () => {
     return next.map(({ fields, itemId }) => landFields(itemId, fields).item);
   };
 
-  const sweepOrganize = (ids: readonly string[], verb: Omit<OrganizeInput, "ids">) => {
-    const folderId = folderIdOf(verb.folder);
+  const sweepOrganize = (asked: readonly string[], verb: Omit<OrganizeInput, "ids">) => {
+    const parentId = parentIdOf(verb.parent, []);
+    const above = lineOf(parents, parentId ?? null);
+    const ids = asked.filter((id) => !above.has(id));
 
     const refused = ids.filter((itemId) => {
       const { fields } = holding(itemId);
-      const swept = organized(fields, { ...verb, ids: [] }, folderId, NOW);
+      const swept = organized(fields, { ...verb, ids: [] }, parentId, NOW);
       const fits = libraryItemFieldsSchema.validate(swept);
       landFields(
         itemId,
-        fits ? swept : organized(fields, { ids: [], pinned: verb.pinned }, folderId, NOW),
+        fits ? swept : organized(fields, { ids: [], pinned: verb.pinned }, parentId, NOW),
       );
 
       return !fits;
@@ -476,49 +512,13 @@ export const createFakeCell = () => {
     return { missing, purged };
   };
 
-  const folderWrite = (ops: readonly FolderOp[]) => {
-    const draft = new Map(folders);
-
-    const reader: FolderReader = {
-      children: (parentId) =>
-        [...draft.values()].filter(
-          (folder) => folder.parentId === parentId && folder.deletedAt === null,
-        ),
-      folder: (id) => draft.get(id) ?? null,
-    };
-
-    const landed = new Map<string, FolderRow>();
-
-    for (const op of ops) {
-      const refusal = folderOpRefusal(reader, op);
-
-      if (refusal !== null) {
-        throw refusal === "conflict" ? new ConflictError() : new NotFoundError();
-      }
-
-      for (const row of folderOpLanding(reader, op, NOW)) {
-        const folder = { ...row, seq: head + 1 };
-        draft.set(folder.id, folder);
-        landed.set(folder.id, folder);
-      }
-    }
-
-    head += 1;
-
-    for (const folder of landed.values()) {
-      folders.set(folder.id, folder);
-    }
-
-    return { folders: [...landed.values()], seq: head };
-  };
-
   const changes = (after: number | undefined) => {
     if (after === undefined || after === head) {
       return { head, moved: null } satisfies Changes;
     }
 
     if (after > head) {
-      return { head, moved: { folders: true, items: "all", threads: "all" } } satisfies Changes;
+      return { head, moved: { items: "all", threads: "all", tree: true } } satisfies Changes;
     }
 
     const stamped = [
@@ -529,16 +529,18 @@ export const createFakeCell = () => {
     return {
       head,
       moved: {
-        folders: [...folders.values()].some(({ seq }) => seq > after),
         items: stamped,
         threads: [],
+        tree:
+          [...items.values()].some(
+            ({ fields, seq }) => seq > after && canHoldChildren(fields.kind),
+          ) || [...tombstones.values()].some((seq) => seq > after),
       },
     } satisfies Changes;
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
-  const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
   const deletedSchema = z.object({ deleted: z.array(z.string()), missing: z.array(z.string()) });
 
   const restoredSchema = z.object({
@@ -639,17 +641,15 @@ export const createFakeCell = () => {
           return { kind: "kept" as const };
         }),
       },
-      folders: {
-        write: os.library.folders.write.handler(({ input }) =>
-          once(input.opId, foldersWrittenSchema, () => folderWrite(input.ops)),
-        ),
-      },
       items: {
         create: os.library.items.create.handler(({ input }) =>
           once(input.opId, landedSchema, () => {
             made(input.id);
+            parentIdOf(input.parentId === null ? null : { id: input.parentId }, [
+              { id: input.id, kind: input.kind },
+            ]);
 
-            return land(input.id, noteFields(input), input.blocks);
+            return land(input.id, { ...noteFields(input), kind: input.kind }, input.blocks);
           }),
         ),
         createFile: os.library.items.createFile.handler(({ input }) =>
@@ -738,8 +738,8 @@ export const createFakeCell = () => {
               return answerHeld(holder);
             }
 
-            const folderId = folderIdOf(input.folder) ?? null;
             const id = input.id ?? mintId();
+            const parentId = parentIdOf(input.parent, [{ id, kind: "link" }]) ?? null;
             made(id);
 
             return {
@@ -747,7 +747,7 @@ export const createFakeCell = () => {
               ...land(
                 id,
                 stubFields({
-                  folderId,
+                  parentId,
                   savedAt: input.savedAt ?? NOW,
                   tags: input.tags ?? [],
                   title: input.title,
@@ -791,6 +791,9 @@ export const createFakeCell = () => {
       listing: {
         page: os.library.listing.page.handler(({ input }) =>
           listingPageOf(listing(), input, searchHits, (row) => row),
+        ),
+        children: os.library.listing.children.handler(({ input }) =>
+          listing().children(input.parentId),
         ),
         scopes: os.library.listing.scopes.handler(() => listing().scopes()),
         titles: os.library.listing.titles.handler(() => listing().titles()),
@@ -896,16 +899,7 @@ export const createFakeCell = () => {
     seed: {
       folder: (name) => {
         const id = mintId();
-
-        const last =
-          [...folders.values()]
-            .flatMap((folder) =>
-              folder.parentId === null && folder.deletedAt === null ? [folder.sort] : [],
-            )
-            .toSorted(compareText)
-            .at(-1) ?? null;
-
-        folderWrite([{ id, name, op: "create", parentId: null, sort: ordBetween(last, null) }]);
+        land(id, { ...blankItemFields(NOW), kind: "folder", title: name }, []);
 
         return id;
       },

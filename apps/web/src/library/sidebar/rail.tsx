@@ -34,6 +34,7 @@ import {
   HashIcon,
   InboxIcon,
   LibraryIcon,
+  ListIcon,
   SearchIcon,
   SettingsIcon,
   Trash2Icon,
@@ -62,8 +63,8 @@ const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope) => {
     return false;
   }
 
-  if (scope.kind === "folder" && row.kind === "folder") {
-    return scope.folderId === row.folderId;
+  if (scope.kind === "parent" && row.kind === "parent") {
+    return scope.parentId === row.parentId;
   }
 
   if (scope.kind === "tag" && row.kind === "tag") {
@@ -119,10 +120,10 @@ const FolderItem = ({
   return (
     <SidebarMenuItem>
       <ScopeLink
-        target={{ folderId: row.id, kind: "folder" }}
+        target={{ parentId: row.id, kind: "parent" }}
         scope={scope}
         itemOpen={itemOpen}
-        icon={FolderIcon}
+        icon={row.kind === "list" ? ListIcon : FolderIcon}
         style={{ paddingLeft: `${String(8 + row.depth * 12)}px` }}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -146,16 +147,27 @@ const FolderItem = ({
           side="bottom"
           align="start"
         >
+          {row.kind === "folder" ? (
+            <>
+              <DropdownMenuItem
+                onClick={() => {
+                  commands.newFolder(row.id);
+                }}
+              >
+                New folder inside…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  commands.newList(row.id);
+                }}
+              >
+                New list inside…
+              </DropdownMenuItem>
+            </>
+          ) : null}
           <DropdownMenuItem
             onClick={() => {
-              commands.newFolder(row.id);
-            }}
-          >
-            New folder inside…
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              commands.renameFolder(row.id, row.name);
+              commands.renameFolder(row.id, row.name, row.kind);
             }}
           >
             Rename…
@@ -164,10 +176,10 @@ const FolderItem = ({
           <DropdownMenuItem
             variant="destructive"
             onClick={() => {
-              commands.deleteFolder(row.id, row.name);
+              commands.deleteFolder(row.id, row.name, row.kind);
             }}
           >
-            Delete folder…
+            {row.kind === "list" ? "Delete list…" : "Delete folder…"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -176,7 +188,7 @@ const FolderItem = ({
 };
 
 const FolderRows = ({ scope, itemOpen }: RailProps) => {
-  const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
+  const folders = useQuery(useLibraryQueries().scopes()).data?.containers ?? [];
   const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
 
   return (

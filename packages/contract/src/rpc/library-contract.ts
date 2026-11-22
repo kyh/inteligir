@@ -25,9 +25,8 @@ import {
   BULK_ITEMS_MAX,
   count,
   cursorSchema,
-  folderCountSchema,
+  containerCountSchema,
   folderNameSchema,
-  folderOpSchema,
   FOLDER_NAME_MAX,
   folderPathNames,
   isoDate,
@@ -39,7 +38,6 @@ import {
   libraryMovedSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
-  folderRowSchema,
   listedItemSchema,
   listingPageInputSchema,
   MARKDOWN_MAX,
@@ -57,8 +55,11 @@ import {
   THREAD_STATUSES,
   threadRowSchema,
   threadStreamEventSchema,
+  treeChildrenSchema,
   WRITE_OPS_MAX,
 } from "../library/library-wire";
+
+const CREATED_KINDS = ["note", "folder", "list"] as const;
 
 const FIELDS = libraryItemFieldsSchema.shape;
 const opId = opIdSchema.optional();
@@ -86,12 +87,12 @@ const folderPathSchema = z
     { error: `names each folder in 1 to ${String(FOLDER_NAME_MAX)} characters` },
   );
 
-const folderTargetSchema = z
+const parentTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
   .nullable();
 
 const saveLinkInputSchema = z.strictObject({
-  folder: folderTargetSchema.optional(),
+  parent: parentTargetSchema.optional(),
   id: newIdSchema.optional(),
   note: z.string().max(MARKDOWN_MAX).optional(),
   opId,
@@ -107,7 +108,7 @@ export const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 
 const organizeInputSchema = z.strictObject({
   addTags: FIELDS.tags.optional(),
-  folder: folderTargetSchema.optional(),
+  parent: parentTargetSchema.optional(),
   ids,
   opId,
   pinned: z.boolean().optional(),
@@ -124,7 +125,7 @@ export const sweepVerbSchema = z.discriminatedUnion("kind", [
 
 export const listInputSchema = z.strictObject({
   cursor,
-  folderId: idSchema.optional(),
+  parentId: idSchema.optional(),
   kinds: kindsSchema.optional(),
   limit,
   pinned: z.boolean().optional(),
@@ -142,7 +143,7 @@ export const readInputSchema = z.strictObject({
 
 export const searchInputSchema = z.strictObject({
   cursor,
-  folderId: idSchema.optional(),
+  parentId: idSchema.optional(),
   kinds: kindsSchema.optional(),
   limit,
   query: z.string().trim().min(1).max(500),
@@ -176,15 +177,17 @@ const itemsContract = {
     .errors({
       [BlobMissingError.code]: BlobMissingError,
       [ConflictError.code]: ConflictError,
+      [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
       [QuotaError.code]: QuotaError,
     })
     .input(
       z.strictObject({
         blocks: z.array(newBodyBlockSchema).max(WRITE_OPS_MAX),
-        folderId: idSchema.nullable(),
         id: newIdSchema,
+        kind: z.enum(CREATED_KINDS).default("note"),
         opId,
+        parentId: idSchema.nullable(),
         savedAt: FIELDS.savedAt,
         tags: FIELDS.tags,
         title: FIELDS.title,
@@ -201,7 +204,7 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        folder: folderTargetSchema.optional(),
+        parent: parentTargetSchema.optional(),
         markdown: z.string().max(MARKDOWN_MAX),
         opId,
         tags: FIELDS.tags.optional(),
@@ -218,7 +221,7 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        folderId: idSchema.nullable(),
+        parentId: idSchema.nullable(),
         id: newIdSchema,
         name: FIELDS.originalName.unwrap(),
         opId,
@@ -248,7 +251,7 @@ const itemsContract = {
           published: FIELDS.published,
           site: FIELDS.site,
         }),
-        folderId: idSchema.nullable(),
+        parentId: idSchema.nullable(),
         id: newIdSchema,
         note: z.string().max(MARKDOWN_MAX).optional(),
         opId,
@@ -301,6 +304,7 @@ const itemsContract = {
 
   organize: signedBase
     .errors({
+      [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
     })
@@ -334,13 +338,6 @@ const itemsContract = {
     .output(landed),
 };
 
-const foldersContract = {
-  write: signedBase
-    .errors({ [ConflictError.code]: ConflictError, [NotFoundError.code]: NotFoundError })
-    .input(z.strictObject({ opId, ops: z.array(folderOpSchema).min(1).max(WRITE_OPS_MAX) }))
-    .output(z.object({ folders: z.array(folderRowSchema), seq: seqSchema })),
-};
-
 const listingContract = {
   page: signedBase.input(listingPageInputSchema).output(
     z.object({
@@ -354,13 +351,17 @@ const listingContract = {
   scopes: signedBase.output(
     z.object({
       deleted: count,
-      folders: z.array(folderCountSchema),
+      containers: z.array(containerCountSchema),
       tags: z.array(tagCountSchema),
       total: count,
       unsorted: count,
       untagged: count,
     }),
   ),
+
+  children: signedBase
+    .input(z.strictObject({ parentId: idSchema.nullable() }))
+    .output(treeChildrenSchema),
 
   titles: signedBase.output(
     z.object({ targets: z.array(z.object({ id: idSchema, title: z.string() })) }),
@@ -370,7 +371,7 @@ const listingContract = {
 const organizeContract = {
   outline: signedBase.output(
     z.object({
-      folders: z.array(folderCountSchema.omit({ sort: true })),
+      containers: z.array(containerCountSchema),
       tags: z.array(tagCountSchema),
     }),
   ),
@@ -547,8 +548,6 @@ export const libraryContract = {
     .output(z.object({ head: seqSchema, moved: libraryMovedSchema.nullable() })),
 
   files: filesContract,
-
-  folders: foldersContract,
 
   guide: signedBase.output(z.object({ markdown: z.string() })),
 

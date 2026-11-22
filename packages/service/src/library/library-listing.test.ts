@@ -91,9 +91,9 @@ dbSuite("what the apps read of the library", () => {
     const projects = await seedFolder(accountId, { name: "Projects" });
     const garden = await seedFolder(accountId, { name: "Garden", parentId: projects });
     const archive = await seedFolder(accountId, { deletedAt: SAVED_AT, name: "Archive" });
-    await note("Filed", { folderId: garden, tags: ["work/garden"] });
+    await note("Filed", { parentId: garden, tags: ["work/garden"] });
     await note("Loose", { tags: ["working"] });
-    await note("Archived", { folderId: archive, tags: ["work_x/y"] });
+    await note("Archived", { parentId: archive, tags: ["work_x/y"] });
 
     const titlesOf = async (scope: LibraryScope) => {
       const page = await library.listing.page({ limit: 10, scope, sort: "title" });
@@ -103,19 +103,19 @@ dbSuite("what the apps read of the library", () => {
 
     await expect(titlesOf({ kind: "tag", tag: "WORK" })).resolves.toStrictEqual(["Filed"]);
     await expect(titlesOf({ kind: "tag", tag: "work_" })).resolves.toStrictEqual([]);
-    await expect(titlesOf({ folderId: projects, kind: "folder" })).resolves.toStrictEqual([
+    await expect(titlesOf({ parentId: projects, kind: "parent" })).resolves.toStrictEqual([
       "Filed",
     ]);
-    await expect(titlesOf({ folderId: archive, kind: "folder" })).resolves.toStrictEqual([]);
+    await expect(titlesOf({ parentId: archive, kind: "parent" })).resolves.toStrictEqual([]);
     await expect(titlesOf({ kind: "unsorted" })).resolves.toStrictEqual(["Archived", "Loose"]);
   });
 
   it("counts the rail: folders in rail order, each tag once under the spelling saved order meets first", async () => {
     const { accountId, library, note } = await laptop();
-    const projects = await seedFolder(accountId, { name: "Projects", sort: "a1" });
-    const garden = await seedFolder(accountId, { name: "Garden", parentId: projects, sort: "a0" });
-    const archive = await seedFolder(accountId, { name: "Archive", sort: "a0" });
-    await note("One", { folderId: garden, tags: ["work"] });
+    const projects = await seedFolder(accountId, { name: "Projects" });
+    const garden = await seedFolder(accountId, { name: "Garden", parentId: projects });
+    const archive = await seedFolder(accountId, { name: "Archive" });
+    await note("One", { parentId: garden, tags: ["work"] });
     await note("Two", { tags: ["Work", "home"] });
     await note("Three", { deletedAt: SAVED_AT, tags: ["gone"] });
     await note("Four", { tags: ["HOME"] }, [
@@ -125,10 +125,10 @@ dbSuite("what the apps read of the library", () => {
 
     await expect(library.listing.scopes()).resolves.toStrictEqual({
       deleted: 1,
-      folders: [
-        { id: archive, items: 0, name: "Archive", parentId: null, sort: "a0" },
-        { id: projects, items: 1, name: "Projects", parentId: null, sort: "a1" },
-        { id: garden, items: 1, name: "Garden", parentId: projects, sort: "a0" },
+      containers: [
+        { id: archive, items: 0, kind: "folder", parentId: null, title: "Archive" },
+        { id: projects, items: 1, kind: "folder", parentId: null, title: "Projects" },
+        { id: garden, items: 1, kind: "folder", parentId: projects, title: "Garden" },
       ],
       tags: [
         { items: 2, tag: "HOME" },
@@ -139,14 +139,61 @@ dbSuite("what the apps read of the library", () => {
       untagged: 1,
     });
     const { tags } = await library.listing.scopes();
-    await expect(library.organize.outline()).resolves.toStrictEqual({
-      folders: [
-        { id: archive, items: 0, name: "Archive", parentId: null },
-        { id: projects, items: 1, name: "Projects", parentId: null },
-        { id: garden, items: 1, name: "Garden", parentId: projects },
-      ],
-      tags,
+    const { containers } = await library.listing.scopes();
+    await expect(library.organize.outline()).resolves.toStrictEqual({ containers, tags });
+  });
+
+  it("keeps folders and lists out of live listings, counts and titles, and lists them in Deleted", async () => {
+    const { accountId, library, note } = await laptop();
+    const shelf = await seedFolder(accountId, { kind: "list", name: "Shelf" });
+    const bin = await seedFolder(accountId, { deletedAt: SAVED_AT, name: "Bin" });
+    const kept = await note("Kept", { parentId: shelf });
+
+    const all = await library.listing.page({ limit: 10, scope: { kind: "all" } });
+    expect(all.items.map(({ id }) => id)).toStrictEqual([kept]);
+    expect(all.kindCounts).toMatchObject({ folder: 0, list: 0, note: 1 });
+    const binned = await library.listing.page({ limit: 10, scope: { kind: "deleted" } });
+    expect(binned.items.map(({ id }) => id)).toStrictEqual([bin]);
+    await expect(library.listing.scopes()).resolves.toMatchObject({
+      containers: [{ id: shelf, items: 1, kind: "list", parentId: null, title: "Shelf" }],
+      deleted: 1,
+      total: 1,
+      unsorted: 0,
     });
+    await expect(library.listing.titles()).resolves.toStrictEqual({
+      targets: [{ id: kept, title: "Kept" }],
+    });
+  });
+
+  it("lists the notes right under a parent for the tree, saying which hold more, and the root's", async () => {
+    const { accountId, library, note } = await laptop();
+    const projects = await seedFolder(accountId, { name: "Projects" });
+    const plan = await note("Plan", { parentId: projects });
+    const sub = await note("Sub", { parentId: plan });
+    await note("Clip", { kind: "link", parentId: projects, url: "https://example.com/clip" });
+    const loose = await note("Loose");
+    await note("Gone", { deletedAt: SAVED_AT, parentId: projects });
+
+    await expect(library.listing.children({ parentId: projects })).resolves.toStrictEqual({
+      children: [{ hasChildren: true, id: plan, kind: "note", title: "Plan" }],
+      more: false,
+    });
+    await expect(library.listing.children({ parentId: plan })).resolves.toStrictEqual({
+      children: [{ hasChildren: false, id: sub, kind: "note", title: "Sub" }],
+      more: false,
+    });
+    await expect(library.listing.children({ parentId: null })).resolves.toStrictEqual({
+      children: [{ hasChildren: false, id: loose, kind: "note", title: "Loose" }],
+      more: false,
+    });
+
+    const inProjects = await library.listing.page({
+      limit: 10,
+      scope: { kind: "parent", parentId: projects },
+      sort: "title",
+    });
+
+    expect(inProjects.items.map(({ card }) => card.title)).toStrictEqual(["Clip", "Plan", "Sub"]);
   });
 
   it("titles every item in the library, pinned first, and none in Deleted", async () => {
@@ -167,7 +214,7 @@ dbSuite("what the apps read of the library", () => {
   it("answers an agent's list a page at a time, filtered and in the order asked", async () => {
     const { accountId, library, note } = await laptop();
     const projects = await seedFolder(accountId, { name: "Projects" });
-    const one = await note("Item 1.", { folderId: projects, tags: ["n"] });
+    const one = await note("Item 1.", { parentId: projects, tags: ["n"] });
 
     const two = await note("Item 2.", { tags: ["N"] }, [
       { block: paragraph("p1", "Read #later."), section: "note" },
@@ -187,7 +234,7 @@ dbSuite("what the apps read of the library", () => {
       cursor: null,
       items: [
         {
-          folderId: null,
+          parentId: null,
           id: two,
           kind: "note",
           pinned: false,
@@ -199,7 +246,7 @@ dbSuite("what the apps read of the library", () => {
       ],
     });
     await expect(
-      library.items.list({ folderId: projects, responseFormat: "detailed" }),
+      library.items.list({ parentId: projects, responseFormat: "detailed" }),
     ).resolves.toMatchObject({ items: [{ id: one, preview: "Item 1..", site: null }] });
     await expect(library.items.list({ pinned: false, tag: "n" })).resolves.toMatchObject({
       items: [{ id: two }, { id: one }],
@@ -215,16 +262,16 @@ dbSuite("what the apps read of the library", () => {
     const mine = await note("Mine", { tags: ["shared"] });
     const other = await laptop();
     const theirs = await seedFolder(other.accountId, { name: "Theirs" });
-    await other.note("Theirs", { folderId: theirs, tags: ["shared"] });
+    await other.note("Theirs", { parentId: theirs, tags: ["shared"] });
 
     await expect(
       library.listing.page({ limit: 10, scope: { kind: "all" } }),
     ).resolves.toMatchObject({ items: [{ id: mine }], total: 1 });
     await expect(
-      library.listing.page({ limit: 10, scope: { folderId: theirs, kind: "folder" } }),
+      library.listing.page({ limit: 10, scope: { parentId: theirs, kind: "parent" } }),
     ).resolves.toMatchObject({ items: [], total: 0 });
     await expect(library.listing.scopes()).resolves.toMatchObject({
-      folders: [],
+      containers: [],
       tags: [{ items: 1, tag: "shared" }],
       total: 1,
     });

@@ -4,11 +4,11 @@ import { blankItemFields, importedFields } from "@repo/contract/library/item-mak
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { paragraph, pillParagraph } from "@repo/contract/test-support/library-items.test-utils";
 import { db } from "@repo/db/drizzle-client";
-import { changeSet, folder, item, itemLink, job } from "@repo/db/library-schema";
+import { changeSet, item, itemLink, job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { importPlannedDoc, openPlan, planImport } from "@repo/editor/headless/codec/import-plan";
 import type { ImportEntry } from "@repo/editor/headless/codec/import-plan";
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull, ne } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "../env";
@@ -50,7 +50,7 @@ const titles = async (accountId: string) => {
   const rows = await db
     .select({ title: item.title })
     .from(item)
-    .where(and(eq(item.accountId, accountId), isNull(item.deletedAt)))
+    .where(and(eq(item.accountId, accountId), isNull(item.deletedAt), ne(item.kind, "folder")))
     .orderBy(asc(item.title));
 
   return rows.map((row) => row.title);
@@ -113,10 +113,10 @@ dbSuite("an import", () => {
       ).resolves.toStrictEqual([]);
 
       const folders = await db
-        .select({ name: folder.name })
-        .from(folder)
-        .where(eq(folder.accountId, accountId))
-        .orderBy(asc(folder.name));
+        .select({ name: item.title })
+        .from(item)
+        .where(and(eq(item.accountId, accountId), eq(item.kind, "folder")))
+        .orderBy(asc(item.title));
 
       expect(folders.map((row) => row.name)).toStrictEqual(["Projects", "Specs"]);
     });
@@ -313,7 +313,7 @@ dbSuite("an import", () => {
       const [held] = await db
         .select({ n: count() })
         .from(item)
-        .where(eq(item.accountId, accountId));
+        .where(and(eq(item.accountId, accountId), ne(item.kind, "folder")));
 
       expect(held?.n).toBe(1000);
 
@@ -323,7 +323,12 @@ dbSuite("an import", () => {
         .where(eq(itemLink.accountId, accountId));
 
       expect(links?.n).toBe(999);
-      const folders = await db.select().from(folder).where(eq(folder.accountId, accountId));
+
+      const folders = await db
+        .select()
+        .from(item)
+        .where(and(eq(item.accountId, accountId), eq(item.kind, "folder")));
+
       expect(folders).toHaveLength(11);
 
       const tagged = await library.listing.page({

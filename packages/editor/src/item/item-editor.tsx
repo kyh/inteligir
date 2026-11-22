@@ -31,6 +31,9 @@ const CHUNK_BLOCKS = 100;
 
 export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
 
+export const OFFLINE_KEEPS =
+  "You're offline. What you type is kept on this device and saves once you're back.";
+
 export const NOTICES: Record<NoteNotice, string> = {
   agent: "The agent is editing this note. What you type saves once it's done.",
   conflict:
@@ -39,7 +42,7 @@ export const NOTICES: Record<NoteNotice, string> = {
   "file-missing":
     "A file in this note isn't in your library anymore, so what you type isn't saved. Remove it to save again.",
   full: "This note is longer than a note can be, so what you type isn't saved. Shorten it, or copy what you need into a new note.",
-  offline: NEEDS_CONNECTION,
+  offline: OFFLINE_KEEPS,
 };
 
 export const SHOW_LATEST = "Show the latest";

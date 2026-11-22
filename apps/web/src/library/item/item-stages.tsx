@@ -95,7 +95,9 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
     }
 
     case "file":
+    case "folder":
     case "link":
+    case "list":
     case "note": {
       return (
         <div className="px-8 pt-4">

@@ -53,7 +53,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   useLeaveItem(noteRef);
   const railRef = useRef<SidebarActions | null>(null);
 
-  const folders = useQuery(queries.scopes()).data?.folders ?? [];
+  const folders = useQuery(queries.scopes()).data?.containers ?? [];
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
@@ -125,7 +125,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
 
   const { catcherRef, dropInto } = useWindowCapture({
     enabled: !covered,
-    into: () => (scope.kind === "folder" ? scopeName : "Unsorted"),
+    into: () => (scope.kind === "parent" ? scopeName : "Unsorted"),
     modifier,
     onCapture: commands.save,
   });

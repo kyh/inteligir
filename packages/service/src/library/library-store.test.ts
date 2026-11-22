@@ -13,7 +13,7 @@ import {
   changeSetFile,
   changeSetItem,
   file,
-  folder,
+  item,
   itemFile,
   job,
   libraryState,
@@ -21,13 +21,14 @@ import {
   purgedItem,
 } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { asc, count, eq, getColumns, getTableName, is, sql } from "drizzle-orm";
+import { and, asc, count, eq, getColumns, getTableName, is, sql } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { makeAccount, seedItem } from "../test-support/library.fixture";
 import { refuse } from "./library-refusal";
+import { itemRowOf } from "./library-rows";
 import { withAccountLock, writeLibrary } from "./library-store";
 import type { WriteScope } from "./library-store";
 
@@ -45,24 +46,27 @@ const headOf = async (accountId: string) => {
 
 const addFolder = async (scope: WriteScope, name: string) => {
   const id = randomUUID();
-  await scope.tx.insert(folder).values({
-    accountId: scope.accountId,
-    id,
-    name,
-    parentId: null,
-    seq: await scope.seq(),
-    sort: "a0",
-  });
+  const fields = { ...noteFixture({ title: name }), kind: "folder" as const };
+  await scope.tx.insert(item).values(
+    itemRowOf(scope.accountId, {
+      card: { outline: [], preview: "", title: name, words: 0 },
+      fields,
+      id,
+      seq: await scope.seq(),
+      updatedAt: fields.savedAt,
+      urlKey: null,
+    }),
+  );
 
   return id;
 };
 
 const foldersOf = async (accountId: string) =>
   await db
-    .select({ name: folder.name, seq: folder.seq })
-    .from(folder)
-    .where(eq(folder.accountId, accountId))
-    .orderBy(asc(folder.name));
+    .select({ name: item.title, seq: item.seq })
+    .from(item)
+    .where(and(eq(item.accountId, accountId), eq(item.kind, "folder")))
+    .orderBy(asc(item.title));
 
 const backendsSchema = z.array(z.object({ pid: z.number() }));
 
@@ -387,14 +391,6 @@ const fillLibrary = async (accountId: string) => {
   await db.transaction(async (tx) => {
     await tx.insert(libraryState).values({ accountId, head: 3 });
     await tx.insert(purgedItem).values({ accountId, id: randomUUID(), seq: 2 });
-    await tx.insert(folder).values({
-      accountId,
-      id: randomUUID(),
-      name: "Projects",
-      parentId: null,
-      seq: 1,
-      sort: "a0",
-    });
     await tx.insert(changeSet).values({ accountId, id: changeSetId, threadId: "thread", turn: 1 });
     await tx
       .insert(changeSetItem)

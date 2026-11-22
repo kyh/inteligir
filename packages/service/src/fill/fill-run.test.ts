@@ -454,7 +454,7 @@ dbSuite("a reading that did not land a page", () => {
 
     const seeded = await seedItem(accountId, {
       blocks,
-      fields: stubFields({ folderId: null, savedAt: Date.now(), tags: [], url }),
+      fields: stubFields({ parentId: null, savedAt: Date.now(), tags: [], url }),
     });
 
     const warned = vi.spyOn(console, "warn");

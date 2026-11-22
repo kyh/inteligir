@@ -4,8 +4,16 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ## Unreleased
 
+### New
+
+- **Lists sit in the sidebar beside folders**: choose New list inside… on a folder for a list of its own; a folder holds folders, lists and anything else, and a list holds anything but a folder or list.
+- **A note can hold notes**, and a saved link or file can be filed under a note; a folder lists everything filed anywhere under it.
+- **Type into a note with no connection**: what you type is kept on this device, through a reload too, and saves once you're back, merging with what changed elsewhere meanwhile. Adding a picture or file still needs a connection.
+
 ### Changed
 
+- **Folders are items now.** Your folders from before this version don't come across: what was in them shows in Unsorted, ready to be filed again.
+- **Deleting a folder deletes the folders and lists inside it**, which Deleted lists and restores; the notes and saved things in it show in Unsorted.
 - **What another device changed shows in about a second**, not up to 15 seconds later: a save, move, tag or delete made elsewhere appears in the window or app you have in front almost at once.
 
 ## 0.7.0 — 2026-11-20

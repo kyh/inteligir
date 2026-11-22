@@ -1,29 +1,39 @@
-import { compareFolders } from "@repo/contract/library/folder-rail";
-import type { ListingFolder } from "@repo/contract/library/folder-rail";
+import type { ContainerKind } from "@repo/contract/items/item-kind";
+import { compareTreeNodes } from "@repo/contract/library/item-tree";
+
+export interface ContainerNode {
+  readonly id: string;
+  readonly kind: ContainerKind;
+  readonly parentId: string | null;
+  readonly title: string;
+}
 
 export interface FolderRow {
   readonly id: string;
+  readonly kind: ContainerKind;
   readonly name: string;
   readonly depth: number;
   readonly label: string;
 }
 
-export const folderPaths = (folders: readonly ListingFolder[]) => {
-  const children = new Map<string | null, ListingFolder[]>();
-  const ids = new Set(folders.map((folder) => folder.id));
+export const folderPaths = (containers: readonly ContainerNode[]) => {
+  const children = new Map<string | null, ContainerNode[]>();
+  const ids = new Set(containers.map((container) => container.id));
 
-  for (const folder of folders) {
-    const parent = folder.parentId !== null && ids.has(folder.parentId) ? folder.parentId : null;
-    children.set(parent, [...(children.get(parent) ?? []), folder]);
+  for (const container of containers) {
+    const parent =
+      container.parentId !== null && ids.has(container.parentId) ? container.parentId : null;
+
+    children.set(parent, [...(children.get(parent) ?? []), container]);
   }
 
   const rows: FolderRow[] = [];
 
   const walk = (parent: string | null, depth: number, above: string) => {
-    for (const folder of (children.get(parent) ?? []).toSorted(compareFolders)) {
-      const label = above === "" ? folder.name : `${above} / ${folder.name}`;
-      rows.push({ depth, id: folder.id, label, name: folder.name });
-      walk(folder.id, depth + 1, label);
+    for (const container of (children.get(parent) ?? []).toSorted(compareTreeNodes)) {
+      const label = above === "" ? container.title : `${above} / ${container.title}`;
+      rows.push({ depth, id: container.id, kind: container.kind, label, name: container.title });
+      walk(container.id, depth + 1, label);
     }
   };
 

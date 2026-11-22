@@ -19,7 +19,7 @@ and the agents that reach it.
 Postgres, every table keyed by the account (`packages/db/src/library-schema.ts`),
 written only in a transaction holding the account's `library_state` row
 (`packages/service/src/library/library-store.ts`) and reached only from a
-verified **principal**. It holds the items' fields and bodies, folders, tags,
+verified **principal**. It holds the items' fields and bodies, their parents, tags,
 links, **jobs** and change sets; every `/v1` library call, **connector** call
 and **built-in agent** tool reaches it, and the agent's **threads** sit beside
 it (`packages/db/src/agent-schema.ts`). The **file store** holds the bytes it
@@ -78,7 +78,7 @@ moved since (`packages/db/src/library-schema.ts`).
 
 **what moved** — `library.changes`' answer to a device holding a **head**: the
 library's head now, and which items moved past the one sent and at which
-sequence, whether a folder moved, and which threads, a long list saying "all"
+sequence, whether the **tree** moved (a folder, list or note), and which threads, a long list saying "all"
 (`packages/service/src/library/library-changes.ts`). A device asks the moment
 the **heads** it follows say the library moved, every minute besides while in
 front, and at once on focus and reconnect, its first ask learning the head alone
@@ -209,11 +209,25 @@ link, and not `[[Title]]`, which only an import and the agent's text read, as
 an item link to the one item so titled or as the text it is
 (`@repo/editor/headless/markdown/remark-wiki-import`).
 
-**Unsorted** — where an item filed in no folder shows: its folder is none or a
-deleted one (the `unsorted` scope of `@repo/contract/library-scope`), the
-rail's row of that name, and where a save lands when the screen shows no
-folder. Not a folder: an item stays Unsorted until it is filed, whatever it is
-tagged.
+**Unsorted** — where an item filed under no parent shows: its parent is none,
+a deleted item, or no folder, list or note (the `unsorted` scope of
+`@repo/contract/library-scope`), the rail's row of that name, and where a save
+lands when the screen shows no folder. Not a folder: an item stays Unsorted
+until it is filed, whatever it is tagged.
+
+**parent** — the item an item is filed under, by its `parentId`: a folder, a
+list or a note, as `canHoldKind` allows (`@repo/contract/items/item-kind`),
+never the item itself or one under it (`parentRefusal`,
+`@repo/contract/library/cell-rules`). A parent that is deleted or gone leaves
+its children at the root. A folder or list is a **container**: it shows in the
+rail's tree, never as a card in a live listing, and deleting one deletes the
+containers under it. Not a tag, and not a section.
+
+**tree** — the library's folders, lists and notes by their live parents
+(`@repo/contract/library/item-tree`): `listing.scopes` answers its containers
+with what each holds, and `listing.children` the notes right under a parent,
+read as the rail opens one. A `parent` scope lists everything filed anywhere
+under that item.
 
 **sweep** — a verb over every item a scope lists but those left out: what ⌘A
 then Move, Tag, Pin, Delete or Restore asks once the grid read only part of the

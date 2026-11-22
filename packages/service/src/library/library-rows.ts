@@ -56,7 +56,7 @@ const FIELD_COLUMNS = {
   coverSha: item.coverSha,
   deletedAt: item.deletedAt,
   description: item.description,
-  folderId: item.folderId,
+  parentId: item.parentId,
   kind: item.kind,
   lang: item.lang,
   originalName: item.originalName,

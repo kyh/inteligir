@@ -261,19 +261,47 @@ describe("an open note's saves", () => {
     expect(saver.unsaved()).toBe(false);
   });
 
-  it("takes no edit with no connection, and saves what was typed once it is back", async () => {
+  it("takes edits with no connection, keeps them on the device, and saves them once it is back", async () => {
     const { notes, online, saver, type } = await open();
     type("a1", "one!");
     online(false);
     expect(openView(saver).notice).toBe("offline");
-    expect(takesNoEdit(openView(saver).notice)).toBe(true);
+    expect(takesNoEdit(openView(saver).notice)).toBe(false);
     await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 2);
+    type("a1", "one!!");
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
     expect(notes.sent).toHaveLength(0);
+    expect(textsOf(notes.kept(A)?.blocks)).toStrictEqual(["one!!", "two"]);
+    expect(saver.unloadLoses()).toBe(false);
     await expect(saver.holds()).resolves.toBe(false);
     online(true);
     expect(openView(saver).notice).toBeNull();
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(textsOf(notes.note(A)?.blocks)).toStrictEqual(["one!!", "two"]);
+    expect(notes.kept(A)).toBeNull();
+  });
+
+  it("reopens what a closed page kept, with no connection too, and merges it over what saved meanwhile", async () => {
+    const first = await open();
+    first.online(false);
+    first.type("a1", "one, offline");
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    first.saver.close();
+    const reach = fakeReach(false);
+    const again = new NoteSaver(A, first.notes.host(reach.reach));
+    savers.push(again);
+    again.start();
     await vi.advanceTimersByTimeAsync(0);
-    expect(textsOf(notes.note(A)?.blocks)).toStrictEqual(["one!", "two"]);
+    expect(textsOf(openView(again).blocks)).toStrictEqual(["one, offline", "two"]);
+    await first.notes
+      .host(fakeReach(true).reach)
+      .save({ baseVersion: 1, blocks: [p("a1", "one"), p("a2", "two, elsewhere")], id: A }, false);
+    const editor = new Editor(openView(again).blocks);
+    again.bind(editor);
+    reach.set(true);
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(textsOf(first.notes.note(A)?.blocks)).toStrictEqual(["one, offline", "two, elsewhere"]);
+    expect(first.notes.kept(A)).toBeNull();
   });
 
   it("opens with no connection from what the host still reads, and stalls on nothing", async () => {

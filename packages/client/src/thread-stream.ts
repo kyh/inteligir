@@ -53,7 +53,7 @@ const MOVES_LIBRARY: ReadonlySet<string> = new Set<AgentEvent["type"]>([
 
 const landed = (queryClient: QueryClient, orpc: V1Queries, row: ThreadEventRow) => {
   if (MOVES_THREAD.has(row.type)) {
-    invalidateMoved(orpc, queryClient, { folders: false, items: [], threads: [row.threadId] });
+    invalidateMoved(orpc, queryClient, { items: [], threads: [row.threadId], tree: false });
   }
 
   if (MOVES_LIBRARY.has(row.type)) {

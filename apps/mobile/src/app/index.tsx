@@ -87,7 +87,7 @@ const SaveField = ({ scope }: { scope: LibraryScope }) => {
 
     void (async () => {
       setSaving(true);
-      const saved = await saves.saveText(draft, { folderId: saveFolderOf(scope) });
+      const saved = await saves.saveText(draft, { parentId: saveFolderOf(scope) });
       setSaving(false);
 
       if (!saidIfNotSaved(saved)) {
@@ -207,8 +207,8 @@ const LibraryScreen = () => {
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const scopes = useQuery(queries.library.listing.scopes.queryOptions());
-  const folders = scopes.data?.folders ?? [];
-  const scope = scopes.data === undefined ? chosenScope : listedScope(chosenScope, folders);
+  const containers = scopes.data?.containers ?? [];
+  const scope = scopes.data === undefined ? chosenScope : listedScope(chosenScope, containers);
   const words = usePaused(query.trim());
 
   const listing = useInfiniteQuery(
@@ -257,7 +257,7 @@ const LibraryScreen = () => {
       return;
     }
 
-    const made = await saves.newNote({ folderId: saveFolderOf(scope) });
+    const made = await saves.newNote({ parentId: saveFolderOf(scope) });
 
     if (saidIfNotSaved(made)) {
       void changedItems();
@@ -333,7 +333,7 @@ const LibraryScreen = () => {
             },
             placeholder: "Search your library",
           },
-          title: scopeTitle(scope, folders, "Library"),
+          title: scopeTitle(scope, containers, "Library"),
         }}
       />
       <Stack.Toolbar placement="right">
@@ -355,16 +355,17 @@ const LibraryScreen = () => {
             >
               Unsorted
             </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.Menu title="Folders" hidden={folders.length === 0}>
-              {folders.map((folder) => (
+            <Stack.Toolbar.Menu title="Folders" hidden={containers.length === 0}>
+              {containers.map((container) => (
                 <Stack.Toolbar.MenuAction
-                  key={folder.id}
-                  isOn={scope.kind === "folder" && scope.folderId === folder.id}
+                  key={container.id}
+                  icon={container.kind === "list" ? "list.bullet" : "folder"}
+                  isOn={scope.kind === "parent" && scope.parentId === container.id}
                   onPress={() => {
-                    setChosenScope({ folderId: folder.id, kind: "folder" });
+                    setChosenScope({ kind: "parent", parentId: container.id });
                   }}
                 >
-                  {folder.name}
+                  {container.title}
                 </Stack.Toolbar.MenuAction>
               ))}
             </Stack.Toolbar.Menu>

@@ -48,7 +48,7 @@ const item = (id: string, fields: Partial<LibraryItemFields>, blocks: BodyBlock[
   }) satisfies WholeItem;
 
 const LIBRARY: readonly WholeItem[] = [
-  item(PLAN, { folderId: Q4, title: "Launch plan" }, [
+  item(PLAN, { parentId: Q4, title: "Launch plan" }, [
     ...note([
       {
         children: [
@@ -90,8 +90,8 @@ const fakeCell = (options: { readonly failOn?: string } = {}) => {
     },
     folders: async () =>
       await Promise.resolve([
-        { id: PROJECTS, name: "Projects", parentId: null, sort: "a" },
-        { id: Q4, name: "Q4", parentId: PROJECTS, sort: "a" },
+        { id: PROJECTS, parentId: null, title: "Projects" },
+        { id: Q4, parentId: PROJECTS, title: "Q4" },
       ]),
     item: async (id) => {
       if (id === options.failOn) {

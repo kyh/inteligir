@@ -66,7 +66,7 @@ export const item = pgTable.withRLS(
     coverSha: text("cover_sha"),
     deletedAt: ms("deleted_at"),
     description: text("description"),
-    folderId: text("folder_id"),
+    parentId: text("parent_id"),
     id: text("id").notNull(),
     kind: itemKind("kind").notNull(),
     lang: text("lang"),
@@ -121,6 +121,9 @@ export const item = pgTable.withRLS(
       .on(table.accountId, table.deletedAt.desc().nullsFirst(), table.id)
       .where(sql`${table.deletedAt} is not null`),
     index("item_seq").on(table.accountId, table.seq),
+    index("item_live_parent")
+      .on(table.accountId, table.parentId)
+      .where(sql`${table.deletedAt} is null`),
     index("item_live_title_key")
       .on(table.accountId, table.titleKey)
       .where(sql`${table.deletedAt} is null`),
@@ -214,23 +217,6 @@ export const purgedItem = pgTable.withRLS(
   (table) => [
     primaryKey({ columns: [table.accountId, table.id] }),
     index("purged_item_seq").on(table.accountId, table.seq),
-  ],
-);
-
-export const folder = pgTable.withRLS(
-  "folder",
-  {
-    accountId: accountId(),
-    deletedAt: ms("deleted_at"),
-    id: text("id").notNull(),
-    name: text("name").notNull(),
-    parentId: text("parent_id"),
-    seq: ms("seq").notNull(),
-    sort: text("sort").notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.accountId, table.id] }),
-    index("folder_parent").on(table.accountId, table.parentId),
   ],
 );
 

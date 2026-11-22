@@ -33,7 +33,7 @@ export const noteActions = ({ itemId, library, openItem, queryClient }: NoteActi
 
       const { item } = await client.library.items.create({
         blocks: blocks.map((block) => ({ block, section: "note" })),
-        folderId: beside?.fields.folderId ?? null,
+        parentId: beside?.fields.parentId ?? null,
         id: newId(),
         opId: newId(),
         savedAt: Date.now(),

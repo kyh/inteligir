@@ -1,7 +1,7 @@
 import type { Root } from "mdast";
 import type { TElement } from "platejs";
 
-import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
+import { COVERS_DIR, isContainerKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { importedFields } from "@repo/contract/library/item-makes";
@@ -55,7 +55,7 @@ const imageUrl = (block: TElement | undefined) =>
 const under = (dir: string, path: string) => path.startsWith(`${dir}/`);
 
 const originalKind = (kind: ItemKind) =>
-  !URL_ITEM_KINDS.some((url) => url === kind) && kind !== "note";
+  !URL_ITEM_KINDS.some((url) => url === kind) && kind !== "note" && !isContainerKind(kind);
 
 interface HeldFiles {
   cover: string | null;

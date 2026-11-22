@@ -9,7 +9,7 @@ import { linkInText } from "./link-in-text";
 import type { ShareSave } from "./share-payload";
 
 interface SaveTarget {
-  readonly folderId: string | null;
+  readonly parentId: string | null;
 }
 
 export type SaveOutcome = CallOutcome<{ readonly id: string; readonly created: boolean }>;
@@ -77,7 +77,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
   const stamp = () =>
     ({ id: args.newId(), opId: args.newId(), savedAt: args.now() }) satisfies SaveStamp;
 
-  const saveLink: PhoneSaves["saveLink"] = async (link, { folderId }, ids = stamp()) => {
+  const saveLink: PhoneSaves["saveLink"] = async (link, { parentId }, ids = stamp()) => {
     if (!isWebUrl(link.url)) {
       return refused(WEB_URL_RULE);
     }
@@ -85,7 +85,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
     return await answered(
       async () =>
         await library.items.saveLink({
-          folder: folderId === null ? null : { id: folderId },
+          parent: parentId === null ? null : { id: parentId },
           id: ids.id,
           opId: ids.opId,
           note: link.note ?? undefined,
@@ -113,7 +113,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
   };
 
   return {
-    addFile: async ({ bytes, mime, name }, { folderId }) => {
+    addFile: async ({ bytes, mime, name }, { parentId }) => {
       const ids = stamp();
       const kept = await keepFile({ bytes, mime });
 
@@ -124,7 +124,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
       return await answered(
         async () =>
           await library.items.createFile({
-            folderId,
+            parentId,
             id: ids.id,
             name,
             opId: ids.opId,
@@ -135,14 +135,14 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
       );
     },
     keepFile,
-    newNote: async ({ folderId }) => {
+    newNote: async ({ parentId }) => {
       const ids = stamp();
 
       return await answered(
         async () =>
           await library.items.create({
             blocks: [],
-            folderId,
+            parentId,
             id: ids.id,
             opId: ids.opId,
             savedAt: ids.savedAt,
@@ -176,7 +176,7 @@ export const createPhoneSaves = (args: PhoneSavesArgs) => {
               block,
               section: "note" as const,
             })),
-            folderId: target.folderId,
+            parentId: target.parentId,
             id: ids.id,
             opId: ids.opId,
             savedAt: ids.savedAt,

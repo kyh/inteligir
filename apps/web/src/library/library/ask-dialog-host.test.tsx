@@ -86,17 +86,17 @@ describe("a command's ask", () => {
 
   it("offers every folder and none to move to", async () => {
     const cell = createFakeCell();
-    const folderId = cell.seed.folder("Reading");
+    const parentId = cell.seed.folder("Reading");
     hostOver(cell);
 
     const picked = asked(async () => await askFolder({ count: 2 }));
     await screen.findByRole("heading", { name: "Move 2 items to" });
     fireEvent.click(await screen.findByRole("button", { name: "Reading" }));
-    await expect(picked.answer).resolves.toStrictEqual({ folderId });
+    await expect(picked.answer).resolves.toStrictEqual({ parentId });
 
     const none = asked(async () => await askFolder({ count: 1 }));
     fireEvent.click(await screen.findByRole("button", { name: "No folder (Unsorted)" }));
-    await expect(none.answer).resolves.toStrictEqual({ folderId: null });
+    await expect(none.answer).resolves.toStrictEqual({ parentId: null });
   });
 
   it("adds a tag as it is spelled, or takes off one every subject carries", async () => {

@@ -4,6 +4,7 @@ import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { NoteStanding } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
+import { pageUnsentNotes } from "@repo/editor/item/unsent-notes";
 import type { LibraryActions } from "./library-actions";
 
 export type NoteState = "none" | "reading" | "editing";
@@ -149,6 +150,7 @@ export const installPageHost = (first: PageProps) => {
         },
         read: async (itemId) => await props.readNote(itemId),
         save: async (save) => await props.saveNote(save),
+        unsent: pageUnsentNotes(),
       },
       openItem: (itemId) => {
         props.openItem(itemId);

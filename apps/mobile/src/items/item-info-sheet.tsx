@@ -5,20 +5,20 @@ import { SPACE } from "@/lib/theme";
 
 export interface InfoFolder {
   readonly id: string;
-  readonly name: string;
+  readonly title: string;
   readonly parentId: string | null;
 }
 
-const folderPath = (folders: readonly InfoFolder[], folderId: string | null) => {
-  if (folderId === null) {
+const folderPath = (folders: readonly InfoFolder[], filedIn: string | null) => {
+  if (filedIn === null) {
     return "Unsorted";
   }
 
   const names: string[] = [];
-  let at = folders.find((folder) => folder.id === folderId);
+  let at = folders.find((folder) => folder.id === filedIn);
 
   while (at !== undefined && names.length < folders.length) {
-    names.unshift(at.name);
+    names.unshift(at.title);
     const { parentId } = at;
     at = folders.find((folder) => folder.id === parentId);
   }
@@ -32,7 +32,7 @@ const rowsOf = (fields: LibraryItemFields, folders: readonly InfoFolder[]) =>
     { label: "Site", value: fields.site },
     { label: "Saved", value: new Date(fields.savedAt).toLocaleString() },
     { label: "Kind", value: KIND_LABELS[fields.kind] },
-    { label: "Folder", value: folderPath(folders, fields.folderId) },
+    { label: "Folder", value: folderPath(folders, fields.parentId) },
     {
       label: "Tags",
       value: fields.tags.length === 0 ? null : fields.tags.map((tag) => `#${tag}`).join(" "),

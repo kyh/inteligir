@@ -55,7 +55,7 @@ const ItemScreen = () => {
   const { queries } = useLibrary();
   const read = useItem(itemId);
   const item = read.kind === "held" ? read.item : null;
-  const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.folders ?? [];
+  const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.containers ?? [];
   const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
 

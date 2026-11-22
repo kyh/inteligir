@@ -20,7 +20,7 @@ const blocksOf: (lines: readonly string[]) => BodyBlock[] = (lines: readonly str
 
 const noteOf = (lines: readonly string[], title = "") => ({
   blocks: blocksOf(lines),
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

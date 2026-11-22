@@ -18,7 +18,7 @@ const untitledNote = (...texts: string[]) => ({
         section: "note",
       }) satisfies BodyBlock,
   ),
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

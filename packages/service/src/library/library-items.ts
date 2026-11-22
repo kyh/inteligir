@@ -1,5 +1,5 @@
 import { organized } from "@repo/contract/library/cell-rules";
-import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
+import type { OrganizeInput, ParentTarget } from "@repo/contract/library/cell-rules";
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { withReading } from "@repo/contract/library/item-reading";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
@@ -13,8 +13,8 @@ import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { compareText } from "@repo/contract/library/order-key";
 
-import { folderOfTarget } from "./library-folders";
 import { mintLibraryId } from "./library-ids";
+import { containersUnder, parentOfTarget } from "./library-parents";
 import { landNewItems } from "./library-landing";
 import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
@@ -40,7 +40,7 @@ export interface CreateFileInput {
   readonly name: string;
   readonly title?: string | undefined;
   readonly tags: readonly string[];
-  readonly folderId: string | null;
+  readonly parentId: string | null;
   readonly savedAt: number;
 }
 
@@ -60,29 +60,29 @@ export const createFile = async (scope: WriteScope, input: CreateFileInput) => {
 
 export interface CreateNoteInput {
   readonly markdown: string;
-  readonly folder?: FolderTarget | undefined;
+  readonly parent?: ParentTarget | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly title?: string | undefined;
 }
 
 export const createNote = async (scope: WriteScope, input: CreateNoteInput) => {
-  const folderId = await folderOfTarget(scope, input.folder);
+  const id = mintLibraryId(scope.now);
+  const parentId = await parentOfTarget(scope, input.parent, [{ id, kind: "note" }]);
 
   return await landNew(scope, {
     blocks: await noteBlocksOf(scope, input.markdown),
     fields: noteFields({
-      folderId: folderId ?? null,
+      parentId: parentId ?? null,
       savedAt: scope.now,
       tags: input.tags ?? [],
       title: input.title ?? "",
     }),
-    id: mintLibraryId(scope.now),
+    id,
   });
 };
 
 export const organizeItems = async (scope: WriteScope, input: OrganizeInput) => {
-  const folderId = await folderOfTarget(scope, input.folder);
-  const landed: LiveItemRow[] = [];
+  const read: StoredItem[] = [];
 
   for (const itemId of new Set(input.ids)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
@@ -91,10 +91,44 @@ export const organizeItems = async (scope: WriteScope, input: OrganizeInput) => 
       return refuse({ kind: "not-found" });
     }
 
-    landed.push(await landFields(scope, held, organized(held.fields, input, folderId, scope.now)));
+    read.push(held);
+  }
+
+  const parentId = await parentOfTarget(
+    scope,
+    input.parent,
+    read.map(({ fields, id }) => ({ id, kind: fields.kind })),
+  );
+
+  const landed: LiveItemRow[] = [];
+
+  for (const held of read) {
+    landed.push(await landFields(scope, held, organized(held.fields, input, parentId, scope.now)));
   }
 
   return landed;
+};
+
+export interface CreateItemInput {
+  readonly id: string;
+  readonly kind: "note" | "folder" | "list";
+  readonly blocks: NewItem["blocks"];
+  readonly parentId: string | null;
+  readonly savedAt: number;
+  readonly tags: readonly string[];
+  readonly title: string;
+}
+
+export const createItem = async (scope: WriteScope, input: CreateItemInput) => {
+  await parentOfTarget(scope, input.parentId === null ? null : { id: input.parentId }, [
+    { id: input.id, kind: input.kind },
+  ]);
+
+  return await landNew(scope, {
+    blocks: input.blocks,
+    fields: { ...noteFields(input), kind: input.kind },
+    id: input.id,
+  });
 };
 
 export const landedSummaries = async (scope: WriteScope, rows: readonly LiveItemRow[]) => {
@@ -125,7 +159,9 @@ export const setDeleted = async (
   const addressHeld: string[] = [];
   const read: StoredItem[] = [];
 
-  for (const itemId of new Set(input.ids)) {
+  const asked = input.deleted ? await containersUnder(scope, input.ids) : input.ids;
+
+  for (const itemId of new Set(asked)) {
     const held = await readItem(scope.tx, scope.accountId, itemId);
 
     if (held === null) {

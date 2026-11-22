@@ -1,5 +1,4 @@
 import { generateKeyBetween } from "fractional-indexing";
-import { z } from "zod";
 
 const ORD_MAX_LENGTH = 128;
 
@@ -39,8 +38,6 @@ export const isOrdKey = (key: string) => {
 
   return BASE_62_KEY.test(key);
 };
-
-export const ordSchema = z.string().refine(isOrdKey, { error: "is not an order key" });
 
 export const ordBetween = (before: string | null, after: string | null) =>
   generateKeyBetween(before, after);

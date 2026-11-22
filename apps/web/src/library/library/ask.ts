@@ -20,14 +20,14 @@ interface TagsAsk {
 }
 
 interface PickedFolder {
-  readonly folderId: string | null;
+  readonly parentId: string | null;
 }
 
 type Answer<Value> = (value: Value | null) => void;
 
 export type Ask =
   | (NameAsk & { readonly kind: "name"; readonly answer: Answer<string> })
-  | (FolderAsk & { readonly kind: "folder"; readonly answer: Answer<PickedFolder> })
+  | (FolderAsk & { readonly kind: "parent"; readonly answer: Answer<PickedFolder> })
   | (TagsAsk & { readonly kind: "tags"; readonly answer: Answer<TagChange> });
 
 interface Asks {
@@ -60,7 +60,7 @@ export const askName = async (ask: NameAsk) =>
   await asking<string>((answer) => ({ ...ask, answer, kind: "name" }));
 
 export const askFolder = async (ask: FolderAsk) =>
-  await asking<PickedFolder>((answer) => ({ ...ask, answer, kind: "folder" }));
+  await asking<PickedFolder>((answer) => ({ ...ask, answer, kind: "parent" }));
 
 export const askTags = async (ask: TagsAsk) =>
   await asking<TagChange>((answer) => ({ ...ask, answer, kind: "tags" }));

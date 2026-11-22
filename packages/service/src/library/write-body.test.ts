@@ -26,7 +26,7 @@ const line = (text: string) =>
 
 const noteOf = (blocks: readonly BodyBlock[]) => ({
   blocks: [...blocks],
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: SAVED_AT,
   tags: [],
@@ -180,7 +180,7 @@ dbSuite("a note's body saved over its version", () => {
       article: [article],
       coverSha: null,
       facts: { author: null, description: null, lang: null, published: null, site: null },
-      folderId: null,
+      parentId: null,
       id: mintLibraryId(Date.now()),
       savedAt: SAVED_AT,
       tags: [],

@@ -5,7 +5,7 @@ import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-
 import { BODY_MAX_BYTES, bodyBytes } from "@repo/contract/library/library-wire";
 
 import { mergeBlocks } from "@repo/editor/headless/body/merge-blocks";
-import type { NoteHost, NoteStanding } from "@repo/editor/host-io";
+import type { NoteHost, NoteStanding, UnsentNote } from "@repo/editor/host-io";
 
 export const SAVE_PAUSE_MS = 1000;
 export const SAVE_MAX_WAIT_MS = 5000;
@@ -19,7 +19,7 @@ export interface NoteBody {
 
 export type NoteNotice = "conflict" | "deleted" | "agent" | "offline" | "full" | "file-missing";
 
-const TAKES_EDITS: ReadonlySet<NoteNotice> = new Set(["agent", "full", "file-missing"]);
+const TAKES_EDITS: ReadonlySet<NoteNotice> = new Set(["agent", "full", "file-missing", "offline"]);
 
 export const takesNoEdit = (notice: NoteNotice | null) =>
   notice !== null && !TAKES_EDITS.has(notice);
@@ -78,6 +78,7 @@ export class NoteSaver {
   private full = false;
   private fileMissing: readonly BodyBlock[] | null = null;
   private offline = false;
+  private kept = false;
   private readonly agentCalls = new Set<string>();
   private readsAsked = 0;
   private reading = false;
@@ -206,6 +207,14 @@ export class NoteSaver {
       return false;
     }
 
+    const typed = this.body?.mine() ?? null;
+
+    if (this.offline && typed !== null && this.base !== null) {
+      this.keep(typed);
+
+      return false;
+    }
+
     if (phase.kind === "saving" && phase.outlives) {
       return this.dirtySince !== null;
     }
@@ -263,13 +272,20 @@ export class NoteSaver {
 
   private async open() {
     let note: HeldNote | null = null;
+    const unsent = this.host.unsent.read(this.itemId);
 
     try {
       note = await this.host.read(this.itemId);
     } catch {
-      if (!this.closed) {
+      if (this.closed) {
+        return;
+      }
+
+      if (unsent === null) {
         this.current = { kind: "opening", stalled: true };
         this.tell();
+      } else {
+        this.reopen(unsent);
       }
 
       return;
@@ -280,14 +296,37 @@ export class NoteSaver {
     }
 
     if (note === null) {
+      this.host.unsent.write(this.itemId, null);
       this.current = { kind: "missing" };
       this.tell();
 
       return;
     }
 
-    this.loaded(note);
-    this.redraw(note.blocks);
+    if (
+      unsent === null ||
+      unsent.baseVersion > note.version ||
+      sameBody(unsent.blocks, note.blocks)
+    ) {
+      this.host.unsent.write(this.itemId, null);
+      this.loaded(note);
+      this.redraw(note.blocks);
+
+      return;
+    }
+
+    this.deleted = note.deleted;
+    this.reopen(unsent);
+  }
+
+  private reopen(unsent: UnsentNote) {
+    this.kept = true;
+    this.base = { blocks: unsent.baseBlocks, version: unsent.baseVersion };
+    this.title = unsent.title;
+    this.redraw(unsent.blocks);
+    this.lastEdit = Date.now();
+    this.dirtySince = this.lastEdit;
+    this.next();
   }
 
   private loaded(note: HeldNote) {
@@ -328,9 +367,30 @@ export class NoteSaver {
   }
 
   private blocked() {
-    return (
-      this.phase.kind === "conflict" || this.deleted || this.offline || this.agentCalls.size > 0
-    );
+    return this.phase.kind === "conflict" || this.deleted || this.agentCalls.size > 0;
+  }
+
+  private keep(blocks: readonly BodyBlock[]) {
+    const { base } = this;
+
+    if (base === null) {
+      return;
+    }
+
+    this.kept = true;
+    this.host.unsent.write(this.itemId, {
+      baseBlocks: base.blocks,
+      baseVersion: base.version,
+      blocks,
+      title: this.title,
+    });
+  }
+
+  private forgetKept() {
+    if (this.kept && this.dirtySince === null && this.phase.kind === "idle") {
+      this.kept = false;
+      this.host.unsent.write(this.itemId, null);
+    }
   }
 
   private awaitsSave() {
@@ -384,6 +444,14 @@ export class NoteSaver {
 
     if (sameBody(blocks, base.blocks)) {
       this.dirtySince = null;
+      this.forgetKept();
+      this.emit();
+
+      return;
+    }
+
+    if (this.offline) {
+      this.keep(blocks);
       this.emit();
 
       return;
@@ -443,6 +511,7 @@ export class NoteSaver {
 
     if (answer?.kind === "saved") {
       this.phase = IDLE;
+      this.forgetKept();
 
       if (this.behind) {
         this.behind = false;

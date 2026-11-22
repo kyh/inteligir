@@ -131,6 +131,7 @@ export const spyCommands = () =>
     emptyDeleted: vi.fn<LibraryCommands["emptyDeleted"]>(),
     move: vi.fn<LibraryCommands["move"]>(),
     newFolder: vi.fn<LibraryCommands["newFolder"]>(),
+    newList: vi.fn<LibraryCommands["newList"]>(),
     newNote: vi.fn<LibraryCommands["newNote"]>(),
     openItem: vi.fn<LibraryCommands["openItem"]>(),
     openPalette: vi.fn<LibraryCommands["openPalette"]>(),

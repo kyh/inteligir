@@ -88,9 +88,15 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a link to
   a scope and all but Deleted with the cell's count, a plain click moving the tab and any other the
   browser's, and a waiting call is the layout's one notice, since an online tab has nothing queued
-  to report. `apps/web/src/library/sidebar/rail.tsx`.
+  to report. Folders lists the scopes' containers, folders and lists both, each a scope of its own.
+  `apps/web/src/library/sidebar/rail.tsx`.
+- **A folder or list is an item, so its writes are item writes.** Creating one is `items.create`
+  with its kind, renaming and moving it `items.organize`, deleting it `items.delete`, which takes
+  the folders and lists under it too; the tab lays each over the scopes until the cell answers,
+  since a write of folders of their own would keep a second shape of the tree.
+  `apps/web/src/library/cloud/library-writes.ts`.
 - **A library scope has one spelling, `@repo/contract/library-scope`.** The address, a listing's
-  page on the wire and a view context read one set of zod arms, a folder by its id, since a scope
+  page on the wire and a view context read one set of zod arms, a folder or list by its id, since a scope
   per surface drifts and a folder by path breaks every link to it on a rename.
   `packages/contract/src/library-scope.ts`.
 - **There is one search surface, and it is ⌘P.** One field over the cell's full-text index, ranked

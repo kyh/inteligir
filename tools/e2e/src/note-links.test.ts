@@ -32,16 +32,16 @@ test("a formula reads a pill of its note by name, Extract makes a linked note, a
     ':formula[40]{name="base" source="40"} and :formula[0]{name="bigger" source="base+2"}';
 
   const { item } = await library.items.createNote({
-    folder: { path: "Birds" },
+    parent: { path: "Birds" },
     markdown: `# Field notes\n\nSizes: ${formulas}\n\n${PASSAGE}\n\n${STAYS}\n`,
     title: "Field notes",
   });
 
-  const { folders } = await library.organize.outline();
-  const folderId = folders.find((folder) => folder.name === "Birds")?.id;
+  const { containers: folders } = await library.organize.outline();
+  const parentId = folders.find((folder) => folder.title === "Birds")?.id;
 
   const inFolder = async (title: string) => {
-    const { items } = await library.items.list({ folderId, limit: 50 });
+    const { items } = await library.items.list({ parentId, limit: 50 });
 
     return items.find((row) => row.title === title)?.id;
   };

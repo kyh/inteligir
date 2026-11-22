@@ -19,7 +19,7 @@ const fields = (patch: Partial<LibraryItemFields>) =>
     coverSha: null,
     deletedAt: null,
     description: null,
-    folderId: null,
+    parentId: null,
     kind: "file",
     lang: null,
     originalName: "minutes.txt",

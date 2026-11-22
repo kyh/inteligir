@@ -81,9 +81,10 @@ export const invalidateMoved = (
     });
   }
 
-  if (moved.folders) {
+  if (moved.tree) {
     onceQueueEmpty(queryClient, () => {
       void queryClient.invalidateQueries({ queryKey: library.listing.scopes.key() });
+      void queryClient.invalidateQueries({ queryKey: library.listing.children.key() });
     });
   }
 

@@ -23,7 +23,7 @@ const BROKE: ReadingEvent = { at: LATER, error: "Timed out.", kind: "failed" };
 
 const linkWith = (reading: Reading) =>
   ({
-    ...stubFields({ folderId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
+    ...stubFields({ parentId: null, savedAt: AT, tags: [], url: "https://example.com/a" }),
     reading,
   }) satisfies LibraryItemFields;
 

@@ -100,7 +100,7 @@ const sharesKept = (storage: MemoryKv) =>
 const noteOnTheMac = async (cell: FakeCell) => {
   await cell.device("mac").client.library.items.create({
     blocks: [{ block: paragraph("p1", "first"), section: "note" }],
-    folderId: null,
+    parentId: null,
     id: NOTE,
     opId: "0190a000-0000-7000-8000-0000000000b1",
     savedAt: 1_700_000_000_000,

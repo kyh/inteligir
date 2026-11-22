@@ -17,10 +17,10 @@ afterEach(() => {
 
 const cellWithALink = () => {
   const cell = createFakeCell();
-  const folderId = cell.seed.folder("Reading");
+  const parentId = cell.seed.folder("Reading");
 
   const id = cell.seed.item({
-    folderId,
+    parentId,
     kind: "link",
     reading: { at: 1_700_000_000_000, state: "read" },
     tags: ["reading"],

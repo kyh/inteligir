@@ -93,7 +93,7 @@ const laptopOn = (host: CellHost) => {
             section: "note",
           }) satisfies BodyBlock,
       ),
-      folderId: null,
+      parentId: null,
       id,
       savedAt: SAVED_AT + next,
       tags: filing.tags ?? [],
@@ -112,7 +112,7 @@ const laptopOn = (host: CellHost) => {
     article,
     coverSha: null,
     facts: { ...FACTS, site: "example.com" },
-    folderId: null,
+    parentId: null,
     id: newId(),
     savedAt: SAVED_AT,
     tags,
@@ -213,14 +213,20 @@ export const cellConformance = (withHost: WithHost) => {
     it("organizes: tags case by case, a folder by its id, a pin and a title, and answers every tag the item carries", async () => {
       await withLaptop(async ({ library, newId, note }) => {
         const reading = newId();
-        await library.folders.write({
-          ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
+        await library.items.create({
+          blocks: [],
+          id: reading,
+          kind: "folder",
+          parentId: null,
+          savedAt: 1,
+          tags: [],
+          title: "Reading",
         });
         const id = await note(["Plans for #later."], { tags: ["Spring", "trips"], title: "Plans" });
 
         const { items } = await library.items.organize({
           addTags: ["SPRING", "plans"],
-          folder: { id: reading },
+          parent: { id: reading },
           ids: [id],
           pinned: true,
           removeTags: ["TRIPS"],
@@ -229,7 +235,7 @@ export const cellConformance = (withHost: WithHost) => {
 
         expect(items).toMatchObject([
           {
-            folderId: reading,
+            parentId: reading,
             id,
             pinned: true,
             tags: ["Spring", "later", "plans"],
@@ -237,7 +243,7 @@ export const cellConformance = (withHost: WithHost) => {
           },
         ]);
         await expect(library.items.get({ id })).resolves.toMatchObject({
-          fields: { folderId: reading, tags: ["Spring", "plans"], title: "Trip" },
+          fields: { parentId: reading, tags: ["Spring", "plans"], title: "Trip" },
         });
       });
     });
@@ -250,10 +256,10 @@ export const cellConformance = (withHost: WithHost) => {
           codeOf(library.items.organize({ ids: [id, newId()], pinned: true })),
         ).resolves.toBe("NOT_FOUND");
         await expect(
-          codeOf(library.items.organize({ folder: { id: newId() }, ids: [id] })),
+          codeOf(library.items.organize({ ids: [id], parent: { id: newId() } })),
         ).resolves.toBe("NOT_FOUND");
         await expect(library.items.get({ id })).resolves.toMatchObject({
-          fields: { folderId: null, pinnedAt: null },
+          fields: { parentId: null, pinnedAt: null },
         });
       });
     });
@@ -462,7 +468,7 @@ export const cellConformance = (withHost: WithHost) => {
     it("makes a file of bytes sent up first, its kind by the type they were sent as, and refuses one whose bytes never were", async () => {
       await withLaptop(async ({ library, newId, upload }) => {
         const fileOf = (sha: string) => ({
-          folderId: null,
+          parentId: null,
           id: newId(),
           name: "pier.png",
           savedAt: SAVED_AT,
@@ -583,8 +589,14 @@ export const cellConformance = (withHost: WithHost) => {
     it("organizes every item its scope lists but those left out, leaving a change of tags past an item's cap and saying so", async () => {
       await withLaptop(async ({ library, newId, note, runDue }) => {
         const reading = newId();
-        await library.folders.write({
-          ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
+        await library.items.create({
+          blocks: [],
+          id: reading,
+          kind: "folder",
+          parentId: null,
+          savedAt: 1,
+          tags: [],
+          title: "Reading",
         });
         const kept = await note(["Left out."], { tags: ["field"] });
         const swept = await note(["Swept."], { tags: ["field", "Spring"] });
@@ -596,7 +608,7 @@ export const cellConformance = (withHost: WithHost) => {
             scope: { kind: "all" },
             verb: {
               addTags: ["done"],
-              folder: { id: reading },
+              parent: { id: reading },
               kind: "organize",
               pinned: true,
               removeTags: ["FIELD"],
@@ -605,7 +617,7 @@ export const cellConformance = (withHost: WithHost) => {
         ).resolves.toStrictEqual({ items: 2, refused: [full] });
         await runDue();
 
-        const placed = { folderId: reading, pinnedAt: expect.any(Number) };
+        const placed = { parentId: reading, pinnedAt: expect.any(Number) };
         await expect(library.items.get({ id: swept })).resolves.toMatchObject({
           fields: { ...placed, tags: ["Spring", "done"] },
         });
@@ -613,7 +625,7 @@ export const cellConformance = (withHost: WithHost) => {
           fields: { ...placed, tags: TAGS_AT_CAP },
         });
         await expect(library.items.get({ id: kept })).resolves.toMatchObject({
-          fields: { folderId: null, pinnedAt: null, tags: ["field"] },
+          fields: { parentId: null, pinnedAt: null, tags: ["field"] },
         });
       });
     });

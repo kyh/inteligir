@@ -28,16 +28,16 @@ describe(organizedOverlay, () => {
 
   it("pins, moves and retitles the item and its card", () => {
     const cell = createFakeCell();
-    const id = cell.seed.item({ folderId: cell.seed.folder("Trips"), title: "Plans" });
+    const id = cell.seed.item({ parentId: cell.seed.folder("Trips"), title: "Plans" });
 
     const laid = organizedOverlay({
-      folder: null,
+      parent: null,
       ids: [id],
       pinned: true,
       title: "Trip",
     }).item(cell.held(id));
 
-    expect(laid.fields.folderId).toBeNull();
+    expect(laid.fields.parentId).toBeNull();
     expect(laid.fields.pinnedAt).not.toBeNull();
     expect(laid.fields.title).toBe("Trip");
     expect(laid.card.title).toBe("Trip");
@@ -45,13 +45,13 @@ describe(organizedOverlay, () => {
 
   it("lays an item's fields as the fake cell lands them, a tag taken out and put back respelled where it stood", async () => {
     const cell = createFakeCell();
-    const folderId = cell.seed.folder("Trips");
+    const parentId = cell.seed.folder("Trips");
     const id = cell.seed.item({ tags: ["Spring", "trips", "work"], title: "Plans" });
 
     const input = {
       addTags: ["Trips", "plans"],
-      folder: { id: folderId },
       ids: [id],
+      parent: { id: parentId },
       pinned: true,
       removeTags: ["trips"],
       title: "Trip",
@@ -69,7 +69,7 @@ describe(organizedOverlay, () => {
 
   it("keeps what the write leaves alone, and an unpinned item's pin goes", () => {
     const cell = createFakeCell();
-    const id = cell.seed.item({ folderId: cell.seed.folder("Trips"), pinnedAt: 5, title: "Plans" });
+    const id = cell.seed.item({ parentId: cell.seed.folder("Trips"), pinnedAt: 5, title: "Plans" });
     const row = cell.listed(id);
     const laid = organizedOverlay({ ids: [id], pinned: false }).row(row);
     expect(laid?.fields).toStrictEqual({ ...row.fields, pinnedAt: null });
@@ -77,7 +77,7 @@ describe(organizedOverlay, () => {
   });
 });
 
-const WRITES = new Set(["library.items.organize", "library.items.delete", "library.folders.write"]);
+const WRITES = new Set(["library.items.organize", "library.items.delete", "library.items.create"]);
 
 const queuedWrites = async (cell: FakeCell, plan: readonly ("refused" | "held")[]) => {
   const held = deferred();
@@ -113,7 +113,7 @@ const queuedWrites = async (cell: FakeCell, plan: readonly ("refused" | "held")[
   ]);
 
   return {
-    folders: () => queryClient.getQueryData(queries.scopes().queryKey)?.folders ?? [],
+    folders: () => queryClient.getQueryData(queries.scopes().queryKey)?.containers ?? [],
     item: (id: string) => queryClient.getQueryData(queries.item(id).queryKey),
     land: held.resolve,
     listed: () =>
@@ -207,17 +207,23 @@ describe("a refused write", () => {
     const trips = cell.seed.folder("Trips");
     const screen = await queuedWrites(cell, ["refused", "held"]);
 
-    const refused = new MutationObserver(screen.queryClient, screen.writes.folders()).mutate({
-      ops: [{ id: newId(), name: "Plans", op: "create", parentId: null, sort: "a0" }],
+    const refused = new MutationObserver(screen.queryClient, screen.writes.containers()).mutate({
+      id: newId(),
+      kind: "folder",
+      op: "create",
+      parentId: null,
+      title: "Plans",
     });
 
-    const landing = new MutationObserver(screen.queryClient, screen.writes.folders()).mutate({
-      ops: [{ base: "Trips", id: trips, name: "Travel", op: "rename" }],
+    const landing = new MutationObserver(screen.queryClient, screen.writes.containers()).mutate({
+      id: trips,
+      op: "rename",
+      title: "Travel",
     });
 
     await expect(refused).rejects.toThrow("The cell refused it.");
 
-    expect(screen.folders().map((folder) => folder.name)).toStrictEqual(["Travel"]);
+    expect(screen.folders().map((folder) => folder.title)).toStrictEqual(["Travel"]);
     screen.land();
     await landing;
   });

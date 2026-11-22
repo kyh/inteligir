@@ -3,7 +3,7 @@ import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 import { item, job, libraryState } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { env } from "../env";
@@ -44,7 +44,7 @@ const pageSave = (url: string, words = "The quick brown fox jumps over the lazy 
   article: [paragraph(`p-${newId()}`, words)],
   coverSha: null,
   facts: { ...FACTS, site: "example.com" },
-  folderId: null,
+  parentId: null,
   id: newId(),
   savedAt: SAVED_AT,
   tags: [],
@@ -121,8 +121,8 @@ dbSuite("saving a web address", () => {
       const opId = newId();
 
       const input = {
-        folder: { path: "Work / Reading" },
         note: "For Tuesday, before the call.",
+        parent: { path: "Work / Reading" },
         opId,
         tags: ["later"],
         title: "A long read",
@@ -131,7 +131,7 @@ dbSuite("saving a web address", () => {
 
       const saved = await library.items.saveLink(input);
       expect(saved.item.fields).toMatchObject({ tags: ["later"], title: "A long read" });
-      expect(saved.item.fields.folderId).not.toBeNull();
+      expect(saved.item.fields.parentId).not.toBeNull();
       await expect(bodyOf(library, saved.item.id)).resolves.toStrictEqual([
         { children: [{ text: "For Tuesday, before the call." }], section: "note" },
       ]);
@@ -140,7 +140,7 @@ dbSuite("saving a web address", () => {
       const items = await db
         .select({ id: item.id })
         .from(item)
-        .where(eq(item.accountId, accountId));
+        .where(and(eq(item.accountId, accountId), eq(item.kind, "link")));
 
       expect(items).toHaveLength(1);
     });
@@ -153,7 +153,7 @@ dbSuite("saving a web address", () => {
       ).resolves.toStrictEqual({ code: "CONFLICT", data: undefined, defined: true });
       await expect(
         refusalOf(
-          library.items.saveLink({ folder: { id: newId() }, url: "https://example.com/filed" }),
+          library.items.saveLink({ parent: { id: newId() }, url: "https://example.com/filed" }),
         ),
       ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true });
       await expect(
@@ -330,7 +330,7 @@ dbSuite("saving a web address", () => {
         async () =>
           await library.items.create({
             blocks: [],
-            folderId: null,
+            parentId: null,
             id: newId(),
             savedAt: SAVED_AT,
             tags: [],

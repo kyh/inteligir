@@ -1,3 +1,4 @@
+import type { ContainerKind } from "@repo/contract/items/item-kind";
 import { saveFolderOf } from "@repo/client/library-labels";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
@@ -39,6 +40,8 @@ interface CommandPorts {
 
 const FOLDER_NAME = { initial: "", label: "Folder name" };
 
+const LIST_NAME = { initial: "", label: "List name" };
+
 const press =
   <Args extends unknown[]>(flow: (...args: Args) => Promise<void>) =>
   (...args: Args) => {
@@ -50,7 +53,7 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
     const listed = queryClient.getQueryData(wire.orpc.library.listing.scopes.queryKey());
     const scope = shownScope(goes.now().scope, listed);
 
-    return { folderId: saveFolderOf(scope), tags: saveTagsOf(scope) } satisfies SaveInto;
+    return { parentId: saveFolderOf(scope), tags: saveTagsOf(scope) } satisfies SaveInto;
   };
 
   const saveLink = (url: string) => {
@@ -91,16 +94,16 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
     closeItem: () => {
       goes.closeItem();
     },
-    deleteFolder: press(async (folderId: string, name: string) => {
+    deleteFolder: press(async (parentId: string, name: string, kind: ContainerKind = "folder") => {
       const sure = await confirm({
         body: "Its items move to Unsorted.",
-        confirmLabel: "Delete folder",
+        confirmLabel: kind === "list" ? "Delete list" : "Delete folder",
         destructive: true,
-        title: `Delete the folder “${name}”?`,
+        title: `Delete the ${kind} “${name}”?`,
       });
 
       if (sure) {
-        verbs.deleteFolder(folderId);
+        verbs.deleteFolder(parentId);
       }
     }),
     emptyDeleted: press(async () => {
@@ -115,7 +118,7 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
       const picked = await askFolder({ count: targetCount(target) });
 
       if (picked !== null) {
-        await verbs.move(target, picked.folderId);
+        await verbs.move(target, picked.parentId);
       }
     }),
     newFolder: press(async (parentId: string | null) => {
@@ -123,6 +126,13 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
 
       if (name !== null) {
         verbs.createFolder(name, parentId);
+      }
+    }),
+    newList: press(async (parentId: string | null) => {
+      const name = await askName({ ...LIST_NAME, confirm: "Create", title: "New list" });
+
+      if (name !== null) {
+        verbs.createFolder(name, parentId, "list");
       }
     }),
     newNote: press(async () => {
@@ -164,16 +174,16 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
 
       await verbs.remove(target);
     }),
-    renameFolder: press(async (folderId: string, name: string) => {
+    renameFolder: press(async (parentId: string, name: string, kind: ContainerKind = "folder") => {
       const next = await askName({
-        ...FOLDER_NAME,
+        ...(kind === "list" ? LIST_NAME : FOLDER_NAME),
         confirm: "Rename",
         initial: name,
-        title: "Rename folder",
+        title: kind === "list" ? "Rename list" : "Rename folder",
       });
 
       if (next !== null) {
-        verbs.renameFolder(folderId, next);
+        verbs.renameFolder(parentId, next);
       }
     }),
     restore: press(verbs.restore),

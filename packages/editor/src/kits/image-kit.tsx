@@ -20,6 +20,8 @@ export const fileTooLarge = (name: string, maxBytes: number) =>
 
 export const fileNotKept = (name: string) => `Couldn't add “${name}” to this note. Try again.`;
 
+const fileNeedsConnection = (name: string) => `Adding “${name}” to this note needs a connection.`;
+
 interface Transfer {
   readonly files: Iterable<File>;
   readonly types: readonly string[];
@@ -65,6 +67,11 @@ const placeFiles = async (editor: SlateEditor, files: readonly File[], at: TRang
     for (const file of files) {
       if (file.size > io.fileMaxBytes) {
         toast.error(fileTooLarge(file.name, io.fileMaxBytes));
+        continue;
+      }
+
+      if (!io.notes.reach.get()) {
+        toast.error(fileNeedsConnection(file.name));
         continue;
       }
 

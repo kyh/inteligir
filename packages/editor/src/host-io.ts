@@ -1,4 +1,5 @@
 import { titleKey } from "@repo/contract/library/derive-item";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
@@ -70,11 +71,24 @@ export interface NoteStanding {
   readonly deleted: boolean;
 }
 
+export interface UnsentNote {
+  readonly baseVersion: number;
+  readonly baseBlocks: readonly BodyBlock[];
+  readonly blocks: readonly BodyBlock[];
+  readonly title: string;
+}
+
+export interface UnsentNotes {
+  readonly read: (itemId: string) => UnsentNote | null;
+  readonly write: (itemId: string, note: UnsentNote | null) => boolean;
+}
+
 export interface NoteHost {
   readonly read: (itemId: string) => Promise<HeldNote | null>;
   readonly save: (save: NoteSave, outlives: boolean) => Promise<NoteSaved>;
   readonly follow: (itemId: string, listener: (standing: NoteStanding) => void) => () => void;
   readonly reach: Reach;
+  readonly unsent: UnsentNotes;
 }
 
 interface AgentRequestActions {

@@ -1,10 +1,10 @@
 import { keptFileType } from "@repo/contract/items/item-kind";
-import type { ListingFolder } from "@repo/contract/library/folder-rail";
+
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import { exportWriter, heldShas } from "@repo/editor/headless/codec/item-export";
 import { BlobReader, TextReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
 
-import type { ExportCell, WholeItem } from "./export-cell";
+import type { ContainerNode, ExportCell, WholeItem } from "./export-cell";
 import type { ExportAsk, ExportCounts, ExportNews } from "./export-news";
 
 export const EXPORT_INTERRUPTED = "The export stopped before it finished. Try again.";
@@ -76,7 +76,7 @@ const listLibrary = async (cell: ExportCell) => {
   return titles satisfies ReadonlyMap<string, string>;
 };
 
-const folderNamesOf = (folders: readonly ListingFolder[]) => {
+const folderNamesOf = (folders: readonly ContainerNode[]) => {
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
 
   return ((id) => {
@@ -89,7 +89,7 @@ const folderNamesOf = (folders: readonly ListingFolder[]) => {
       folder = folder.parentId === null ? undefined : byId.get(folder.parentId)
     ) {
       seen.add(folder.id);
-      names.unshift(folder.name);
+      names.unshift(folder.title);
     }
 
     return names;
@@ -142,7 +142,7 @@ const writeZip = async (
       }
     }
 
-    const file = write({ ...item, folder: folderNames(item.fields.folderId) });
+    const file = write({ ...item, folder: folderNames(item.fields.parentId) });
     await zip.add(file.path, new TextReader(file.text));
 
     for (const { path, sha } of file.files) {

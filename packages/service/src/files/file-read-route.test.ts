@@ -190,7 +190,7 @@ dbSuite("a file's read", () => {
 
     const saved = async (name: string, savedAt: number) =>
       await library.items.createFile({
-        folderId: null,
+        parentId: null,
         id: mintLibraryId(savedAt),
         name,
         savedAt,

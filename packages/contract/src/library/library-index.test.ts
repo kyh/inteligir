@@ -11,7 +11,7 @@ import { listingPageInputSchema } from "./library-wire";
 const row = (id: string, overrides: Partial<ListingRow> = {}) =>
   ({
     deletedAt: null,
-    folderId: null,
+    parentId: null,
     id,
     kind: "note",
     pinnedAt: null,
@@ -37,16 +37,14 @@ const ids = (index: LibraryIndex<ListingRow>, overrides: Partial<ListingQuery> =
 
 const filled = () => {
   const index = new LibraryIndex<ListingRow>();
-  index.setFolders([
-    { id: "work", name: "Work", parentId: null, sort: "a1" },
-    { id: "plans", name: "Plans", parentId: "work", sort: "a0" },
-    { id: "home", name: "Home", parentId: null, sort: "a0" },
-  ]);
+  index.upsert(row("work", { kind: "folder", title: "Work" }));
+  index.upsert(row("plans", { kind: "folder", parentId: "work", title: "Plans" }));
+  index.upsert(row("home", { kind: "folder", title: "Home" }));
   index.upsert(row("old", { savedAt: 1, title: "beta", updatedAt: 9 }));
-  index.upsert(row("new", { folderId: "work", savedAt: 5, tags: ["Read/later"], title: "Alpha" }));
+  index.upsert(row("new", { parentId: "work", savedAt: 5, tags: ["Read/later"], title: "Alpha" }));
   index.upsert(
     row("link", {
-      folderId: "plans",
+      parentId: "plans",
       kind: "link",
       savedAt: 3,
       tags: ["read"],
@@ -81,9 +79,9 @@ describe(LibraryIndex, () => {
     expect(links.total).toBe(1);
     expect(links.kindCounts).toStrictEqual(expect.objectContaining({ link: 1, note: 3 }));
     expect(ids(index, { tag: "read" })).toStrictEqual(["new", "link"]);
-    expect(ids(index, { folderId: "work" })).toStrictEqual(["new", "link"]);
-    expect(ids(index, { folderId: "work", tag: "read/later" })).toStrictEqual(["new"]);
-    expect(ids(index, { folderId: null })).toStrictEqual(["pinned", "old"]);
+    expect(ids(index, { parentId: "work" })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { parentId: "work", tag: "read/later" })).toStrictEqual(["new"]);
+    expect(ids(index, { parentId: null })).toStrictEqual(["pinned", "old"]);
     expect(ids(index, { pinned: true })).toStrictEqual(["pinned"]);
     expect(ids(index, { pinned: false })).toStrictEqual(["new", "link", "old"]);
     expect(ids(index, { sinceMs: 3 })).toStrictEqual(["new", "link"]);
@@ -119,7 +117,7 @@ describe(LibraryIndex, () => {
     expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);
     index.upsert(row("old", { savedAt: 10, title: "beta", updatedAt: 9 }));
     expect(ids(index)).toStrictEqual(["pinned", "old", "new", "link"]);
-    index.upsert(row("new", { deletedAt: 11, folderId: "work", savedAt: 5, title: "Alpha" }));
+    index.upsert(row("new", { deletedAt: 11, parentId: "work", savedAt: 5, title: "Alpha" }));
     expect(ids(index)).toStrictEqual(["pinned", "old", "link"]);
     index.remove("pinned");
     expect(ids(index)).toStrictEqual(["old", "link"]);
@@ -127,13 +125,13 @@ describe(LibraryIndex, () => {
 
   it("counts the library's scopes, a folder holding what its children hold", () => {
     const index = filled();
-    index.upsert(row("orphan", { folderId: "no-such-folder" }));
+    index.upsert(row("orphan", { parentId: "no-such-folder" }));
     expect(index.scopes()).toStrictEqual({
       deleted: 1,
-      folders: [
-        { id: "home", items: 0, name: "Home", parentId: null, sort: "a0" },
-        { id: "work", items: 2, name: "Work", parentId: null, sort: "a1" },
-        { id: "plans", items: 1, name: "Plans", parentId: "work", sort: "a0" },
+      containers: [
+        { id: "home", items: 0, kind: "folder", parentId: null, title: "Home" },
+        { id: "work", items: 2, kind: "folder", parentId: null, title: "Work" },
+        { id: "plans", items: 1, kind: "folder", parentId: "work", title: "Plans" },
       ],
       tags: [
         { items: 1, tag: "read" },
@@ -177,10 +175,38 @@ describe(LibraryIndex, () => {
 
   it("lists nothing under a folder no longer live, and what was in it as unsorted", () => {
     const index = filled();
-    index.setFolders([{ id: "plans", name: "Plans", parentId: "work", sort: "a0" }]);
-    expect(ids(index, { folderId: "work" })).toStrictEqual([]);
-    expect(ids(index, { folderId: "plans" })).toStrictEqual(["link"]);
-    expect(ids(index, { folderId: null })).toStrictEqual(["pinned", "new", "old"]);
+    index.upsert(row("work", { deletedAt: 3, kind: "folder", title: "Work" }));
+    expect(ids(index, { parentId: "work" })).toStrictEqual([]);
+    expect(ids(index, { parentId: "plans" })).toStrictEqual(["link"]);
+    expect(ids(index, { parentId: null })).toStrictEqual(["pinned", "new", "old"]);
+  });
+
+  it("keeps folders and lists out of a live listing and its counts, and in Deleted", () => {
+    const index = filled();
+    index.upsert(row("shelf", { kind: "list", parentId: "work", title: "Shelf" }));
+    index.upsert(row("bin", { deletedAt: 6, kind: "folder", title: "Bin" }));
+    expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);
+    expect(ids(index, { deleted: true })).toStrictEqual(["binned", "bin"]);
+    expect(index.scopes()).toMatchObject({ deleted: 2, total: 4, unsorted: 2 });
+  });
+
+  it("lists a note's place in the tree: the notes right under a parent, saying which hold more", () => {
+    const index = filled();
+    index.upsert(row("sub", { parentId: "new", title: "Sub" }));
+    index.upsert(row("clip", { kind: "link", parentId: "work", title: "Clip" }));
+    expect(index.children("work")).toStrictEqual({
+      children: [{ hasChildren: true, id: "new", kind: "note", title: "Alpha" }],
+      more: false,
+    });
+    expect(index.children("new").children.map(({ id }) => id)).toStrictEqual(["sub"]);
+    expect(index.children(null).children.map(({ id }) => id)).toStrictEqual(["old", "pinned"]);
+  });
+
+  it("files an item under a note and lists it in the note's folder too", () => {
+    const index = filled();
+    index.upsert(row("sub", { parentId: "new", savedAt: 7, title: "Sub" }));
+    expect(ids(index, { parentId: "work" })).toStrictEqual(["sub", "new", "link"]);
+    expect(ids(index, { parentId: "new" })).toStrictEqual(["sub"]);
   });
 
   it("titles every item outside Deleted, pinned first", () => {
@@ -262,11 +288,9 @@ describe(listingPageOf, () => {
     const index = answering();
     const fruit = "01a0f4c2-c400-78d9-a955-7935ec13d6d5";
     const red = "01a0f4c2-c400-78d9-a955-7935ec13d6d6";
-    index.setFolders([
-      { id: fruit, name: "Fruit", parentId: null, sort: "a0" },
-      { id: red, name: "Red", parentId: fruit, sort: "a0" },
-    ]);
-    index.upsert(listing("apple", { folderId: red, savedAt: 2, title: "Apple" }, ["Fruit"]));
+    index.upsert(listing(fruit, { kind: "folder", title: "Fruit" }));
+    index.upsert(listing(red, { kind: "folder", parentId: fruit, title: "Red" }));
+    index.upsert(listing("apple", { parentId: red, savedAt: 2, title: "Apple" }, ["Fruit"]));
     index.upsert(listing("elder", { deletedAt: 9, savedAt: 5, title: "Elder" }));
 
     const titles = (scope: LibraryScope) =>
@@ -274,7 +298,7 @@ describe(listingPageOf, () => {
 
     expect(titles({ kind: "all" })).toStrictEqual(["durian", "Banana", "Apple", "Cherry"]);
     expect(titles({ kind: "unsorted" })).toStrictEqual(["durian", "Banana", "Cherry"]);
-    expect(titles({ folderId: fruit, kind: "folder" })).toStrictEqual(["Apple"]);
+    expect(titles({ parentId: fruit, kind: "parent" })).toStrictEqual(["Apple"]);
     expect(titles({ kind: "tag", tag: "fruit" })).toStrictEqual(["Apple"]);
     expect(titles({ kind: "deleted" })).toStrictEqual(["Elder"]);
   });
@@ -331,7 +355,7 @@ describe(sweptIds, () => {
       "link",
     ]);
     expect(
-      sweptIds(index, { except: [], kinds: ["link"], scope: { folderId: "work", kind: "folder" } }),
+      sweptIds(index, { except: [], kinds: ["link"], scope: { parentId: "work", kind: "parent" } }),
     ).toStrictEqual(["link"]);
     expect(sweptIds(index, { except: [], scope: { kind: "deleted" } })).toStrictEqual(["binned"]);
   });
@@ -340,7 +364,7 @@ describe(sweptIds, () => {
 describe(itemSummary, () => {
   it("names an item by its row: every tag it carries, and its saved time as a date", () => {
     const saved = row("a", {
-      folderId: "work",
+      parentId: "work",
       pinnedAt: 3,
       savedAt: Date.UTC(2026, 0, 2),
       tags: ["Read", "later"],
@@ -348,7 +372,7 @@ describe(itemSummary, () => {
     });
 
     expect(itemSummary(saved)).toStrictEqual({
-      folderId: "work",
+      parentId: "work",
       id: "a",
       kind: "note",
       pinned: true,

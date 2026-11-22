@@ -1,76 +1,47 @@
 import { describe, expect, it } from "vitest";
 
-import { folderOpLanding, folderOpRefusal, organized } from "./cell-rules";
-import type { FolderReader } from "./cell-rules";
+import type { ItemKind } from "../items/item-kind";
+import { organized, parentRefusal } from "./cell-rules";
+import type { ParentReader } from "./cell-rules";
 import { noteFixture } from "../test-support/library-items.test-utils";
 
 const TOP = "01890a5d-ac96-774b-bcce-b302099a8001";
 const UNDER = "01890a5d-ac96-774b-bcce-b302099a8002";
 const GONE = "01890a5d-ac96-774b-bcce-b302099a8003";
 const NEW = "01890a5d-ac96-774b-bcce-b302099a8004";
+const LIST = "01890a5d-ac96-774b-bcce-b302099a8005";
+const NOTE = "01890a5d-ac96-774b-bcce-b302099a8006";
 
-const row = (
-  id: string,
-  name: string,
-  parentId: string | null,
-  deletedAt: number | null = null,
-) => ({
+const node = (kind: ItemKind, parentId: string | null, deletedAt: number | null = null) => ({
   deletedAt,
-  id,
-  name,
+  kind,
   parentId,
-  seq: 1,
-  sort: "a0",
 });
 
-const work = row(TOP, "Work", null);
-const plans = row(UNDER, "Plans", TOP);
-const tree = [work, plans, row(GONE, "Old", null, 5)];
+const held = new Map([
+  [TOP, node("folder", null)],
+  [UNDER, node("folder", TOP)],
+  [GONE, node("folder", null, 5)],
+  [LIST, node("list", TOP)],
+  [NOTE, node("note", LIST)],
+]);
 
-const reader: FolderReader = {
-  children: (parentId) =>
-    tree.filter((folder) => folder.parentId === parentId && folder.deletedAt === null),
-  folder: (id) => tree.find((folder) => folder.id === id) ?? null,
-};
+const reader: ParentReader = { item: (id) => held.get(id) ?? null };
 
-describe("a folder op against the tree its writer read", () => {
-  it("lands nothing and refuses nothing when it is already true", () => {
-    const create = {
-      id: TOP,
-      name: "Work",
-      op: "create",
-      parentId: null,
-      sort: "a0",
-    } satisfies Parameters<typeof folderOpRefusal>[1];
-
-    expect(folderOpRefusal(reader, create)).toBeNull();
-    expect(folderOpLanding(reader, create, 9)).toStrictEqual([]);
+describe("a parent an item is filed under", () => {
+  it("takes the root and any live parent that holds the item's kind", () => {
+    expect(parentRefusal(reader, { id: NEW, kind: "link" }, null)).toBeNull();
+    expect(parentRefusal(reader, { id: NEW, kind: "note" }, LIST)).toBeNull();
+    expect(parentRefusal(reader, { id: NEW, kind: "link" }, NOTE)).toBeNull();
+    expect(parentRefusal(reader, { id: NEW, kind: "list" }, UNDER)).toBeNull();
   });
 
-  it("refuses a folder under itself, a dead parent and a sibling's name", () => {
-    expect(
-      folderOpRefusal(reader, {
-        baseParentId: null,
-        id: TOP,
-        op: "move",
-        parentId: UNDER,
-        sort: "a1",
-      }),
-    ).toBe("conflict");
-    expect(
-      folderOpRefusal(reader, { id: NEW, name: "New", op: "create", parentId: GONE, sort: "a1" }),
-    ).toBe("not-found");
-    expect(
-      folderOpRefusal(reader, { id: NEW, name: "work", op: "create", parentId: null, sort: "a1" }),
-    ).toBe("conflict");
-  });
-
-  it("deletes the folders under the one it deletes", () => {
-    const landed = folderOpLanding(reader, { id: TOP, op: "delete" }, 9);
-    expect(landed.map(({ deletedAt, id }) => ({ deletedAt, id }))).toStrictEqual([
-      { deletedAt: 9, id: TOP },
-      { deletedAt: 9, id: UNDER },
-    ]);
+  it("refuses a parent gone or deleted, under itself, or of a kind that holds no such child", () => {
+    expect(parentRefusal(reader, { id: NEW, kind: "note" }, GONE)).toBe("not-found");
+    expect(parentRefusal(reader, { id: NEW, kind: "note" }, NEW)).toBe("not-found");
+    expect(parentRefusal(reader, { id: TOP, kind: "folder" }, UNDER)).toBe("conflict");
+    expect(parentRefusal(reader, { id: NEW, kind: "folder" }, LIST)).toBe("conflict");
+    expect(parentRefusal(reader, { id: NEW, kind: "list" }, NOTE)).toBe("conflict");
   });
 });
 

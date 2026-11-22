@@ -11,20 +11,27 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
 
 ## Project Overview
 
+- **Everything is an item, and items nest**: a folder, a list and a note are
+  items too, each under at most one parent by `parentId`, a folder holding
+  anything, a list anything but a folder or list, a note notes and saved
+  things. Why: one tree, Notion's, carries the sidebar, the listing, the agent
+  and export, with no second table to keep in step.
 - **Every item is fields plus a body of Plate blocks**: a link its url and the
   clipped article, a file its bytes in Vercel Blob, a note what you write, in
   Notion's blocks plus formulas, charts, canvas, HTML, Mermaid, tabs and
   columns. Why: one shape lets search, the agent and every surface take any item.
-- **Online-first.** Devices cache what they read (TanStack Query); only a save
-  from the extension or the share sheet waits offline, and editing, the agent
-  and import say they need a connection. Why: offline copies would be most of the code.
+- **Online-first, with notes typed offline.** Devices cache what they read
+  (TanStack Query); a save from the extension or the share sheet and the typing
+  in an open note wait offline, on the device, and land once back, merging by
+  block; the agent, import and every other write say they need a connection.
+  Why: one person types offline, and a whole replica would be most of the code.
 - **A note's body is saved whole**, a second after typing stops, over the
   version its device read; a stale save merges by block, a block changed on
   both sides apart asks, and the agent's edit holds the open note's saves
   while the library tab follows its thread. Why: a save is one request, with
   no live document to serve.
 - **Each account's library is its rows in Postgres, its cell**, every write one
-  transaction holding the account's `library_state` row: fields, folders, tags,
+  transaction holding the account's `library_state` row: fields, parents, tags,
   search, links, jobs, change sets and quota; Blob holds bytes, Better Auth's
   tables accounts. Why: one lock per account orders its writes, and no other
   account waits.

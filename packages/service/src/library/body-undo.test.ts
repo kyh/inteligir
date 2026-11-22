@@ -22,7 +22,7 @@ const line = (text: string) =>
 
 const noteOf = (lines: readonly string[], title = "") => ({
   blocks: lines.map((text) => line(text)),
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

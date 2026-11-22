@@ -45,7 +45,7 @@ const touchedAt = async (accountId: string) => {
 
 const noteOf = (text: string) => ({
   blocks: [],
-  folderId: null,
+  parentId: null,
   id: mintLibraryId(Date.now()),
   savedAt: Date.now(),
   tags: [],

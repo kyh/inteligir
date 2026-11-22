@@ -42,7 +42,7 @@ export const createShareOutbox = (args: {
   let closed = false;
 
   const send = async (share: WaitingShare) => {
-    const target = { folderId: null };
+    const target = { parentId: null };
 
     const outcome =
       share.payload.kind === "link"
