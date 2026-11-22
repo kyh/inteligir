@@ -266,6 +266,20 @@ describe("the phone's runtime", () => {
     expect(keys.calls).toContain("signOut");
   });
 
+  it("forgets a note's typing kept offline when it signs out", async () => {
+    const { runtime, storage } = runtimeOver(createFakeCell(), {
+      keys: fakePhoneAuth(KEPT_SESSION),
+    });
+
+    await runtime.start();
+    const typed = { baseBlocks: [], baseVersion: 1, blocks: [], title: "Plans" };
+    await signedIn(runtime).unsent.write("note", typed);
+    await expect(signedIn(runtime).unsent.read("note")).resolves.toStrictEqual(typed);
+
+    await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
+    expect([...storage.held.keys()].filter((key) => key.startsWith("unsent:"))).toStrictEqual([]);
+  });
+
   it("signs out at once though the cloud never answers", async () => {
     const { runtime } = runtimeOver(createFakeCell(), {
       fetch: async () => await deferred<Response>().promise,

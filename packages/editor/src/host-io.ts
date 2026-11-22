@@ -1,6 +1,6 @@
 import { titleKey } from "@repo/contract/library/derive-item";
-import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { HeldNote, NoteSave, NoteSaved } from "@repo/contract/library/held-note";
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
@@ -71,12 +71,7 @@ export interface NoteStanding {
   readonly deleted: boolean;
 }
 
-export interface UnsentNote {
-  readonly baseVersion: number;
-  readonly baseBlocks: readonly BodyBlock[];
-  readonly blocks: readonly BodyBlock[];
-  readonly title: string;
-}
+export type { UnsentNote } from "@repo/contract/library/unsent-note";
 
 export interface UnsentNotes {
   readonly read: (itemId: string) => UnsentNote | null;

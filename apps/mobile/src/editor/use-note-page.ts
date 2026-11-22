@@ -7,12 +7,14 @@ import { noteActions } from "./note-actions";
 import { notePageLife } from "./note-page-life";
 import type { NotePageLifeStore } from "./note-page-life";
 import type { MovedItems, PageProps } from "./page/page-host";
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 
 interface NotePage {
   readonly props: PageProps;
   readonly guarded: boolean;
   readonly leave: NotePageLifeStore["leave"];
   readonly shown: boolean;
+  readonly ready: boolean;
 }
 
 export interface NotePageOptions {
@@ -27,6 +29,24 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
   const offline = !useOnline();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
+  const [kept, setKept] = useState<{ readonly note: UnsentNote | null } | null>(null);
+
+  useEffect(() => {
+    let current = true;
+
+    void (async () => {
+      const [read] = await Promise.allSettled([library.unsent.read(itemId)]);
+
+      if (current) {
+        setKept({ note: read.status === "fulfilled" ? read.value : null });
+      }
+    })();
+
+    return () => {
+      current = false;
+    };
+  }, [library, itemId]);
+
   useEffect(
     () =>
       library.onItems((ids) => {
@@ -58,7 +78,9 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions) =>
       offline,
       settle: asked,
       settled: life.answer,
+      unsent: kept?.note ?? null,
     },
+    ready: kept !== null,
     shown: now.kind !== "released",
   } satisfies NotePage;
 };

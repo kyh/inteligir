@@ -7,7 +7,10 @@ import type { LibraryActions } from "./page/library-actions";
 
 export interface NoteActionsArgs {
   readonly itemId: string;
-  readonly library: Pick<PhoneLibrary, "client" | "files" | "newId" | "queries" | "saves">;
+  readonly library: Pick<
+    PhoneLibrary,
+    "client" | "files" | "newId" | "queries" | "saves" | "unsent"
+  >;
   readonly queryClient: QueryClient;
   readonly openItem: (itemId: string) => void;
 }
@@ -25,9 +28,12 @@ const orNone = async <T>(read: Promise<T>) => {
 };
 
 export const noteActions = ({ itemId, library, openItem, queryClient }: NoteActionsArgs) => {
-  const { client, files, newId, queries, saves } = library;
+  const { client, files, newId, queries, saves, unsent } = library;
 
   return {
+    keepUnsent: async (id, note) => {
+      await unsent.write(id, note);
+    },
     createNote: async ({ blocks, title }) => {
       const beside = await orNone(client.library.items.row({ id: itemId }));
 

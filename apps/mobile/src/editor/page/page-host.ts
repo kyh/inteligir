@@ -2,9 +2,9 @@ import { oneAtATime } from "@repo/client/one-at-a-time";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
+import type { UnsentNote } from "@repo/contract/library/unsent-note";
 import type { NoteStanding } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
-import { pageUnsentNotes } from "@repo/editor/item/unsent-notes";
 import type { LibraryActions } from "./library-actions";
 
 export type NoteState = "none" | "reading" | "editing";
@@ -26,6 +26,7 @@ export interface MovedItems {
 
 export interface PageProps extends LibraryActions, NoteReports {
   readonly itemId: string;
+  readonly unsent: UnsentNote | null;
   readonly offline: boolean;
   readonly moved: MovedItems;
   readonly settle: number;
@@ -63,6 +64,10 @@ export const installPageHost = (first: PageProps) => {
   const followers = new Set<(standing: NoteStanding) => void>();
 
   const fileSrcs = new Map<string, Promise<string>>();
+
+  const kept = new Map<string, UnsentNote>(
+    first.unsent === null ? [] : [[first.itemId, first.unsent]],
+  );
 
   const srcOf = async (sha: string) => {
     const [made] = await Promise.allSettled([
@@ -150,7 +155,20 @@ export const installPageHost = (first: PageProps) => {
         },
         read: async (itemId) => await props.readNote(itemId),
         save: async (save) => await props.saveNote(save),
-        unsent: pageUnsentNotes(),
+        unsent: {
+          read: (itemId) => kept.get(itemId) ?? null,
+          write: (itemId, typed) => {
+            if (typed === null) {
+              kept.delete(itemId);
+            } else {
+              kept.set(itemId, typed);
+            }
+
+            void props.keepUnsent(itemId, typed).catch(nothingToDo);
+
+            return true;
+          },
+        },
       },
       openItem: (itemId) => {
         props.openItem(itemId);
@@ -164,6 +182,10 @@ export const installPageHost = (first: PageProps) => {
     follow: (next) => {
       const before = props;
       props = next;
+
+      if (next.unsent !== null && !kept.has(next.itemId)) {
+        kept.set(next.itemId, next.unsent);
+      }
 
       if (!followed) {
         followed = true;

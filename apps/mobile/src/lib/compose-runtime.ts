@@ -1,6 +1,8 @@
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import { createUnsentStore } from "../editor/unsent-store";
+import type { UnsentStore } from "../editor/unsent-store";
 import type { PersistQueryClientProviderProps } from "@tanstack/react-query-persist-client";
 import { retryUnlessRefused } from "@repo/client/library-cache";
 import type { ItemsMoved } from "@repo/client/library-cache";
@@ -50,6 +52,7 @@ export interface PhoneLibrary {
   readonly files: FileCache;
   readonly saves: PhoneSaves;
   readonly shares: ShareOutbox;
+  readonly unsent: UnsentStore;
   readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
   readonly newId: () => string;
 }
@@ -156,6 +159,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs) => {
 
   const forgetAccount = async (shares: ShareOutbox | null) => {
     await (shares === null ? clearStoredShares(args.storage) : shares.clear());
+    await createUnsentStore(args.storage).clear();
     await files.clear();
     queryClient.clear();
     await persister.removeClient();
@@ -269,6 +273,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs) => {
       queries,
       saves,
       shares,
+      unsent: createUnsentStore(args.storage),
     };
 
     library = made;

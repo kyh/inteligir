@@ -149,8 +149,8 @@ and no read casts.
   typed over, to the host's `unsent` store instead of sending, reopens it on the next open (with no
   connection too) and saves it once back, where a stale save merges by block as any other; one
   person rarely edits a note on two devices apart, so a conflict is the existing ask. A file still
-  needs a connection to be kept. `packages/editor/src/item/note-save.ts`,
-  `packages/editor/src/item/unsent-notes.ts`.
+  needs a connection to be kept; the tab keeps it in its page's storage, the phone in native's.
+  `packages/editor/src/item/note-save.ts`, `packages/contract/src/library/unsent-note.ts`.
 - **A note that takes no edit refuses one in the model.** In Deleted or in conflict, it drops every local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
   Plate's `readOnly` gates handlers and drawing, never a transform.
   `packages/editor/src/edit-guard.ts`.

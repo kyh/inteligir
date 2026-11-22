@@ -1,35 +1,16 @@
-import { bodyBlockSchema, bodyVersionSchema } from "@repo/contract/library/library-wire";
-import { z } from "zod";
+import { parseUnsentNote } from "@repo/contract/library/unsent-note";
 
-import type { UnsentNote, UnsentNotes } from "@repo/editor/host-io";
+import type { UnsentNotes } from "@repo/editor/host-io";
 
 const KEY_PREFIX = "inteligir.unsent.";
-
-const unsentSchema = z.object({
-  baseBlocks: z.array(bodyBlockSchema),
-  baseVersion: bodyVersionSchema,
-  blocks: z.array(bodyBlockSchema),
-  title: z.string(),
-});
-
-const readJson = (text: string) => {
-  try {
-    const parsed: unknown = JSON.parse(text);
-
-    return parsed;
-  } catch {
-    return null;
-  }
-};
 
 const storedUnsentNotes = (storage: () => Storage | null) =>
   ({
     read: (itemId) => {
       try {
         const text = storage()?.getItem(`${KEY_PREFIX}${itemId}`) ?? null;
-        const parsed = text === null ? null : unsentSchema.safeParse(readJson(text));
 
-        return parsed?.success === true ? (parsed.data satisfies UnsentNote) : null;
+        return text === null ? null : parseUnsentNote(text);
       } catch {
         return null;
       }

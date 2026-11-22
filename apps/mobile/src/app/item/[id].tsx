@@ -157,7 +157,7 @@ const ItemScreen = () => {
     body = (
       <Text className="px-6 py-24 text-center text-16 text-muted-foreground">{UNREACHABLE}</Text>
     );
-  } else if (page.shown) {
+  } else if (page.shown && page.ready) {
     body = (
       <NotePage
         {...page.props}

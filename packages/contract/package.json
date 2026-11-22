@@ -40,6 +40,7 @@
     "./library/library-index": "./src/library/library-index.ts",
     "./library/listing-sort": "./src/library/listing-sort.ts",
     "./library/library-item": "./src/library/library-item.ts",
+    "./library/unsent-note": "./src/library/unsent-note.ts",
     "./library/list-settings": "./src/library/list-settings.ts",
     "./library/library-nodes": "./src/library/library-nodes.ts",
     "./library/library-wire": "./src/library/library-wire.ts",
