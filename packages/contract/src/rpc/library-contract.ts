@@ -2,7 +2,14 @@ import { eventIterator } from "@orpc/contract";
 import { z } from "zod";
 
 import { propertyOpSchema } from "../library/field-ops";
-import { importedFieldsSchema, libraryItemFieldsSchema, shaSchema } from "../library/library-item";
+import {
+  importedFieldsSchema,
+  libraryItemFieldsSchema,
+  LIST_PROPERTIES_MAX,
+  listSettingsSchema,
+  propertyKeySchema,
+  shaSchema,
+} from "../library/library-item";
 import { storableBlockSchema } from "../library/library-nodes";
 import { listingSortSchema } from "../library/listing-sort";
 
@@ -290,6 +297,21 @@ const itemsContract = {
       }),
     )
     .output(z.object({ seq: seqSchema })),
+
+  setList: signedBase
+    .errors({ [ConflictError.code]: ConflictError, [NotFoundError.code]: NotFoundError })
+    .input(
+      z.strictObject({
+        id: idSchema,
+        list: listSettingsSchema,
+        opId,
+        renames: z
+          .array(z.strictObject({ from: propertyKeySchema, to: propertyKeySchema }))
+          .max(LIST_PROPERTIES_MAX)
+          .default([]),
+      }),
+    )
+    .output(landed),
 
   saveBody: signedBase
     .errors({ [BlobMissingError.code]: BlobMissingError, [NotFoundError.code]: NotFoundError })

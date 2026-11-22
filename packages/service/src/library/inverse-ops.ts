@@ -39,6 +39,7 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("parentId"),
   setOf("kind"),
   setOf("lang"),
+  setOf("list"),
   setOf("originalName"),
   setOf("originalSha"),
   setOf("pinnedAt"),

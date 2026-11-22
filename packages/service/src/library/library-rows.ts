@@ -59,6 +59,7 @@ const FIELD_COLUMNS = {
   parentId: item.parentId,
   kind: item.kind,
   lang: item.lang,
+  list: item.list,
   originalName: item.originalName,
   originalSha: item.originalSha,
   pinnedAt: item.pinnedAt,

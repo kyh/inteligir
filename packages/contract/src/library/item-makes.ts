@@ -18,6 +18,7 @@ export const blankItemFields = (savedAt: number) =>
     parentId: null,
     kind: "note",
     lang: null,
+    list: null,
     originalName: null,
     originalSha: null,
     pinnedAt: null,

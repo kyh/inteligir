@@ -324,6 +324,7 @@ describe("the library's wire", () => {
         parentId: null,
         kind: "note",
         lang: null,
+        list: null,
         originalName: null,
         originalSha: null,
         pinnedAt: null,

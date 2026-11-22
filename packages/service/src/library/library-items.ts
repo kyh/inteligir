@@ -2,6 +2,10 @@ import { organized } from "@repo/contract/library/cell-rules";
 import type { OrganizeInput, ParentTarget } from "@repo/contract/library/cell-rules";
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { withReading } from "@repo/contract/library/item-reading";
+import { sameJson } from "@repo/contract/library/canonical-json";
+import type { ListSettings } from "@repo/contract/library/library-item";
+import { NEW_LIST, renamedProperties } from "@repo/contract/library/list-settings";
+import type { PropertyRename } from "@repo/contract/library/list-settings";
 import { itemListing, itemSummary } from "@repo/contract/library/library-index";
 import { item, purgedItem } from "@repo/db/library-schema";
 import { and, eq, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
@@ -18,7 +22,7 @@ import { containersUnder, parentOfTarget } from "./library-parents";
 import { landNewItems } from "./library-landing";
 import type { LiveItemRow, NewItem } from "./library-landing";
 import { refuse, RefusedWriteError } from "./library-refusal";
-import { readItem, tagsOf } from "./library-rows";
+import { readItem, STORED_ITEM_COLUMNS, tagsOf } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
@@ -126,9 +130,48 @@ export const createItem = async (scope: WriteScope, input: CreateItemInput) => {
 
   return await landNew(scope, {
     blocks: input.blocks,
-    fields: { ...noteFields(input), kind: input.kind },
+    fields: {
+      ...noteFields(input),
+      kind: input.kind,
+      list: input.kind === "list" ? NEW_LIST : null,
+    },
     id: input.id,
   });
+};
+
+export interface SetListInput {
+  readonly id: string;
+  readonly list: ListSettings;
+  readonly renames: readonly PropertyRename[];
+}
+
+export const setList = async (scope: WriteScope, input: SetListInput) => {
+  const held = await readItem(scope.tx, scope.accountId, input.id);
+
+  if (held === null) {
+    return refuse({ kind: "not-found" });
+  }
+
+  if (held.fields.kind !== "list" || held.fields.deletedAt !== null) {
+    return refuse({ kind: "conflict" });
+  }
+
+  if (input.renames.length > 0) {
+    const children = await scope.tx
+      .select(STORED_ITEM_COLUMNS)
+      .from(item)
+      .where(and(eq(item.accountId, scope.accountId), eq(item.parentId, input.id)));
+
+    for (const child of children) {
+      const properties = renamedProperties(child.fields.properties, input.renames);
+
+      if (!sameJson(properties, child.fields.properties)) {
+        await landFields(scope, child, { ...child.fields, properties });
+      }
+    }
+  }
+
+  return await landFields(scope, held, { ...held.fields, list: input.list });
 };
 
 export const landedSummaries = async (scope: WriteScope, rows: readonly LiveItemRow[]) => {

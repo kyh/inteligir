@@ -42,6 +42,11 @@ random bytes and fresh ids are injected.
 - **What may hold what is one table, checked by every writer before a parent lands.** A folder
   holds anything, a list anything but a container, a note notes and saved things; a cycle or a
   kind no parent takes is a conflict. `packages/contract/src/items/item-kind.ts`.
+- **A list's settings are its `list` field: its properties (text, url or select) and the select
+  it groups by, and what it holds keeps each value in its own `properties` by the property's
+  name.** Values keyed by name read as themselves in Info, export and the agent's reads; a rename
+  is `items.setList`'s `renames`, which rewrites what the list holds in the same transaction.
+  `packages/contract/src/library/list-settings.ts`.
 - **A live listing never lists a folder or list, and Deleted does.** The tree shows containers,
   so a card is a second place for one, and Deleted is where one is restored.
   `packages/contract/src/library/library-index.ts`.

@@ -70,6 +70,7 @@ export const item = pgTable.withRLS(
     id: text("id").notNull(),
     kind: itemKind("kind").notNull(),
     lang: text("lang"),
+    list: jsonb("list").$type<LibraryItemFields["list"]>(),
     originalName: text("original_name"),
     originalSha: text("original_sha"),
     pinned: boolean("pinned").generatedAlwaysAs(sql`pinned_at is not null`),

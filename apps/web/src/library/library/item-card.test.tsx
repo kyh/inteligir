@@ -26,6 +26,7 @@ const fields = (patch: Partial<LibraryItemFields>) =>
     parentId: null,
     kind: "link",
     lang: null,
+    list: null,
     originalName: null,
     originalSha: null,
     pinnedAt: null,

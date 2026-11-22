@@ -264,6 +264,66 @@ export const cellConformance = (withHost: WithHost) => {
       });
     });
 
+    it("makes a list with a status to group by, renames a property across what it holds, and refuses a list's settings on anything else", async () => {
+      await withLaptop(async ({ library, newId }) => {
+        const list = newId();
+
+        const make = async (
+          id: string,
+          kind: "folder" | "list" | "note",
+          parentId: string | null,
+        ) =>
+          await library.items.create({
+            blocks: [],
+            id,
+            kind,
+            parentId,
+            savedAt: 1,
+            tags: [],
+            title: kind,
+          });
+
+        const made = await make(list, "list", null);
+        expect(made.item.fields.list).toMatchObject({ groupBy: "Status" });
+        const task = newId();
+        await make(task, "note", list);
+        await library.write({
+          itemId: task,
+          ops: [{ key: "Status", op: "property", value: "Done" }],
+        });
+
+        const renamed = await library.items.setList({
+          id: list,
+          list: {
+            groupBy: "Stage",
+            properties: [
+              {
+                name: "Stage",
+                options: [{ name: "To do" }, { name: "Done" }],
+                type: "select",
+              },
+              { name: "Link", type: "url" },
+            ],
+          },
+          renames: [{ from: "Status", to: "Stage" }],
+        });
+
+        expect(renamed.item.fields.list?.groupBy).toBe("Stage");
+        await expect(library.items.get({ id: task })).resolves.toMatchObject({
+          fields: { properties: { Stage: "Done" } },
+        });
+
+        const folder = newId();
+        await make(folder, "folder", null);
+        await expect(
+          codeOf(library.items.setList({ id: folder, list: { groupBy: null, properties: [] } })),
+        ).resolves.toBe("CONFLICT");
+        await expect(
+          codeOf(library.items.setList({ id: newId(), list: { groupBy: null, properties: [] } })),
+        ).resolves.toBe("NOT_FOUND");
+      });
+    });
+
     it("deletes and restores items, naming the ids it could not change, and moves none already there", async () => {
       await withLaptop(async ({ library, newId, note }) => {
         const id = await note(["Soon gone."]);

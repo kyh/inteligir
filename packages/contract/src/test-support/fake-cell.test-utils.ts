@@ -29,7 +29,8 @@ import {
 import { canHoldChildren, isContainerKind, UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import type { ItemKind } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { canonicalJson } from "../library/canonical-json";
+import { canonicalJson, sameJson } from "../library/canonical-json";
+import { NEW_LIST, renamedProperties } from "../library/list-settings";
 import { itemFilesOf, lineOf, organized, parentRefusal } from "../library/cell-rules";
 import type { OrganizeInput, ParentReader, ParentTarget } from "../library/cell-rules";
 import { applyPropertyOps } from "../library/field-ops";
@@ -649,7 +650,15 @@ export const createFakeCell = () => {
               { id: input.id, kind: input.kind },
             ]);
 
-            return land(input.id, { ...noteFields(input), kind: input.kind }, input.blocks);
+            return land(
+              input.id,
+              {
+                ...noteFields(input),
+                kind: input.kind,
+                list: input.kind === "list" ? NEW_LIST : null,
+              },
+              input.blocks,
+            );
           }),
         ),
         createFile: os.library.items.createFile.handler(({ input }) =>
@@ -697,6 +706,28 @@ export const createFakeCell = () => {
         ),
         row: os.library.items.row.handler(({ input }) => openRow(input.id)),
         saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
+        setList: os.library.items.setList.handler(({ input }) =>
+          once(input.opId, landedSchema, () => {
+            const { fields } = holding(input.id);
+
+            if (fields.kind !== "list" || fields.deletedAt !== null) {
+              throw new ConflictError();
+            }
+
+            for (const [childId, child] of items) {
+              const renamed = renamedProperties(child.fields.properties, input.renames);
+
+              if (
+                child.fields.parentId === input.id &&
+                !sameJson(renamed, child.fields.properties)
+              ) {
+                landFields(childId, { ...child.fields, properties: renamed });
+              }
+            }
+
+            return landFields(input.id, { ...fields, list: input.list });
+          }),
+        ),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
             const article = input.article.map(

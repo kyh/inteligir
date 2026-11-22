@@ -22,6 +22,7 @@ const fields = (patch: Partial<LibraryItemFields>) =>
     parentId: null,
     kind: "file",
     lang: null,
+    list: null,
     originalName: "minutes.txt",
     originalSha: SHA,
     pinnedAt: null,
