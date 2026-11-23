@@ -1,9 +1,11 @@
 import { eventIterator } from "@orpc/contract";
 import { z } from "zod";
 
+import { isContainerKind, ITEM_KINDS } from "../items/item-kind";
 import { propertyOpSchema } from "../library/field-ops";
 import {
   importedFieldsSchema,
+  ITEM_FIELD_CAPS,
   libraryItemFieldsSchema,
   LIST_PROPERTIES_MAX,
   listSettingsSchema,
@@ -69,9 +71,29 @@ import {
 const CREATED_KINDS = ["note", "folder", "list"] as const;
 
 const FIELDS = libraryItemFieldsSchema.shape;
-const opId = opIdSchema.optional();
-const limit = z.number().int().min(1).max(PAGE_MAX).default(PAGE_MAX);
-const cursor = cursorSchema.default(0);
+
+const opId = opIdSchema
+  .optional()
+  .describe(
+    "Optional idempotency key: a fresh UUID you mint for this one write. A retry with the same opId within 30 days answers the first write's result instead of writing again, so reuse one only to resend the same call; omit it for no replay protection.",
+  );
+
+const limit = z
+  .number()
+  .int()
+  .min(1)
+  .max(PAGE_MAX)
+  .default(PAGE_MAX)
+  .describe(
+    `Most results on this page, 1 to ${String(PAGE_MAX)}; defaults to ${String(PAGE_MAX)}.`,
+  );
+
+const cursor = cursorSchema
+  .default(0)
+  .describe(
+    "Where the page starts: 0 (the default) for the first page, then the cursor the previous answer gave. An answer whose cursor is null was the last page.",
+  );
+
 const nextCursor = cursorSchema.nullable();
 const responseFormat = responseFormatSchema.default("concise");
 const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
@@ -79,6 +101,21 @@ const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
 const landed = z.object({ item: liveItemRowSchema });
 const openItemRow = liveItemRowSchema.extend({ bodyVersion: bodyVersionSchema });
 const saved = z.object({ created: z.boolean(), item: liveItemRowSchema });
+
+const ITEM_ID = "an item's id (a UUID), as list_items, search_library or a write's answer gave it";
+
+const TAG_NAMES = `Tag names without the #, e.g. ["reading", "work/clients"]: each starts with a letter and holds letters, digits, _ or -, with / before a nested tag; matched ignoring case.`;
+
+const TAG_FILTER =
+  'Keeps items with this tag, or one nested under it ("work" also matches "work/clients"), ignoring case; written without the #. It includes #tags written in an item\'s text.';
+
+const PARENT_FILTER =
+  "Keeps items inside this folder, list or note, at any depth: its id (a UUID), as list_tags_and_folders, list_items or search_library gave it. Omit it for the whole library.";
+
+const KINDS_FILTER = `Item kinds to keep, one or more of ${ITEM_KINDS.filter((kind) => !isContainerKind(kind)).join(", ")}; omit for every kind. Folders and lists never appear here: list_tags_and_folders lists them.`;
+
+const NEW_TITLE = (what: string) =>
+  `Title for the new ${what}, up to ${String(ITEM_FIELD_CAPS.line)} characters.`;
 
 const changedIds = z.array(idSchema);
 
@@ -95,32 +132,95 @@ const folderPathSchema = z
   );
 
 const parentTargetSchema = z
-  .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
+  .union([
+    z.strictObject({
+      id: idSchema.describe(
+        "The id (a UUID) of a folder, list or note to file under, as list_tags_and_folders, list_items or search_library gave it. A folder or list goes only in a folder.",
+      ),
+    }),
+    z.strictObject({
+      path: folderPathSchema.describe(
+        `A folder path from the top of the library, folder names joined by /, e.g. "Reading/2026": each name 1 to ${String(FOLDER_NAME_MAX)} characters, matched to an existing folder ignoring case, and made when missing.`,
+      ),
+    }),
+  ])
   .nullable();
 
+const PARENT_TARGET =
+  'Where to file it: {"id": ...} for a folder, list or note by its id, {"path": ...} for a folder path made when new, or null for the top of the library.';
+
 const saveLinkInputSchema = z.strictObject({
-  parent: parentTargetSchema.optional(),
-  id: newIdSchema.optional(),
-  note: z.string().max(MARKDOWN_MAX).optional(),
+  parent: parentTargetSchema
+    .optional()
+    .describe(`${PARENT_TARGET} Omit it to save at the top of the library.`),
+  id: newIdSchema
+    .optional()
+    .describe(
+      "Id for the new item, a UUIDv7 you mint; omit it to have one minted. Ignored when the address is already saved.",
+    ),
+  note: z
+    .string()
+    .max(MARKDOWN_MAX)
+    .optional()
+    .describe(
+      `A note to keep with the link, as markdown up to ${String(MARKDOWN_MAX)} characters, spelled as read_guide says; omitted or blank, the link has no note.`,
+    ),
   opId,
-  savedAt: FIELDS.savedAt.optional(),
-  tags: FIELDS.tags.optional(),
-  title: FIELDS.title.optional(),
-  url: FIELDS.url.unwrap(),
+  savedAt: FIELDS.savedAt
+    .optional()
+    .describe(
+      "When the link was saved, as whole milliseconds since the Unix epoch (e.g. 1767225600000 for 2026-01-01); defaults to now.",
+    ),
+  tags: FIELDS.tags
+    .optional()
+    .describe(`${TAG_NAMES} Up to ${String(ITEM_FIELD_CAPS.listEntries)}; omit for none.`),
+  title: FIELDS.title
+    .optional()
+    .describe(
+      `${NEW_TITLE("item")} Omit it to take the page's own title once it is read, and the address's name until then.`,
+    ),
+  url: FIELDS.url
+    .unwrap()
+    .describe(
+      `The web address to save, starting http:// or https://, up to ${String(ITEM_FIELD_CAPS.url)} characters. An address the library already holds answers that item unchanged.`,
+    ),
 });
 
-const deleteInputSchema = z.strictObject({ ids, opId });
+const deleteInputSchema = z.strictObject({
+  ids: ids.describe(
+    `Ids of the items to move to Deleted, 1 to ${String(BULK_ITEMS_MAX)}, each ${ITEM_ID}. Ids that match no item are answered under missing.`,
+  ),
+  opId,
+});
 
 export const organizedSchema = z.object({ items: z.array(itemSummarySchema) });
 
 const organizeInputSchema = z.strictObject({
-  addTags: FIELDS.tags.optional(),
-  parent: parentTargetSchema.optional(),
-  ids,
+  addTags: FIELDS.tags
+    .optional()
+    .describe(`Tags to add. ${TAG_NAMES} A tag the item already has is not added twice.`),
+  parent: parentTargetSchema
+    .optional()
+    .describe(`${PARENT_TARGET} Omit it to leave the items where they are.`),
+  ids: ids.describe(
+    `Ids of the items to change, 1 to ${String(BULK_ITEMS_MAX)}, each ${ITEM_ID}. If any matches no item, nothing is changed.`,
+  ),
   opId,
-  pinned: z.boolean().optional(),
-  removeTags: FIELDS.tags.optional(),
-  title: FIELDS.title.min(1).optional(),
+  pinned: z
+    .boolean()
+    .optional()
+    .describe("true pins the items and false unpins them; omit it to leave them as they are."),
+  removeTags: FIELDS.tags
+    .optional()
+    .describe(
+      `Tags to remove. ${TAG_NAMES} A #tag written in an item's text stays: only edit_item takes it out.`,
+    ),
+  title: FIELDS.title
+    .min(1)
+    .optional()
+    .describe(
+      `New title, 1 to ${String(ITEM_FIELD_CAPS.line)} characters, only when ids names exactly one item; omit it to keep the title.`,
+    ),
 });
 
 export const sweepVerbSchema = z.discriminatedUnion("kind", [
@@ -132,32 +232,75 @@ export const sweepVerbSchema = z.discriminatedUnion("kind", [
 
 export const listInputSchema = z.strictObject({
   cursor,
-  parentId: idSchema.optional(),
-  kinds: kindsSchema.optional(),
+  parentId: idSchema.optional().describe(PARENT_FILTER),
+  kinds: kindsSchema.optional().describe(KINDS_FILTER),
   limit,
-  pinned: z.boolean().optional(),
-  responseFormat,
-  sort: listingSortSchema.default("saved"),
-  tag: FIELDS.tags.element.optional(),
+  pinned: z
+    .boolean()
+    .optional()
+    .describe("true lists only pinned items and false only unpinned ones; omit it for both."),
+  responseFormat: responseFormat.describe(
+    "concise (the default) answers each item's id, title, kind, tags, parent, pin, address and saved time; detailed adds a preview of its text and its site.",
+  ),
+  sort: listingSortSchema
+    .default("saved")
+    .describe(
+      "saved (the default) lists newest saved first, modified most recently changed first, title A to Z; pinned items come first in every order.",
+    ),
+  tag: FIELDS.tags.element.optional().describe(TAG_FILTER),
 });
 
 export const readInputSchema = z.strictObject({
-  count: z.number().int().min(1).max(500).default(200),
-  from: z.number().int().nonnegative().default(0),
-  id: idSchema,
-  responseFormat,
+  count: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .default(200)
+    .describe(
+      "Most blocks of text to answer, 1 to 500; defaults to 200. A page also stops at about 16,000 characters, so read on from the answer's view.to.",
+    ),
+  from: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(0)
+    .describe(
+      "Position of the first block to answer, counted from 0 (the default, the start). To read on, pass the view.to of the previous answer; view.total is the item's count of blocks.",
+    ),
+  id: idSchema.describe(`The item to read: ${ITEM_ID}.`),
+  responseFormat: responseFormat.describe(
+    "concise (the default) or detailed, which adds the item's aliases and properties to its fields.",
+  ),
 });
 
 export const searchInputSchema = z.strictObject({
   cursor,
-  parentId: idSchema.optional(),
-  kinds: kindsSchema.optional(),
+  parentId: idSchema.optional().describe(PARENT_FILTER),
+  kinds: kindsSchema.optional().describe(KINDS_FILTER),
   limit,
-  query: z.string().trim().min(1).max(500),
-  responseFormat,
-  savedAfter: isoDate.optional(),
-  savedBefore: isoDate.optional(),
-  tag: FIELDS.tags.element.optional(),
+  query: z
+    .string()
+    .trim()
+    .min(1)
+    .max(500)
+    .describe(
+      'Plain words to find in titles, notes and saved articles, 1 to 500 characters, e.g. "sourdough starter": matched by word stem, the last word also as a prefix, with no operators or quotes.',
+    ),
+  responseFormat: responseFormat.describe(
+    "concise (the default) cuts each hit's snippet to 160 characters; detailed answers the whole matching passage.",
+  ),
+  savedAfter: isoDate
+    .optional()
+    .describe(
+      "Keeps items saved on or after this day, as an ISO date (YYYY-MM-DD, read in UTC), e.g. 2026-01-31; omit it for no lower bound.",
+    ),
+  savedBefore: isoDate
+    .optional()
+    .describe(
+      "Keeps items saved on or before this day, as an ISO date (YYYY-MM-DD, read in UTC), the whole day included; omit it for no upper bound.",
+    ),
+  tag: FIELDS.tags.element.optional().describe(TAG_FILTER),
 });
 
 const itemsContract = {
@@ -211,11 +354,22 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        parent: parentTargetSchema.optional(),
-        markdown: z.string().max(MARKDOWN_MAX),
+        parent: parentTargetSchema
+          .optional()
+          .describe(`${PARENT_TARGET} Omit it to make the note at the top of the library.`),
+        markdown: z
+          .string()
+          .max(MARKDOWN_MAX)
+          .describe(
+            `The note's text as markdown, up to ${String(MARKDOWN_MAX)} characters, with the library's own blocks spelled as read_guide says; link another item as [Title](mention:id).`,
+          ),
         opId,
-        tags: FIELDS.tags.optional(),
-        title: FIELDS.title.optional(),
+        tags: FIELDS.tags
+          .optional()
+          .describe(`${TAG_NAMES} Up to ${String(ITEM_FIELD_CAPS.listEntries)}; omit for none.`),
+        title: FIELDS.title
+          .optional()
+          .describe(`${NEW_TITLE("note")} Omit it and the note shows by its first line.`),
       }),
     )
     .output(landed),
@@ -289,10 +443,26 @@ const itemsContract = {
     .input(
       z.strictObject({
         edits: z
-          .array(z.strictObject({ newText: z.string(), oldText: z.string() }))
+          .array(
+            z.strictObject({
+              newText: z
+                .string()
+                .describe(
+                  "Markdown to put in place of oldText; empty deletes the passage. Link another item as [Title](mention:id).",
+                ),
+              oldText: z
+                .string()
+                .describe(
+                  "An exact passage of the note's markdown, as read_item answered it, that stands exactly once in the note as it is now; empty adds newText after the note.",
+                ),
+            }),
+          )
           .min(1)
-          .max(50),
-        id: idSchema,
+          .max(50)
+          .describe(
+            "The passages to replace, 1 to 50, applied in order, each to the note as the edits before it left it. If any is refused, none is applied.",
+          ),
+        id: idSchema.describe(`The item whose note to change: ${ITEM_ID}.`),
         opId,
       }),
     )

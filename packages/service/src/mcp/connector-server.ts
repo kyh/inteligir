@@ -1,4 +1,5 @@
 import { CONNECTOR_PATH } from "@repo/contract/connector";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 import { z } from "zod";
 import {
   createMcpHandler,
@@ -11,6 +12,7 @@ import {
   readRequestBody,
   WebStandardStreamableHTTPServerTransport,
 } from "@modelcontextprotocol/server";
+import type { Implementation } from "@modelcontextprotocol/server";
 import { getMcpToolMeta, McpRegistrar } from "@orpc/mcp";
 import type { McpToolMeta } from "@orpc/mcp";
 import { onError } from "@orpc/server";
@@ -46,7 +48,19 @@ To edit an item, replace passages of its note with edit_item, exactly as read_it
 
 A note is markdown with blocks of the library's own: links between items, dates, formulas, callouts, tabs, toggles, columns, charts and canvases. Call read_guide for their exact spelling before create_note or edit_item writes one: a block spelled wrong is kept as literal text, with no error.`;
 
-const SERVER_INFO = { name: "inteligir", title: "Inteligir", version: "1.0.0" };
+const favicon = (file: string) => `${PRODUCTION_CLOUD_ORIGIN}/favicon/${file}`;
+
+const SERVER_INFO = {
+  icons: [
+    { mimeType: "image/svg+xml", sizes: ["any"], src: favicon("favicon.svg") },
+    { mimeType: "image/png", sizes: ["96x96"], src: favicon("favicon-96x96.png") },
+    { mimeType: "image/png", sizes: ["180x180"], src: favicon("apple-touch-icon.png") },
+  ],
+  name: "inteligir",
+  title: "Inteligir",
+  version: "1.0.0",
+  websiteUrl: PRODUCTION_CLOUD_ORIGIN,
+} satisfies Implementation;
 
 const REALM = "inteligir";
 
