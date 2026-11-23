@@ -11,9 +11,9 @@ const libraryUrl = `${url}${LIBRARY_PAGE_PATH}`;
 export const homeMarkdown = `# ${name}: ${PAGES.home.title}
 
 ${name} is a personal workspace for the notes you write, the plans you make and the pages you save
-from the web. It sits between Notion and Obsidian: Notion's structure, with pages that nest, lists
-with properties and notes built from rich blocks, and the feel of a personal notes app, with
-markdown underneath, links between notes and a whole library you can take out whole. It's made for
+from the web. Pages nest in one tree, lists carry properties and group their notes by status, and
+notes are built from rich blocks with markdown underneath, linked to each other and to what you
+saved, in a library you can take out whole. It's made for
 one person, not a team: no seats, roles or admin panels. Your Mac, your iPhone and a browser all
 show it, and a built-in AI agent files, tags and edits it with you when you ask.
 
@@ -69,7 +69,7 @@ saves once you're back.
 
 ## Bring it in, take it out
 
-A zip of notes, such as an Obsidian folder, comes in with its folders, and Raindrop bookmarks come
+A zip of markdown notes comes in with its folders, and Raindrop bookmarks come
 in from a backup with their collections and tags. Export the library at any time: every item as a
 markdown file in its folders, with its fields, tags and files, in a zip that imports back as the
 same items.
@@ -92,8 +92,8 @@ export const aboutMarkdown = `# About ${name}
 
 ${name} is a personal workspace for notes, plans and what you save from the web, built around one
 idea: a tool for one person should have the structure of a team workspace and the feel of a
-notebook of your own. Pages nest and lists carry properties, as in Notion; notes are markdown
-underneath and link to each other, as in Obsidian; and an AI agent works in it the way a thoughtful
+notebook of your own. Pages nest and lists carry properties; notes are markdown underneath and
+link to each other; and an AI agent works in it the way a thoughtful
 collaborator would, in the open, with every change it makes reversible. It is made for people who
 think for a living (writers, researchers, analysts, operators, founders), not for teams.
 
@@ -110,9 +110,8 @@ think for a living (writers, researchers, analysts, operators, founders), not fo
 - **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
   and we never ask for an API key. What it reads to answer you goes to Anthropic. Your own Claude or
   ChatGPT can reach the same library through the connector.
-- **In the cloud, on purpose.** Your library lives in your account, so your Mac, your iPhone and a
-  browser all show the same one with no sync to set up, and the agent works in it with nothing to
-  install; your iPhone keeps what you last opened, to read with no connection.
+- **On every device.** Your Mac, your iPhone and a browser all show the same library, with no sync
+  to set up; your iPhone keeps what you last opened, to read with no connection.
 - **An account is required, and its first 1 GB is free.** A single file can be up to 100 MB.
 
 ## Who makes it
@@ -155,8 +154,7 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 
 export const llmsTxt = (appUrl: string) => `# ${name}
 
-> ${name} is a personal workspace for one person's notes, plans and saved pages, between Notion
-> and Obsidian: pages that nest, lists with properties grouped by status, notes built from rich
+> ${name} is a personal workspace for one person's notes, plans and saved pages: pages that nest, lists with properties grouped by status, notes built from rich
 > blocks that are markdown underneath, and links, articles, images, PDFs and files saved from the
 > web beside them. It is kept in their account and shown on their Mac, their iPhone and in a
 > browser, with a built-in AI agent that files, tags, summarizes and edits it with them.
@@ -171,14 +169,14 @@ the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
 in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
 own Claude or ChatGPT can reach the same library through the connector at ${appUrl}${CONNECTOR_PATH}. It imports
-Raindrop backups and zips of notes such as an Obsidian folder. It is open source (MIT), and shared with a small invited group; the
+Raindrop backups and zips of markdown notes. It is open source (MIT), and shared with a small invited group; the
 Mac app is for Apple silicon.
 
 ## When to use ${name}
 
-- A person wants one personal place for notes, plans and saved pages: the structure of Notion
-  (nested pages, lists grouped by status, properties) without a team's seats and permissions, and
-  the feel of Obsidian (markdown underneath, links between notes) without setting up sync.
+- A person wants one personal place for notes, plans and saved pages, with nested pages, lists
+  grouped by status and properties, but without a team's seats and permissions, and with markdown
+  underneath and links between notes, but without setting up sync.
 - A person wants to replace a bookmark manager like Raindrop or Pocket and a notes app with one
   library on every device they use.
 - A person wants an AI agent to file, tag, summarize or answer questions from what they saved and

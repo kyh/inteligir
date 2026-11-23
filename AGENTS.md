@@ -1,12 +1,11 @@
 # AGENTS.md
 
-**inteligir** is a personal workspace for notes, plans and saved pages, between
-Notion and Obsidian, with an agent that files and edits it with you, for one
-person (not a team) on the web, a Mac, an iPhone and a Chromium extension.
-Notion gives the structure: every item is fields plus a body, items nest,
-lists group by a select, and a link is an item clipped from the web. Obsidian
-gives the feel: markdown underneath, links between notes, fast, and the whole
-library out as markdown files. No seats, roles or sharing.
+**inteligir** is a personal workspace for notes, plans and saved pages, with an
+agent that files and edits it with you, for one person (not a team) on the
+web, a Mac, an iPhone and a Chromium extension. Every item is fields plus a
+body, items nest in one tree, a list groups its notes by a select, a link is
+an item clipped from the web, every note is markdown underneath, and the whole
+library exports as markdown files. No seats, roles or sharing.
 Nobody uses it yet. It is one Next.js app on Vercel over Postgres on Supabase,
 on dataembed's conventions, and [kyh/init](https://github.com/kyh/init)'s for
 the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and

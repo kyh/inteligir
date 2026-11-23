@@ -35,7 +35,7 @@ export const PAGES = {
   },
   home: {
     description:
-      "A personal workspace between Notion and Obsidian for the notes you write, the plans you make and the pages you save, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
+      "A personal workspace for the notes you write, the plans you make and the pages you save, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
     image: {
       alt: "Inteligir: the workspace for knowledge work",
       height: 1080,

@@ -2,12 +2,10 @@
 
 > Notes, plans and saved pages, in one personal workspace.
 
-Inteligir sits between Notion and Obsidian. From Notion it takes structure:
-folders, lists and notes nest in one tree, a list groups its notes by status
-and carries properties, and a note is built from rich blocks. From Obsidian it
-takes the feel of a tool of your own: every note is markdown underneath, notes
-link to each other, and the whole library exports as markdown files in their
-folders. It's made for one person, not a team: no seats, roles or admin panels.
+Folders, lists and notes nest in one tree, a list groups its notes by status
+and carries properties, and a note is built from rich blocks. Every note is
+markdown underneath, notes link to each other and to what you saved, and the
+whole library exports as markdown files in their folders. It's made for one person, not a team: no seats, roles or admin panels.
 Your Mac, your iPhone and a browser tab all show the same library.
 
 - **Write**: notes in blocks (to-dos, toggles, tables, callouts, columns,
@@ -40,16 +38,15 @@ What you need:
   browser.
 - Nothing else to install, and no plan of your own for the built-in agent.
 
-Your library lives in your account in the cloud, on purpose: every device shows
-the same one with no sync to set up. It needs a connection to open, edit,
+Your library lives in your account, so it needs a connection to open, edit,
 search and ask the agent, and says so when there is none. The Mac app shows it
 from inteligir.com; the iPhone shows what you last opened with no connection.
 A page you save from the browser extension or the iPhone's share sheet while
 offline waits there and lands once you're back. The iPhone app comes by
 TestFlight invite.
 
-Coming from Obsidian or Raindrop? Import a zip of your notes, such as an
-Obsidian folder, or a Raindrop CSV backup from Settings › Import.
+Bringing notes or bookmarks with you? Import a zip of markdown notes or a
+Raindrop CSV backup from Settings › Import.
 
 What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 
