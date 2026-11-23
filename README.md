@@ -40,7 +40,8 @@ What you need:
   browser.
 - Nothing else to install, and no plan of your own for the built-in agent.
 
-Your library lives in your account, so it needs a connection to open, edit,
+Your library lives in your account in the cloud, on purpose: every device shows
+the same one with no sync to set up. It needs a connection to open, edit,
 search and ask the agent, and says so when there is none. The Mac app shows it
 from inteligir.com; the iPhone shows what you last opened with no connection.
 A page you save from the browser extension or the iPhone's share sheet while

@@ -110,8 +110,9 @@ think for a living (writers, researchers, analysts, operators, founders), not fo
 - **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
   and we never ask for an API key. What it reads to answer you goes to Anthropic. Your own Claude or
   ChatGPT can reach the same library through the connector.
-- **On every device.** Your Mac, your iPhone and a browser all show your library; your iPhone keeps
-  what you last opened, to read with no connection.
+- **In the cloud, on purpose.** Your library lives in your account, so your Mac, your iPhone and a
+  browser all show the same one with no sync to set up, and the agent works in it with nothing to
+  install; your iPhone keeps what you last opened, to read with no connection.
 - **An account is required, and its first 1 GB is free.** A single file can be up to 100 MB.
 
 ## Who makes it
