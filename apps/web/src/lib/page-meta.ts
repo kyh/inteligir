@@ -35,7 +35,7 @@ export const PAGES = {
   },
   home: {
     description:
-      "One library for the links, articles, images, PDFs and files you save and the notes you write, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
+      "A personal workspace for the notes you write, the plans you make and the pages you save, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
     image: {
       alt: "Inteligir: the workspace for knowledge work",
       height: 1080,
@@ -44,7 +44,7 @@ export const PAGES = {
     },
     kind: "home",
     path: "/",
-    title: "one library for everything you save",
+    title: "notes, plans and saved pages in one personal workspace",
   },
   privacy: {
     description:
