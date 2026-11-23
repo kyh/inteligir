@@ -8,15 +8,29 @@ import { LICENSES_PATH, siteConfig } from "#lib/site-config";
 const { contact, downloadUrl, github, name, url } = siteConfig;
 const libraryUrl = `${url}${LIBRARY_PAGE_PATH}`;
 
-export const homeMarkdown = `# ${name}: one library for everything you save
+export const homeMarkdown = `# ${name}: ${PAGES.home.title}
 
-${name} keeps everything you save and write in one library: links and articles, videos, images,
-PDFs and files, beside the notes you write. It does the work of a bookmark manager like Raindrop and
-a notes app like Obsidian at once. The library lives in your ${name} account, and your Mac, your
-iPhone and a browser all show it. When you ask, the built-in AI agent files, tags, summarizes and edits
-it with you.
+${name} is a personal workspace for the notes you write, the plans you make and the pages you save
+from the web. It sits between Notion and Obsidian: Notion's structure, with pages that nest, lists
+with properties and notes built from rich blocks, and the feel of a personal notes app, with
+markdown underneath, links between notes and a whole library you can take out whole. It's made for
+one person, not a team: no seats, roles or admin panels. Your Mac, your iPhone and a browser all
+show it, and a built-in AI agent files, tags and edits it with you when you ask.
 
-## Save from anywhere
+## Write
+
+Start a note and shape it with blocks: headings, to-dos, toggles, tables, callouts, columns, tabs,
+charts, formulas and diagrams. Link one note to another, or to anything you saved, and a note can
+hold notes of its own. Underneath, every note is markdown, so what you write reads the same in
+any other app.
+
+## Plan
+
+A list collects notes and groups them by a select, To do, In progress and Done to start, so a list
+is a board for a project or a trip. Give it the properties you need, text, link or select, move a
+note along as it progresses, and open one beside the list to work in it.
+
+## Save from the web
 
 - **From your browser.** [The ${name} extension](${EXTENSION_STORE_URL}) for Chrome, Arc, Brave and
   Edge saves the page you're on with one click, or a link or an image from the right-click menu.
@@ -25,41 +39,40 @@ it with you.
 - **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once and our
   cloud reads the page; shared offline, it waits on your iPhone until you're back online.
 
-Saving is instant and free, and calls no model. The extension reads the title, picture and text of
-the page you save from it when it can, and our cloud reads every other link.
+A saved page opens as its readable article, with room for your own notes on it; a picture, a PDF
+or a video opens in its own viewer. Saving is instant and free, and calls no model: the extension
+reads the page you save from it when it can, and our cloud reads every other link.
 
-## Read what you saved
+## One tree for everything
 
-A saved page opens as its readable article; a picture, a PDF or a video opens in its own viewer.
-
-## Write notes
-
-The same library holds what you write, in a rich editor: links between notes, tags, tables,
-callouts, charts and formulas.
-
-## Folders, tags and Tidy my library
-
-New saves wait in Unsorted. File them into folders and tag them yourself, or choose Tidy my library
-and the agent files and tags everything waiting, following filing rules you write in your own words.
-
-## Your library, on every device
-
-Your library is kept in your account in our cloud, and the Mac app, the iPhone app and
-[your library](${libraryUrl}) in a browser each show it whenever you're online. Your iPhone keeps
-what you last opened, so it still shows with no connection, and a page you save from the browser
-extension or your iPhone's share sheet while offline waits there and lands once you're back.
-
-Your Raindrop bookmarks come in from a backup with their collections and tags, each one's
-highlights quoted in its note, and an Obsidian folder comes in as a zip.
+Folders, lists, notes and what you save sit in one tree in the sidebar, the way pages nest in a
+workspace. New saves wait in Unsorted. File and tag them yourself, or choose Tidy my library and the
+agent files and tags everything waiting, following filing rules you write in your own words.
 
 ## The agent is built in
 
 The agent runs in our cloud on Anthropic's Claude, on our account, so you need no plan and we never
-ask for an API key. Each account gets a free daily allowance. What the agent reads to answer you goes
-to Anthropic. What it deletes waits in Deleted, and Undo under each answer takes its changes back
-for seven days.
+ask for an API key. It searches, reads, writes and reorganizes your workspace when you ask, and
+each answer that changed something can be undone. Each account gets a free daily allowance. What
+the agent reads to answer you goes to Anthropic. What it deletes waits in Deleted, and Undo under
+each answer takes its changes back for seven days.
 
 Your own Claude or ChatGPT can reach the same library through the connector, once you allow it.
+
+## On every device
+
+Your library is kept in your account in our cloud, and the Mac app, the iPhone app and
+[your library](${libraryUrl}) in a browser each show it whenever you're online. What changes on one
+device shows on the others in about a second. Your iPhone keeps what you last opened, so it still
+shows with no connection; typing into an open note with no connection is kept on the device and
+saves once you're back.
+
+## Bring it in, take it out
+
+A zip of notes, such as an Obsidian folder, comes in with its folders, and Raindrop bookmarks come
+in from a backup with their collections and tags. Export the library at any time: every item as a
+markdown file in its folders, with its fields, tags and files, in a zip that imports back as the
+same items.
 
 ## An account is required
 
@@ -77,22 +90,28 @@ shared with a small invited group. The Mac app runs on Macs with Apple silicon.
 
 export const aboutMarkdown = `# About ${name}
 
-${name} is one library for everything you save and write, built around one idea: what you keep
-should be on every device you use, and an AI agent should work in it the way a thoughtful
-collaborator would, in the open, with every change it makes reversible. It is made for knowledge workers
-(writers, researchers, analysts, operators), not for developers.
+${name} is a personal workspace for notes, plans and what you save from the web, built around one
+idea: a tool for one person should have the structure of a team workspace and the feel of a
+notebook of your own. Pages nest and lists carry properties, as in Notion; notes are markdown
+underneath and link to each other, as in Obsidian; and an AI agent works in it the way a thoughtful
+collaborator would, in the open, with every change it makes reversible. It is made for people who
+think for a living (writers, researchers, analysts, operators, founders), not for teams.
 
 ## What makes it different
 
-- **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
-  and your Mac, your iPhone and a browser all show it; your iPhone keeps what you last opened, to
-  read with no connection.
-- **Saving is instant and free.** The extension reads the page you save from it when it can, our
-  cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
-  you ask.
+- **Structure without a team's weight.** Folders, lists and notes nest in one tree, a list groups
+  its notes by status, and a note is built from rich blocks, with no seats, roles, permissions or
+  admin panels to manage.
+- **Yours to take out.** Every note is markdown underneath, and Export the library writes every
+  item as a markdown file in its folders, which Import reads back as the same items.
+- **Saving is part of writing.** A saved page is an item beside your notes, readable as its
+  article and linkable from any note. Saving is instant and free: the extension reads the page you
+  save from it when it can, our cloud reads it otherwise, and neither calls a model.
 - **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
   and we never ask for an API key. What it reads to answer you goes to Anthropic. Your own Claude or
   ChatGPT can reach the same library through the connector.
+- **On every device.** Your Mac, your iPhone and a browser all show your library; your iPhone keeps
+  what you last opened, to read with no connection.
 - **An account is required, and its first 1 GB is free.** A single file can be up to 100 MB.
 
 ## Who makes it
@@ -135,9 +154,11 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 
 export const llmsTxt = (appUrl: string) => `# ${name}
 
-> ${name} is a library of everything a person saves and writes (links, articles, videos, images,
-> PDFs, files and their own notes), kept in their account and shown on their Mac, their iPhone
-> and in a browser, with a built-in AI agent that files, tags, summarizes and edits it with them.
+> ${name} is a personal workspace for one person's notes, plans and saved pages, between Notion
+> and Obsidian: pages that nest, lists with properties grouped by status, notes built from rich
+> blocks that are markdown underneath, and links, articles, images, PDFs and files saved from the
+> web beside them. It is kept in their account and shown on their Mac, their iPhone and in a
+> browser, with a built-in AI agent that files, tags, summarizes and edits it with them.
 
 An account is required, and its first 1 GB is free; creating one takes an invite code. The library
 is kept in the account, in ${name}'s cloud. A browser tab at ${libraryUrl}, the Mac app's window on
@@ -154,8 +175,11 @@ Mac app is for Apple silicon.
 
 ## When to use ${name}
 
-- A person wants to replace a bookmark manager like Raindrop or Pocket and a notes app like
-  Obsidian with one library on every device they use.
+- A person wants one personal place for notes, plans and saved pages: the structure of Notion
+  (nested pages, lists grouped by status, properties) without a team's seats and permissions, and
+  the feel of Obsidian (markdown underneath, links between notes) without setting up sync.
+- A person wants to replace a bookmark manager like Raindrop or Pocket and a notes app with one
+  library on every device they use.
 - A person wants an AI agent to file, tag, summarize or answer questions from what they saved and
   wrote, with every agent edit recorded and reversible.
 - A person wants that agent built in, with no plan to buy and no API key to manage.
