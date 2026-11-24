@@ -3,15 +3,7 @@ import type { threadEventRowSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 import { describe, expect, it } from "vitest";
 
-import {
-  conversationOf,
-  endingWords,
-  sendRefusalWords,
-  statusWords,
-  readsOnly,
-  toolWords,
-  workWords,
-} from "./thread-entries";
+import { conversationOf, endingWords, sendRefusalWords, statusWords } from "./thread-entries";
 import type { ThreadBlock } from "./thread-entries";
 
 const THREAD = "0199a4c2-0000-7000-8000-000000000001";
@@ -54,6 +46,17 @@ const typesOf = (blocks: readonly ThreadBlock[]) =>
 const usesOf = (blocks: readonly ThreadBlock[]) =>
   blocks.flatMap((block) => (block.kind === "work" ? block.uses : []));
 
+const labelOf = (name: string) =>
+  usesOf(conversation(used("a", name)).blocks).map((use) => use.label);
+
+const readsOf = (name: string) =>
+  usesOf(conversation(used("a", name)).blocks).map((use) => use.reads);
+
+const doneWordsOf = (blocks: readonly ThreadBlock[]) =>
+  blocks.flatMap((block) => (block.kind === "work" ? [block.doneWords] : []));
+
+const progress = { text: "Thinking.", type: "agent.progress" };
+
 describe("a thread's entries", () => {
   it("reads the events in the order they came and skips one this build cannot parse", () => {
     const { blocks } = conversationOf(
@@ -88,10 +91,10 @@ describe("a thread's entries", () => {
   });
 
   it("says a tool and an ending in the person's words", () => {
-    expect(toolWords("search_library")).toBe("Searched the library");
-    expect(toolWords("web_search")).toBe("Searched the web");
-    expect(toolWords("web_fetch")).toBe("Read a page");
-    expect(toolWords("a_tool_from_later")).toBe("Used the library");
+    expect(labelOf("search_library")).toStrictEqual(["Searched the library"]);
+    expect(labelOf("web_search")).toStrictEqual(["Searched the web"]);
+    expect(labelOf("web_fetch")).toStrictEqual(["Read a page"]);
+    expect(labelOf("a_tool_from_later")).toStrictEqual(["Used the library"]);
     expect(endingWords("done")).toBe("");
     expect(endingWords("cancelled")).toBe("Stopped.");
     expect(endingWords("steps")).toBe(
@@ -101,9 +104,11 @@ describe("a thread's entries", () => {
   });
 
   it("says a finished run of work by its calls", () => {
-    expect(workWords(0)).toBe("Thought it through");
-    expect(workWords(1)).toBe("Worked through 1 step");
-    expect(workWords(3)).toBe("Worked through 3 steps");
+    expect(doneWordsOf(conversation(progress).blocks)).toStrictEqual(["Thought it through"]);
+    expect(doneWordsOf(conversation(used("a")).blocks)).toStrictEqual(["Worked through 1 step"]);
+    expect(doneWordsOf(conversation(used("a"), used("b"), used("c")).blocks)).toStrictEqual([
+      "Worked through 3 steps",
+    ]);
   });
 });
 
@@ -152,9 +157,22 @@ describe("a conversation's blocks", () => {
       { eventId: "1:1:0", text: "Looking first." },
     ]);
     expect(usesOf(blocks)).toStrictEqual([
-      { kind: "done", name: "search_library", toolUseId: "a" },
-      { kind: "failed", message: "Not found.", name: "organize_items", toolUseId: "b" },
-      { kind: "running", name: "read_item", toolUseId: "c" },
+      {
+        kind: "done",
+        label: "Searched the library",
+        name: "search_library",
+        reads: true,
+        toolUseId: "a",
+      },
+      {
+        kind: "failed",
+        label: "Filed items",
+        message: "Not found.",
+        name: "organize_items",
+        reads: false,
+        toolUseId: "b",
+      },
+      { kind: "running", label: "Read an item", name: "read_item", reads: true, toolUseId: "c" },
     ]);
   });
 
@@ -168,14 +186,20 @@ describe("a conversation's blocks", () => {
 
     expect(typesOf(blocks)).toStrictEqual(["work"]);
     expect(usesOf(blocks)).toStrictEqual([
-      { kind: "done", name: "search_library", toolUseId: "a" },
+      {
+        kind: "done",
+        label: "Searched the library",
+        name: "search_library",
+        reads: true,
+        toolUseId: "a",
+      },
     ]);
   });
 
   it("tells a call that changes nothing in the library from one that writes", () => {
-    expect(readsOnly("read_item")).toBe(true);
-    expect(readsOnly("web_fetch")).toBe(true);
-    expect(readsOnly("edit_item")).toBe(false);
+    expect(readsOf("read_item")).toStrictEqual([true]);
+    expect(readsOf("web_fetch")).toStrictEqual([true]);
+    expect(readsOf("edit_item")).toStrictEqual([false]);
   });
 });
 
