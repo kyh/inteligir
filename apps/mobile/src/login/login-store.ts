@@ -16,7 +16,7 @@ const loginRequestSchema = z.strictObject({
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
 });
 
-export type LoginRequest = z.input<typeof loginRequestSchema>;
+type LoginRequest = z.input<typeof loginRequestSchema>;
 
 export interface LoginStoreArgs {
   readonly auth: Pick<PhoneAuth, "cookie" | "signIn" | "signOut" | "signUp">;

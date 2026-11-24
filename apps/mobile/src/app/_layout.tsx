@@ -7,9 +7,10 @@ import { useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ShareInbox } from "@/screens/share-inbox";
-import { ensureStarted, getRuntime, useSession } from "@/runtime/app-runtime";
+import { appRuntime } from "@/runtime/app-runtime";
 import type { PhoneSession } from "@/runtime/compose-runtime";
 import { LibraryContext } from "@/runtime/library-hooks";
+import { RuntimeContext, useRuntime, useSession } from "@/runtime/runtime-context";
 import { useTheme } from "@/lib/theme";
 
 import "../styles.css";
@@ -23,14 +24,15 @@ const stoppedLine = (session: Extract<PhoneSession, { kind: "outdated" | "failed
     ? "This version of Inteligir is too old for your library. Update it from the App Store to go on."
     : `Your library couldn't open on this iPhone: ${session.message}`;
 
-const RootLayout = () => {
+const Root = () => {
+  const runtime = useRuntime();
   const session = useSession();
   const theme = useTheme();
   const restoring = session.kind === "restoring";
 
   useEffect(() => {
-    void ensureStarted();
-  }, []);
+    void runtime.start();
+  }, [runtime]);
 
   useEffect(() => {
     if (!restoring) {
@@ -51,7 +53,7 @@ const RootLayout = () => {
   }
 
   const library = session.kind === "signed-in" ? session.library : null;
-  const { persistOptions, queryClient } = getRuntime();
+  const { persistOptions, queryClient } = runtime;
 
   return (
     <SafeAreaProvider>
@@ -85,5 +87,11 @@ const RootLayout = () => {
     </SafeAreaProvider>
   );
 };
+
+const RootLayout = () => (
+  <RuntimeContext value={appRuntime()}>
+    <Root />
+  </RuntimeContext>
+);
 
 export default RootLayout;
