@@ -15,6 +15,7 @@ import {
 } from "../auth/oauth-auth";
 import { TAGGED_ROWS } from "../library/library-tools";
 import { libraryRouter } from "../rpc/library-router";
+import { CONNECTOR_SKILLS, connectorSkillCatalog } from "./connector-skills";
 import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import {
   connectAssistant,
@@ -184,6 +185,60 @@ dbSuite("the connector", () => {
     });
 
     expect(errorSchema.parse(await write.json()).error.message).toContain("create_note");
+  });
+
+  it("serves the writing guide as a skill, its files as resources, to any grant", async () => {
+    const { cookie } = await signedUp("connector-skills@example.com");
+
+    const { tokens } = await connectAssistant("Claude", {
+      allowed: READ_ONLY,
+      cookie,
+      scope: FULL,
+    });
+
+    const bearer = tokens.access_token;
+
+    const send = async (method: string, params: Parameters<typeof rpc>[1] = {}) => {
+      const response = await connectorFetch({ bearer, body: rpc(method, params) });
+
+      expect(response.status).toBe(200);
+
+      return z.json().parse(await response.json());
+    };
+
+    const initialized = await send("initialize", {
+      capabilities: {},
+      clientInfo: { name: "Claude", version: "1.0.0" },
+      protocolVersion: "2025-06-18",
+    });
+
+    expect(initialized).toMatchObject({
+      result: {
+        capabilities: { extensions: { "io.modelcontextprotocol/skills": {} }, resources: {} },
+      },
+    });
+    expect(await send("skills/list")).toStrictEqual({
+      id: expect.any(Number),
+      jsonrpc: "2.0",
+      result: {
+        cacheScope: "public",
+        resultType: "complete",
+        skills: await connectorSkillCatalog(),
+        ttlMs: 3_600_000,
+      },
+    });
+    expect(await send("skills/get", { uri: "skill://library-notes/SKILL.md" })).toMatchObject({
+      result: { skill: { uri: "skill://library-notes/SKILL.md" } },
+    });
+    expect(await send("skills/get", { uri: "skill://nope/SKILL.md" })).toMatchObject({
+      error: { code: -32_602 },
+    });
+
+    const canvas = CONNECTOR_SKILLS[0]?.files.find(({ path }) => path === "references/canvas.md");
+
+    expect(
+      await send("resources/read", { uri: "skill://library-notes/references/canvas.md" }),
+    ).toMatchObject({ result: { contents: [{ mimeType: "text/markdown", text: canvas?.text }] } });
   });
 
   it("answers in its own protocol: one message a POST, no session to open or end", async () => {

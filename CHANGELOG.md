@@ -15,6 +15,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **An export keeps a note's notes inside it**: what you filed under a note lands in a folder named after the note, beside the note's own file.
 - **New note inside** on a folder's menu writes a note straight into it, and the sidebar's New list makes a list beside New folder.
 - **Type into a note with no connection**: what you type is kept on this device, through a reload too, and saves once you're back, merging with what changed elsewhere meanwhile. Adding a picture or file still needs a connection.
+- **Claude, or another assistant you connected, learns how your notes are written when it needs to**: the library hands it the same writing guide the built-in agent follows, so callouts, tabs, formulas and links it writes come out as real blocks.
 
 ### Changed
 

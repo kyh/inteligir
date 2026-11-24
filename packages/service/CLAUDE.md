@@ -100,6 +100,13 @@ DOM (`oxlint.config.ts`).
   the rows tagged a tool and, for a read-only grant, to the reads.** A tool is
   added by tagging its row, and a grant is never offered a tool its row would
   refuse. `packages/service/src/mcp/connector-server.ts`.
+- **The connector serves the built-in agent's writing guide as one skill,
+  `library-notes`, over the skills extension (`io.modelcontextprotocol/skills`):
+  `SKILL.md` is the notes section, every other section a reference it links;
+  `read_guide` stays for assistants without the extension.** One set of prompt
+  files is the guide for the agent, the tool and the skill, and an assistant
+  that loads the skill reads only the section its edit needs.
+  `packages/service/src/mcp/connector-skills.ts`.
 - **`/connector` refuses a foreign Origin before anything, then a request with
   no valid token, then one not a POST, then the grant's budget spent, a batch
   and a body past Vercel's 4.5 MB.** One request is one call of the budget, and
