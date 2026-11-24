@@ -2,7 +2,7 @@ import { KIND_LABELS } from "@repo/client/library-labels";
 import { URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { urlHost } from "@repo/contract/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 export const coverOf = (row: ListedItem) =>
   row.fields.coverSha ?? (row.fields.kind === "image" ? row.fields.originalSha : null);

@@ -25,7 +25,7 @@ import { LibraryView } from "./library/library-view";
 import { ListSplit } from "./library/list-split";
 import type { ListingPlaceholder } from "./library/library-view";
 import { listingQuery } from "./library/listing";
-import type { ListedItem } from "./library/listing";
+import type { ListedItem } from "./cloud/library-queries";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";

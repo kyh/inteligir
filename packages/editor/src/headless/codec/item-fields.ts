@@ -6,10 +6,12 @@ import { isItemKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
-import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import type { Reading } from "@repo/contract/library/item-reading";
-import { ITEM_FIELD_CAPS, propertyKeySchema } from "@repo/contract/library/library-item";
+import { propertyKeySchema } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import { formatItemTime, parseItemTime } from "@repo/editor/headless/items/item-time";
 

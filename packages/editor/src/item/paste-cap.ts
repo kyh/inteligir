@@ -1,6 +1,6 @@
 import { createPlatePlugin } from "platejs/react";
 
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
 import { toast } from "@repo/ui/components/sonner";
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ITEM_FIELD_CAPS } from "./library/library-item";
+import { ITEM_FIELD_CAPS } from "./items/item-field-caps";
 
 const ITEM_SCOPES = [
   z.object({ kind: z.literal("all") }),

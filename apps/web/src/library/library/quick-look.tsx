@@ -10,7 +10,7 @@ import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf } from "./item-labels";
 import { shortcutFor } from "../shortcuts";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 export interface QuickLookProps {
   readonly row: ListedItem | null;

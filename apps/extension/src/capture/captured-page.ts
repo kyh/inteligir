@@ -1,4 +1,4 @@
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import { z } from "zod";
 
 import { CAPTURE_HTML_MAX_CHARS } from "./serialize-page";

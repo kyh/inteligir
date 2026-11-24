@@ -43,7 +43,7 @@ import { TopBar } from "../top-bar";
 import { ListProperties } from "./list-properties";
 import { useLibraryCommands } from "./library-commands";
 import { useLibraryVerbs } from "./library-verbs";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 const KIND_ICONS = {
   audio: MusicIcon,

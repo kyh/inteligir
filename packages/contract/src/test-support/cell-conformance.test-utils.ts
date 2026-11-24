@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BodyBlock } from "../library/derive-item";
-import { ITEM_FIELD_CAPS } from "../library/library-item";
+import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { newIdSchema } from "../library/library-wire";
 import type { LibraryBlock } from "../library/library-nodes";
 import type { V1Client } from "../rpc/v1-contract";

@@ -1,8 +1,14 @@
 import { threadQueries } from "@repo/client/thread-queries";
 import { keepPreviousData, skipToken } from "@tanstack/react-query";
 
-import type { ListingQuery } from "../library/listing";
+import type { listedItemSchema, listingPageInputSchema } from "@repo/contract/library/library-wire";
+import type { z } from "zod";
+
 import type { CloudWire } from "./v1";
+
+export type ListedItem = z.infer<typeof listedItemSchema>;
+
+export type ListingQuery = Omit<z.input<typeof listingPageInputSchema>, "cursor" | "limit">;
 
 const LISTING_PAGE = 200;
 const SEARCH_LIMIT = 20;

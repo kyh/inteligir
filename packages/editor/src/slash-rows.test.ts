@@ -4,7 +4,7 @@ import type { Descendant, Value } from "platejs";
 import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { lockedBlockTypes } from "@repo/editor/kits/rich-block-lock-kit";
+import { lockedBlockTypes } from "@repo/editor/nodes/rich-block-lock";
 import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning.test-utils";
 import { GROUPS } from "@repo/editor/slash-items";

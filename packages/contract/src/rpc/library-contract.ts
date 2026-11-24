@@ -5,13 +5,13 @@ import { isContainerKind, ITEM_KINDS } from "../items/item-kind";
 import { propertyOpSchema } from "../library/field-ops";
 import {
   importedFieldsSchema,
-  ITEM_FIELD_CAPS,
   libraryItemFieldsSchema,
   LIST_PROPERTIES_MAX,
   listSettingsSchema,
   propertyKeySchema,
   shaSchema,
 } from "../library/library-item";
+import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { storableBlockSchema } from "../library/library-nodes";
 import { listingSortSchema } from "../library/listing-sort";
 

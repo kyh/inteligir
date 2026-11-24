@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { importedFieldsSchema } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import type { ImportedFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";

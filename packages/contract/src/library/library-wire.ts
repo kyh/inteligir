@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { itemScopeSchema, LIBRARY_SELECTION_MAX, libraryScopeSchema } from "../library-scope";
 import { CONTAINER_KINDS, ITEM_KINDS } from "../items/item-kind";
-import { utf8ByteLength } from "./canonical-json";
+import { utf8ByteLength } from "../bytes";
 import { itemCardSchema } from "./derive-item";
 import { instant, libraryItemFieldsSchema } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";

@@ -1,4 +1,4 @@
-import { ITEM_FIELD_CAPS } from "../library/library-item";
+import { ITEM_FIELD_CAPS } from "./item-field-caps";
 
 interface SavedFacts {
   readonly author: string | null;

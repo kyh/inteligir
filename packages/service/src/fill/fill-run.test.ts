@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { stubFields } from "@repo/contract/library/item-makes";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";

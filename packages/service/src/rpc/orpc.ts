@@ -3,7 +3,7 @@ import { implement } from "@orpc/server";
 import type { ResponseHeadersHandlerPluginContext } from "@orpc/server/plugins";
 
 import type { JobKick } from "../library/library-store";
-import type { AppPrincipal } from "./admit";
+import type { AppPrincipal } from "../library/library-principal";
 
 export interface RpcContext extends ResponseHeadersHandlerPluginContext {
   readonly principal: AppPrincipal;

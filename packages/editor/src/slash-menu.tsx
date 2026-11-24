@@ -3,7 +3,7 @@ import { KEYS } from "platejs";
 import type { PlateElementProps } from "platejs/react";
 import { PlateElement } from "platejs/react";
 
-import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useRichBlocksLocked } from "@repo/editor/nodes/rich-block-lock";
 import { EmbedPromptPlugin } from "@repo/editor/embed-url-dialog";
 import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import { GROUPS } from "@repo/editor/slash-items";

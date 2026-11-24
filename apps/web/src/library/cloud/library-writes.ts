@@ -19,8 +19,8 @@ import type {
   QueryKey,
 } from "@tanstack/react-query";
 
-import type { ListedItem } from "../library/listing";
-import { newId } from "../library/new-id";
+import type { ListedItem } from "./library-queries";
+import { newId } from "./new-id";
 import { uploadFile } from "./library-files";
 import type { FileCloud } from "./library-files";
 import type { CloudWire } from "./v1";

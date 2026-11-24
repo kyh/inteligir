@@ -12,7 +12,7 @@ import { runBulk } from "./bulk-actions";
 import type { BulkRun } from "./bulk-actions";
 import type { CapturedLink } from "./capture/capture-payload";
 import type { Target } from "./library-selection";
-import { newId } from "./new-id";
+import { newId } from "../cloud/new-id";
 
 export interface TagChange {
   readonly add: readonly string[];

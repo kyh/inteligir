@@ -1,5 +1,5 @@
 import type { PropertyOp } from "@repo/contract/library/field-ops";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";

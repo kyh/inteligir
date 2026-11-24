@@ -10,7 +10,7 @@ import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 
 const showTag = vi.fn<(tag: string) => void>();
 

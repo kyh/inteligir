@@ -87,7 +87,7 @@ and no read casts.
 - **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
   whole-block op lands, and a pill's, date's, link's or equation's popover stays shut there, since
-  hiding the buttons lets a paste or key in. `packages/editor/src/kits/rich-block-lock-kit.ts`.
+  hiding the buttons lets a paste or key in. `packages/editor/src/nodes/rich-block-lock.ts`.
 - **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
   structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
   check, since a lifecycle copied per block drifts.

@@ -2,23 +2,16 @@ import { z } from "zod";
 
 import { isTagName } from "../knowledge/tag-grammar";
 import { ITEM_KINDS } from "../items/item-kind";
+import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { isWebUrl } from "../items/item-url";
-import { canonicalJson, utf8ByteLength } from "./canonical-json";
+import { canonicalJson } from "./canonical-json";
+import { utf8ByteLength } from "../bytes";
 import type { JsonValue } from "./canonical-json";
 
 export const SHA256_HEX_RE = /^[0-9a-f]{64}$/u;
 export const shaSchema = z.string().regex(SHA256_HEX_RE);
 
 export const instant = z.number().int().nonnegative();
-
-export const ITEM_FIELD_CAPS = {
-  description: 10_000,
-  line: 1000,
-  listBytes: 64 * 1024,
-  listEntries: 500,
-  propertiesBytes: 256 * 1024,
-  url: 8192,
-} as const;
 
 const jsonBytes = (value: JsonValue) => utf8ByteLength(canonicalJson(value));
 

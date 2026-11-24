@@ -3,7 +3,8 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 import { blankItemFields, importedFields } from "@repo/contract/library/item-makes";
-import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { importedFieldsSchema } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 
 import { factsOf, itemFields, readFrontmatter, titleOf, unheldYaml } from "./item-fields";
 

@@ -1,7 +1,7 @@
 import { cleanUrl, isWebUrl, urlKey } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
 import { importedFields, stubFields } from "@repo/contract/library/item-makes";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { parseItemTime } from "@repo/editor/headless/items/item-time";
 import Papa from "papaparse";

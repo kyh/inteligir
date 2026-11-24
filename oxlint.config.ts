@@ -104,12 +104,12 @@ const WORKER_PLATFORM = {
   regex: PAGE_ONLY,
 };
 
-const NEW_ID = "apps/web/src/library/library/new-id.ts";
+const NEW_ID = "apps/web/src/library/cloud/new-id.ts";
 
 const IMPORT_WORKER_WALL = {
-  group: ["../**", "!../library/new-id", "./import-run"],
+  group: ["../**", "!../cloud/new-id", "./import-run"],
   message:
-    "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+    "the import worker leaves import/ only for cloud/new-id.ts, and never loads import-run.ts",
 };
 
 const EXPORT_WORKER_WALL = {
@@ -118,7 +118,7 @@ const EXPORT_WORKER_WALL = {
 };
 
 const NEW_ID_LEAF = {
-  message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
+  message: "cloud/new-id.ts, which the import worker loads, imports none of the app's modules",
   regex: "^\\.",
 };
 

@@ -9,7 +9,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { utf8ByteLength } from "../library/canonical-json";
+import { utf8ByteLength } from "../bytes";
 import type { BodyBlock } from "../library/derive-item";
 import { BODY_MAX_BYTES, itemReadSchema, liveItemRowSchema } from "../library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";

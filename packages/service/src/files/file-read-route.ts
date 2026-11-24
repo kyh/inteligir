@@ -4,7 +4,7 @@ import { db } from "@repo/db/drizzle-client";
 
 import { logUnhandled } from "../log";
 import { admit } from "../rpc/admit";
-import type { SessionDoor } from "../rpc/admit";
+import type { SessionDoor } from "../library/library-principal";
 import { rpcFault, rpcRefusal } from "../rpc/rpc-refusal";
 import { fileOf, servedNameOf } from "./file-names";
 import type { HeldFile } from "./file-names";

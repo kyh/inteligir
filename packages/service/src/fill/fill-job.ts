@@ -1,5 +1,5 @@
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import { z } from "zod";
 
 const webUrl = z

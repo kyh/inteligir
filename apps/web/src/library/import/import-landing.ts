@@ -1,6 +1,6 @@
 import { importedItemSchema } from "@repo/contract/rpc/library-contract";
 import type { IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import {
   BODY_MAX_BYTES,
   bodyBytes,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyPropertyOps, mergeListField, propertyOpSchema } from "./field-ops";
 import type { PropertyOp } from "./field-ops";
-import { ITEM_FIELD_CAPS } from "./library-item";
+import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import type { LibraryItemFields } from "./library-item";
 import { noteFixture } from "../test-support/library-items.test-utils";
 

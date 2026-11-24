@@ -13,6 +13,7 @@
     "./extension/extension-identity": "./src/extension/extension-identity.ts",
     "./iso-date": "./src/iso-date.ts",
     "./items/host-names": "./src/items/host-names.ts",
+    "./items/item-field-caps": "./src/items/item-field-caps.ts",
     "./items/item-kind": "./src/items/item-kind.ts",
     "./items/item-name": "./src/items/item-name.ts",
     "./items/item-url": "./src/items/item-url.ts",

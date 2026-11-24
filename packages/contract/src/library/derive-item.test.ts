@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { deriveBody, deriveItem } from "./derive-item";
 import type { BodyBlock } from "./derive-item";
-import { ITEM_FIELD_CAPS } from "./library-item";
+import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import type { LibraryItemFields } from "./library-item";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
 import { noteFixture, paragraph } from "../test-support/library-items.test-utils";

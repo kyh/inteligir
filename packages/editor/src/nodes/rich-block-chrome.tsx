@@ -5,7 +5,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen } from "@repo/editor/nodes/rich-block-lock";
 import { stringProp } from "@repo/editor/headless/node-props";
 
 export type Parse<T> = { ok: true; payload: T } | { ok: false; reason: string };

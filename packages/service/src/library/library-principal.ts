@@ -1,4 +1,13 @@
-import type { AppPrincipal } from "../rpc/admit";
+export type SessionDoor = "page" | "phone" | "extension";
+
+export interface AppPrincipal {
+  readonly accountId: string;
+  readonly actor: {
+    readonly door: SessionDoor;
+    readonly kind: "session";
+    readonly sessionId: string;
+  };
+}
 
 export interface TurnActor {
   readonly kind: "agent";

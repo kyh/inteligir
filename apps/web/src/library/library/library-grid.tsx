@@ -17,7 +17,7 @@ import type { ShortcutIn } from "../shortcuts";
 import { isSelected, selectedIn, targetOf } from "./library-selection";
 import type { LibrarySelectionStore, MoveDelta, Shown } from "./library-selection";
 import { QuickLook } from "./quick-look";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 const MIN_CELL_WIDTH = 200;
 

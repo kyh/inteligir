@@ -23,7 +23,7 @@ import { TIDY_LABEL } from "../agent/tidy-library";
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { cellStanding } from "../cloud/needs-connection";
 import { useLibraryCommands } from "../library/library-commands";
-import type { ListedItem } from "../library/listing";
+import type { ListedItem } from "../cloud/library-queries";
 import { hotkeyFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
 

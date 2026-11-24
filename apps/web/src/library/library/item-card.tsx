@@ -18,7 +18,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, fileExtensionLabel } from "./item-labels";
 import type { MenuOpener } from "./item-menu";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 export interface ItemCardProps {
   readonly row: ListedItem;

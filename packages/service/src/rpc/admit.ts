@@ -14,18 +14,8 @@ import { readSession } from "../auth/auth";
 import { env } from "../env";
 import { spendHolderBudget } from "../rate-limit";
 import type { HolderRateFamily } from "../rate-limit";
+import type { AppPrincipal, SessionDoor } from "../library/library-principal";
 import type { RpcRefusal } from "./rpc-refusal";
-
-export type SessionDoor = "page" | "phone" | "extension";
-
-export interface AppPrincipal {
-  readonly accountId: string;
-  readonly actor: {
-    readonly door: SessionDoor;
-    readonly kind: "session";
-    readonly sessionId: string;
-  };
-}
 
 type Admission =
   | { readonly kind: "admitted"; readonly principal: AppPrincipal }

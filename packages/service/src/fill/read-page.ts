@@ -2,7 +2,7 @@ import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 import type { ReadHtml } from "@repo/page-reader/read-html";
 import { originalFileName } from "@repo/contract/items/item-name";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import {
   coverPicture,
   FILL_LIMITS,

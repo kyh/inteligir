@@ -10,7 +10,7 @@ import { copyText } from "../copy-text";
 import { useLibraryCommands } from "./library-commands";
 import { targetCount } from "./library-selection";
 import type { Target } from "./library-selection";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 export type MenuOpener = "pointer" | "key";
 

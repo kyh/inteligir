@@ -9,7 +9,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/headless/dialect-node-keys";
-import { useFrozen, useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen, useRichBlocksLocked } from "@repo/editor/nodes/rich-block-lock";
 import { stringProp } from "@repo/editor/headless/node-props";
 import { LockedContent } from "@repo/editor/nodes/rich-block-chrome";
 
