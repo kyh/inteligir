@@ -1,7 +1,7 @@
 import { signJWT, verifyJWT } from "better-auth/crypto";
 import { z } from "zod";
 
-import { deriveSecret } from "../auth/derive-secret";
+import { deriveSecret } from "../derive-secret";
 
 const EVE_TOKEN_TTL_SECONDS = 5 * 60;
 

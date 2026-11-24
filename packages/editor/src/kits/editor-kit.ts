@@ -28,7 +28,7 @@ import { TocKit } from "@repo/editor/toc";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { PickerRaceKit } from "@repo/editor/headless/combobox-input";
 import { ReadOnlyGuardPlugin } from "@repo/editor/edit-guard";
-import { NoteSectionPlugin } from "@repo/editor/headless/body/note-section";
+import { NoteSectionPlugin } from "@repo/editor/headless/kits/note-section";
 
 export const CONTENT_KIT = [
   ...PickerRaceKit,

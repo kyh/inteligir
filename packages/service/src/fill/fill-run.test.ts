@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { stubFields } from "@repo/contract/library/item-makes";
 import { BODY_MAX_BYTES } from "@repo/contract/library/library-wire";
@@ -20,12 +20,12 @@ import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw
 import { and, eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 
-import { fileOf } from "../files/file-names";
+import { fileOf } from "../library/file-names";
 import { FILE_STORE } from "../files/file-store-of";
 import { releaseUnnamedFiles } from "../files/file-release";
 import { drainJobs } from "../jobs/drain-jobs";
 import { JOB_RUNS, leasedRun } from "../jobs/job-kinds";
-import { sealTurnSet } from "../library/library-change-sets";
+import { sealTurnSet } from "../library/turn-sets";
 import { readItemWhole } from "../library/library-rows";
 import { filePage, htmlPage, pngOf, redirect, serveWeb } from "../test-support/fill-web.test-utils";
 import {
@@ -35,7 +35,7 @@ import {
   seedItem,
   sessionPrincipal,
 } from "../test-support/library.fixture";
-import type { FillJob } from "./fill-job";
+import type { FillJob } from "../library/fill-job";
 import { fillRun } from "./fill-run";
 import { oembedEndpoint } from "./oembed";
 import { pageFetch } from "./page-fetch";

@@ -22,7 +22,7 @@ import {
 import { cn } from "@repo/ui/lib/cn";
 
 import { alertProp } from "@repo/editor/headless/node-props";
-import { lockHolds } from "@repo/editor/kits/rich-block-lock-kit";
+import { lockHolds } from "@repo/editor/nodes/rich-block-lock";
 
 interface AlertPresentation {
   Icon: ComponentType<{ className?: string }>;

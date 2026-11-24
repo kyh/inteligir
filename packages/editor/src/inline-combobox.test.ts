@@ -8,9 +8,9 @@ import {
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/headless/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 
 const makeEditor = (text: string) =>
   createSlateEditor({

@@ -104,12 +104,12 @@ const WORKER_PLATFORM = {
   regex: PAGE_ONLY,
 };
 
-const NEW_ID = "apps/web/src/library/library/new-id.ts";
+const NEW_ID = "apps/web/src/library/cloud/new-id.ts";
 
 const IMPORT_WORKER_WALL = {
-  group: ["../**", "!../library/new-id", "./import-run"],
+  group: ["../**", "!../cloud/new-id", "./import-run"],
   message:
-    "the import worker leaves import/ only for library/new-id.ts, and never loads import-run.ts",
+    "the import worker leaves import/ only for cloud/new-id.ts, and never loads import-run.ts",
 };
 
 const EXPORT_WORKER_WALL = {
@@ -118,7 +118,7 @@ const EXPORT_WORKER_WALL = {
 };
 
 const NEW_ID_LEAF = {
-  message: "library/new-id.ts, which the import worker loads, imports none of the app's modules",
+  message: "cloud/new-id.ts, which the import worker loads, imports none of the app's modules",
   regex: "^\\.",
 };
 
@@ -157,7 +157,7 @@ const HARNESS_DRIVEN_SUITES = [
 
 const SLOW_SUITES = {
   "apps/web/src/library/library-layout.test.tsx": 3,
-  "packages/editor/src/headless/codec/item-edit.test.ts": 1,
+  "packages/editor/src/headless/body/item-edit.test.ts": 1,
   "packages/editor/src/headless/codec/item-markdown.test.ts": 3,
   "packages/editor/src/headless/codec/link-resolve-oracle.test.ts": 1,
   "packages/editor/src/long-note-chunks.test.tsx": 1,

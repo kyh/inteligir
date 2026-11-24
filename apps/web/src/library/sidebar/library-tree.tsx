@@ -32,7 +32,7 @@ import { useLibraryQueries } from "../cloud/library-context";
 import { libraryHref, scopeAddress } from "../library-address";
 import { useLibraryCommands } from "../library/library-commands";
 import { usePref, windowLayout } from "../prefs";
-import type { ContainerNode } from "./folder-paths";
+import type { ContainerNode } from "../library/folder-paths";
 
 const INDENT_PX = 12;
 const ROW_START_PX = 22;

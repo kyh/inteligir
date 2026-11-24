@@ -14,7 +14,7 @@ import {
   limitEveFact,
   recordEveFact,
   runAgentTool,
-} from "../agent/eve-agent";
+} from "../eve/eve-agent";
 import { eveOperationId } from "../agent/eve-token";
 import type {
   AgentCaller,

@@ -5,7 +5,7 @@ import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils"
 import { InfiniteQueryObserver, MutationObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
-import { newId } from "../library/new-id";
+import { newId } from "./new-id";
 import { fakePageLibrary } from "../test-support/fake-page-library.test-utils";
 import { libraryQueries } from "./library-queries";
 import { libraryWrites, organizedOverlay } from "./library-writes";

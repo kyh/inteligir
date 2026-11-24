@@ -2,7 +2,7 @@ import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 import type { ReadHtml } from "@repo/page-reader/read-html";
 import { originalFileName } from "@repo/contract/items/item-name";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import {
   coverPicture,
   FILL_LIMITS,
@@ -14,7 +14,7 @@ import {
 import { sniffMedia } from "@repo/contract/items/sniff-media";
 
 import { decodeText } from "./decode-text";
-import type { FillJob } from "./fill-job";
+import type { FillJob } from "../library/fill-job";
 import type { FillLanding } from "./fill-landing";
 import { failureOf, fileOnlyLinked, PAGE_UNREACHED, TEXT_NOT_SAVED } from "./fill-sentences";
 import { OEMBED_MAX_BYTES, oembedEndpoint, parseOEmbed, youTubeStills } from "./oembed";

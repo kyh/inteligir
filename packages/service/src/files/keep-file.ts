@@ -6,7 +6,7 @@ import { db } from "@repo/db/drizzle-client";
 import type { LibraryResult } from "../library/library-refusal";
 import type { LibraryWriter } from "../library/library-store";
 import { accountFilesPrefix, landKeptFile, mediaTypeOf } from "./file-landing";
-import { touchFile } from "./file-names";
+import { touchFile } from "../library/file-names";
 import { FILE_STORE } from "./file-store-of";
 
 export const keepFile = async (writer: LibraryWriter, bytes: Uint8Array, mime: string) => {

@@ -2,11 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
-import { headlessEditor, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { headlessEditor, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { ARTICLE_SECTION_KEY } from "@repo/editor/headless/markdown/md-rules";
 
 import { generateDoc } from "../../test-support/markdown-doc-generator.test-utils";

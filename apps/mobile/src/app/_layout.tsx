@@ -6,10 +6,10 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ShareInbox } from "@/items/share-inbox";
-import { ensureStarted, getRuntime, useSession } from "@/lib/app-runtime";
-import type { PhoneSession } from "@/lib/compose-runtime";
-import { LibraryContext } from "@/lib/library-hooks";
+import { ShareInbox } from "@/screens/share-inbox";
+import { ensureStarted, getRuntime, useSession } from "@/runtime/app-runtime";
+import type { PhoneSession } from "@/runtime/compose-runtime";
+import { LibraryContext } from "@/runtime/library-hooks";
 import { useTheme } from "@/lib/theme";
 
 import "../styles.css";

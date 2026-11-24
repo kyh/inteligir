@@ -9,7 +9,7 @@ import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
 import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import type { PickerRow } from "@repo/editor/inline-combobox";
-import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formula-input-key";
 import { formulaInputBasePlugin } from "@repo/editor/headless/kits/picker-input-base";
 import { stringProp } from "@repo/editor/headless/node-props";
 import { completeFormulaFromPicker } from "@repo/editor/formulas/formula-insert";

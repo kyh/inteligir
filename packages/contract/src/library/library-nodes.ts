@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 import { isIsoDate } from "../iso-date";
-import { canonicalJson, utf8ByteLength } from "./canonical-json";
+import { canonicalJson } from "./canonical-json";
+import { utf8ByteLength } from "../bytes";
 import { shaSchema } from "./library-item";
 
 const LIBRARY_SECTIONS = ["note", "article"] as const;

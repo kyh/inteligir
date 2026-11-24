@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { capturedPageSchema } from "./captured-page";
-import { CAPTURE_HTML_MAX_CHARS, serializePage } from "./serialize-page";
+import { CAPTURE_HTML_MAX_CHARS, capturedPageSchema } from "./captured-page";
+import { serializePage } from "./serialize-page";
 
 const pageOf = (body: string, head = "") => {
   const doc = document.implementation.createHTMLDocument("A rendered page");

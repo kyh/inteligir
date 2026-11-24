@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useEditorRef, useElement, useReadOnly } from "platejs/react";
 
-import { lockHolds } from "@repo/editor/kits/rich-block-lock-kit";
+import { lockHolds } from "@repo/editor/nodes/rich-block-lock";
 
 export const useEditPopover = () => {
   const editor = useEditorRef();

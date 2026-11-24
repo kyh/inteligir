@@ -6,7 +6,7 @@ import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 
 import { DEV_FILES_PATH } from "../files/dev-upload-signature";
 import { devFilesRoute } from "../files/dev-files-route";
-import { fileReadRoute } from "../files/file-read-route";
+import { fileReadRoute } from "../rpc/file-read-route";
 import { handleV1Rpc } from "../rpc/v1-rpc";
 import { ORIGIN } from "./auth-requests.test-utils";
 

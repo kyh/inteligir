@@ -5,11 +5,8 @@ import {
   conversationOf,
   EMPTY_WORDS,
   endingWords,
-  readsOnly,
   sendRefusalWords,
   statusWords,
-  toolWords,
-  workWords,
 } from "@repo/client/thread-entries";
 import type { ThreadBlock, ThreadEntry } from "@repo/client/thread-entries";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
@@ -97,7 +94,7 @@ const WorkBlock = ({
 }) => (
   <Thinking
     label={block.notes.at(-1)?.text ?? "Working"}
-    doneLabel={workWords(block.uses.length)}
+    doneLabel={block.doneWords}
     working={live}
     data-agent-work
   >
@@ -109,8 +106,8 @@ const WorkBlock = ({
         {block.uses.map((use) => (
           <ToolChip
             key={use.toolUseId}
-            icon={readsOnly(use.name) ? "read" : "write"}
-            label={toolWords(use.name)}
+            icon={use.reads ? "read" : "write"}
+            label={use.label}
             use={use}
           />
         ))}

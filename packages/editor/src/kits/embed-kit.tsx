@@ -6,29 +6,10 @@ import { parseTwitterUrl, parseVideoUrl } from "@platejs/media";
 import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { embedTypeForUrl } from "@repo/editor/headless/lib/embed-url";
+import { embedNodeForUrl, insertEmbedFromUrl } from "@repo/editor/inserts/embed";
 
 import { FileElement } from "@repo/editor/nodes/pdf-node";
 import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
-
-const embedNodeForUrl = (url: string) => {
-  const type = embedTypeForUrl(url);
-
-  return (type === null ? null : { children: [{ text: "" }], type, url }) satisfies TElement | null;
-};
-
-export const insertEmbedFromUrl = (editor: PlateEditor, url: string) => {
-  const embed = embedNodeForUrl(url.trim());
-
-  if (embed === null) {
-    return false;
-  }
-
-  insertVoidAndEscape(editor, embed);
-
-  return true;
-};
 
 const BARE_URL_RE = /^https?:\/\/\S+$/iu;
 

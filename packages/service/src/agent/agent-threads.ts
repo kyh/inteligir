@@ -182,12 +182,6 @@ export const keepTurn = async (executor: DbExecutor, at: TurnAt, now: number) =>
     });
 };
 
-export interface KeptTurn {
-  readonly number: number;
-  readonly stopReason: TurnStop | null;
-  readonly settledAt: number | null;
-}
-
 export const turnOf = async (executor: DbExecutor, at: TurnAt) => {
   const [row] = await executor
     .select({

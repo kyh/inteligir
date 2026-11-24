@@ -1,5 +1,5 @@
 import { MarkdownKit } from "@repo/editor/headless/kits/markdown-kit";
-import { NoteSectionPlugin } from "@repo/editor/headless/body/note-section";
+import { NoteSectionPlugin } from "@repo/editor/headless/kits/note-section";
 
 import { BasicBlocksBaseKit } from "./basic-blocks-base";
 import { BasicMarksBaseKit } from "./basic-marks-base";

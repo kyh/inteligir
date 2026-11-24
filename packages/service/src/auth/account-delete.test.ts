@@ -5,7 +5,7 @@ import { dbSuite } from "@repo/db/test-database";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runAgentCron } from "../agent/agent-cron";
+import { runAgentCron } from "../eve/agent-cron";
 import { sendToAgent } from "../agent/agent-sessions";
 import type { AgentRuntime } from "../agent/runtime";
 import {

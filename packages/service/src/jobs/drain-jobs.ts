@@ -6,8 +6,8 @@ import { env } from "../env";
 import { errorFields } from "../log";
 import { JOB_RUNS } from "./job-kinds";
 import type { JobRuns } from "./job-kinds";
-import { finishJob, leaseJobs, retryJob } from "./job-queue";
-import type { Lease } from "./job-queue";
+import { finishJob, leaseJobs, retryJob } from "../library/job-queue";
+import type { Lease } from "../library/job-queue";
 
 interface Drain {
   readonly accountId: string | null;

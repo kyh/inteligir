@@ -1,5 +1,4 @@
 import { KEYS } from "platejs";
-import type { SlateEditor } from "platejs";
 import { IndentPlugin } from "@platejs/indent/react";
 import { BulletedListRules, OrderedListRules, TaskListRules } from "@platejs/list";
 import { ListPlugin } from "@platejs/list/react";
@@ -45,11 +44,3 @@ export const ListKit = [
     render: { belowNodes: BlockList },
   }),
 ];
-
-export const indentBlocks = (editor: SlateEditor) => {
-  editor.tf.tab({ reverse: false });
-};
-
-export const outdentBlocks = (editor: SlateEditor) => {
-  editor.tf.tab({ reverse: true });
-};

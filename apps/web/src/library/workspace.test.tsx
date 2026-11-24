@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { forgetAccountStorage } from "./cloud/account-storage";
-import { newId } from "./library/new-id";
+import { newId } from "./cloud/new-id";
 import { windowLayout } from "./prefs";
 import { layOutCardGrids } from "./test-support/card-grid-layout.test-utils";
 import { addressed, openedOver, renderLibraryAt } from "./test-support/library-page.test-utils";

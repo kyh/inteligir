@@ -2,8 +2,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import { readNote, saveNote } from "@repo/client/note-bodies";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import type { PhoneLibrary } from "../lib/compose-runtime";
-import type { LibraryActions } from "./page/library-actions";
+import type { PhoneLibrary } from "../runtime/compose-runtime";
+import type { LibraryActions } from "../editor/page/library-actions";
 
 export interface NoteActionsArgs {
   readonly itemId: string;

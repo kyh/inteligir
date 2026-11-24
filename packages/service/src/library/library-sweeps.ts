@@ -10,7 +10,7 @@ import { item, itemBody, itemSearch, itemTag } from "@repo/db/library-schema";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import type { JobRun } from "../jobs/job-kinds";
+import type { JobRun } from "./job-queue";
 import { searchVectorOf } from "../search/search-vector";
 import { sweepParent } from "./library-parents";
 import { mintLibraryId } from "./library-ids";

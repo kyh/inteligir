@@ -19,7 +19,7 @@ import type { LibraryContext } from "../library/library-access";
 import { TAGGED_ROWS } from "../library/library-tools";
 import { errorFields } from "../log";
 import { libraryRouter } from "../rpc/library-router";
-import type { agentCallOutcomeSchema } from "./thread-events";
+import type { agentCallOutcomeSchema } from "../agent/thread-events";
 
 const AGENT_RESULT_MAX_CHARS = 40_000;
 

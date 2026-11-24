@@ -7,8 +7,8 @@ import { editBody } from "../body/edit-body";
 import { writeBody } from "../body/write-body";
 import { reserveFile, settleFile } from "../files/file-landing";
 import { spendHolderBudget } from "../rate-limit";
-import { answer, writing } from "./library-access";
-import { IMPORT_ACTOR, importLandedSchema, landImported } from "./library-imports";
+import { answer, writing } from "../library/library-access";
+import { IMPORT_ACTOR, importLandedSchema, landImported } from "../library/library-imports";
 import {
   createFile,
   createItem,
@@ -19,12 +19,12 @@ import {
   refreshItem,
   setDeleted,
   setList,
-} from "./library-items";
-import { savedSchema, saveLink, savePage } from "./library-saves";
-import { writeLibrary } from "./library-store";
-import { sweepItems, sweptAnswerSchema } from "./library-sweeps";
-import { undoTurns } from "./library-undo";
-import { landedSchema, landPropertyOps } from "./library-writes";
+} from "../library/library-items";
+import { savedSchema, saveLink, savePage } from "../library/library-saves";
+import { writeLibrary } from "../library/library-store";
+import { sweepItems, sweptAnswerSchema } from "../library/library-sweeps";
+import { undoTurns } from "../library/library-undo";
+import { landedSchema, landPropertyOps } from "../library/library-writes";
 
 const ids = z.array(z.string());
 const changedSchema = z.object({ addressHeld: ids, changed: ids, missing: ids });

@@ -2,7 +2,7 @@ import { defineDynamic, defineTool } from "eve/tools";
 
 export default defineDynamic(async () => {
   const { agentCallModelOutput, agentTools, runAgentTool } =
-    await import("@repo/service/agent/eve-agent");
+    await import("@repo/service/eve/eve-agent");
 
   return Object.fromEntries(
     agentTools().map((tool) => [

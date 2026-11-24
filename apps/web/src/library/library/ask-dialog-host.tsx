@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries } from "../cloud/library-context";
-import { folderPaths } from "../sidebar/folder-paths";
+import { folderPaths } from "./folder-paths";
 import { asks, dismissAsk } from "./ask";
 import type { Ask } from "./ask";
 

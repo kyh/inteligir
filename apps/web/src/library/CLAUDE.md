@@ -143,7 +143,7 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   in a group is made and then set. With an item open the list keeps its column, its width dragged
   and kept as `listWidth`, and ⌘[ and ⌘] step through its rows in the order drawn, since a list is
   worked down row by row. `apps/web/src/library/library/list-view.tsx`,
-  `apps/web/src/library/library/list-split.tsx`.
+  `apps/web/src/library/item/list-split.tsx`.
 - **A list's properties are edited in one popover and land as one `items.setList`.** A rename
   carries `renames`, so what the list holds keeps its values; a deleted property leaves values in
   place, harmless, and the settings are parsed before the write so a name used twice is said here.
@@ -210,7 +210,7 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The agent's composer is one state the tab's store keeps, its words with it.** Moved by
   `composerAfter`, a passage quoted by the event that asks about it, since a `useState` per concern
   lets a Tidy sit beside an open conversation and drops a typed message with the tab that drew it.
-  `apps/web/src/library/agent/agent-composer.ts`.
+  `apps/web/src/library/agent-composer.ts`.
 
 ## Suites
 

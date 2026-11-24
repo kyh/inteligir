@@ -5,7 +5,7 @@ import { ALERT_VARIANTS, storableBlockSchema } from "@repo/contract/library/libr
 
 import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs.test-utils";
 import { meaningOf, readValue, writeValue } from "../../test-support/markdown-meaning.test-utils";
-import { parseMarkdown, parseMarkdownSections } from "./markdown-doc";
+import { parseMarkdown, parseMarkdownSections } from "../codec/markdown-doc";
 import { ARTICLE_SECTION_KEY } from "./md-rules";
 
 type Marks = Partial<Record<"bold" | "code" | "italic" | "strikethrough" | "underline", true>>;

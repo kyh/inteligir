@@ -40,3 +40,5 @@ const devCloudOrigin = async () => {
 
 export const cloudOrigin = async () =>
   import.meta.env.MODE === "store" ? PRODUCTION_CLOUD_ORIGIN : await devCloudOrigin();
+
+export const CALL_DEADLINE_MS = 25_000;

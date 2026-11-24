@@ -5,12 +5,10 @@
   "description": "The cloud's code, which apps/web serves on Node: the environment it reads, accounts, the connector, /v1, the library, bodies, files, background work, fills, the built-in agent's side of eve and search.",
   "type": "module",
   "exports": {
-    "./agent/agent-cron": "./src/agent/agent-cron.ts",
     "./agent/agent-model": "./src/agent/agent-model.ts",
     "./agent/agent-prompt": "./src/agent/agent-prompt.ts",
     "./agent/availability": "./src/agent/availability.ts",
     "./agent/eve-admission": "./src/agent/eve-admission.ts",
-    "./agent/eve-agent": "./src/agent/eve-agent.ts",
     "./agent/mock-directives": "./src/agent/mock-directives.ts",
     "./app-url": "./src/app-url.ts",
     "./auth/auth": "./src/auth/auth.ts",
@@ -18,11 +16,13 @@
     "./auth/consent-request": "./src/auth/consent-request.ts",
     "./auth/invite": "./src/auth/invite.ts",
     "./auth/oauth-discovery": "./src/auth/oauth-discovery.ts",
+    "./eve/agent-cron": "./src/eve/agent-cron.ts",
+    "./eve/eve-agent": "./src/eve/eve-agent.ts",
     "./files/dev-files-route": "./src/files/dev-files-route.ts",
-    "./files/file-read-route": "./src/files/file-read-route.ts",
     "./jobs/drain-jobs": "./src/jobs/drain-jobs.ts",
     "./jobs/housekeeping": "./src/jobs/housekeeping.ts",
     "./mcp/connector-server": "./src/mcp/connector-server.ts",
+    "./rpc/file-read-route": "./src/rpc/file-read-route.ts",
     "./rpc/v1-rpc": "./src/rpc/v1-rpc.ts"
   },
   "scripts": {

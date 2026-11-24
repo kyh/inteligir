@@ -12,7 +12,7 @@ import { diffLines } from "@repo/editor/headless/text/line-diff";
 import { libraryJsonOf } from "@repo/editor/headless/codec/read-blocks";
 import { MARK_KEYS, sameMarks } from "@repo/editor/headless/codec/slate-leaves";
 import { blockOfElement } from "./element-block";
-import { sectionOf, sectioned, setSection } from "./note-section";
+import { sectionOf, sectioned, setSection } from "@repo/editor/headless/kits/note-section";
 
 export type BodyChange =
   | {

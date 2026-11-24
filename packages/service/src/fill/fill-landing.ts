@@ -7,14 +7,14 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { db } from "@repo/db/drizzle-client";
 import { z } from "zod";
 
-import { withArticle } from "../body/article-body";
+import { withArticle } from "../library/article-body";
 import { foldReading } from "../library/library-change-sets";
 import { landItem } from "../library/library-landing";
 import { readItemRow, readItemWhole } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
 import type { LibraryWriter, WriteScope } from "../library/library-store";
 import { writeLibrary } from "../library/library-store";
-import type { FillJob } from "./fill-job";
+import type { FillJob } from "../library/fill-job";
 import { TEXT_NOT_SAVED } from "./fill-sentences";
 
 export type FillLanding =

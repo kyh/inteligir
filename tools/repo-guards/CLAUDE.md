@@ -123,7 +123,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   (`restrictedImports`), each row a regex rather than a group. Why: an
   override's options replace the base's, and a group matches gitignore-style,
   so `react` would also refuse `@platejs/react`. `oxlint.config.ts`.
-- **The import worker leaves `import/` only for `library/new-id.ts`, which
+- **The import worker leaves `import/` only for `cloud/new-id.ts`, which
   takes the worker's row too and imports none of the app.** Why: a row reads a
   file's own imports, not theirs, so only a leaf that is itself walled keeps
   React out of what the worker reaches. `oxlint.config.ts`.

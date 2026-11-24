@@ -49,10 +49,10 @@ const TOOL_WORDS = {
   web_search: "Searched the web",
 } satisfies Record<LibraryToolName | WebToolName, string>;
 
-export const toolWords = (name: string) =>
+const toolWords = (name: string) =>
   isLibraryToolName(name) || isWebToolName(name) ? TOOL_WORDS[name] : "Used the library";
 
-export const readsOnly = (name: string) =>
+const readsOnly = (name: string) =>
   isWebToolName(name) || (isLibraryToolName(name) && LIBRARY_TOOLS[name].reads);
 
 const ENDINGS = {
@@ -69,7 +69,7 @@ export const endingWords = (reason: TurnEndReason) => ENDINGS[reason];
 
 export const EMPTY_WORDS = "Ask the agent to file, tag, find or summarize what you have saved.";
 
-export const workWords = (steps: number) => {
+const workWords = (steps: number) => {
   if (steps === 0) {
     return "Thought it through";
   }
@@ -108,7 +108,12 @@ export const sendRefusalWords = (cause: unknown, nowMs: number) => {
   return callRefusalWords(cause);
 };
 
-type ToolUse = { readonly toolUseId: string; readonly name: string } & (
+type ToolUse = {
+  readonly toolUseId: string;
+  readonly name: string;
+  readonly label: string;
+  readonly reads: boolean;
+} & (
   | { readonly kind: "running" }
   | { readonly kind: "done" }
   | { readonly kind: "failed"; readonly message: string }
@@ -122,12 +127,12 @@ const toolUseNext = (
     return null;
   }
 
-  const { name, toolUseId } = use;
+  const { label, name, reads, toolUseId } = use;
 
   return (
     isError
-      ? { kind: "failed", message: summary, name, toolUseId }
-      : { kind: "done", name, toolUseId }
+      ? { kind: "failed", label, message: summary, name, reads, toolUseId }
+      : { kind: "done", label, name, reads, toolUseId }
   ) satisfies ToolUse | null;
 };
 
@@ -147,6 +152,7 @@ export type ThreadBlock =
   | {
       readonly kind: "work";
       readonly key: string;
+      readonly doneWords: string;
       readonly notes: readonly WorkNote[];
       readonly uses: readonly ToolUse[];
     }
@@ -192,7 +198,13 @@ export const conversationOf = (rows: readonly ThreadEventRow[], draft: string) =
 
         if (!uses.has(event.toolUseId)) {
           const { name, toolUseId } = event;
-          uses.set(toolUseId, { kind: "running", name, toolUseId });
+          uses.set(toolUseId, {
+            kind: "running",
+            label: toolWords(name),
+            name,
+            reads: readsOnly(name),
+            toolUseId,
+          });
           run.useIds.push(toolUseId);
         }
 
@@ -236,20 +248,25 @@ export const conversationOf = (rows: readonly ThreadEventRow[], draft: string) =
     }
   }
 
-  const blocks: ThreadBlock[] = drafts.map((block) =>
-    block.kind === "entry"
-      ? block
-      : {
-          key: block.key,
-          kind: "work",
-          notes: block.notes,
-          uses: block.useIds.flatMap((toolUseId) => {
-            const use = uses.get(toolUseId);
+  const blocks: ThreadBlock[] = drafts.map((block) => {
+    if (block.kind === "entry") {
+      return block;
+    }
 
-            return use === undefined ? [] : [use];
-          }),
-        },
-  );
+    const held = block.useIds.flatMap((toolUseId) => {
+      const use = uses.get(toolUseId);
+
+      return use === undefined ? [] : [use];
+    });
+
+    return {
+      doneWords: workWords(held.length),
+      key: block.key,
+      kind: "work",
+      notes: block.notes,
+      uses: held,
+    };
+  });
 
   return {
     blocks: draft === "" ? blocks : [...blocks, { key: "draft", kind: "draft", text: draft }],

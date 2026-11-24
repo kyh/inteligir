@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChartGridEditor } from "@repo/editor/nodes/chart-grid";
-import type { ChartPayload } from "@repo/editor/nodes/chart-node";
+import type { ChartPayload } from "@repo/editor/nodes/chart-payload";
 
 const CHART: ChartPayload = {
   data: [

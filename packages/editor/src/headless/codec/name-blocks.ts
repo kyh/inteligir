@@ -1,6 +1,7 @@
 import type { Descendant, TElement } from "platejs";
 
-import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import { utf8ByteLength } from "@repo/contract/bytes";
 import { BLOCK_MAX_BYTES, storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 

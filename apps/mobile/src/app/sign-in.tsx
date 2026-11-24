@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import type { TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { login, signUp, useLoginState, useSession } from "@/lib/app-runtime";
+import { login, signUp, useLoginState, useSession } from "@/runtime/app-runtime";
 import { screenStyle, useTheme } from "@/lib/theme";
 import { formReady, returnOf } from "@/login/sign-in-fields";
 import type { SignInDoor, SignInField } from "@/login/sign-in-fields";

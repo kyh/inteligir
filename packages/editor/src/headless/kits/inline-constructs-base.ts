@@ -7,7 +7,7 @@ import {
   pillEntries,
   unsettledPills,
 } from "@repo/editor/headless/formulas/pill-nodes";
-import { appliesOwnEdit } from "@repo/editor/headless/body/own-edit";
+import { appliesOwnEdit } from "@repo/editor/headless/kits/own-edit";
 
 const touchesPill = (editor: SlateEditor, op: Operation) => {
   switch (op.type) {

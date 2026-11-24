@@ -11,7 +11,7 @@ import type { LinkTarget } from "@repo/editor/host-io";
 import { InlineCombobox } from "@repo/editor/inline-combobox";
 import type { PickerRow } from "@repo/editor/inline-combobox";
 import { createAndLink, insertPageLink } from "@repo/editor/mention/mention-insert";
-import { rankTitles } from "@repo/editor/mention/rank-titles";
+import { rankTitles } from "@repo/editor/rank-titles";
 
 const CREATE_VALUE = "__create__";
 

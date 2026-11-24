@@ -2,7 +2,7 @@ import { db } from "@repo/db/drizzle-client";
 import { rateLimit } from "@repo/db/auth-schema";
 import { sql } from "drizzle-orm";
 
-import { clientAddressOf } from "./auth/client-ip";
+import { clientAddressOf } from "./client-ip";
 import { env } from "./env";
 
 interface RateWindow {

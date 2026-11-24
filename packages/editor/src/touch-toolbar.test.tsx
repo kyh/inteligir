@@ -6,7 +6,7 @@ import type { PlateEditor } from "platejs/react";
 
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host.test-utils";

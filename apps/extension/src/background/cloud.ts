@@ -4,6 +4,7 @@ import { outcomeOf, uploadBlob, v1Client } from "@repo/contract/rpc/call-outcome
 import type { V1Transport } from "@repo/contract/rpc/call-outcome";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
+import { CALL_DEADLINE_MS } from "./connection";
 import type { Session } from "./sign-in";
 
 type Items = V1Client["library"]["items"];
@@ -26,8 +27,6 @@ export interface Cloud {
   readonly transport: V1Transport;
   readonly keepAwake: () => void;
 }
-
-export const CALL_DEADLINE_MS = 25_000;
 
 const KEEP_AWAKE_MS = 5000;
 

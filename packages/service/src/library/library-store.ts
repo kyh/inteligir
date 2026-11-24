@@ -4,9 +4,9 @@ import { libraryState, opAnswer } from "@repo/db/library-schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
-import { askJobs } from "../jobs/job-queue";
-import type { JobAsk } from "../jobs/job-queue";
-import { joinTurnSet } from "./library-change-sets";
+import { askJobs } from "./job-queue";
+import type { JobAsk } from "./job-queue";
+import { joinTurnSet } from "./turn-sets";
 import type { LibraryActor } from "./library-principal";
 import { RefusedWriteError, refuse } from "./library-refusal";
 import type { LibraryResult } from "./library-refusal";

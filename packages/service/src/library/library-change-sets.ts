@@ -1,30 +1,17 @@
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import { agentThread } from "@repo/db/agent-schema";
-import type { DbExecutor, Tx } from "@repo/db/drizzle-client";
 import { changeSet, changeSetBody, changeSetItem, itemBody } from "@repo/db/library-schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { holdSetFiles, releaseSetFiles } from "../files/file-names";
+import { holdSetFiles, releaseSetFiles } from "./file-names";
 import { inverseOpSchema } from "./inverse-ops";
 import type { InverseOp } from "./inverse-ops";
-import { mintLibraryId } from "./library-ids";
-import type { TurnActor } from "./library-principal";
-import { refuse } from "./library-refusal";
 import type { WriteScope } from "./library-store";
 import { nextEntry } from "./revert-change";
 import type { SetEntry } from "./revert-change";
 import { anyOf } from "./set-sql";
-
-type TurnKey = Pick<TurnActor, "threadId" | "turn">;
-
-const turnIs = (accountId: string, turn: TurnKey) =>
-  and(
-    eq(changeSet.accountId, accountId),
-    eq(changeSet.threadId, turn.threadId),
-    eq(changeSet.turn, turn.turn),
-  );
 
 const entryRowSchema = z.union([
   z
@@ -55,34 +42,6 @@ const opFilesOf = (ops: readonly InverseOp[]) =>
       ? [op.value]
       : [],
   );
-
-export const joinTurnSet = async (tx: Tx, accountId: string, turn: TurnKey, now: number) => {
-  const [held] = await tx
-    .select({ id: changeSet.id, sealedAt: changeSet.sealedAt })
-    .from(changeSet)
-    .where(turnIs(accountId, turn));
-
-  if (held === undefined) {
-    const id = mintLibraryId(now);
-    await tx.insert(changeSet).values({ accountId, id, threadId: turn.threadId, turn: turn.turn });
-
-    return id;
-  }
-
-  return held.sealedAt === null ? held.id : refuse({ kind: "turn-ended" });
-};
-
-export const sealTurnSet = async (
-  db: DbExecutor,
-  accountId: string,
-  turn: TurnKey,
-  now: number,
-) => {
-  await db
-    .update(changeSet)
-    .set({ sealedAt: now })
-    .where(and(turnIs(accountId, turn), isNull(changeSet.sealedAt)));
-};
 
 export const recordLanding = async (
   scope: WriteScope,

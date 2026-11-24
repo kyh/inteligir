@@ -12,7 +12,7 @@ import { APP_URL, DEPLOYMENT_ORIGIN } from "../app-url";
 import { startBackground } from "../background";
 import { env } from "../env";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
-import { CLIENT_IP } from "./client-ip";
+import { CLIENT_IP } from "../client-ip";
 import { revokeAllAssistants } from "./connected-assistants";
 import { forgetInviteRedeemer } from "./invite-codes";
 import { oauthPlugins } from "./oauth";

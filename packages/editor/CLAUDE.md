@@ -38,7 +38,7 @@ and no read casts.
   spell is lost on a write, each loss in the changelog.
   `packages/editor/src/headless/markdown/md-rules.ts`.
 - **Every fence name lives in `@repo/editor/headless/markdown/fence-langs`.** A drifted spelling
-  opens the block as plain code. `packages/editor/src/headless/markdown/fence-langs.ts`.
+  opens the block as plain code. `packages/editor/src/headless/fence-langs.ts`.
 - **A directive the dialect does not name is its text, and typed text stays text.** An unknown
   directive is restored to the bytes that wrote it, and a `:` is escaped only before `date` or
   `formula`, so `10:30` stays as typed.
@@ -87,7 +87,7 @@ and no read casts.
 - **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
   whole-block op lands, and a pill's, date's, link's or equation's popover stays shut there, since
-  hiding the buttons lets a paste or key in. `packages/editor/src/kits/rich-block-lock-kit.ts`.
+  hiding the buttons lets a paste or key in. `packages/editor/src/nodes/rich-block-lock.ts`.
 - **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
   structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
   check, since a lifecycle copied per block drifts.
@@ -174,7 +174,7 @@ and no read casts.
 - **Every reader parses through one plugin list, and no input throws out of it.** The codec, an
   import, a paste and the editor read through `MD_REMARK_PLUGINS`, and an unused definition or a
   footnote stays the words written, since two grammars drift; a saved page's tree is parsed by
-  none, and read by the same rules. `packages/editor/src/headless/markdown/md-corpus.test.ts`.
+  none, and read by the same rules. `packages/editor/src/headless/codec/md-corpus.test.ts`.
 - **An md url has one reading, and only an import resolves one by path.** Past the import an item is
   reached by id and a file by sha, and only an http(s) url reaches the browser, since no item has a
   path to resolve against. `packages/editor/src/headless/codec/import-plan.ts`.
@@ -193,7 +193,7 @@ and no read casts.
   it touches.** An empty old text adds after the note and one that reaches the article is refused,
   since a refresh replaces the article; only the note is written to match in, and the article only
   to tell an old text in it from one nowhere; the blocks read again keep their ids by content.
-  `packages/editor/src/headless/codec/item-edit.ts`.
+  `packages/editor/src/headless/body/item-edit.ts`.
 - **Markdown written into a body is read by `readBody` at every door, and an edit's new text as
   part of one.** A new note, a save's note, an imported bookmark's note and an edit's text read the
   same text as the same blocks, but for a pill's display, which only a whole body can settle; a

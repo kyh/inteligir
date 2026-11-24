@@ -1,5 +1,5 @@
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random.test-utils";

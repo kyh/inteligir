@@ -16,7 +16,7 @@ import { item, itemBody, itemLink, itemSearch, itemTag, purgedItem } from "@repo
 import { settledBody } from "@repo/editor/headless/formulas/pill-nodes";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
-import { missingFiles, nameItemFiles, nameNewItemFiles } from "../files/file-names";
+import { missingFiles, nameItemFiles, nameNewItemFiles } from "./file-names";
 import { recordBody, recordLanding } from "./library-change-sets";
 import { holdRoomFor } from "./library-quota";
 import { refuse } from "./library-refusal";

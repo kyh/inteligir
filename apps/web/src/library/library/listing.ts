@@ -1,13 +1,8 @@
-import type { listedItemSchema, listingPageInputSchema } from "@repo/contract/library/library-wire";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import type { z } from "zod";
 
+import type { ListingQuery } from "../cloud/library-queries";
 import type { LibrarySort } from "../prefs";
-
-export type ListedItem = z.infer<typeof listedItemSchema>;
-
-export type ListingQuery = Omit<z.input<typeof listingPageInputSchema>, "cursor" | "limit">;
 
 export interface LibraryFilter {
   readonly scope: LibraryScope;

@@ -1,4 +1,4 @@
-import { utf8ByteLength } from "../library/canonical-json";
+import { utf8ByteLength } from "../bytes";
 
 type NoteNameReason =
   | "empty"

@@ -1,6 +1,6 @@
 import { Alert } from "react-native";
-import { logout } from "@/lib/app-runtime";
-import type { LogoutOutcome } from "@/lib/compose-runtime";
+import { logout } from "@/runtime/app-runtime";
+import type { LogoutOutcome } from "@/runtime/compose-runtime";
 
 const waitingLine = (saves: number) =>
   saves === 1

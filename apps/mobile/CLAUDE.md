@@ -27,7 +27,7 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   and reads what it last held with no connection.** It turns read-only only when the network goes,
   never as the app goes behind, since React Native hears the app leave about a quarter second
   before the page hears it hidden and a read-only note would never send its hidden flush.
-  `apps/mobile/src/editor/use-note-page.ts`.
+  `apps/mobile/src/screens/use-note-page.ts`.
 - **A note page's life is one value**, since a second ask or leave must not be representable.
   `apps/mobile/src/editor/note-page-life.ts`.
 - **New note opens with the caret at the end and the keyboard up, and a tag chip does nothing on
@@ -44,15 +44,15 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **On the phone, the runtime that moves a value is the one that notifies.** A sign-in is one
   state under one writer, its library made and closed together and the screens' session read off
   it, so a revocation any call hears ends it for all, once, and the route guard alone decides which
-  screens exist. `apps/mobile/src/lib/compose-runtime.ts`.
+  screens exist. `apps/mobile/src/runtime/compose-runtime.ts`.
 - **The phone reads through TanStack Query, its cache kept between launches, and no write is kept
   or paused.** What was last read shows offline and a write made there is refused at once
   (`networkMode: "always"`), since the cloud keeps the truth and only a share waits.
-  `apps/mobile/src/lib/compose-runtime.ts`.
+  `apps/mobile/src/runtime/compose-runtime.ts`.
 - **Whether the phone reaches the cloud is one store: in front and online.** The shares waiting and
   the session's check read it and nothing derives it again, since two derivations disagree at
   `inactive`; an open note reads the network alone, since it saves as the app goes behind.
-  `apps/mobile/src/lib/compose-runtime.ts`.
+  `apps/mobile/src/runtime/compose-runtime.ts`.
 - **The phone's key-value store is out of the device backup, and its files are in the cache**
   (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,
   and a sign-in, sign-out or revocation clears the cache, shares and files.
@@ -72,7 +72,7 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   the session first. A session the cloud ended drops its cookie even when the
   copy will not go, and the copy it owes clears at the next launch before
   anything opens, since a kept cookie would reopen it offline.
-  `apps/mobile/src/lib/compose-runtime.ts`.
+  `apps/mobile/src/runtime/compose-runtime.ts`.
 - **A phone save is one create where the library's scope saves.** A link waits for the cloud's
   fill and a thought is a note named by its first line, and a save, a new note or a delete needs a
   connection and says so, since only a share waits. `apps/mobile/src/items/phone-saves.ts`.
@@ -114,7 +114,7 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **What the shared packages call that Hermes lacks is core-js's, imported once in the runtime.**
   Hermes has no `Array.prototype.toSorted`, the lint refuses `sort`, and a phone that cannot sort
   its waiting saves never opens its library; `pnpm e2e:mobile` is what finds the next one.
-  `apps/mobile/src/lib/app-runtime.ts`.
+  `apps/mobile/src/runtime/app-runtime.ts`.
 - **The phone ships through EAS to TestFlight, and an unset cloud URL is the production origin on
   both clients.** iPhone only (owner decision), credentials and build numbers EAS's, and
   `PRODUCTION_CLOUD_ORIGIN` the one fallback, since per-profile env respells the origin.

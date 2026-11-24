@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { urlKey } from "@repo/contract/items/item-url";
 import { fileSha } from "@repo/contract/library/file-sha";
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-native.js";
 import { describe, expect, it } from "vitest";
 

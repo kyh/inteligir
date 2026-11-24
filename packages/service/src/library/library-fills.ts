@@ -1,6 +1,6 @@
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 
-import type { FillJob } from "../fill/fill-job";
+import type { FillJob } from "./fill-job";
 import type { WriteScope } from "./library-store";
 
 interface Landed {

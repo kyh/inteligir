@@ -13,7 +13,7 @@ import {
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
+import { insertEmbedFromUrl } from "@repo/editor/inserts/embed";
 
 const EmbedPromptOptions = createTPlatePlugin<PluginConfig<"embedPrompt", { open: boolean }>>({
   key: "embedPrompt",

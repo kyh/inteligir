@@ -1,8 +1,9 @@
+import type { Reading } from "@repo/contract/library/item-reading";
 import { KIND_LABELS } from "@repo/client/library-labels";
 import { URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { urlHost } from "@repo/contract/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
-import type { ListedItem } from "./listing";
+import type { ListedItem } from "../cloud/library-queries";
 
 export const coverOf = (row: ListedItem) =>
   row.fields.coverSha ?? (row.fields.kind === "image" ? row.fields.originalSha : null);
@@ -65,4 +66,25 @@ export const cardMeta = (row: ListedItem, nowMs: number) => {
   }
 
   return parts.join(" · ");
+};
+
+export const readingNotice = (reading: Reading) => {
+  switch (reading.state) {
+    case "pending": {
+      return "Not read yet. The page is read in the cloud, and its text appears here soon.";
+    }
+
+    case "failed": {
+      return reading.error;
+    }
+
+    case "none":
+    case "read": {
+      return null;
+    }
+
+    default: {
+      throw new Error(`unexpected ${String(reading satisfies never)}`);
+    }
+  }
 };

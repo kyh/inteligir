@@ -11,7 +11,7 @@ import { settledAlone } from "@repo/editor/headless/formulas/pill-nodes";
 import type { WikiResolve } from "@repo/editor/headless/markdown/remark-wiki-import";
 
 import { frontmatterEnd, frontmatterYaml } from "@repo/editor/headless/markdown/frontmatter";
-import { headlessEditor, parseMarkdownSections } from "@repo/editor/headless/markdown/markdown-doc";
+import { headlessEditor, parseMarkdownSections } from "@repo/editor/headless/codec/markdown-doc";
 import { lfOnly, readMdast } from "@repo/editor/headless/markdown/md-read";
 import type { MarkdownRead } from "@repo/editor/headless/markdown/md-read";
 import { yamlCodeBlock } from "@repo/editor/headless/markdown/md-rules";

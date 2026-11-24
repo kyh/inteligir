@@ -12,11 +12,9 @@ import {
   endingWords,
   sendRefusalWords,
   statusWords,
-  toolWords,
-  workWords,
 } from "@repo/client/thread-entries";
 import type { ThreadBlock } from "@repo/client/thread-entries";
-import { useLibrary, useThreadEvents, useThreads } from "@/lib/library-hooks";
+import { useLibrary, useThreadEvents, useThreads } from "@/runtime/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { useFollowEnd } from "@/ui/follow-end";
@@ -44,9 +42,7 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
     return (
       <View className="gap-1 rounded-lg border border-border px-3 py-2">
         {live ? null : (
-          <Text className="text-13 font-semibold text-muted-foreground">
-            {workWords(block.uses.length)}
-          </Text>
+          <Text className="text-13 font-semibold text-muted-foreground">{block.doneWords}</Text>
         )}
         {block.notes.map((note) => (
           <Text key={note.eventId} className="text-13 text-muted-foreground">
@@ -58,7 +54,7 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
             key={use.toolUseId}
             className={`text-13 ${use.kind === "failed" ? "text-destructive" : "text-muted-foreground"}`}
           >
-            {`${toolWords(use.name)}${use.kind === "running" ? "…" : ""}`}
+            {`${use.label}${use.kind === "running" ? "…" : ""}`}
             {use.kind === "failed" ? `: ${use.message}` : ""}
           </Text>
         ))}

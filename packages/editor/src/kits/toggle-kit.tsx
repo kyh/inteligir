@@ -1,42 +1,11 @@
-import { ElementApi, KEYS, PathApi, createBlockStartInputRule } from "platejs";
-import type { Path } from "platejs";
+import { KEYS, PathApi, createBlockStartInputRule } from "platejs";
 import { toPlatePlugin } from "platejs/react";
-import type { PlateEditor } from "platejs/react";
 import { BaseTogglePlugin } from "@platejs/toggle";
 
-import { stringProp } from "@repo/editor/headless/node-props";
+import { insertToggle } from "@repo/editor/inserts/toggle";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
 
 import { ToggleBodyPlugin } from "@repo/editor/headless/kits/toggle-base";
-
-export const wrapBlockInToggle = (editor: PlateEditor, at: Path) => {
-  editor.tf.withoutNormalizing(() => {
-    const entry = editor.api.node(at);
-
-    if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) {
-      return;
-    }
-
-    editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
-    editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
-  });
-  const toggle = editor.api.node(at);
-  const id = toggle ? stringProp(toggle[0], "id") : undefined;
-
-  if (id !== undefined && id !== "") {
-    editor.getApi(BaseTogglePlugin).toggle.toggleIds([id], true);
-  }
-};
-
-export const insertToggle = (editor: PlateEditor) => {
-  const block = editor.api.block();
-
-  if (!block) {
-    return;
-  }
-
-  wrapBlockInToggle(editor, block[1]);
-};
 
 const toggleInputRule = createBlockStartInputRule({
   apply: ({ editor }, match) => {

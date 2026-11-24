@@ -5,7 +5,7 @@ import { MarkdownPlugin } from "@platejs/markdown";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 import { meaningOf } from "../../test-support/markdown-meaning.test-utils";
-import { headlessEditor, serializeNote } from "./markdown-doc";
+import { headlessEditor, serializeNote } from "../codec/markdown-doc";
 import { lfOnly, readMarkdown, readMdast } from "./md-read";
 import { MD_RULES } from "./md-rules";
 

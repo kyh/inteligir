@@ -3,7 +3,7 @@ import { defineHook } from "eve/hooks";
 import type { HookContext } from "eve/hooks";
 
 const limit = async (event: Fact, ctx: HookContext) => {
-  const { limitEveFact } = await import("@repo/service/agent/eve-agent");
+  const { limitEveFact } = await import("@repo/service/eve/eve-agent");
 
   const stopped = await limitEveFact({
     at: ctx.now.getTime(),

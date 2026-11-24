@@ -30,7 +30,3 @@ export const canonicalJson: (value: JsonValue) => string = (value: JsonValue) =>
 };
 
 export const sameJson = (a: JsonValue, b: JsonValue) => canonicalJson(a) === canonicalJson(b);
-
-const utf8 = new TextEncoder();
-
-export const utf8ByteLength = (text: string) => utf8.encode(text).byteLength;

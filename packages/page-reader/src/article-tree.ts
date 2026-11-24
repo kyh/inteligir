@@ -5,7 +5,7 @@ import type { Handle, NodeHandle, State } from "hast-util-to-mdast";
 import type { BlockContent, DefinitionContent, Table } from "mdast";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
-import { RICH_FENCE_LANGS } from "@repo/editor/headless/markdown/fence-langs";
+import { RICH_FENCE_LANGS } from "@repo/editor/headless/fence-langs";
 
 import { DROPPED, HAST, plainParagraph, wordsOf } from "./page-words";
 import { resolveWebUrl } from "./web-url";

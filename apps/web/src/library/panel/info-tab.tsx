@@ -11,7 +11,7 @@ import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/li
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { isUrlItem } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
-import { folderPaths } from "../sidebar/folder-paths";
+import { folderPaths } from "../library/folder-paths";
 import { PropertiesPanel } from "./properties-panel";
 
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });

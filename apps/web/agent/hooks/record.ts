@@ -7,7 +7,7 @@ export default defineHook({
         return;
       }
 
-      const { recordEveFact } = await import("@repo/service/agent/eve-agent");
+      const { recordEveFact } = await import("@repo/service/eve/eve-agent");
       await recordEveFact({
         at: ctx.now.getTime(),
         auth: ctx.session.auth.current,

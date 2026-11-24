@@ -10,7 +10,7 @@ import {
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
 } from "@repo/editor/headless/dialect-node-keys";
-import { lettersKept } from "@repo/editor/headless/markdown/markdown-doc";
+import { lettersKept } from "@repo/editor/headless/codec/markdown-doc";
 import { alertProp } from "@repo/editor/headless/node-props";
 import {
   meaningOf,

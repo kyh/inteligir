@@ -3,8 +3,8 @@ import { changeSetFile, file, itemFile } from "@repo/db/library-schema";
 import { and, eq, lt, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { askJobs } from "../jobs/job-queue";
-import type { JobRun } from "../jobs/job-kinds";
+import { askJobs } from "../library/job-queue";
+import type { JobRun } from "../library/job-queue";
 import { idleAccounts } from "../library/idle-accounts";
 import { anyOf } from "../library/set-sql";
 import { FILE_STORE } from "./file-store-of";

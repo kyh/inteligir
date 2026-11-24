@@ -6,7 +6,7 @@ import type { FakeCell } from "@repo/contract/test-support/fake-cell.test-utils"
 import { paragraph } from "@repo/contract/test-support/library-items.test-utils";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { composeRuntime } from "../lib/compose-runtime";
+import { composeRuntime } from "../runtime/compose-runtime";
 import { fakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
 import { memoryFolder } from "../test-support/memory-folder.test-utils";
 import { memoryKv } from "@repo/client/test-support/memory-kv.test-utils";

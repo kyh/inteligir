@@ -1,4 +1,4 @@
-import { utf8ByteLength } from "../library/canonical-json";
+import { utf8ByteLength } from "../bytes";
 import { extensionsOfType } from "./item-kind";
 import type { SniffedMedia } from "./sniff-media";
 import { urlHost, urlLastSegment } from "./item-url";

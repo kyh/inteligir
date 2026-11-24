@@ -10,8 +10,8 @@ this app's [`CLAUDE.md`](CLAUDE.md).
 ## Why it is built this way
 
 The runtime the screens use is composed platform-free
-(`src/lib/compose-runtime.ts`), so its suites run it under node; only its
-binding to the device (`src/lib/app-runtime.ts`) needs a phone. One sign-in is
+(`src/runtime/compose-runtime.ts`), so its suites run it under node; only its
+binding to the device (`src/runtime/app-runtime.ts`) needs a phone. One sign-in is
 one library, made and closed together, and the route guard in
 `src/app/_layout.tsx` alone decides which screens exist.
 
