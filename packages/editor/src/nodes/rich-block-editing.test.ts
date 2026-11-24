@@ -15,7 +15,7 @@ import {
   chartWithSeriesRemoved,
   emitChartPayload,
 } from "@repo/editor/nodes/chart-grid";
-import { parseChartPayload } from "@repo/editor/nodes/chart-node";
+import { parseChartPayload } from "@repo/editor/nodes/chart-payload";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning.test-utils";
 
 const chartOf = (payload: string) => {

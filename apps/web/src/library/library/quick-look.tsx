@@ -5,10 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { KeyboardEvent } from "react";
 
-import { readingNotice } from "../item/item-stages";
 import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
-import { cardMeta, coverOf } from "./item-labels";
+import { cardMeta, coverOf, readingNotice } from "./item-labels";
 import { shortcutFor } from "../shortcuts";
 import type { ListedItem } from "../cloud/library-queries";
 

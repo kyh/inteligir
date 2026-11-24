@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
-import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/codec/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";

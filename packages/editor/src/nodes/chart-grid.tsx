@@ -4,7 +4,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import type { ChartPayload } from "./chart-node";
+import type { ChartPayload } from "./chart-payload";
 
 interface ChartGridView {
   labels: string[];

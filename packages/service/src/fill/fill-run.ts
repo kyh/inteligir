@@ -1,8 +1,8 @@
 import { keepFile } from "../files/keep-file";
-import type { JobRun } from "../jobs/job-kinds";
+import type { JobRun } from "../library/job-queue";
 import type { LibraryWriter } from "../library/library-store";
-import { fillJobSchema } from "./fill-job";
-import type { FillJob } from "./fill-job";
+import { fillJobSchema } from "../library/fill-job";
+import type { FillJob } from "../library/fill-job";
 import { fillWaits, landFill } from "./fill-landing";
 import { PAGE_UNREACHED } from "./fill-sentences";
 import { fetchPage } from "./page-fetch";

@@ -14,7 +14,7 @@ import {
   statusWords,
 } from "@repo/client/thread-entries";
 import type { ThreadBlock } from "@repo/client/thread-entries";
-import { useLibrary, useThreadEvents, useThreads } from "@/lib/library-hooks";
+import { useLibrary, useThreadEvents, useThreads } from "@/runtime/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { useFollowEnd } from "@/ui/follow-end";

@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/codec/markdown-doc";
 
 import { EditorHarness } from "./test-support/editor-harness.test-utils";
 

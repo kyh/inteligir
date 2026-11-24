@@ -34,7 +34,7 @@ import {
   sessionPrincipal,
 } from "../test-support/library.fixture";
 import { pageHeaders, v1Link } from "../test-support/v1-link.test-utils";
-import { mintLibraryId } from "./library-ids";
+import { mintLibraryId } from "../library/library-ids";
 
 const SAVED_AT = 1_700_000_000_000;
 const SHA = "a".repeat(64);

@@ -9,7 +9,7 @@ import {
   rewrite,
   writeValue,
 } from "../../test-support/markdown-meaning.test-utils";
-import { headlessEditor } from "./markdown-doc";
+import { headlessEditor } from "../codec/markdown-doc";
 import { readMarkdown } from "./md-read";
 
 const quote = (text: string) =>

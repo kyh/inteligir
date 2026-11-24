@@ -3,7 +3,7 @@ import { ElementApi, KEYS, createSlateEditor } from "platejs";
 
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/headless/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { createAndLink, insertPageLink } from "@repo/editor/mention/mention-insert";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 

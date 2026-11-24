@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 
-import { headlessEditor, parseMarkdown, serializeNote } from "../headless/markdown/markdown-doc";
+import { headlessEditor, parseMarkdown, serializeNote } from "../headless/codec/markdown-doc";
 
 const markKey = (text: TText) =>
   JSON.stringify(

@@ -3,7 +3,7 @@ import { changeSetFile, file, item, itemFile } from "@repo/db/library-schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 
-import { anyOf, chunksOf } from "../library/set-sql";
+import { anyOf, chunksOf } from "./set-sql";
 
 const touch = async (tx: DbExecutor, accountId: string, shas: readonly string[], now: number) => {
   if (shas.length > 0) {

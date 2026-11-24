@@ -1,6 +1,6 @@
 import { agentReadRows, agentWriteRows } from "../agent/agent-rows";
-import { libraryReadRows } from "../library/library-read-rows";
-import { libraryWriteRows } from "../library/library-write-rows";
+import { libraryReadRows } from "./library-read-rows";
+import { libraryWriteRows } from "./library-write-rows";
 
 export const libraryRouter = {
   ...libraryReadRows,

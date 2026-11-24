@@ -5,7 +5,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { applyBodyChanges } from "./body-change";
 import { blockChanges, sectionChanges } from "./block-changes";
 import { blocksOfValue } from "./note-blocks";
-import { setSection } from "./note-section";
+import { setSection } from "@repo/editor/headless/kits/note-section";
 import { blockId } from "@repo/editor/headless/node-props";
 
 const laying = new WeakSet<SlateEditor>();

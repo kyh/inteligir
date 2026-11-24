@@ -1,4 +1,3 @@
-import type { Reading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -8,6 +7,7 @@ import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 import { usePageLibrary } from "../cloud/library-context";
 import { fileUrl, readFile } from "../cloud/library-files";
 import { saveBlob } from "@repo/ui/lib/save-blob";
+import { readingNotice } from "../library/item-labels";
 
 const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
   const { cloud } = usePageLibrary();
@@ -136,27 +136,6 @@ export const SourceHeader = ({ fields }: { fields: LibraryItemFields }) => {
       </a>
     </div>
   );
-};
-
-export const readingNotice = (reading: Reading) => {
-  switch (reading.state) {
-    case "pending": {
-      return "Not read yet. The page is read in the cloud, and its text appears here soon.";
-    }
-
-    case "failed": {
-      return reading.error;
-    }
-
-    case "none":
-    case "read": {
-      return null;
-    }
-
-    default: {
-      throw new Error(`unexpected ${String(reading satisfies never)}`);
-    }
-  }
 };
 
 export const ReadingNotice = ({ fields }: { fields: LibraryItemFields }) => {

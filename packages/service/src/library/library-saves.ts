@@ -8,7 +8,7 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
-import { withArticle } from "../body/article-body";
+import { withArticle } from "./article-body";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { parentOfTarget } from "./library-parents";

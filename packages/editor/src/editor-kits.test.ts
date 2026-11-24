@@ -3,14 +3,14 @@ import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
 import type { Descendant } from "platejs";
 import { BaseTogglePlugin } from "@platejs/toggle";
 
-import { insertColumnGroup } from "@repo/editor/kits/column-kit";
-import { insertDate } from "@repo/editor/kits/date-kit";
+import { insertColumnGroup } from "@repo/editor/inserts/column-group";
+import { insertDate } from "@repo/editor/inserts/date";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
-import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
-import { insertToggle } from "@repo/editor/kits/toggle-kit";
+import { insertEmbedFromUrl } from "@repo/editor/inserts/embed";
+import { insertEquation, insertInlineEquation } from "@repo/editor/inserts/equation";
+import { insertToggle } from "@repo/editor/inserts/toggle";
 import { insertPageLink } from "@repo/editor/mention/mention-insert";
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning.test-utils";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 

@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { useShareIntentContext } from "expo-share-intent";
 import type { ShareIntent } from "expo-share-intent";
-import type { PhoneLibrary } from "@/lib/compose-runtime";
+import type { PhoneLibrary } from "@/runtime/compose-runtime";
 import { messageOf } from "@/lib/error-message";
-import { useLibrary } from "@/lib/library-hooks";
+import { useLibrary } from "@/runtime/library-hooks";
 import { openItem } from "@/lib/routes";
-import { sharedSaveOf } from "./share-payload";
-import { createShareQueue } from "./share-queue";
+import { sharedSaveOf } from "../items/share-payload";
+import { createShareQueue } from "../items/share-queue";
 
 const metaOf = (meta: ShareIntent["meta"]) => {
   if (meta === null || meta === undefined) {

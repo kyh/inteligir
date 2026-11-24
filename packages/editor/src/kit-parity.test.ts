@@ -20,7 +20,7 @@ import { RichBlockLockKit } from "@repo/editor/nodes/rich-block-lock";
 import { blockOfElement } from "@repo/editor/headless/body/element-block";
 import { MD_REMARK_PLUGINS } from "@repo/editor/headless/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/headless/markdown/md-rules";
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { readValue, rewrite } from "@repo/editor/test-support/markdown-meaning.test-utils";
 import { SelectionToolbarKit } from "@repo/editor/selection-toolbar";
 import { TocKit } from "@repo/editor/toc";

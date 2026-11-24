@@ -7,7 +7,7 @@ import { createPlateEditor, pipeHandler } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 

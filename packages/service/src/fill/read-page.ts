@@ -14,7 +14,7 @@ import {
 import { sniffMedia } from "@repo/contract/items/sniff-media";
 
 import { decodeText } from "./decode-text";
-import type { FillJob } from "./fill-job";
+import type { FillJob } from "../library/fill-job";
 import type { FillLanding } from "./fill-landing";
 import { failureOf, fileOnlyLinked, PAGE_UNREACHED, TEXT_NOT_SAVED } from "./fill-sentences";
 import { OEMBED_MAX_BYTES, oembedEndpoint, parseOEmbed, youTubeStills } from "./oembed";

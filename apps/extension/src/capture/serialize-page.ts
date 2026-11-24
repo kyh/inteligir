@@ -1,6 +1,5 @@
+import { CAPTURE_HTML_MAX_CHARS } from "./captured-page";
 import type { CapturedPage } from "./captured-page";
-
-export const CAPTURE_HTML_MAX_CHARS = 2 * 1024 * 1024;
 
 const KEPT_SCRIPT_TYPE = "application/ld+json";
 const LABELLED_INPUT_TYPES = new Set(["button", "image", "reset", "submit"]);

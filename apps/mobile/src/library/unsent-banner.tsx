@@ -2,7 +2,7 @@ import { Alert, Text, View } from "react-native";
 import { useSyncExternalStore } from "react";
 import { savesWaiting } from "@repo/client/waiting-saves";
 import type { WaitingShare } from "@/items/share-outbox";
-import { useLibrary } from "@/lib/library-hooks";
+import { useLibrary } from "@/runtime/library-hooks";
 import { TextButton } from "@/ui/text-button";
 
 const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";

@@ -1,7 +1,7 @@
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
-import { headlessEditor, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { headlessEditor, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { writtenInList } from "@repo/editor/headless/markdown/md-rules";
 
 import { writeBlocks } from "./write-blocks";

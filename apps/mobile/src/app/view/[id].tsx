@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { EVERY_ORIGIN } from "@/editor/web-view-policy";
-import { useFileUri, useItem } from "@/lib/library-hooks";
+import { useFileUri, useItem } from "@/runtime/library-hooks";
 import { firstParam } from "@/lib/routes";
 import { sameDocument } from "@/lib/same-document";
 import { screenStyle, useTheme } from "@/lib/theme";

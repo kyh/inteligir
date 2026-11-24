@@ -3,8 +3,8 @@ import type { RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
-import type { ComposerEvent, ComposerState } from "./agent/agent-composer";
+import { COMPOSER_START, composerAfter } from "./agent-composer";
+import type { ComposerEvent, ComposerState } from "./agent-composer";
 
 export const PANEL_TABS = ["info", "agent"] as const;
 

@@ -25,6 +25,7 @@ import {
   WorkflowIcon,
   PanelsTopLeftIcon,
 } from "lucide-react";
+import { KEYS } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
@@ -33,15 +34,25 @@ import {
   insertCanvasBlock,
   insertChartBlock,
   insertHtmlBlock,
-} from "@repo/editor/kits/rich-blocks-kit";
-import { insertTabGroup } from "@repo/editor/kits/tabs-kit";
+} from "@repo/editor/inserts/rich-blocks";
+import { insertTabGroup } from "@repo/editor/inserts/tab-group";
 import { EmbedPromptPlugin } from "@repo/editor/embed-url-dialog";
-import { insertHorizontalRule } from "@repo/editor/kits/basic-blocks-kit";
-import { insertMermaid } from "@repo/editor/kits/code-block-kit";
-import { insertColumnGroup } from "@repo/editor/kits/column-kit";
-import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
-import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
-import { insertToggle } from "@repo/editor/kits/toggle-kit";
+import { insertHorizontalRule } from "@repo/editor/inserts/horizontal-rule";
+import { insertColumnGroup } from "@repo/editor/inserts/column-group";
+import { insertDate, insertMonthDate } from "@repo/editor/inserts/date";
+import { insertEquation, insertInlineEquation } from "@repo/editor/inserts/equation";
+import { insertToggle } from "@repo/editor/inserts/toggle";
+
+const insertMermaid = (editor: PlateEditor) => {
+  turnIntoSelection(editor, turnIntoOption("code-block"));
+  editor.tf.setNodes(
+    { lang: "mermaid" },
+    { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
+  );
+  editor.tf.insertText("graph TD;");
+  editor.tf.insertBreak();
+  editor.tf.insertText("  A-->B;");
+};
 
 export interface SlashItem {
   icon: React.ReactNode;

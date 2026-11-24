@@ -11,7 +11,7 @@ import { item, purgedItem } from "@repo/db/library-schema";
 import { and, eq, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import { dropItemFiles, fileOf } from "../files/file-names";
+import { dropItemFiles, fileOf } from "./file-names";
 import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";

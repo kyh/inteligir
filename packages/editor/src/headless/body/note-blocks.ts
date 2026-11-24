@@ -7,7 +7,7 @@ import type { LibrarySection } from "@repo/contract/library/library-nodes";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 
 import { blockOfElement } from "./element-block";
-import { sectionOf, sectioned } from "./note-section";
+import { sectionOf, sectioned } from "@repo/editor/headless/kits/note-section";
 
 export const editorValueOf = (blocks: readonly BodyBlock[]) => {
   const elements =

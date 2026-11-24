@@ -9,7 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 
 import { libraryAs, personalLibrary } from "../test-support/library.fixture";
-import { sealTurnSet } from "./library-change-sets";
+import { sealTurnSet } from "./turn-sets";
 import { mintLibraryId } from "./library-ids";
 
 const NOTHING_LEFT = { kept: [], next: null, refused: [], reverted: [] };

@@ -14,7 +14,7 @@ import {
   CALLER_IP_HEADER,
   ORIGIN,
 } from "../test-support/auth-requests.test-utils";
-import { clientIpOptions } from "./client-ip";
+import { clientIpOptions } from "../client-ip";
 import { OAUTH_REGISTER_WINDOW_SECONDS } from "./oauth";
 
 const ATTEMPT_CAP = 20;

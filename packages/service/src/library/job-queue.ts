@@ -2,8 +2,9 @@ import type { DbExecutor } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
 import type { jobKind } from "@repo/db/library-schema";
 import { and, asc, eq, lte, sql } from "drizzle-orm";
+import type { z } from "zod";
 
-import { chunksOf } from "../library/set-sql";
+import { chunksOf } from "./set-sql";
 
 export type JobKind = (typeof jobKind.enumValues)[number];
 
@@ -22,6 +23,24 @@ export interface Lease extends JobAsk {
 const LEASE_MS = 300_000;
 const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 60 * 60_000;
+
+export type JobOutcome = "done" | "retry";
+
+type JobAttempt = Pick<Lease, "accountId" | "attempts">;
+
+type Tries<P> =
+  | { readonly kind: "until-done" }
+  | {
+      readonly kind: "at-most";
+      readonly max: number;
+      readonly exhausted: (payload: P, job: JobAttempt) => Promise<void>;
+    };
+
+export interface JobRun<P> {
+  readonly payload: z.ZodType<P>;
+  readonly tries: Tries<P>;
+  readonly run: (payload: P, job: JobAttempt & { readonly final: boolean }) => Promise<JobOutcome>;
+}
 
 export const askJobs = async (tx: DbExecutor, asks: readonly JobAsk[], now: number) => {
   const rows = asks.map((ask) => ({ ...ask, createdAt: now, runAt: now }));

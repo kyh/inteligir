@@ -2,7 +2,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { db } from "@repo/db/drizzle-client";
 import { applyBodyChanges } from "@repo/editor/headless/body/body-change";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
-import type { ViewEdit } from "@repo/editor/headless/codec/item-edit";
+import type { ViewEdit } from "@repo/editor/headless/body/item-edit";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { createSlateEditor } from "platejs";
 import { z } from "zod";

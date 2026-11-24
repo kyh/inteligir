@@ -8,8 +8,9 @@ import { z } from "zod";
 import { makeAccount } from "../test-support/library.fixture";
 import { drainJobs } from "./drain-jobs";
 import { JOB_RUNS, leasedRun } from "./job-kinds";
-import type { JobRun, JobRuns } from "./job-kinds";
-import { askJobs } from "./job-queue";
+import type { JobRuns } from "./job-kinds";
+import type { JobRun } from "../library/job-queue";
+import { askJobs } from "../library/job-queue";
 
 const BUDGET_MS = 10_000;
 

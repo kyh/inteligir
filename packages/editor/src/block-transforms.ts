@@ -4,7 +4,7 @@ import type { PlateEditor } from "platejs/react";
 
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
-import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
+import { wrapBlockInToggle } from "@repo/editor/inserts/toggle";
 import { alertProp, stringProp } from "@repo/editor/headless/node-props";
 
 export type TurnIntoId =

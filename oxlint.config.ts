@@ -157,7 +157,7 @@ const HARNESS_DRIVEN_SUITES = [
 
 const SLOW_SUITES = {
   "apps/web/src/library/library-layout.test.tsx": 3,
-  "packages/editor/src/headless/codec/item-edit.test.ts": 1,
+  "packages/editor/src/headless/body/item-edit.test.ts": 1,
   "packages/editor/src/headless/codec/item-markdown.test.ts": 3,
   "packages/editor/src/headless/codec/link-resolve-oracle.test.ts": 1,
   "packages/editor/src/long-note-chunks.test.tsx": 1,

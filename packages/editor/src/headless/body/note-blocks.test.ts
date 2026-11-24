@@ -6,7 +6,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 
 import { blockOfElement } from "@repo/editor/headless/body/element-block";
 import { blocksOfValue, editorValueOf } from "@repo/editor/headless/body/note-blocks";
-import { sectioned } from "@repo/editor/headless/body/note-section";
+import { sectioned } from "@repo/editor/headless/kits/note-section";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
 import { schemaPairs, usedPairs } from "../../test-support/library-node-pairs.test-utils";
 import { CORPUS, LISTED, SECTIONED } from "../../test-support/stored-corpus.test-utils";

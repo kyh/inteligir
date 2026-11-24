@@ -1,27 +1,7 @@
-import type { z } from "zod";
-
 import { RELEASE_RUN } from "../files/file-release";
 import { FILL_RUN } from "../fill/fill-run";
 import { SWEEP_RUN } from "../library/library-sweeps";
-import type { JobKind, Lease } from "./job-queue";
-
-type JobOutcome = "done" | "retry";
-
-type JobAttempt = Pick<Lease, "accountId" | "attempts">;
-
-type Tries<P> =
-  | { readonly kind: "until-done" }
-  | {
-      readonly kind: "at-most";
-      readonly max: number;
-      readonly exhausted: (payload: P, job: JobAttempt) => Promise<void>;
-    };
-
-export interface JobRun<P> {
-  readonly payload: z.ZodType<P>;
-  readonly tries: Tries<P>;
-  readonly run: (payload: P, job: JobAttempt & { readonly final: boolean }) => Promise<JobOutcome>;
-}
+import type { JobKind, JobOutcome, JobRun, Lease } from "../library/job-queue";
 
 type LeasedRun = (lease: Lease) => Promise<JobOutcome | "unreadable">;
 

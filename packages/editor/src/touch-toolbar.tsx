@@ -27,7 +27,7 @@ import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
 import { applyLink, holdSelection } from "@repo/editor/held-selection";
-import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
+import { indentBlocks, outdentBlocks } from "@repo/editor/inserts/indent";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcuts";
 import { GROUPS } from "@repo/editor/slash-items";

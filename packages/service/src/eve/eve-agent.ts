@@ -10,18 +10,25 @@ import type { AnyColumn } from "drizzle-orm";
 import type { Fact, Progress, SessionView, TurnSettled } from "eve/events";
 import type { ToolModelOutput } from "eve/tools";
 
-import { sealTurnSet } from "../library/library-change-sets";
+import { sealTurnSet } from "../library/turn-sets";
 import { takeLibraryHead } from "../library/library-store";
-import type { TurnStop, UsageAt } from "./agent-limits";
-import { AGENT_TURN_STEPS, bookTurn, chargeSpend } from "./agent-limits";
-import { agentEnabled, filingRulesFor } from "./agent-preference";
-import { costMicroUsdOf, WEB_SEARCH_MICRO_USD } from "./agent-model";
+import type { TurnStop, UsageAt } from "../agent/agent-limits";
+import { AGENT_TURN_STEPS, bookTurn, chargeSpend } from "../agent/agent-limits";
+import { agentEnabled, filingRulesFor } from "../agent/agent-preference";
+import { costMicroUsdOf, WEB_SEARCH_MICRO_USD } from "../agent/agent-model";
 import type { AgentCallOutcome, AgentTool } from "./agent-tools";
 import { AGENT_TOOLS, callAgentTool } from "./agent-tools";
-import type { TurnAt } from "./agent-threads";
-import { keepTurn, moveThread, stampTurnStop, threadOf, turnIs, turnOf } from "./agent-threads";
-import { eveCallerOf } from "./eve-admission";
-import { shownEvent, turnEndedEvent, turnOutcomeOf } from "./thread-events";
+import type { TurnAt } from "../agent/agent-threads";
+import {
+  keepTurn,
+  moveThread,
+  stampTurnStop,
+  threadOf,
+  turnIs,
+  turnOf,
+} from "../agent/agent-threads";
+import { eveCallerOf } from "../agent/eve-admission";
+import { shownEvent, turnEndedEvent, turnOutcomeOf } from "../agent/thread-events";
 
 type EveAuth = Parameters<typeof eveCallerOf>[0];
 

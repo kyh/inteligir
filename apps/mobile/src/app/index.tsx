@@ -36,14 +36,14 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ingestPhoto } from "@/items/photo-ingest";
 import type { SaveOutcome } from "@/items/phone-saves";
-import { useLibrary, useMoveToDeleted } from "@/lib/library-hooks";
+import { useLibrary, useMoveToDeleted } from "@/runtime/library-hooks";
 import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { ListedItem } from "@/library/library-card";
 import { listingPage } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
-import { confirmSignOut } from "@/ui/confirm-sign-out";
+import { confirmSignOut } from "@/runtime/confirm-sign-out";
 import { online } from "@/ui/needs-connection";
 
 const SEARCH_PAUSE_MS = 300;

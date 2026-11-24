@@ -22,9 +22,9 @@ import { clearStoredShares, createShareOutbox } from "../items/share-outbox";
 import type { ShareOutbox } from "../items/share-outbox";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
-import { messageOf } from "./error-message";
-import { createExternalStore } from "./external-store";
-import type { ReadableStore } from "./external-store";
+import { messageOf } from "../lib/error-message";
+import { createExternalStore } from "../lib/external-store";
+import type { ReadableStore } from "../lib/external-store";
 import { downloadBlob, phoneTransport } from "./phone-transport";
 
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;

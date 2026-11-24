@@ -13,7 +13,7 @@ import {
 } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import {
   meaningOf,
   readValue,

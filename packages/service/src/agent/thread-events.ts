@@ -2,7 +2,13 @@ import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-eve
 import type { CallSettled, Fact, JsonValue, Progress, TurnSettled } from "eve/events";
 import { z } from "zod";
 
-import type { KeptTurn } from "./agent-threads";
+import type { TurnStop } from "./agent-limits";
+
+export interface KeptTurn {
+  readonly number: number;
+  readonly stopReason: TurnStop | null;
+  readonly settledAt: number | null;
+}
 
 export interface ThreadPosition {
   readonly session: number;

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { FORMULA_PILL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/headless/kits/base-kit";
-import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/codec/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/headless/markdown/md-plugins";
 import { blockId } from "@repo/editor/headless/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";

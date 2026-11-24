@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import { ElementApi, KEYS } from "platejs";
-import type { SlateEditor, TElement } from "platejs";
+import type { TElement } from "platejs";
 import { PlateElement, useEditorRef, useElement, usePath } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { PlusIcon, XIcon } from "lucide-react";
@@ -8,7 +8,7 @@ import { PlusIcon, XIcon } from "lucide-react";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/headless/dialect-node-keys";
+import { TAB_PANEL_KEY } from "@repo/editor/headless/dialect-node-keys";
 import { useFrozen, useRichBlocksLocked } from "@repo/editor/nodes/rich-block-lock";
 import { stringProp } from "@repo/editor/headless/node-props";
 import { LockedContent } from "@repo/editor/nodes/rich-block-chrome";
@@ -159,21 +159,3 @@ export const TabsKit = [
   tabGroupBasePlugin.withComponent(TabGroupElement),
   tabPanelBasePlugin.withComponent(TabPanelElement),
 ];
-
-export const insertTabGroup = (editor: SlateEditor) => {
-  editor.tf.insertNodes({
-    children: [
-      {
-        children: [{ children: [{ text: "" }], type: editor.getType(KEYS.p) }],
-        label: "Tab 1",
-        type: TAB_PANEL_KEY,
-      },
-      {
-        children: [{ children: [{ text: "" }], type: editor.getType(KEYS.p) }],
-        label: "Tab 2",
-        type: TAB_PANEL_KEY,
-      },
-    ],
-    type: TAB_GROUP_KEY,
-  });
-};

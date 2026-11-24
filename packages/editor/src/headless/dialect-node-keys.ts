@@ -1,4 +1,4 @@
-import type { RICH_FENCE_LANGS } from "@repo/editor/headless/markdown/fence-langs";
+import type { RICH_FENCE_LANGS } from "@repo/editor/headless/fence-langs";
 
 type RichFenceBlockKey = NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>;
 

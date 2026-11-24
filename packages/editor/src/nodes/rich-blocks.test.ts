@@ -1,7 +1,7 @@
 import { assert, describe, expect, it } from "vitest";
 
 import { parseCanvasPayload } from "@repo/editor/nodes/canvas-node";
-import { parseChartPayload } from "@repo/editor/nodes/chart-node";
+import { parseChartPayload } from "@repo/editor/nodes/chart-payload";
 
 describe(parseChartPayload, () => {
   it("accepts the prompt's single-series example", () => {

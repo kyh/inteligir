@@ -64,7 +64,7 @@ DOM (`oxlint.config.ts`).
   calls read one count and all pass. `packages/service/src/rate-limit.ts`.
 - **On Vercel the caller's address is `x-vercel-forwarded-for`'s.** The edge sets
   it, while a client can send any `x-forwarded-for` chain.
-  `packages/service/src/auth/client-ip.ts`.
+  `packages/service/src/client-ip.ts`.
 - **Mail goes from `EMAIL_FROM` through Resend only when `EMAIL_MODE=resend`;
   unset, a deployment logs it outside production and sends nothing in it.** A
   log in production would hold live reset links, and with mail off a reset is
@@ -271,7 +271,7 @@ DOM (`oxlint.config.ts`).
 - **A file is let go a day after its last name went, asked of the rows that
   name it: an item's `item_file`, a change set's `change_set_file`.** Every
   name added or dropped moves `touched_at`; a count kept beside those rows is a
-  second spelling that drifts from them. `packages/service/src/files/file-names.ts`.
+  second spelling that drifts from them. `packages/service/src/library/file-names.ts`.
 - **A read of more than one query is one read-only, repeatable-read
   transaction, but `library.changes`.** A page and its counts, or a hit and its
   passage, then read one library; `changes` reads the head first, so a write
@@ -326,7 +326,7 @@ DOM (`oxlint.config.ts`).
 - **Every `held` answer touches its file's row, as a name does, and one that
   finds the row gone goes on as for a file never held.** Housekeeping lets go a
   file unnamed for a day, and the write a held answer lets a device send would
-  otherwise find it gone. `packages/service/src/files/file-names.ts`.
+  otherwise find it gone. `packages/service/src/library/file-names.ts`.
 - **A write for an account whose user row is gone is refused `GONE` by the
   lock.** A settle arriving after a delete would otherwise make a library for
   nobody. `packages/service/src/library/library-store.ts`.
@@ -338,27 +338,27 @@ DOM (`oxlint.config.ts`).
 - **`/v1/blobs/<sha>` answers HEAD, preconditions and ranges from the file's
   row, and reads the store only for a body.** A media loader's probes and a
   device's revalidations then cost no store read.
-  `packages/service/src/files/file-read-route.ts`.
+  `packages/service/src/rpc/file-read-route.ts`.
 - **`/v1/blobs/<sha>` names a file only by a name an item holds it under as
   its original: the `?name=` asked when one does, the first saved's
   otherwise.** A browser's viewer titles a file and a download saves it by its
   `content-disposition`, and a name nothing gave it would let a link pass a
-  file off as anything. `packages/service/src/files/file-names.ts`.
+  file off as anything. `packages/service/src/library/file-names.ts`.
 
 ## Background work
 
 - **Work a write asks for after it is a row of the one `job` table, written in
   the write's transaction.** A job is never asked by a write that rolled back
   nor lost by one that landed, and a row outlives any function the platform
-  cuts. `packages/service/src/jobs/job-queue.ts`.
+  cuts. `packages/service/src/library/job-queue.ts`.
 - **A drain leases one row at a time under `for update skip locked` and holds
   it 300 s, the longest a draining route runs; a failed run waits 30 s,
   doubling to an hour.** Drains at once never share a row, and a drain cut
   mid-job, where no catch runs, leaves its row due again only once nothing can
-  still be running it. `packages/service/src/jobs/job-queue.ts`.
+  still be running it. `packages/service/src/library/job-queue.ts`.
 - **A run's end, done or put off, touches its row only while the row holds that
   run's lease.** An ask made while the job ran keeps a run of its own.
-  `packages/service/src/jobs/job-queue.ts`.
+  `packages/service/src/library/job-queue.ts`.
 - **A write from `/v1` or the connector kicks a drain of its account after its
   response; Vercel Cron drains every account every minute.** A save's job
   starts at once inside its route's 300 s, and the cron takes what a cut drain,
@@ -416,11 +416,11 @@ DOM (`oxlint.config.ts`).
 - **The record hook keeps what eve did as rows keyed by where eve recorded it,
   and a turn by its eve turn id in its session.** eve delivers a hook at least
   once and numbers turns per session, so a replay writes nothing and session
-  2's `turn_0` is a new turn. `packages/service/src/agent/eve-agent.ts`.
+  2's `turn_0` is a new turn. `packages/service/src/eve/eve-agent.ts`.
 - **The agent's tools are the library's rows tagged `mcp.tool` that the router
   serves, each write's op id hashed from its eve session and call.** A list
   kept by hand drifts from what the connector offers, and a step eve reruns
-  lands its write once. `packages/service/src/agent/agent-tools.ts`.
+  lands its write once. `packages/service/src/eve/agent-tools.ts`.
 - **The mock model answers only with `AGENT_MOCK_MODEL` off Vercel, read at
   each model call.** A deployment that boots with it is refused, and a build
   never bakes it in. `packages/service/src/agent/availability.ts`.
@@ -456,7 +456,7 @@ DOM (`oxlint.config.ts`).
   cancel; a turn is booked under the account's lock as it starts, and a send
   that would start one is refused first.** eve settles a hook's cancel with no
   cause, and two turns starting at once must not both take the day's last.
-  `packages/service/src/agent/eve-agent.ts`.
+  `packages/service/src/eve/eve-agent.ts`.
 - **A send's op id answers its resend from `op_answer`, before the limits.**
   A resend after the day ran out would otherwise refuse a message eve already
   took. `packages/service/src/agent/agent-sessions.ts`.
@@ -465,7 +465,7 @@ DOM (`oxlint.config.ts`).
   runs; whichever settle reaches a turn first keeps its end.** A settle eve
   recorded but couldn't deliver, or a landing after one, leaves a turn every
   device shows running and a set Undo and the prune never reach.
-  `packages/service/src/agent/eve-agent.ts`.
+  `packages/service/src/eve/eve-agent.ts`.
 - **A deleted account's eve sessions are kept apart by Better Auth's
   `beforeDelete`, ended once its `deleteUser` returns and by the agent's cron
   where that failed; one whose thread stood still past eve's idle week is not

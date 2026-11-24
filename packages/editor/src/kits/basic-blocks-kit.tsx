@@ -12,7 +12,7 @@ import {
 import { ElementApi, KEYS, createBlockStartInputRule } from "platejs";
 import type { TElement } from "platejs";
 import { ParagraphPlugin, PlateElement } from "platejs/react";
-import type { PlateEditor, PlateElementProps } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { alertVariantSchema } from "@repo/contract/library/library-nodes";
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
@@ -63,14 +63,6 @@ const alertInputRule = createBlockStartInputRule<{ alert: AlertVariant }>({
   },
   trigger: "]",
 });
-
-export const insertHorizontalRule = (editor: PlateEditor) => {
-  editor.tf.insertNodes(
-    { children: [{ text: "" }], type: HorizontalRulePlugin.key },
-    { select: true },
-  );
-  editor.tf.insertNodes({ children: [{ text: "" }], type: editor.getType(KEYS.p) });
-};
 
 export const BasicBlocksKit = [
   ParagraphPlugin.extend(() => ({ shortcuts: { toggleParagraph: null } })).withComponent(

@@ -9,9 +9,9 @@ import type {
   LibrarySection,
 } from "@repo/contract/library/library-nodes";
 
-import { parseMarkdownSections } from "../markdown/markdown-doc";
-import { editItemView } from "./item-edit";
-import type { EditPorts } from "./item-edit";
+import { parseMarkdownSections } from "./markdown-doc";
+import { editItemView } from "../body/item-edit";
+import type { EditPorts } from "../body/item-edit";
 import { itemView, viewPage } from "./item-view";
 
 const line = (text: string) => ({ children: [{ text }], type: "p" }) satisfies LibraryNode;

@@ -9,8 +9,8 @@ import { deriveBody, titleKey } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 
 import { generateDoc } from "../../test-support/markdown-doc-generator.test-utils";
-import { editItemView } from "./item-edit";
-import type { EditOutcome, ViewEdit } from "./item-edit";
+import { editItemView } from "../body/item-edit";
+import type { EditOutcome, ViewEdit } from "../body/item-edit";
 import { itemView } from "./item-view";
 import { libraryLinks } from "./library-links";
 import type { LibraryLookup } from "./library-links";

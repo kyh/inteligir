@@ -17,7 +17,7 @@ import {
   seedFile,
   seedItem,
 } from "../test-support/library.fixture";
-import { sealTurnSet } from "./library-change-sets";
+import { sealTurnSet } from "./turn-sets";
 import { pruneChangeSets, pruneOpAnswers } from "./library-prunes";
 import { mintLibraryId } from "./library-ids";
 import { landItem } from "./library-landing";

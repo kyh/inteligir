@@ -18,7 +18,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";
 import type { LibrarySection } from "@repo/contract/library/library-nodes";
-import { headlessEditor, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { headlessEditor, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { ARTICLE_SECTION_KEY } from "@repo/editor/headless/markdown/md-rules";
 
 import { writeFrontmatter } from "./item-fields";

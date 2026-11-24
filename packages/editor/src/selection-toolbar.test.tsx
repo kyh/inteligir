@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
-import { parseMarkdown, serializeNote } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/headless/codec/markdown-doc";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host.test-utils";
 
 import { EditorHarness } from "./test-support/editor-harness.test-utils";

@@ -10,7 +10,7 @@ import { holdRoomFor, roomRefusalFor } from "../library/library-quota";
 import type { LibraryResult } from "../library/library-refusal";
 import { writeLibrary } from "../library/library-store";
 import type { LibraryWriter } from "../library/library-store";
-import { touchFile } from "./file-names";
+import { touchFile } from "../library/file-names";
 import { FILE_STORE } from "./file-store-of";
 import type { UploadTicket } from "./file-store";
 import { openUpload, sealUpload } from "./upload-seal";

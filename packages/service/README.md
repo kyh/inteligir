@@ -33,16 +33,16 @@ src/library/library-items.ts   notes and files made, organize, Deleted and back,
 src/library/library-writes.ts  an item's fields landed, a device's property ops
 src/library/library-folders.ts the folder tree's writes, a path filed into
 src/library/library-rows.ts  an item's rows to and from the library model
-src/files/file-names.ts      the files the library's rows name, and touched_at
+src/library/file-names.ts      the files the library's rows name, and touched_at
 src/library/library-listing.ts listings, the rail's counts and titles, under one read snapshot
 src/library/library-reads.ts an item whole or as markdown, an agent's list and search
 src/body/write-body.ts       a body written over the version its writer read: a save, an edit once made
 src/body/edit-body.ts        an agent's edit by passages, made outside the write and made again if stale
-src/body/article-body.ts     a page's article set on a body, the note kept
+src/library/article-body.ts     a page's article set on a body, the note kept
 src/files/file-landing.ts    a file's reserve and settle: the store's upload URL, then its bytes hashed and kept
 src/files/file-store-of.ts   which store keeps files: Blob, a folder off Vercel, or none
-src/files/file-read-route.ts /v1/blobs/<sha>: HEAD, preconditions and ranges from the row, the bytes streamed
-src/jobs/job-queue.ts        the job table: ask, lease under skip locked, finish, retry by backoff
+src/rpc/file-read-route.ts /v1/blobs/<sha>: HEAD, preconditions and ranges from the row, the bytes streamed
+src/library/job-queue.ts        the job table: ask, lease under skip locked, finish, retry by backoff
 src/jobs/job-kinds.ts        what each kind of job runs, its payload's schema and its tries
 src/jobs/drain-jobs.ts       the drain: a kick after a write's response, /api/cron/jobs every minute
 src/jobs/housekeeping.ts     /api/cron/housekeeping hourly: the prunes, the files let go, deleted accounts' files
@@ -55,12 +55,12 @@ src/fill/public-dispatcher.ts the Agent whose lookup refuses a name that resolve
 src/fill/fill-landing.ts     a reading landed on an item still waiting for it
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
-src/agent/eve-agent.ts       what eve asks of the app: the library tools as the turn, the record and limits hooks
+src/eve/eve-agent.ts       what eve asks of the app: the library tools as the turn, the record and limits hooks
 src/agent/eve-admission.ts   who may reach an eve session: the app's token for that thread
 src/agent/agent-sessions.ts  a thread over its eve sessions: send, stop, delete
 src/agent/relay.ts           a thread's events, kept then live, as one stream
 src/agent/agent-limits.ts    the day's allowance and dollar ceilings, from the agent_usage ledger
-src/agent/agent-cron.ts      /api/cron/agent every 15 minutes: stranded turns, deleted threads, the ledger's month
+src/eve/agent-cron.ts      /api/cron/agent every 15 minutes: stranded turns, deleted threads, the ledger's month
 src/background.ts            work after a response, inside its route's maxDuration
 ```
 

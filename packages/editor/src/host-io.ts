@@ -5,8 +5,8 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { foldTitle } from "@repo/editor/mention/rank-titles";
-import type { FoldedTitle } from "@repo/editor/mention/rank-titles";
+import { foldTitle } from "@repo/editor/rank-titles";
+import type { FoldedTitle } from "@repo/editor/rank-titles";
 
 export interface LinkTarget {
   readonly id: string;

@@ -1,6 +1,6 @@
 import { hkdfSync } from "node:crypto";
 
-import { env } from "../env";
+import { env } from "./env";
 
 export const deriveSecret = (purpose: string) => {
   const root = env.BETTER_AUTH_SECRET;

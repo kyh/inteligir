@@ -40,7 +40,7 @@ import {
   CHART_LANG,
   HTML_LANG,
   RICH_FENCE_LANGS,
-} from "@repo/editor/headless/markdown/fence-langs";
+} from "@repo/editor/headless/fence-langs";
 import { alertProp, numberProp, stringProp } from "@repo/editor/headless/node-props";
 
 import {

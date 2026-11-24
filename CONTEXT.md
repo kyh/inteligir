@@ -61,7 +61,7 @@ any depth: a block's children are inside it
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a **fill** wrote. A fill
 and Refresh replace only `article` blocks, so reading a page again never
-touches the person's writing (`packages/service/src/body/article-body.ts`),
+touches the person's writing (`packages/service/src/library/article-body.ts`),
 and an agent's edit writes only `note` blocks. Not a heading's stretch of a
 note, and not a folder.
 
@@ -123,7 +123,7 @@ a guide the spec the agent's prompt holds.
 by the deployment under `/eve/v1`, on Claude through AI Gateway, on our bill
 within the account's daily allowance. It changes the library only by the
 procedures tagged as the **connector**'s tools
-(`packages/service/src/agent/agent-tools.ts`); it has no shell or files, it
+(`packages/service/src/eve/agent-tools.ts`); it has no shell or files, it
 searches the web and reads public pages, and it deletes or saves a link when
 asked, asking nothing more. The person meets it in the panel's
 Agent tab and switches it in Settings › Account
@@ -138,7 +138,7 @@ numbered in its **thread**, which the hooks write as eve starts it. Its
 **answer** is what the person reads of it: the reply, its progress notes and its
 calls, under which "Undo this turn" reverts its one **change set**. A message
 sent while its thread's turn runs joins that turn
-(`packages/service/src/agent/eve-agent.ts`). Not a connected assistant's call,
+(`packages/service/src/eve/eve-agent.ts`). Not a connected assistant's call,
 which is no turn.
 
 **allowance** — what the **built-in agent** may spend for an account in a UTC
@@ -239,7 +239,7 @@ names its items by id, a hundred a call.
 
 **job** — work a library write asked for, run once it commits: a row of the
 job table, one per subject, which a drain leases and runs
-(`packages/service/src/jobs/job-queue.ts`), after the response of the write
+(`packages/service/src/library/job-queue.ts`), after the response of the write
 that asked it and by the cron every minute. A **fill**, a lot of a **sweep** and
 a file's release from the **file store** are jobs. Not a cron: the crons drain
 jobs and keep house.

@@ -1,12 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useOnline } from "@/lib/app-runtime";
-import { useLibrary } from "@/lib/library-hooks";
+import { useOnline } from "@/runtime/app-runtime";
+import { useLibrary } from "@/runtime/library-hooks";
 import { openItem } from "@/lib/routes";
 import { noteActions } from "./note-actions";
-import { notePageLife } from "./note-page-life";
-import type { NotePageLifeStore } from "./note-page-life";
-import type { MovedItems, PageProps } from "./page/page-host";
+import { notePageLife } from "../editor/note-page-life";
+import type { NotePageLifeStore } from "../editor/note-page-life";
+import type { MovedItems, PageProps } from "../editor/page/page-host";
 import type { UnsentNote } from "@repo/contract/library/unsent-note";
 
 interface NotePage {

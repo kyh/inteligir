@@ -3,21 +3,21 @@ import { NotFoundError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 
 import { DIALECT_SPEC } from "../agent/agent-prompt";
-import { reading } from "./library-access";
-import { libraryChanges } from "./library-changes";
-import { libraryHeads } from "./library-heads";
-import { namedFiles, settleNotes } from "./library-imports";
+import { reading } from "../library/library-access";
+import { libraryChanges } from "../library/library-changes";
+import { libraryHeads } from "../library/library-heads";
+import { namedFiles, settleNotes } from "../library/library-imports";
 import {
   listingChildren,
   listingPage,
   listingScopes,
   listingTitles,
   readLibrary,
-} from "./library-listing";
-import { libraryOutline, listItems, readItemView, searchItems } from "./library-reads";
-import { readItemRow, readItemWhole } from "./library-rows";
-import type { StoredItem } from "./library-rows";
-import { undoableTurns } from "./library-undo";
+} from "../library/library-listing";
+import { libraryOutline, listItems, readItemView, searchItems } from "../library/library-reads";
+import { readItemRow, readItemWhole } from "../library/library-rows";
+import type { StoredItem } from "../library/library-rows";
+import { undoableTurns } from "../library/library-undo";
 
 const itemRow = ({ card, fields, id, seq, updatedAt }: StoredItem) => ({
   card: answerCard(card),

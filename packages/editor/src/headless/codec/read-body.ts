@@ -1,7 +1,7 @@
 import type { TElement } from "platejs";
 
 import { settledAlone } from "@repo/editor/headless/formulas/pill-nodes";
-import { parseMarkdown } from "@repo/editor/headless/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/headless/codec/markdown-doc";
 import type { MarkdownRead } from "@repo/editor/headless/markdown/md-read";
 import type { WikiResolve } from "@repo/editor/headless/markdown/remark-wiki-import";
 

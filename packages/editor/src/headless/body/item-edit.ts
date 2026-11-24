@@ -3,12 +3,12 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 import { diffLines } from "@repo/editor/headless/text/line-diff";
 
-import { articleView, noteView } from "./item-view";
-import type { NoteView } from "./item-view";
-import { libraryLinks } from "./library-links";
-import type { LibraryLinks, LibraryLookup } from "./library-links";
-import { readBodyPart } from "./read-body";
-import type { ReadPorts } from "./read-blocks";
+import { articleView, noteView } from "@repo/editor/headless/codec/item-view";
+import type { NoteView } from "@repo/editor/headless/codec/item-view";
+import { libraryLinks } from "@repo/editor/headless/codec/library-links";
+import type { LibraryLinks, LibraryLookup } from "@repo/editor/headless/codec/library-links";
+import { readBodyPart } from "@repo/editor/headless/codec/read-body";
+import type { ReadPorts } from "@repo/editor/headless/codec/read-blocks";
 import type { BodyChange } from "@repo/editor/headless/body/body-change";
 
 export interface ViewEdit {

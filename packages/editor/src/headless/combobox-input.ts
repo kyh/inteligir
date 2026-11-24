@@ -1,7 +1,7 @@
 import { KEYS, NodeApi, createSlatePlugin } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 
-import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formulas/formula-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/headless/formula-input-key";
 
 export const PICKER_INPUT_TYPES: readonly string[] = [
   KEYS.slashInput,

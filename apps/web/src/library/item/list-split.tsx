@@ -2,10 +2,10 @@ import type { OpenNote } from "@repo/editor/item/item-editor";
 import { cn } from "@repo/ui/lib/cn";
 import { useRef } from "react";
 
-import { ItemView } from "../item/item-view";
+import { ItemView } from "./item-view";
 import { LIST_MAX_WIDTH, LIST_MIN_WIDTH, usePref, windowLayout } from "../prefs";
-import { ListView } from "./list-view";
-import type { ListViewProps } from "./list-view";
+import { ListView } from "../library/list-view";
+import type { ListViewProps } from "../library/list-view";
 
 const KEY_STEP_PX = 16;
 

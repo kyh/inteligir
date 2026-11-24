@@ -21,8 +21,8 @@ import { expoFileFolder } from "../files/expo-file-folder";
 import type { FileCachePorts } from "../files/file-cache";
 import type { KvStorage } from "@repo/client/waiting-saves";
 import type { LoginRequest } from "../login/login-store";
-import { excludeFromBackup } from "./backup-exclusion";
-import { getCloudUrl } from "./cloud-url";
+import { excludeFromBackup } from "../lib/backup-exclusion";
+import { getCloudUrl } from "../lib/cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime } from "./compose-runtime";
 

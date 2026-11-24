@@ -4,8 +4,7 @@ import { createAuthClient } from "better-auth/client";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 
-import { CALL_DEADLINE_MS } from "./cloud";
-import { cloudOrigin, keepConnection, readConnection } from "./connection";
+import { CALL_DEADLINE_MS, cloudOrigin, keepConnection, readConnection } from "./connection";
 
 export interface Session {
   readonly bearer: string;

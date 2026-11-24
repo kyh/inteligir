@@ -1,15 +1,14 @@
 import { Suspense, lazy, useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
-import { KEYS, NodeApi } from "platejs";
+import { NodeApi } from "platejs";
 import { PlateElement, PlateLeaf } from "platejs/react";
-import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
+import type { PlateElementProps, PlateLeafProps } from "platejs/react";
 import { CodeBlockRules } from "@platejs/code-block";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { stringProp } from "@repo/editor/headless/node-props";
 
 const MermaidPreview = lazy(async () => await import("@repo/editor/nodes/code-block-mermaid"));
@@ -89,17 +88,6 @@ const CodeBlockElement = (props: PlateElementProps) => {
 };
 
 const CodeLineElement = (props: PlateElementProps) => <PlateElement {...props} as="div" />;
-
-export const insertMermaid = (editor: PlateEditor) => {
-  turnIntoSelection(editor, turnIntoOption("code-block"));
-  editor.tf.setNodes(
-    { lang: "mermaid" },
-    { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
-  );
-  editor.tf.insertText("graph TD;");
-  editor.tf.insertBreak();
-  editor.tf.insertText("  A-->B;");
-};
 
 export const CodeBlockKit = [
   CodeBlockPlugin.configure({

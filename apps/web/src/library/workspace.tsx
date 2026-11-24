@@ -22,7 +22,7 @@ import { useWindowCapture } from "./library/capture/window-capture";
 import { useLibraryCommands } from "./library/library-commands";
 import { createLibrarySelection, selectedIn } from "./library/library-selection";
 import { LibraryView } from "./library/library-view";
-import { ListSplit } from "./library/list-split";
+import { ListSplit } from "./item/list-split";
 import type { ListingPlaceholder } from "./library/library-view";
 import { listingQuery } from "./library/listing";
 import type { ListedItem } from "./cloud/library-queries";

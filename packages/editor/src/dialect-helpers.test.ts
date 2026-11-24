@@ -4,7 +4,7 @@ import type { Descendant } from "platejs";
 import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
+import { insertDate, insertMonthDate } from "@repo/editor/inserts/date";
 import { stringProp } from "@repo/editor/headless/node-props";
 
 const chipDates = (nodes: Descendant[]) => {

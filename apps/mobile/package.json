@@ -2,6 +2,7 @@
   "name": "@repo/mobile",
   "private": true,
   "main": "expo-router/entry",
+  "exports": {},
   "scripts": {
     "dev": "expo start",
     "build": "EXPO_NO_BUNDLE_SPLITTING=1 expo export --platform ios --output-dir dist",

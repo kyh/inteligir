@@ -16,7 +16,7 @@ import {
 import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test-utils";
 import { personalLibrary } from "../test-support/library.fixture";
 import { caughtUp, readStream, rowsOf } from "../test-support/thread-reads.test-utils";
-import { runAgentCron } from "./agent-cron";
+import { runAgentCron } from "../eve/agent-cron";
 import { mintLibraryId } from "../library/library-ids";
 import { cancelAgentTurn, deleteAgentThread, sendToAgent } from "./agent-sessions";
 import type { AgentRuntime } from "./runtime";
