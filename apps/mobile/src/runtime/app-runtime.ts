@@ -2,7 +2,6 @@ import "core-js/actual/array/to-sorted";
 import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/client";
-import { useSyncExternalStore } from "react";
 import { AppState, Image } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
@@ -11,7 +10,6 @@ import * as SecureStore from "expo-secure-store";
 import { defaultDatabaseDirectory } from "expo-sqlite";
 import { SQLiteStorage } from "expo-sqlite/kv-store";
 import { z } from "zod";
-import type { SignUpRequest } from "@repo/contract/account/account-schema";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
@@ -20,7 +18,6 @@ import { phoneAuthOver } from "../auth/phone-auth";
 import { expoFileFolder } from "../files/expo-file-folder";
 import type { FileCachePorts } from "../files/file-cache";
 import type { KvStorage } from "@repo/client/waiting-saves";
-import type { LoginRequest } from "../login/login-store";
 import { excludeFromBackup } from "../lib/backup-exclusion";
 import { getCloudUrl } from "../lib/cloud-url";
 import { composeRuntime } from "./compose-runtime";
@@ -117,41 +114,8 @@ const build = () => {
   return rt;
 };
 
-export const getRuntime = () => {
+export const appRuntime = () => {
   runtime ??= build();
 
   return runtime;
-};
-
-export const ensureStarted = async () => {
-  await getRuntime().start();
-};
-
-export const logout = async (options?: { discardWaiting?: boolean }) =>
-  await getRuntime().logout(options);
-
-export const login = async (request: LoginRequest) => {
-  await getRuntime().login.login(request);
-};
-
-export const signUp = async (request: SignUpRequest) => {
-  await getRuntime().login.signUp(request);
-};
-
-export const useSession = () => {
-  const { session } = getRuntime();
-
-  return useSyncExternalStore(session.subscribe, session.get);
-};
-
-export const useOnline = () =>
-  useSyncExternalStore(
-    (listener) => onlineManager.subscribe(listener),
-    () => onlineManager.isOnline(),
-  );
-
-export const useLoginState = () => {
-  const rt = getRuntime();
-
-  return useSyncExternalStore(rt.login.subscribe, rt.login.get);
 };

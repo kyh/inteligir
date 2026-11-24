@@ -41,6 +41,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 
 ## Cloud and accounts
 
+- **The phone's runtime is built once, by the root layout, and every screen reads it from
+  context** (`useRuntime`, `useLibrary`), never from a module. Why: a screen names what it needs,
+  and a suite hands it a runtime of its own. `apps/mobile/src/runtime/runtime-context.ts`.
 - **On the phone, the runtime that moves a value is the one that notifies.** A sign-in is one
   state under one writer, its library made and closed together and the screens' session read off
   it, so a revocation any call hears ends it for all, once, and the route guard alone decides which

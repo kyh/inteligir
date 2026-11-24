@@ -1,6 +1,5 @@
 import { Alert } from "react-native";
-import { logout } from "@/runtime/app-runtime";
-import type { LogoutOutcome } from "@/runtime/compose-runtime";
+import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
 
 const waitingLine = (saves: number) =>
   saves === 1
@@ -13,8 +12,8 @@ const saidIfFailed = (outcome: LogoutOutcome) => {
   }
 };
 
-export const confirmSignOut = async () => {
-  const outcome = await logout();
+export const confirmSignOut = async (runtime: Pick<AppRuntime, "logout">) => {
+  const outcome = await runtime.logout();
 
   if (outcome.kind !== "waiting") {
     saidIfFailed(outcome);
@@ -27,7 +26,7 @@ export const confirmSignOut = async () => {
     {
       onPress: () => {
         void (async () => {
-          saidIfFailed(await logout({ discardWaiting: true }));
+          saidIfFailed(await runtime.logout({ discardWaiting: true }));
         })();
       },
       style: "destructive",

@@ -44,6 +44,7 @@ import type { ListedItem } from "@/library/library-card";
 import { listingPage } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/runtime/confirm-sign-out";
+import { useRuntime } from "@/runtime/runtime-context";
 import { online } from "@/ui/needs-connection";
 
 const SEARCH_PAUSE_MS = 300;
@@ -199,6 +200,7 @@ const emptyLabel = (
 };
 
 const LibraryScreen = () => {
+  const runtime = useRuntime();
   const theme = useTheme();
   const { newId, queries, saves } = useLibrary();
   const queryClient = useQueryClient();
@@ -400,7 +402,7 @@ const LibraryScreen = () => {
           <Stack.Toolbar.MenuAction
             destructive
             onPress={() => {
-              void confirmSignOut();
+              void confirmSignOut(runtime);
             }}
           >
             Sign out

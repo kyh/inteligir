@@ -123,6 +123,18 @@ const NEW_ID_LEAF = {
 };
 
 // WARNING: an override's options replace the base's, so each no-restricted-imports row restates the repo-wide rows
+const PHONE_ROOT = "apps/mobile/src/app/_layout.tsx";
+
+const PHONE_NO_DOM = {
+  message: "only the phone's note page (src/editor/page/) draws DOM",
+  regex: "^(?:@repo/(?:editor|ui)(?:/|$)|react-dom(?:/|$))",
+};
+
+const PHONE_RUNTIME_BUILT = {
+  message: "only the root layout builds the phone's runtime; read it with useRuntime()",
+  regex: "(?:^@/runtime|/runtime)/app-runtime$",
+};
+
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
   "error",
   { patterns: [SERVER_ONLY, SUITES_ONLY, ...patterns] },
@@ -301,16 +313,13 @@ export default defineConfig({
       },
     },
     {
-      excludeFiles: [...tests, "apps/mobile/src/editor/page/**"],
+      excludeFiles: [...tests, "apps/mobile/src/editor/page/**", PHONE_ROOT],
       files: ["apps/mobile/src/**"],
-      rules: {
-        "no-restricted-imports": restrictedImports([
-          {
-            message: "only the phone's note page (src/editor/page/) draws DOM",
-            regex: "^(?:@repo/(?:editor|ui)(?:/|$)|react-dom(?:/|$))",
-          },
-        ]),
-      },
+      rules: { "no-restricted-imports": restrictedImports([PHONE_NO_DOM, PHONE_RUNTIME_BUILT]) },
+    },
+    {
+      files: [PHONE_ROOT],
+      rules: { "no-restricted-imports": restrictedImports([PHONE_NO_DOM]) },
     },
     {
       excludeFiles: tests,

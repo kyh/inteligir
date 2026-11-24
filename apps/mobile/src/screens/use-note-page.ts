@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useOnline } from "@/runtime/app-runtime";
+import { useOnline } from "@/ui/needs-connection";
 import { useLibrary } from "@/runtime/library-hooks";
 import { openItem } from "@/lib/routes";
 import { noteActions } from "./note-actions";

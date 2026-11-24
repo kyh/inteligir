@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import type { TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { login, signUp, useLoginState, useSession } from "@/runtime/app-runtime";
+import { useLoginState, useRuntime, useSession } from "@/runtime/runtime-context";
 import { screenStyle, useTheme } from "@/lib/theme";
 import { formReady, returnOf } from "@/login/sign-in-fields";
 import type { SignInDoor, SignInField } from "@/login/sign-in-fields";
@@ -23,6 +23,7 @@ const FIELD_CLASS =
 type ReturnProps = Pick<TextInputProps, "onSubmitEditing" | "returnKeyType" | "submitBehavior">;
 
 const SignInScreen = () => {
+  const runtime = useRuntime();
   const theme = useTheme();
   const session = useSession();
   const signIn = useLoginState();
@@ -50,7 +51,9 @@ const SignInScreen = () => {
       return;
     }
 
-    void (creating ? signUp({ email, inviteCode, name, password }) : login({ email, password }));
+    void (creating
+      ? runtime.login.signUp({ email, inviteCode, name, password })
+      : runtime.login.login({ email, password }));
   };
 
   const focus = (field: SignInField) => {
