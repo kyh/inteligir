@@ -49,8 +49,8 @@ const updater = createUpdater(
   (state: UpdateState) => {
     send("update-state", state);
   },
-  () => {
-    quitting = true;
+  (installing: boolean) => {
+    quitting = installing;
   },
 );
 

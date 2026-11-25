@@ -14,10 +14,20 @@ const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : 
 export const createUpdater = (
   enabled: boolean,
   announce: (state: UpdateState) => void,
-  beforeInstall: () => void,
+  installing: (quitting: boolean) => void,
 ) => {
   const { autoUpdater } = electronUpdater;
   let phase: Phase = { kind: "idle" };
+  let quitting = false;
+
+  const installFailed = (message: string) => {
+    if (quitting) {
+      quitting = false;
+      installing(false);
+    }
+
+    step({ kind: "install-failed", message });
+  };
 
   const step = (event: UpdateEvent) => {
     const before = wire(phase);
@@ -39,7 +49,7 @@ export const createUpdater = (
       step({ kind: "progress", percent: percentOf(progress.percent) });
     });
     autoUpdater.on("error", (error) => {
-      step({ kind: "install-failed", message: error.message });
+      installFailed(error.message);
     });
   }
 
@@ -85,12 +95,13 @@ export const createUpdater = (
 
     if (work === "install") {
       setImmediate(() => {
-        beforeInstall();
+        quitting = true;
+        installing(true);
 
         try {
           autoUpdater.quitAndInstall();
         } catch (error: unknown) {
-          step({ kind: "install-failed", message: messageOf(error) });
+          installFailed(messageOf(error));
         }
       });
     }
