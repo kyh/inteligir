@@ -68,6 +68,12 @@ const start = async () => {
     app.setPath("userData", path.join(app.getPath("appData"), APP_NAME));
   }
 
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+
+    return;
+  }
+
   pinNavigation(SITE_URL);
   app.on("before-quit", () => {
     quitting = true;
@@ -91,11 +97,15 @@ const start = async () => {
   });
 
   mainWindow = createMainWindow({ appUrl: SITE_URL, quitting: () => quitting, title: APP_NAME });
-  app.on("activate", () => {
+
+  const reveal = () => {
     if (mainWindow) {
       showWindow(mainWindow);
     }
-  });
+  };
+
+  app.on("activate", reveal);
+  app.on("second-instance", reveal);
 };
 
 const run = async () => {
