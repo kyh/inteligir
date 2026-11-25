@@ -35,8 +35,9 @@ carries, and updates.
   notarizes the app, and the pack script notarizes and staples the dmg.
   `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/package.ts`.
 - **The .app's fuses are off for anything that runs other code as it**: running as plain Node,
-  `NODE_OPTIONS`, `--inspect`, and any app code but the `app.asar` whose integrity the bundle
-  records, as Electron's security checklist asks. `apps/desktop/electron-builder.yml`.
+  `NODE_OPTIONS`, `--inspect`, any app code but the `app.asar` whose integrity the bundle
+  records, and `file://`'s extra privileges, since no page loads from a file, as Electron's
+  security checklist asks. `apps/desktop/electron-builder.yml`.
 - **A pack is a release or fails.** It refuses to start without the signing identity and the
   notary key, and refuses to finish without a stapled app, a notarized dmg and every asset a
   release carries, since a half-release differs from a release only by a log line.
