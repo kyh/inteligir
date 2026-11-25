@@ -19,7 +19,6 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Changed
 
-- **The Mac app runs on a new engine.** Updates now come through a new feed, so an app from an earlier release won't offer this one: open the old app online once so anything typed offline saves, then download the new one from inteligir.com, drag it over the old one and sign in again.
 - **inteligir.com says what Inteligir is now**: a personal workspace for notes, plans and saved pages, made for one person rather than a team. Nothing in the app changed with it.
 - **Deleting a folder deletes the folders and lists inside it**, which Deleted lists and restores; the notes and saved things in it show in Unsorted.
 - **What another device changed shows in about a second**, not up to 15 seconds later: a save, move, tag or delete made elsewhere appears in the window or app you have in front almost at once.

@@ -574,10 +574,7 @@ Only once every check in § 5 has passed, and the three close together.
   version's `Inteligir-arm64.dmg`, and the app from it opens from Finder with
   no warning beyond macOS's downloaded-from-the-internet notice.
 - **The update.** It starts from the previous release reading the
-  `latest-mac.yml` § 6 published, so it runs only here. The first Electron
-  build has no build before it that reads `latest-mac.yml`, since the Tauri
-  builds read `latest.json` and their people download this one, so that release
-  skips this, and the next starts from that build. On a Mac running the previous release,
+  `latest-mac.yml` § 6 published, so it runs only here. On a Mac running the previous release,
   open the app, or choose Check for updates in Settings › About. Passing: the
   update's toast offers `<version>` (VoiceOver reads it), Download fills its
   bar, Settings › About says `Inteligir <version> installs when it restarts.`,

@@ -32,7 +32,11 @@ carries, and updates.
   the window hides it; ⌘Q and the dock quit. `apps/desktop/src/main/window.ts`.
 - **The .app is signed with the hardened runtime and electron-builder's default entitlements, and
   notarized.** Those are the JIT grants V8 needs and nothing more; electron-builder signs and
-  notarizes the app, and the pack script notarizes and staples the dmg. `apps/desktop/scripts/package.ts`.
+  notarizes the app, and the pack script notarizes and staples the dmg.
+  `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/package.ts`.
+- **The .app's fuses are off for anything that runs other code as it**: running as plain Node,
+  `NODE_OPTIONS`, `--inspect`, and any app code but the `app.asar` whose integrity the bundle
+  records, as Electron's security checklist asks. `apps/desktop/electron-builder.yml`.
 - **A pack is a release or fails.** It refuses to start without the signing identity and the
   notary key, and refuses to finish without a stapled app, a notarized dmg and every asset a
   release carries, since a half-release differs from a release only by a log line.
@@ -42,7 +46,7 @@ carries, and updates.
   it beside an empty `.xcassets` with `--app-icon app`, macOS 13.5 as the minimum deployment
   target. `apps/desktop/resources/Assets.car`.
 - **The .app asks for macOS 13.5, the oldest the owner's smoke opens it on.** A floor nobody opened
-  the app on is a promise nobody checked. `apps/desktop/scripts/package.ts`.
+  the app on is a promise nobody checked. `apps/desktop/electron-builder.yml`.
 - **The feed is GitHub's latest release, through electron-updater**: `latest-mac.yml` and the zip.
   A build with no `app-update.yml` (a dev launch, an unpacked build) reports its updates off.
   `apps/desktop/src/main/updater.ts`.

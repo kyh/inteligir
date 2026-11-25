@@ -47,7 +47,7 @@ pnpm package:desktop      # the release → .output/bin/mac-arm64/Inteligir.app,
 
 A pack is `electron-vite build`, then `scripts/package.ts` with
 `<repo>/.release/release.env`, taken as written (`dotenv --no-expand`, since a
-value may hold a `$`). It runs electron-builder, which signs with the
+value may hold a `$`). It runs electron-builder on `electron-builder.yml`, which signs with the
 hardened runtime and notarizes the app, then notarizes and staples the dmg,
 and refuses to finish without the dmg, the zip, its blockmap and
 `latest-mac.yml` as a release carries them. The npm packages' notices are

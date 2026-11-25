@@ -29,30 +29,7 @@ for (const name of ["CSC_NAME", "APPLE_API_KEY", "APPLE_API_KEY_ID", "APPLE_API_
 }
 
 await build({
-  config: {
-    appId: "com.inteligir.desktop",
-    // oxlint-disable-next-line no-template-curly-in-string -- electron-builder expands its own ${arch} and ${ext}
-    artifactName: "Inteligir-${arch}.${ext}",
-    directories: { buildResources: "resources", output: ".output/bin" },
-    extraMetadata: { version },
-    extraResources: [{ from: "resources/Assets.car", to: "Assets.car" }],
-    files: [".output/app/**", "package.json"],
-    forceCodeSigning: true,
-    mac: {
-      category: "public.app-category.productivity",
-      extendInfo: { CFBundleIconName: "app" },
-      hardenedRuntime: true,
-      icon: "resources/icon.icns",
-      minimumSystemVersion: "13.5",
-      notarize: true,
-      target: [
-        { arch: ["arm64"], target: "dmg" },
-        { arch: ["arm64"], target: "zip" },
-      ],
-    },
-    productName: "Inteligir",
-    publish: { owner: "kyh", provider: "github", repo: "inteligir" },
-  },
+  config: { extraMetadata: { version } },
   projectDir: packageRoot,
   publish: "never",
   targets: Platform.MAC.createTarget(),

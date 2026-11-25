@@ -1,0 +1,37 @@
+appId: com.inteligir.desktop
+productName: Inteligir
+artifactName: Inteligir-${arch}.${ext}
+directories:
+  buildResources: resources
+  output: .output/bin
+files:
+  - .output/app/**
+  - package.json
+extraResources:
+  - from: resources/Assets.car
+    to: Assets.car
+forceCodeSigning: true
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+mac:
+  category: public.app-category.productivity
+  extendInfo:
+    CFBundleIconName: app
+  hardenedRuntime: true
+  icon: resources/icon.icns
+  minimumSystemVersion: "13.5"
+  notarize: true
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+publish:
+  provider: github
+  owner: kyh
+  repo: inteligir

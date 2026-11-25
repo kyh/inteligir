@@ -44,7 +44,6 @@ export const createUpdater = (
 
   if (enabled) {
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.on("download-progress", (progress) => {
       step({ kind: "progress", percent: percentOf(progress.percent) });
     });
