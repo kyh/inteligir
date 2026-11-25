@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
-export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/u;
 

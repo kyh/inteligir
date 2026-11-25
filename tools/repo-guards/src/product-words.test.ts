@@ -1,11 +1,10 @@
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readTextFile, REPO_ROOT, shippedFiles, sourceOf, workspaces } from "./repo";
+import { readTextFile, shippedFiles, sourceOf, workspaces } from "./repo";
 
 const SURFACES = [
   "@repo/client",
   "@repo/contract",
+  "@repo/desktop",
   "@repo/editor",
   "@repo/extension",
   "@repo/mobile",
@@ -13,8 +12,6 @@ const SURFACES = [
   "@repo/ui",
   "@repo/web",
 ] as const;
-
-const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 
 const LEGAL_PAGES = ["docs/privacy.md", "docs/terms.md"] as const;
 
@@ -34,7 +31,7 @@ const WORDS: readonly Word[] = [
   { name: "an engine word", pattern: /\b(?:CLI|PATH|MCP)\b/u },
 ];
 
-const LOG_LINE = /\b(?:console\.\w+|e?println!|panic!|assert\w*!|debug_assert\w*!)\s*\(/u;
+const LOG_LINE = /\bconsole\.\w+\s*\(/u;
 
 const TRAILING_COMMENT = /\s\/\/\s.*$/u;
 
@@ -227,33 +224,15 @@ const markdownHits = (file: string) =>
       hitsIn(file, line.replaceAll(LINK_TARGET, "]")).map((hit) => ({ ...hit, line: index + 1 })),
     );
 
-const rustHits = (file: string) => {
-  const all = readTextFile(file).split("\n");
-  const testsAt = all.findIndex((line) => line.trim() === "#[cfg(test)]");
-
-  const shipped = (testsAt === -1 ? all : all.slice(0, testsAt)).map((line) =>
-    /^\s*\/\//u.test(line) ? "" : line,
-  );
-
-  return scanLines(file, shipped, false);
-};
-
-const surfaceFiles = () => {
-  const scripts = workspaces()
+const surfaceFiles = () =>
+  workspaces()
     .filter((workspace) => SURFACES.some((name) => name === workspace.name))
-    .flatMap((workspace) => shippedFiles(workspace));
-
-  const rust = fs
-    .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
-    .filter((name) => name.endsWith(".rs"))
-    .map((name) => `${RUST_UI_DIR}/${name}`);
-
-  return [...scripts, ...rust].toSorted();
-};
+    .flatMap((workspace) => shippedFiles(workspace))
+    .toSorted();
 
 const allHits = () =>
   [
-    ...surfaceFiles().flatMap((file) => (file.endsWith(".rs") ? rustHits(file) : scriptHits(file))),
+    ...surfaceFiles().flatMap((file) => scriptHits(file)),
     ...LEGAL_PAGES.flatMap((file) => markdownHits(file)),
   ] satisfies Hit[];
 

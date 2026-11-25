@@ -6,11 +6,11 @@ Developer ID and the notary key, the Apple team behind EAS, production's
 database). An agent there can pack and publish the Mac app; production's
 schema push and the store uploads stay the owner's.
 
-| Artifact       | Who gets it                                                     | How it ships                                                           |
-| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| The Mac app    | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the signed update and `latest.json` |
-| The iPhone app | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
-| The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
+| Artifact       | Who gets it                                                     | How it ships                                                         |
+| -------------- | --------------------------------------------------------------- | -------------------------------------------------------------------- |
+| The Mac app    | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the zip and `latest-mac.yml`      |
+| The iPhone app | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect) |
+| The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                 |
 
 The three read one version, the root `package.json`'s (set in § 1), since one
 client build floor holds the phone and the extension alike, and a release's
@@ -37,46 +37,35 @@ passed; § 7's checks need the published release.
 
 ## Once per machine
 
-- **`.release/`** (gitignored) at the repo root: `release.env`, the notary's
-  `.p8` and the updater's key (Once per product: the update key), with the
-  Developer ID Application certificate in the login keychain
-  (`security find-identity -v -p codesigning` lists it). `release.env` is all
-  a pack signs with, under the names Tauri reads, each value taken as written
-  and each path absolute, since Tauri reads it from `src-tauri`:
+- **`.release/`** (gitignored) at the repo root: `release.env` and the
+  notary's `.p8`, with the Developer ID Application certificate in the login
+  keychain (`security find-identity -v -p codesigning` lists it). `release.env`
+  is all a pack signs with, under the names electron-builder reads, each value
+  taken as written and each path absolute:
 
   ```sh
-  APPLE_SIGNING_IDENTITY="Developer ID Application: <name> (<team id>)"
+  CSC_NAME="<name> (<team id>)"
+  APPLE_API_KEY=/<path to the repo>/.release/AuthKey_<the key's id>.p8
+  APPLE_API_KEY_ID=<the key's id>
   APPLE_API_ISSUER=<the App Store Connect key's issuer id>
-  APPLE_API_KEY=<the key's id>
-  APPLE_API_KEY_PATH=/<path to the repo>/.release/AuthKey_<the key's id>.p8
-  TAURI_SIGNING_PRIVATE_KEY=/<path to the repo>/.release/updater.key
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD=<the updater key's password, or nothing>
   ```
 
-  A pack missing any of them is no release, and fails (§ 2).
+  `CSC_NAME` is the Developer ID Application identity without its
+  `Developer ID Application: ` prefix, which electron-builder adds. A pack
+  missing any of them is no release, and fails (§ 2).
 
-- **cargo-about**: `cargo install cargo-about --locked --features cli`, which
-  `pnpm package:desktop` runs for the Rust crates' licence notices.
 - **GitHub**: `gh auth status` has push rights on the repo.
 - **Production's database**: the root `.env.production.local` holds the
   production Postgres's `POSTGRES_URL_NON_POOLING`, from the Vercel project's
   Supabase integration, which `pnpm db:push-remote` reads (§ 3).
 
-## Once per product: the update key
+## Once per product: the update feed
 
-An installed app accepts only an update signed by one key, whose public half
-is compiled into every release. Once:
-
-1. `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
-   (the path is the desktop package's, where the filter runs the script)
-   writes `updater.key` and `updater.key.pub`; the password it asks for is
-   `release.env`'s `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-2. Commit the one line of `updater.key.pub` as `plugins.updater.pubkey` in
-   `apps/desktop/src-tauri/tauri.package.conf.json`. Tauri refuses every pack
-   until it is there.
-3. Back the key up wherever the Developer ID's export is: lose it and no
-   installed app can verify an update again. A new key is a new `pubkey`
-   commit, and no app installed before it takes its updates.
+An installed app takes its updates from the repo's latest GitHub release,
+through electron-updater: `latest-mac.yml` names the zip and its sha512, and
+the app checks the zip's signature against its own Developer ID before it
+installs. There is no key of ours to make or keep: the Developer ID is the
+update key, so its certificate's export is what to back up.
 
 ## Once per product: the extension's store item
 
@@ -197,14 +186,14 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm package:desktop && pnpm package:extension
 ```
 
-`package:desktop` is `tauri build` on the release's config
-(`apps/desktop/src-tauri/tauri.package.conf.json`) with `.release/release.env`:
-it signs and notarizes the app and its dmg, signs the update, and leaves the release's
-assets in `apps/desktop/.output/bin`. A pack is a release or it fails: Tauri
-stops one with no updater key, and `apps/desktop/scripts/release-assets.ts`
-one whose app carries no notarization ticket. Package only through
-`pnpm package:desktop`: turbo's strict env mode strips every `APPLE_*`
-exported in a shell, so a pack signs with `release.env` alone. A notarization
+`package:desktop` is `electron-vite build`, then
+`apps/desktop/scripts/package.ts` with `.release/release.env`: electron-builder
+signs and notarizes the app, the script notarizes and staples the dmg, and the
+release's assets land in `apps/desktop/.output/bin`. A pack is a release or it
+fails: the script refuses to start without every `release.env` name, and to
+finish without a stapled app and every asset § 6 uploads. Package only through
+`pnpm package:desktop`: turbo's strict env mode strips every `APPLE_*` and
+`CSC_*` exported in a shell, so a pack signs with `release.env` alone. A notarization
 refused with a 403 saying "A required agreement is missing or has expired"
 waits on the team's Account Holder accepting Apple's updated agreement at
 developer.apple.com/account; pack again once it is accepted.
@@ -259,7 +248,7 @@ One smoke list per surface, each check needing what no agent can run: a
 device, signing, a store, a real model turn, the Vercel or Supabase
 dashboard, or claude.ai and ChatGPT. Run them on the release's own artifacts:
 the Mac app `pnpm package:desktop` left at
-`apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (dragged to
+`apps/desktop/.output/bin/mac-arm64/Inteligir.app` (dragged to
 `/Applications` and opened from Finder), the extension `pnpm package:extension`
 left at `apps/extension/.output/chrome-mv3-store-unpacked`, and the iPhone build
 from the `Owner` group. A failing check stops the release: fix it, and start
@@ -295,13 +284,13 @@ production.
 On the signed pack, against production, from a spare macOS user.
 
 ```sh
-app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
+app=apps/desktop/.output/bin/mac-arm64/Inteligir.app
 codesign --verify --deep --strict --verbose=2 "$app" && codesign -d --entitlements - "$app"
 spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app"
 ```
 
-- **Signed .app from Finder**: codesign, spctl and stapler pass, it carries no
-  entitlement and bundles its notices, and it opens on macOS 13.5 and the
+- **Signed .app from Finder**: codesign, spctl and stapler pass, it carries
+  only electron-builder's JIT entitlements and bundles its notices, and it opens on macOS 13.5 and the
   newest macOS.
 - **First run on a fresh macOS user**: the site's sign-in in the window, an
   invite sign-up, still signed in after Quit; a dev build keeps a store of its
@@ -315,7 +304,7 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   ⌘F match a screen away glide there, and one far off lands at once and stays.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
   a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
-  play in WebKit, and a recording in a note seeks before it has all loaded;
+  play in the window, and a recording in a note seeks before it has all loaded;
   Download lands in Downloads, from an item and from a file in a note.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
@@ -325,7 +314,7 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
 - **Export** from Settings › Export: the zip lands in Downloads as
   `Inteligir library <date>.zip`, a library of several hundred MB exports with
   the window still answering, and Import a zip of notes… in a spare account
-  brings back the same items, files opening in WebKit.
+  brings back the same items, files opening in the window.
 
 ### The browser extension
 
@@ -529,8 +518,8 @@ Only once every check in § 5 has passed, and the three close together.
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
    the dmg under that fixed name (`DMG_NAME` in
-   `apps/desktop/scripts/release-assets.ts`), and every installed app reads
-   `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
+   `apps/desktop/scripts/package.ts`), and every installed app reads
+   `latest-mac.yml` and the zip it names. The notes are
    the changelog's top section, which `apps/desktop/scripts/release-notes.ts`
    prints only once it is titled for this version, so a refusal stops the
    chain before the tag:
@@ -540,12 +529,12 @@ Only once every check in § 5 has passed, and the three close together.
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
        apps/desktop/.output/bin/Inteligir-arm64.dmg \
-       apps/desktop/.output/bin/Inteligir.app.tar.gz \
-       apps/desktop/.output/bin/Inteligir.app.tar.gz.sig \
-       apps/desktop/.output/bin/latest.json
+       apps/desktop/.output/bin/Inteligir-arm64.zip \
+       apps/desktop/.output/bin/Inteligir-arm64.zip.blockmap \
+       apps/desktop/.output/bin/latest-mac.yml
    ```
 
-   A release missing `latest.json` or the archive is one no installed app can
+   A release missing `latest-mac.yml` or the zip is one no installed app can
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404.
 
@@ -584,11 +573,11 @@ Only once every check in § 5 has passed, and the three close together.
 - **The download.** Passing: the site's Download button downloads this
   version's `Inteligir-arm64.dmg`, and the app from it opens from Finder with
   no warning beyond macOS's downloaded-from-the-internet notice.
-- **The update.** It starts from the previous release reading the `latest.json`
-  § 6 published, so it runs only here. The first build that carries this
-  updater has no build before it that reads `latest.json`, since 0.6.0 reads
-  another feed and its people download this one, so that release skips this,
-  and the next starts from that build. On a Mac running the previous release,
+- **The update.** It starts from the previous release reading the
+  `latest-mac.yml` § 6 published, so it runs only here. The first Electron
+  build has no build before it that reads `latest-mac.yml`, since the Tauri
+  builds read `latest.json` and their people download this one, so that release
+  skips this, and the next starts from that build. On a Mac running the previous release,
   open the app, or choose Check for updates in Settings › About. Passing: the
   update's toast offers `<version>` (VoiceOver reads it), Download fills its
   bar, Settings › About says `Inteligir <version> installs when it restarts.`,

@@ -1,12 +1,10 @@
-import { emit } from "@tauri-apps/api/event";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { desktopBridge } from "./desktop-bridge";
 import type { DesktopUpdateState } from "./desktop-bridge";
+import { underShell as standIn } from "../test-support/desktop-shell.test-utils";
 
 afterEach(() => {
-  clearMocks();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -19,9 +17,10 @@ type ShellAnswer = {
 
 const silenced = () => vi.spyOn(console, "warn").mockImplementation(() => {});
 
+let push: ReturnType<typeof standIn>["push"] = () => {};
+
 const underShell = (answer: (command: string) => ShellAnswer) => {
-  vi.stubGlobal("isTauri", true);
-  mockIPC((command) => answer(command), { shouldMockEvents: true });
+  ({ push } = standIn(answer));
   const bridge = desktopBridge();
 
   if (bridge === null) {
@@ -51,16 +50,16 @@ describe("the Mac app's door", () => {
     });
     await bridge.downloadUpdate();
     await bridge.installUpdate();
-    expect(asked).toStrictEqual(["check_for_updates", "download_update", "install_update"]);
+    expect(asked).toStrictEqual(["check-for-updates", "download-update", "install-update"]);
   });
 
   it("tells a check that failed from a download and an install that did", async () => {
     const bridge = underShell((command) =>
-      command === "check_for_updates"
+      command === "check-for-updates"
         ? { message: "offline", status: "check-failed" }
         : {
             message: "offline",
-            status: command === "download_update" ? "download-failed" : "install-failed",
+            status: command === "download-update" ? "download-failed" : "install-failed",
             version: "1.2.3",
           },
     );
@@ -85,7 +84,7 @@ describe("the Mac app's door", () => {
     const warned = silenced();
 
     const bridge = underShell((command) => {
-      if (command === "install_update") {
+      if (command === "install-update") {
         throw new Error("not allowed");
       }
 
@@ -107,10 +106,10 @@ describe("the Mac app's door", () => {
     });
 
     await vi.waitFor(async () => {
-      await emit("update-state", { downloadPercent: 40, status: "downloading" });
+      push("update-state", { downloadPercent: 40, status: "downloading" });
       expect(heard.length).toBeGreaterThan(0);
     });
-    await emit("update-state", { status: "ready" });
+    push("update-state", { status: "ready" });
     expect(heard.at(-1)).toStrictEqual({ downloadPercent: 40, status: "downloading" });
     expect(heard.every((state) => state.status === "downloading")).toBe(true);
     expect(warned).toHaveBeenCalledOnce();

@@ -39,11 +39,6 @@
       // cold; a glob, because a workspace with several programs writes one file each
       "outputs": [".cache/tsbuildinfo*.json"]
     },
-    // the shell's Rust is the one workspace with a formatter of its own (oxfmt has the rest), and
-    // cargo fmt's check is quicker than a cache restore
-    "format": {
-      "cache": false
-    },
     // the root's own checks: the root package's hash is every file in the tree, so any edit
     // anywhere misses, and an entry stored per run would never be read back
     "//#format": {

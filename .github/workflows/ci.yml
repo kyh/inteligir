@@ -75,12 +75,11 @@ jobs:
           grep -qx "dev@inteligir.local: already signs in" <<< "$again"
           grep -qx "invite DEV-INVITE: already there" <<< "$again"
 
-      # the static gate a developer runs, less the shell's, which the macOS job checks, so a local
-      # green predicts this step; turbo continues past a failure, so one run reports every red task.
-      # Every step after it is what verify cannot do
+      # the static gate a developer runs, so a local green predicts this step; turbo continues past
+      # a failure, so one run reports every red task. Every step after it is what verify cannot do
       - name: Verify
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm verify --filter='!@repo/desktop'
+        run: pnpm verify
 
       # the full Chromium, which loads an extension, at the lockfile's Playwright's version
       - name: E2E browser
@@ -91,40 +90,3 @@ jobs:
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm e2e
-
-  # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
-  # compiles and runs only here, so its tests, clippy and fmt are this job's alone; every other
-  # suite and gate reads no platform, so the check job runs them
-  test-macos:
-    runs-on: macos-latest
-    # a backstop: cargo carries no deadline of its own, and a cold build of the shell is several
-    # minutes of it
-    timeout-minutes: 30
-    env:
-      TURBO_TELEMETRY_DISABLED: 1
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
-        with:
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      # the toolchain apps/desktop/rust-toolchain.toml pins, with its clippy and rustfmt
-      - name: Desktop Rust toolchain
-        working-directory: apps/desktop
-        run: rustup toolchain install
-
-      - name: Desktop Rust cache
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      # the shell's cargo test, its clippy and the release scripts' tsc, and its cargo fmt check;
-      # turbo continues past a failure, so one run reports every red task
-      - name: Desktop test, typecheck and format
-        run: pnpm turbo run test typecheck format --filter=@repo/desktop --continue=dependencies-successful

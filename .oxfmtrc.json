@@ -10,7 +10,6 @@
     ".next",
     "next-env.d.ts",
     "packages/editor/src/test-support/fixtures",
-    "__snapshots__",
-    "apps/desktop/src-tauri/about.hbs"
+    "__snapshots__"
   ]
 }

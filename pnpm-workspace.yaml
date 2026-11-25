@@ -212,6 +212,8 @@ allowBuilds:
   core-js: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
+  # electron-builder's Windows installer: the app ships only for macOS
+  electron-winstaller: false
   esbuild: true
   # a postinstall that copies the browser's service worker, which the suites, on node, never load
   msw: false

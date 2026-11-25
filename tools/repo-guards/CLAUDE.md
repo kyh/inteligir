@@ -13,12 +13,13 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   project's licence in the workspace's `licenses/`, which the site and the
   extension carry for every workspace they bundle. Why: a re-pull conflict is
   no reason, and the licence asks its text travel with every copy, as the .app
-  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
+  ships its npm packages' notices (`apps/desktop/electron.vite.config.ts`).
   `apps/web/scripts/write-licenses.ts`.
 - **A bundle's notices are its build's**: Vite's `build.license` writes the
-  licence of each package the extension's zip holds, a file per group of
-  entrypoints. Why: a generator of ours is a list to keep in step with the
-  lockfile. `apps/extension/wxt.config.ts`.
+  licence of each package the extension's zip and the Mac app's main hold, a
+  file per group of entrypoints. Why: a generator of ours is a list to keep in
+  step with the lockfile. `apps/extension/wxt.config.ts`,
+  `apps/desktop/electron.vite.config.ts`.
 - **The React Compiler is on for every bundle** (owner decision), Next's
   `reactCompiler` for the site and react.dev's Vite path for the extension,
   every DOM suite compiles its sources the same way, and a hand `useMemo` or
@@ -33,9 +34,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   only under `validateNoDynamicallyCreatedComponentsOrHooks`, which Next's
   compiler option has no slot for. `apps/web/vitest.config.ts`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
-  `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
-  `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.
-  `pnpm-workspace.yaml`, `apps/desktop/rust-toolchain.toml`.
+  `@types/node` tracks `engines.node`. Why: the catalog binds only the manifests
+  that spell a package. `pnpm-workspace.yaml`.
 - **drizzle-orm takes no `expo-sqlite` peer.** Why: pnpm binds an optional
   peer any workspace installs, so the phone's expo-sqlite would pull expo and
   react-native into the server's drizzle-orm and split it into a copy per peer
@@ -105,7 +105,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   both (interfere-inc/landmines#4). `oxlint.config.ts`.
 - **A suite standing in for what jsdom, the fake browser or the Mac app lacks
   keeps its double (`BROWSER_STAND_INS`)**: layout and its observers,
-  `matchMedia`, canvas, navigation, Tauri's IPC, the fake browser's missing
+  `matchMedia`, canvas, navigation, the Mac app's `window.desktopBridge`, the fake browser's missing
   APIs, a dependency's internal calls counted, and a store or session failure
   injected into a database suite. Why: no real implementation runs under
   vitest; Playwright covers them in a browser. `oxlint.config.ts`.

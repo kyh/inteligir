@@ -88,8 +88,9 @@ const NOTE_PAGE_WALL = {
 const DESKTOP_BRIDGE = "apps/web/src/library/shell/desktop-bridge.ts";
 
 const SHELL_API = {
-  message: "only the library's shell/desktop-bridge.ts reaches the Mac app",
-  regex: "^@tauri-apps/",
+  message:
+    "only the library's shell/desktop-bridge.ts reaches the Mac app, through its preload's window.desktopBridge",
+  regex: "^electron(?:/|$)",
 };
 
 const LIBRARY_IMPORTS = [
@@ -147,6 +148,7 @@ const BROWSER_STAND_INS = [
   "apps/web/src/library/item/item-stages.test.tsx",
   "apps/web/src/library/shell/desktop-bridge.test.tsx",
   "apps/web/src/library/test-support/card-grid-layout.test-utils.ts",
+  "apps/web/src/library/test-support/desktop-shell.test-utils.ts",
   "apps/web/src/library/workspace.test.tsx",
   "packages/editor/src/block-draggable.test.tsx",
   "packages/editor/src/headless/markdown/parse-cost.test.ts",

@@ -8,12 +8,6 @@ its own map, and `docs/releasing.md` every step that is the owner's.
 ## Prerequisites
 
 - Node 24, pnpm 12 (`corepack enable` reads the root `packageManager`)
-- Rust through rustup: `apps/desktop/rust-toolchain.toml` pins the toolchain the
-  desktop shell builds on, and the first `cargo` call installs it. On Linux,
-  Tauri's prerequisites too (on Debian or Ubuntu: `build-essential`,
-  `libxdo-dev`, `libssl-dev`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`; other
-  distributions are in
-  <https://v2.tauri.app/start/prerequisites/>); a Mac ships its own WebKit
 - `pnpm install` at the repo root (workspace-wide), then `pnpm bootstrap`
   (§ Running). Restart `pnpm dev:web` after editing `.env`: the dev server
   watches only `apps/web`'s own env files.
@@ -95,19 +89,16 @@ and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login; with
 deployment's protection. Without a login it skips the signed-in leg, except on
 CI, where a leg that cannot run fails.
 
-`pnpm dev` runs `tauri dev --config src-tauri/tauri.local.conf.json`: the Rust
-shell compiled and launched on its `devUrl`, `http://localhost:5174/library`,
-as an app of its own (`com.inteligir.desktop.dev`). An app on another port is
-one more config for Tauri to merge:
-`pnpm --filter @repo/desktop dev --config '{"build":{"devUrl":"http://localhost:<port>/library"}}'`.
-Its first run is the site's sign-in with an account of that database
-(`AGENTS.md` § Seeded login). An edit to the shell's Rust rebuilds and
-relaunches it. Only the updater needs the shell; a tab's Settings says updates
-come with the Mac app.
+`pnpm dev` runs `electron-vite dev --watch`: the Electron shell built and
+launched on `http://localhost:5174/library`, as an app of its own ("Inteligir
+(Dev)", with its own user data). Electron downloads its binary on first use,
+from GitHub's releases. Its first run is the site's sign-in with an account of
+that database (`AGENTS.md` § Seeded login). An edit to main or the preload
+rebuilds and relaunches it. Only the updater needs the shell; a tab's Settings
+says updates come with the Mac app.
 
 `pnpm package:desktop` is the owner's release of the .app, the shell alone
-around the site's URL, and fails without the release's keys;
-`pnpm --filter @repo/desktop tauri build` builds one for this Mac
+around the site's URL, and fails without the release's keys
 (`apps/desktop/README.md` § Packaging).
 
 From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
@@ -174,8 +165,7 @@ pnpm format:fix && pnpm verify
 
 `pnpm verify` is `tsc` over the root's own `scripts/`, then one turbo run of
 `typecheck`, `lint`, `knip`, `format`, `test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
-`format` are the root package's own tasks in `turbo.json`, beside the shell's
-`cargo fmt` check. Its `build` bundles the phone too (`expo export --platform
+`format` are the root package's own tasks in `turbo.json`. Its `build` bundles the phone too (`expo export --platform
 ios`), its note editor's DOM bundle beside it (`apps/mobile/dist/www.bundle`),
 so JavaScript Metro refuses fails here rather than on EAS. It is check-only on purpose — `format:fix` is a separate first
 step, never folded in. Format before gates, commit after gates. Turbo carries
