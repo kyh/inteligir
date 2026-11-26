@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
-import { isUrlItem } from "../library/item-labels";
+import { isUrlItem, readsPdfText } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
 import { folderPaths } from "../library/folder-paths";
 import { PropertiesPanel } from "./properties-panel";
@@ -204,6 +204,18 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                 Read the page again
               </Button>
             </div>
+          ) : null}
+          {readsPdfText(fields) ? (
+            <Button
+              variant="secondary"
+              size="compact"
+              disabled={refreshing}
+              onClick={() => {
+                refresh.mutate({ id });
+              }}
+            >
+              Read the text again
+            </Button>
           ) : null}
           {fields.deletedAt === null ? <Related id={id} /> : null}
         </div>

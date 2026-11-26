@@ -27,7 +27,7 @@ const waits = (
   whole.item.fields.deletedAt === null &&
   whole.item.fields.kind === "pdf" &&
   whole.item.fields.originalSha === job.sha &&
-  !whole.blocks.some(({ section }) => section === "article");
+  (job.again || !whole.blocks.some(({ section }) => section === "article"));
 
 const bytesOf = async (accountId: string, sha: string) => {
   const held = await fileOf(db, accountId, sha);

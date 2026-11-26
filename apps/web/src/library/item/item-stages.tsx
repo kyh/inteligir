@@ -1,5 +1,6 @@
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
+import { cn } from "@repo/ui/lib/cn";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
@@ -35,6 +36,38 @@ const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: stri
   );
 };
 
+const PdfObject = ({
+  className,
+  fields,
+  sha,
+  title,
+}: {
+  className: string;
+  fields: LibraryItemFields;
+  sha: string;
+  title: string;
+}) => (
+  <object
+    aria-label={title}
+    data={fileUrl(sha, fields.originalName)}
+    type="application/pdf"
+    className={cn("w-full rounded-md border border-border", className)}
+  >
+    <SaveFile
+      sha={sha}
+      name={fields.originalName ?? title}
+      label={`Download ${fields.originalName ?? "the PDF"}`}
+    />
+  </object>
+);
+
+export const PdfPane = ({ fields, title }: { fields: LibraryItemFields; title: string }) =>
+  fields.originalSha === null ? null : (
+    <div className="h-[45vh] shrink-0 border-b border-border p-3 lg:h-auto lg:w-1/2 lg:border-r lg:border-b-0">
+      <PdfObject fields={fields} sha={fields.originalSha} title={title} className="h-full" />
+    </div>
+  );
+
 export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
   const sha = fields.originalSha;
 
@@ -60,18 +93,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
     case "pdf": {
       return (
         <div className="px-8 pt-4">
-          <object
-            aria-label={title}
-            data={url}
-            type="application/pdf"
-            className="h-[70vh] w-full rounded-md border border-border"
-          >
-            <SaveFile
-              sha={sha}
-              name={fields.originalName ?? title}
-              label={`Download ${fields.originalName ?? "the PDF"}`}
-            />
-          </object>
+          <PdfObject fields={fields} sha={sha} title={title} className="h-[70vh]" />
         </div>
       );
     }

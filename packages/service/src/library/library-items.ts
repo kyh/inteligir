@@ -26,6 +26,7 @@ import { readItem, STORED_ITEM_COLUMNS, tagsOf } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
+import { askPdfTextAgain } from "./pdf-text-job";
 import { anyOf } from "./set-sql";
 
 export const landNew = async (scope: WriteScope, made: NewItem) => {
@@ -245,6 +246,13 @@ export const setDeleted = async (
 
 export const refreshItem = async (scope: WriteScope, itemId: string) => {
   const held = await readItem(scope.tx, scope.accountId, itemId);
+  const pdfSha = held?.fields.kind === "pdf" ? held.fields.originalSha : null;
+
+  if (held !== null && held.fields.url === null && pdfSha !== null) {
+    await askPdfTextAgain(scope, itemId, pdfSha);
+
+    return await landFields(scope, held, held.fields);
+  }
 
   if (held === null || held.fields.url === null) {
     return refuse({ kind: "not-found" });

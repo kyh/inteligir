@@ -492,8 +492,12 @@ export const libraryWrites = ({
         onError: (cause) => {
           toast.error(refusalText(cause, "The page couldn't be read again."));
         },
-        onSuccess: () => {
-          toast.success("Reading the page again. Its text lands soon.");
+        onSuccess: ({ item }) => {
+          toast.success(
+            item.fields.kind === "pdf" && item.fields.url === null
+              ? "Reading the PDF again. Its text replaces what's below it soon."
+              : "Reading the page again. Its text lands soon.",
+          );
         },
       }),
     createNote: () =>

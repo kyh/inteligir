@@ -445,7 +445,8 @@ note under the editor's content policy; what it cannot run is below.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
 - **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
-  with, and its download saves it under that name.
+  with, and its download saves it under that name; in a wide window it sits
+  left of its text, each scrolling alone, and under it in a narrow one.
 - **A file of nearly 100 MB**, dropped on the grid and pasted into a note, in
   Chrome, Safari and the Mac app: the window keeps scrolling and taking typing
   until its upload starts.

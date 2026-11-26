@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { WriteScope } from "./library-store";
 
 export const pdfTextJobSchema = z.strictObject({
+  again: z.boolean().default(false),
   itemId: z.string().min(1).max(128),
   sha: z.string().regex(/^[0-9a-f]{64}$/u),
 });
@@ -32,7 +33,7 @@ export const askPdfTexts = async (scope: WriteScope, items: readonly Landed[]) =
       return [];
     }
 
-    const payload: PdfTextJob = { itemId: landed.id, sha };
+    const payload: PdfTextJob = { again: false, itemId: landed.id, sha };
 
     return [{ id: `pdf-text:${landed.id}`, kind: "pdf-text" as const, payload }];
   });
@@ -40,4 +41,10 @@ export const askPdfTexts = async (scope: WriteScope, items: readonly Landed[]) =
   if (asks.length > 0) {
     await scope.askJobs(asks);
   }
+};
+
+export const askPdfTextAgain = async (scope: WriteScope, itemId: string, sha: string) => {
+  const payload: PdfTextJob = { again: true, itemId, sha };
+
+  await scope.askJobs([{ id: `pdf-text:${itemId}`, kind: "pdf-text", payload }]);
 };

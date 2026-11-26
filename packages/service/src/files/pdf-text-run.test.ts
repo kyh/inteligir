@@ -133,4 +133,30 @@ dbSuite("a PDF's text", () => {
       bodyVersion: read?.bodyVersion,
     });
   });
+
+  it("reads a PDF's text again on asking, over the article as it was edited", async () => {
+    const { accountId, id, library } = await savedPdf(PAPER);
+    await drained(accountId);
+    const read = await readItemWhole(db, accountId, id);
+
+    await library.items.saveBody({
+      baseVersion: read?.bodyVersion ?? 0,
+      blocks: [
+        {
+          block: { children: [{ text: "Herons wade the marsh" }], id: "edited", type: "p" },
+          section: "article",
+        },
+      ],
+      id,
+    });
+
+    await library.items.refresh({ id });
+    await expect(drained(accountId)).resolves.toMatchObject({ failed: 0, ran: 1 });
+
+    const again = await readItemWhole(db, accountId, id);
+    expect(again?.blocks.filter(({ section }) => section === "article")).toMatchObject([
+      { block: { children: [{ text: "Herons wade the marsh at dawn" }] } },
+      { block: { children: [{ text: "Tidal flats feed the colony" }] } },
+    ]);
+  });
 });

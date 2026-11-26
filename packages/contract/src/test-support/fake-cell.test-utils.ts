@@ -750,6 +750,10 @@ export const createFakeCell = () => {
           once(input.opId, landedSchema, () => {
             const { fields } = holding(input.id);
 
+            if (fields.url === null && fields.kind === "pdf" && fields.originalSha !== null) {
+              return landFields(input.id, fields);
+            }
+
             if (fields.url === null) {
               throw new NotFoundError();
             }
@@ -1036,6 +1040,13 @@ export const createFakeCell = () => {
 
         if (seeded.deletedAt === null && seeded.url !== null && holderOf(seeded.url) !== null) {
           throw new Error(`a live item holds ${seeded.url} already`);
+        }
+
+        if (seeded.originalSha !== null && !blobs.has(seeded.originalSha)) {
+          blobs.set(seeded.originalSha, {
+            bytes: new Uint8Array(0),
+            mime: "application/octet-stream",
+          });
         }
 
         const id = mintId();

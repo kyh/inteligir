@@ -412,6 +412,11 @@ DOM (`oxlint.config.ts`).
   Search, the agent, find and export then read a PDF as they read a saved
   page, whoever added it, and the parse runs after the commit, never under the
   lock. `packages/service/src/files/pdf-text-run.ts`.
+- **A PDF's text is its article, edited as a note's body is, and `items.refresh`
+  on a PDF with no address asks its `pdf-text` job `again`, over the article as
+  it stands.** A misread word is fixed where it reads, and a fresh read is the
+  person's ask, so it replaces what they edited.
+  `packages/service/src/library/pdf-text-job.ts`.
 
 ## The built-in agent
 

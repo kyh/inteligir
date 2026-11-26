@@ -73,6 +73,22 @@ describe("Info over an item", () => {
     expect(commands.openItem).toHaveBeenCalledWith(near);
   });
 
+  it("reads a PDF's text again on asking", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ kind: "pdf", originalSha: "b".repeat(64), title: "Paper" });
+    const { calls, library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+    fireEvent.click(await screen.findByRole("button", { name: "Read the text again" }));
+
+    expect(screen.queryByRole("button", { name: "Read the page again" })).toBeNull();
+    await waitFor(() => {
+      expect(calls.filter((call) => call.path === "library.items.refresh")).toStrictEqual([
+        { input: { id }, path: "library.items.refresh" },
+      ]);
+    });
+  });
+
   it("names a note an item is filed under by its title, under the folders that hold the note", async () => {
     const cell = createFakeCell();
     const folder = cell.seed.folder("Trips");

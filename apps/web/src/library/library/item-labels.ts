@@ -11,6 +11,14 @@ export const coverOf = (row: ListedItem) =>
 export const isUrlItem = (fields: Pick<ListedItem["fields"], "kind" | "url">) =>
   fields.url !== null && URL_ITEM_KINDS.some((kind) => kind === fields.kind);
 
+export const readsPdfText = (
+  fields: Pick<ListedItem["fields"], "deletedAt" | "kind" | "originalSha" | "url">,
+) =>
+  fields.kind === "pdf" &&
+  fields.url === null &&
+  fields.originalSha !== null &&
+  fields.deletedAt === null;
+
 export const fileExtensionLabel = (name: string | null) => {
   if (name === null) {
     return "";

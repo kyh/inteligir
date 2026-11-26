@@ -422,6 +422,45 @@ const dropsSaves: (call: CellCall) => undefined = (call: CellCall) => {
   }
 };
 
+describe("an open PDF", () => {
+  it("shows the file beside the text read from it, which takes edits and saves like a note", async () => {
+    const cell = createFakeCell();
+
+    const id = cell.seed.item({ kind: "pdf", originalSha: "a".repeat(64), title: "Paper" }, [
+      {
+        block: { children: [{ text: "Herons wade the marsh at dwan." }], id: "p1", type: "p" },
+        section: "article",
+      },
+    ]);
+
+    await pageAt(`/library?item=${id}`, cell);
+
+    expect(await screen.findByLabelText("Paper")).toHaveProperty("type", "application/pdf");
+    await screen.findByText("The text read from this PDF. Fix anything it misread right here.");
+    await waitFor(() => {
+      expect(document.querySelector("[data-slate-editor]")?.textContent).toContain("dwan");
+    });
+
+    await act(async () => {
+      const editor = getLiveEditor(id);
+      editor?.tf.insertText("!", { at: editor.api.end([0]) });
+      await Promise.resolve();
+    });
+
+    await waitFor(
+      () => {
+        expect(cell.held(id).blocks).toMatchObject([
+          {
+            block: { children: [{ text: "Herons wade the marsh at dwan.!" }] },
+            section: "article",
+          },
+        ]);
+      },
+      { timeout: 4000 },
+    );
+  });
+});
+
 describe("an open item holding typing it couldn't save", () => {
   const LEAVE = { name: "Leave without saving?" };
 
