@@ -31,8 +31,8 @@
     "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "tsc --noEmit && turbo run typecheck",
-    "verify": "tsc --noEmit && turbo run typecheck lint knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}",
-    "verify:affected": "tsc --noEmit && turbo run typecheck lint knip test build --affected --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
+    "verify": "tsc --noEmit && (turbo run lint; lint=$?; turbo run typecheck knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4} && exit $lint)",
+    "verify:affected": "tsc --noEmit && (turbo run lint --affected; lint=$?; turbo run typecheck knip test build --affected --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4} && exit $lint)"
   },
   "devDependencies": {
     "@interfere/landmines": "^0.1.0",

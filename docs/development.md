@@ -163,9 +163,13 @@ their storage holds.
 pnpm format:fix && pnpm verify
 ```
 
-`pnpm verify` is `tsc` over the root's own `scripts/`, then one turbo run of
-`typecheck`, `lint`, `knip`, `format`, `test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
-`format` are the root package's own tasks in `turbo.json`. Its `build` bundles the phone too (`expo export --platform
+`pnpm verify` is `tsc` over the root's own `scripts/`, then a turbo run of `lint` alone, then one
+of `typecheck`, `knip`, `format`, `test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
+`format` are the root package's own tasks in `turbo.json`. Lint runs first and alone because its
+type-aware pass holds every workspace's program at once (about 4 GB): beside the site's and the
+phone's builds it pushed a 16 GB, four-core machine out of memory and the kernel killed it. It costs
+the half minute lint takes, and a red lint still lets the second run go on and fails `verify` after it;
+`verify:affected` does the same. Its `build` bundles the phone too (`expo export --platform
 ios`), its note editor's DOM bundle beside it (`apps/mobile/dist/www.bundle`),
 so JavaScript Metro refuses fails here rather than on EAS. It is check-only on purpose — `format:fix` is a separate first
 step, never folded in. Format before gates, commit after gates. Turbo carries
