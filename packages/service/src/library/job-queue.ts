@@ -15,6 +15,10 @@ export interface JobAsk {
   readonly payload: unknown;
 }
 
+export interface DelayedAsk extends JobAsk {
+  readonly afterMs?: number;
+}
+
 export interface Lease extends JobAsk {
   readonly attempts: number;
   readonly runAt: number;
@@ -42,15 +46,19 @@ export interface JobRun<P> {
   readonly run: (payload: P, job: JobAttempt & { readonly final: boolean }) => Promise<JobOutcome>;
 }
 
-export const askJobs = async (tx: DbExecutor, asks: readonly JobAsk[], now: number) => {
-  const rows = asks.map((ask) => ({ ...ask, createdAt: now, runAt: now }));
+export const askJobs = async (tx: DbExecutor, asks: readonly DelayedAsk[], now: number) => {
+  const rows = asks.map(({ afterMs = 0, ...ask }) => ({
+    ...ask,
+    createdAt: now,
+    runAt: now + afterMs,
+  }));
 
   for (const chunk of chunksOf(rows, 1000)) {
     await tx
       .insert(job)
       .values(chunk)
       .onConflictDoUpdate({
-        set: { attempts: 0, payload: sql`excluded.payload`, runAt: now },
+        set: { attempts: 0, payload: sql`excluded.payload`, runAt: sql`excluded.run_at` },
         target: [job.accountId, job.id],
       });
   }

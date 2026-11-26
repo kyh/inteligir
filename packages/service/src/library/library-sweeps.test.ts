@@ -5,7 +5,7 @@ import { paragraph } from "@repo/contract/test-support/library-items.test-utils"
 import { db } from "@repo/db/drizzle-client";
 import { item, itemTag, job, libraryState, purgedItem } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
@@ -200,7 +200,10 @@ dbSuite("a sweep over a scope", () => {
       });
       await expect(taggedWith(accountId, "lot")).resolves.toBe(1001);
       await expect(
-        db.select({ id: job.id }).from(job).where(eq(job.accountId, accountId)),
+        db
+          .select({ id: job.id })
+          .from(job)
+          .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning"))),
       ).resolves.toStrictEqual([]);
       await expect(headOf(accountId)).resolves.toBe(head + 2);
     },

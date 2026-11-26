@@ -20,6 +20,7 @@ export const listingQuery = ({ kind, scope, sort, words }: LibraryFilter) => {
 
   if (words !== null) {
     query.words = words;
+    query.meaning = true;
   }
 
   return query;

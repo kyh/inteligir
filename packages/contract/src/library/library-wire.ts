@@ -120,6 +120,7 @@ export const listingPageInputSchema = z.strictObject({
   cursor: cursorSchema.default(0),
   kinds: kindsSchema.optional(),
   limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
+  meaning: z.boolean().default(false),
   scope: libraryScopeSchema,
   sort: listingSortSchema.default("saved"),
   words: z.string().trim().min(1).max(500).optional(),

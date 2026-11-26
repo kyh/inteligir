@@ -646,6 +646,40 @@ export const cellConformance = (withHost: WithHost) => {
     });
   });
 
+  describe("what a cell finds by meaning", () => {
+    it("names the items nearest an item, never itself or one deleted, once its jobs ran", async () => {
+      await withLaptop(async ({ library, note, runDue }) => {
+        const pools = await note(["Tidal pools hold anemones, starfish and periwinkles."]);
+        const rocks = await note(["Starfish and anemones crowd the tidal rock pools at dawn."]);
+        await note(["Quarterly budget spreadsheet for the office move."]);
+        await runDue();
+
+        const near = await library.items.related({ id: pools });
+        expect(near.items.map(({ id }) => id)).toStrictEqual([rocks]);
+
+        await library.items.delete({ ids: [rocks] });
+        await expect(library.items.related({ id: pools })).resolves.toStrictEqual({ items: [] });
+      });
+    });
+
+    it("lists, when asked, what shares only some of a search's words", async () => {
+      await withLaptop(async ({ library, note, runDue }) => {
+        const pools = await note(["Tidal pools hold anemones, starfish and periwinkles."]);
+        await note(["Quarterly budget spreadsheet for the office move."]);
+        await runDue();
+
+        const meant = await library.listing.page({
+          limit: 20,
+          meaning: true,
+          scope: { kind: "all" },
+          words: "starfish lighthouse",
+        });
+
+        expect(meant.items.map(({ id }) => id)).toStrictEqual([pools]);
+      });
+    });
+  });
+
   describe("a cell's saved views", () => {
     it("keeps views by name, a save of one id replacing it, a remove dropping it, and each tells a device the tree moved", async () => {
       await withLaptop(async ({ library }) => {

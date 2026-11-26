@@ -45,9 +45,10 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   block carries imports and the agent's reads and edits, and Plate's stock is
   corrected where an agent's edit would lose words. Why: byte-exact round trips
   cost more than they pay.
-- **Saving calls no model.** The extension reads its page; any other save lands
-  unread for the cloud's fill job, and the agent files and tags only when asked.
-  Why: a save is instant and free.
+- **A save's write calls no model.** The extension reads its page; any other
+  save lands unread for the cloud's fill job, and an embedding for meaning
+  search is a job after the commit, on the gateway or a hashed fallback without
+  it; the agent files and tags only when asked. Why: a save is instant.
 - **The built-in agent is ours, on our bill**: eve's, served by the
   deployment, on Sonnet 5.5 through Vercel's AI Gateway, searching and reading
   the web without asking, a daily allowance, each turn one undoable change set;

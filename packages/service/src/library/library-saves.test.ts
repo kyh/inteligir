@@ -3,7 +3,7 @@ import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 import { item, job, libraryState } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { env } from "../env";
@@ -56,7 +56,7 @@ const fillJobs = async (accountId: string) =>
   await db
     .select({ attempts: job.attempts, id: job.id, kind: job.kind, payload: job.payload })
     .from(job)
-    .where(eq(job.accountId, accountId))
+    .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning")))
     .orderBy(asc(job.id));
 
 const headOf = async (accountId: string) => {

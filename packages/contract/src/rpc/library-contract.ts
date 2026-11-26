@@ -304,6 +304,8 @@ export const searchInputSchema = z.strictObject({
   tag: FIELDS.tags.element.optional().describe(TAG_FILTER),
 });
 
+const RELATED_MAX = 20;
+
 const itemsContract = {
   list: signedBase
     .input(listInputSchema)
@@ -323,6 +325,15 @@ const itemsContract = {
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema }))
     .output(openItemRow),
+
+  related: signedBase
+    .input(
+      z.strictObject({
+        id: idSchema,
+        limit: z.number().int().min(1).max(RELATED_MAX).default(5),
+      }),
+    )
+    .output(z.object({ items: z.array(listedItemSchema) })),
 
   create: signedBase
     .errors({

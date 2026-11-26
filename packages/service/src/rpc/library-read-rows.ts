@@ -13,6 +13,7 @@ import {
   listingScopes,
   listingTitles,
   readLibrary,
+  relatedItems,
 } from "../library/library-listing";
 import { savedViews } from "../library/saved-views";
 import { libraryOutline, listItems, readItemView, searchItems } from "../library/library-reads";
@@ -61,6 +62,12 @@ export const libraryReadRows = {
 
       return { ...itemRow(whole.item), blocks: [...whole.blocks], bodyVersion: whole.bodyVersion };
     }),
+    related: reading.items.related.handler(
+      async ({ context, input }) =>
+        await readLibrary(
+          async (tx) => await relatedItems(tx, context.library.accountId, input.id, input.limit),
+        ),
+    ),
     list: reading.items.list.handler(
       async ({ context, input }) =>
         await readLibrary(async (tx) => await listItems(tx, context.library.accountId, input)),

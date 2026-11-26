@@ -140,6 +140,8 @@ const derivedOf = (item: CellItem) => {
 const filesOf = (fields: LibraryItemFields, blocks: readonly BodyBlock[]) =>
   itemFilesOf(fields, deriveBody(blocks).digest.files);
 
+const MEANING_HITS = 50;
+
 export const createFakeCell = () => {
   let head = 0;
   let signedOut = false;
@@ -228,6 +230,57 @@ export const createFakeCell = () => {
       passage: (id) => lines.get(id)?.trim() ?? null,
       rank: new Map([...lines.keys()].map((id, place) => [id, place])),
     } satisfies SearchHits;
+  };
+
+  const wordsOf = (item: CellItem) => {
+    const { search, text } = derivedOf(item);
+    const all = `${search.title} ${text}`.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
+
+    return new Set(all);
+  };
+
+  const nearest = (words: ReadonlySet<string>, except: string | null, limit: number) =>
+    [...items]
+      .flatMap(([id, item]) => {
+        if (id === except || item.fields.deletedAt !== null || isContainerKind(item.fields.kind)) {
+          return [];
+        }
+
+        const held = wordsOf(item);
+        const shared = [...words].filter((word) => held.has(word)).length;
+
+        return shared === 0 ? [] : [{ id, score: shared / (words.size + held.size - shared) }];
+      })
+      .toSorted((a, b) => b.score - a.score || compareText(a.id, b.id))
+      .slice(0, limit)
+      .map(({ id }) => id);
+
+  const withMeaning = (hits: SearchHits, words: string) => {
+    const rank = new Map(hits.rank);
+    const asked = new Set(words.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu));
+
+    for (const id of nearest(asked, null, MEANING_HITS)) {
+      if (!rank.has(id)) {
+        rank.set(id, rank.size);
+      }
+    }
+
+    return { ...hits, rank } satisfies SearchHits;
+  };
+
+  const related = (id: string, limit: number) => {
+    const own = items.get(id);
+
+    return {
+      items:
+        own === undefined
+          ? []
+          : nearest(wordsOf(own), id, limit).flatMap((near) => {
+              const held = items.get(near);
+
+              return held === undefined ? [] : [listedItem(listingRow(near, held))];
+            }),
+    };
   };
 
   const needsBlobs = (shas: readonly string[]) => {
@@ -711,6 +764,7 @@ export const createFakeCell = () => {
             return { addressHeld, missing, restored: changed };
           }),
         ),
+        related: os.library.items.related.handler(({ input }) => related(input.id, input.limit)),
         row: os.library.items.row.handler(({ input }) => openRow(input.id)),
         saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
         setList: os.library.items.setList.handler(({ input }) =>
@@ -828,7 +882,15 @@ export const createFakeCell = () => {
       },
       listing: {
         page: os.library.listing.page.handler(({ input }) =>
-          listingPageOf(listing(), input, searchHits, (row) => row),
+          listingPageOf(
+            listing(),
+            input,
+            (words, deleted) =>
+              input.meaning && !deleted
+                ? withMeaning(searchHits(words, deleted), words)
+                : searchHits(words, deleted),
+            (row) => row,
+          ),
         ),
         children: os.library.listing.children.handler(({ input }) =>
           listing().children(input.parentId),

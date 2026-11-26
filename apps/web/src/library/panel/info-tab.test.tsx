@@ -1,7 +1,7 @@
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { toast } from "@repo/ui/components/sonner";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -55,6 +55,22 @@ describe("Info over an item", () => {
     await waitFor(() => {
       expect(cell.item(id)?.fields.reading.state).toBe("pending");
     });
+  });
+
+  it("lists the items nearest it under Related, and opens one by its id", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: "Tidal pools and starfish" });
+    const near = cell.seed.item({ title: "Starfish in rock pools" });
+    cell.seed.item({ title: "Quarterly budget" });
+    const { library } = fakePageLibrary({ cell });
+    const commands = spyCommands();
+
+    renderOnLibrary(<InfoTab itemId={id} />, library, commands);
+    const related = await screen.findByRole("region", { name: "Related" });
+    fireEvent.click(within(related).getByRole("button", { name: "Starfish in rock pools" }));
+
+    expect(within(related).getAllByRole("button")).toHaveLength(1);
+    expect(commands.openItem).toHaveBeenCalledWith(near);
   });
 
   it("names a note an item is filed under by its title, under the folders that hold the note", async () => {

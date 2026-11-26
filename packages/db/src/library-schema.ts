@@ -23,6 +23,7 @@ import {
   primaryKey,
   text,
   uniqueIndex,
+  vector,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth-schema";
@@ -32,7 +33,7 @@ const TAG_ORIGINS = [
   "inline",
 ] as const satisfies readonly DerivedItem["tags"][number]["origin"][];
 
-const JOB_KINDS = ["fill", "file-release", "pdf-text", "sweep"] as const;
+const JOB_KINDS = ["fill", "file-release", "meaning", "pdf-text", "sweep"] as const;
 
 export const itemKind = pgEnum("item_kind", ITEM_KINDS);
 export const tagOrigin = pgEnum("tag_origin", TAG_ORIGINS);
@@ -171,6 +172,23 @@ export const itemSearch = pgTable.withRLS(
     index("item_search_text")
       .using("gin", sql`lower(${table.text}) gin_trgm_ops`)
       .with({ fastupdate: false }),
+  ],
+);
+
+export const MEANING_DIMENSIONS = 512;
+
+export const itemMeaning = pgTable.withRLS(
+  "item_meaning",
+  {
+    accountId: text("account_id").notNull(),
+    embedding: vector("embedding", { dimensions: MEANING_DIMENSIONS }).notNull(),
+    itemId: text("item_id").notNull(),
+    textSha: text("text_sha").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accountId, table.itemId] }),
+    itemFk("item_meaning_item_fk", [table.accountId, table.itemId]),
+    index("item_meaning_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
   ],
 );
 

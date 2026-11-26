@@ -15,8 +15,10 @@ import {
   file,
   item,
   itemFile,
+  itemMeaning,
   job,
   libraryState,
+  MEANING_DIMENSIONS,
   opAnswer,
   purgedItem,
 } from "@repo/db/library-schema";
@@ -424,6 +426,12 @@ const fillLibrary = async (accountId: string) => {
       kind: "fill",
       payload: { itemId: note.id },
       runAt: 1,
+    });
+    await tx.insert(itemMeaning).values({
+      accountId,
+      embedding: Array.from({ length: MEANING_DIMENSIONS }, () => 0),
+      itemId: note.id,
+      textSha: sha256,
     });
   });
 };

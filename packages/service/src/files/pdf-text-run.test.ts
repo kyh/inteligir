@@ -1,7 +1,7 @@
 import { db } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { expect, it } from "vitest";
 
 import { drainJobs } from "../jobs/drain-jobs";
@@ -108,9 +108,12 @@ dbSuite("a PDF's text", () => {
     await expect(library.search({ query: "tidal colony" })).resolves.toMatchObject({
       hits: [{ id, kind: "pdf" }],
     });
-    await expect(db.select().from(job).where(eq(job.accountId, accountId))).resolves.toHaveLength(
-      0,
-    );
+    await expect(
+      db
+        .select()
+        .from(job)
+        .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning"))),
+    ).resolves.toHaveLength(0);
   });
 
   it("leaves a PDF with no words as it was", async () => {

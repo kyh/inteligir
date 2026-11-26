@@ -2,6 +2,7 @@ import { RELEASE_RUN } from "../files/file-release";
 import { PDF_TEXT_RUN } from "../files/pdf-text-run";
 import { FILL_RUN } from "../fill/fill-run";
 import { SWEEP_RUN } from "../library/library-sweeps";
+import { MEANING_RUN } from "../meaning/meaning-run";
 import type { JobKind, JobOutcome, JobRun, Lease } from "../library/job-queue";
 
 type LeasedRun = (lease: Lease) => Promise<JobOutcome | "unreadable">;
@@ -34,6 +35,7 @@ export type JobRuns = { readonly [K in JobKind]: LeasedRun };
 export const JOB_RUNS: JobRuns = {
   "file-release": leasedRun(RELEASE_RUN),
   fill: leasedRun(FILL_RUN),
+  meaning: leasedRun(MEANING_RUN),
   "pdf-text": leasedRun(PDF_TEXT_RUN),
   sweep: leasedRun(SWEEP_RUN),
 };

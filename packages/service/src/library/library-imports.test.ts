@@ -141,7 +141,7 @@ dbSuite("an import", () => {
         db
           .select({ id: job.id, payload: job.payload })
           .from(job)
-          .where(eq(job.accountId, accountId)),
+          .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning"))),
       ).resolves.toStrictEqual([
         {
           id: `fill:${link.id}`,

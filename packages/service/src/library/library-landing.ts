@@ -31,6 +31,7 @@ import {
 } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
+import { askMeaning } from "./meaning-job";
 import { askPdfTexts } from "./pdf-text-job";
 import { anyOf, chunksOf } from "./set-sql";
 
@@ -210,6 +211,7 @@ const replaceSearch = async (
 ) => {
   const { accountId, tx } = scope;
   const search = searchRowOf(accountId, itemId, { ...derived.search, body: text });
+  await askMeaning(scope);
   await tx
     .insert(itemSearch)
     .values(search)
@@ -415,6 +417,10 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]) => {
     await tx.insert(item).values(chunk.map((row) => row.item));
     await tx.insert(itemBody).values(chunk.map((row) => row.body));
     await tx.insert(itemSearch).values(chunk.map((row) => row.search));
+  }
+
+  if (rows.length > 0) {
+    await askMeaning(scope);
   }
 
   for (const chunk of chunksOf(

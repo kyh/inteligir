@@ -5,7 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
 import { askJobs } from "./job-queue";
-import type { JobAsk } from "./job-queue";
+import type { DelayedAsk } from "./job-queue";
 import { joinTurnSet } from "./turn-sets";
 import type { LibraryActor } from "./library-principal";
 import { RefusedWriteError, refuse } from "./library-refusal";
@@ -41,7 +41,7 @@ export interface WriteScope {
   readonly seq: () => Promise<number>;
   readonly set: () => Promise<string | null>;
   readonly attempt: <T>(part: (scope: WriteScope) => Promise<T>) => Promise<LibraryResult<T>>;
-  readonly askJobs: (asks: readonly Omit<JobAsk, "accountId">[]) => Promise<void>;
+  readonly askJobs: (asks: readonly Omit<DelayedAsk, "accountId">[]) => Promise<void>;
 }
 
 const raised = (cause: unknown, code: string) => {

@@ -518,3 +518,17 @@ DOM (`oxlint.config.ts`).
   the body's weight.** Stemming the opening of a body its title alone matched
   costs milliseconds a hit and finds nothing.
   `packages/service/src/search/search-sql.ts`.
+- **An item's meaning is a 512-number embedding of its search text in
+  `item_meaning`, kept by one `meaning` job per account that any search row's
+  write asks due 30 s on, 64 items a run, each skipped while its text's sha is
+  unchanged.** The model call runs after the commit, never under the lock, and
+  a job per item, or one due at once, is a gateway call per save of a note
+  being typed. `packages/service/src/meaning/meaning-run.ts`.
+- **An embedding is the gateway's `text-embedding-3-small` when it is reachable,
+  and a hashed bag of our own stems otherwise.** Development, the suites and a
+  deployer with no gateway key still get related items by shared words, and
+  never a call off the machine. `packages/service/src/meaning/embedder.ts`.
+- **A search asked with `meaning` ranks the word hits first, then up to 50
+  items within a cosine distance of 0.75 of the query's embedding.** A word
+  typed is what the person asked for, and meaning fills in what no word
+  matched. `packages/service/src/library/library-listing.ts`.

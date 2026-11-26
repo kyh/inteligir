@@ -17,7 +17,7 @@ import newsArticle from "@repo/page-reader/test-support/corpus/news-article.html
 import recipe from "@repo/page-reader/test-support/corpus/recipe.html?raw";
 import scriptHeavy from "@repo/page-reader/test-support/corpus/script-heavy.html?raw";
 import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 
 import { fileOf } from "../library/file-names";
@@ -368,7 +368,10 @@ dbSuite("a saved link's reading", () => {
       reading: { state: "read" },
     });
     await expect(
-      db.select().from(job).where(eq(job.accountId, saved.accountId)),
+      db
+        .select()
+        .from(job)
+        .where(and(eq(job.accountId, saved.accountId), ne(job.kind, "meaning"))),
     ).resolves.toStrictEqual([]);
   });
 });
