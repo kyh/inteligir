@@ -12,9 +12,10 @@ catalog:
   "@orpc/mcp": 2.0.0-beta.50
   "@orpc/server": 2.0.0-beta.50
   "@orpc/tanstack-query": 2.0.0-beta.50
-  # exact: the e2e drives the connector with the client the deployed connector was tested against
+  # exact: the inteligir command signs in and calls tools with the client the connector's server
+  # is pinned beside
   "@modelcontextprotocol/client": 2.4.0
-  # exact, as its client sibling: @orpc/mcp's peer, whose tool annotations the library's tools carry
+  # exact: @orpc/mcp's peer, whose tool annotations the library's tools carry
   "@modelcontextprotocol/server": 2.4.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
   # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, its
@@ -33,9 +34,6 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
-  # exact, as dataembed pins it: a version names the browser builds `playwright install` fetches,
-  # and this one's WebKit is 27.2
-  "@playwright/test": 1.65.1
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
   "@tailwindcss/postcss": ^4.3.5
@@ -214,7 +212,7 @@ allowBuilds:
   core-js: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
-  # electron-builder's Windows installer: the app ships only for macOS
+  # electron-builder's Squirrel.Windows installer: Windows packs with NSIS
   electron-winstaller: false
   esbuild: true
   # a postinstall that copies the browser's service worker, which the suites, on node, never load

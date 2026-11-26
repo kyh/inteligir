@@ -1,3 +1,4 @@
+import { SIGN_IN_CODE_LENGTH } from "@repo/contract/account/account-schema";
 import { FILING_RULES_MAX, modelKeySchema } from "@repo/contract/library/library-wire";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
@@ -365,12 +366,24 @@ const FilingRulesRow = () => {
 };
 
 const DeleteAccount = () => {
-  const { left, wire } = usePageLibrary();
+  const { account, left, wire } = usePageLibrary();
   const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+
+  const send = useMutation({
+    mutationFn: async () =>
+      await authClient.emailOtp.sendVerificationOtp({
+        email: account.email,
+        fetchOptions: { throw: true },
+        type: "sign-in",
+      }),
+    onError: (cause) => {
+      toast.error(refusalText(cause, "The code couldn't be sent. Try again."));
+    },
+  });
 
   const remove = useMutation({
-    mutationFn: async (typed: string) => await wire.client.account.delete({ password: typed }),
+    mutationFn: async (typed: string) => await wire.client.account.delete({ code: typed }),
     onError: (cause) => {
       toast.error(refusalText(cause, "The account couldn't be deleted."));
     },
@@ -378,6 +391,9 @@ const DeleteAccount = () => {
       left("deleted");
     },
   });
+
+  const typed = code.trim();
+  const complete = typed.length === SIGN_IN_CODE_LENGTH;
 
   return (
     <>
@@ -396,35 +412,54 @@ const DeleteAccount = () => {
           <DialogTitle>Delete your account?</DialogTitle>
           <DialogDescription>
             Your library, its files and your conversations with the agent are deleted from our cloud
-            for good. Type your password to go on.
+            for good. To go on, enter the code we email to {account.email}.
           </DialogDescription>
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
+          {send.isSuccess ? (
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
 
-              if (password !== "") {
-                remove.mutate(password);
-              }
-            }}
-          >
-            <Input
-              type="password"
-              aria-label="Password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
+                if (complete) {
+                  remove.mutate(typed);
+                }
               }}
-            />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={password === "" || remove.isPending}
             >
-              Delete everything
+              <Input
+                aria-label="Code from the email"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={SIGN_IN_CODE_LENGTH}
+                value={code}
+                onChange={(event) => {
+                  setCode(event.target.value);
+                }}
+              />
+              <Button type="submit" variant="destructive" disabled={!complete || remove.isPending}>
+                Delete everything
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={send.isPending}
+                onClick={() => {
+                  send.mutate();
+                }}
+              >
+                Send a new code
+              </Button>
+            </form>
+          ) : (
+            <Button
+              variant="secondary"
+              disabled={send.isPending}
+              onClick={() => {
+                send.mutate();
+              }}
+            >
+              Email me a code
             </Button>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -237,9 +237,6 @@ catalogs:
     '@orpc/tanstack-query':
       specifier: 2.0.0-beta.50
       version: 2.0.0-beta.50
-    '@playwright/test':
-      specifier: 1.65.1
-      version: 1.65.1
     '@rolldown/plugin-babel':
       specifier: ^0.2.4
       version: 0.2.4
@@ -1518,48 +1515,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.3(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@24.19.2)(typescript@7.0.2))(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  tools/e2e:
-    devDependencies:
-      '@kyh/tsconfig':
-        specifier: 'catalog:'
-        version: 1.3.0
-      '@modelcontextprotocol/client':
-        specifier: 'catalog:'
-        version: 2.4.0
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.50
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.65.1
-      '@repo/cli':
-        specifier: workspace:*
-        version: link:../../apps/cli
-      '@repo/contract':
-        specifier: workspace:*
-        version: link:../../packages/contract
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      '@zip.js/zip.js':
-        specifier: 'catalog:'
-        version: 2.25.0
-      dotenv-cli:
-        specifier: 'catalog:'
-        version: 11.1.0
-      postgres:
-        specifier: 'catalog:'
-        version: 3.4.9(patch_hash=88d5d5569f978bd4bd3c95d0edd0724c95141b629b1e1b409f431f048eab6727)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
 
   tools/repo-guards:
     devDependencies:
@@ -5696,7 +5651,6 @@ packages:
 
   bunyan@1.8.15:
     resolution: {integrity: sha512-0tECWShh6wUysgucJcBAoYegf3JJoZWibxdqhTm7OHPeT42qdjkZ29QCMcKwbgU1kiH+auSIasNRXMLWXafXig==}
-    engines: {'0': node >=0.10.0}
     hasBin: true
 
   bytes@3.1.2:
@@ -9190,8 +9144,8 @@ packages:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
 
-  pkce-challenge@5.0.1:
-    resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
+  pkce-challenge@5.0.2:
+    resolution: {integrity: sha512-vCc54+qyIfKC5e2UN28AZKElwqjLINgiIV3RKI8pDu93TjaAJoB3QrgMzEBouy8yOKsXVXdAinO1QArJf9x5WA==}
     engines: {node: '>=16.20.0'}
 
   pkg-dir@4.2.0:
@@ -13517,7 +13471,7 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
       jose: 6.2.12
-      pkce-challenge: 5.0.1
+      pkce-challenge: 5.0.2
       zod: 4.6.7
 
   '@modelcontextprotocol/core@2.4.0':
@@ -14278,6 +14232,7 @@ snapshots:
   '@playwright/test@1.65.1':
     dependencies:
       playwright: 1.65.1
+    optional: true
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -20522,7 +20477,7 @@ snapshots:
 
   pirates@4.0.7: {}
 
-  pkce-challenge@5.0.1: {}
+  pkce-challenge@5.0.2: {}
 
   pkg-dir@4.2.0:
     dependencies:
@@ -20572,11 +20527,13 @@ snapshots:
       - scheduler
       - use-sync-external-store
 
-  playwright-core@1.65.1: {}
+  playwright-core@1.65.1:
+    optional: true
 
   playwright@1.65.1:
     dependencies:
       playwright-core: 1.65.1
+    optional: true
 
   plist@3.1.0:
     dependencies:

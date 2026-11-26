@@ -31,3 +31,16 @@ export const forgetInviteRedeemer = async (email: string) => {
     .set({ redeemedBy: null })
     .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`);
 };
+
+export const inviteOpen = async (code: string) => {
+  if (!CODE_PATTERN.test(code)) {
+    return false;
+  }
+
+  const open = await db
+    .select({ code: inviteCode.code })
+    .from(inviteCode)
+    .where(and(eq(inviteCode.code, code), isNull(inviteCode.redeemedAt)));
+
+  return open.length > 0;
+};

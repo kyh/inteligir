@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { composeResetEmail } from "./reset-email";
 import { deliverEmail, emailModeOf, emailModeWarning } from "./send-email";
+import { composeSignInCodeEmail } from "./sign-in-code-email";
 
 const UNSET = { EMAIL_FROM: undefined, EMAIL_MODE: undefined, RESEND_API_KEY: undefined };
 const SENDER = "inteligir <hello@custom-domain.example>";
@@ -24,26 +24,25 @@ describe("the mail mode", () => {
 
   it("warns whoever runs a deployment that cannot mail, or that logs live links", () => {
     expect(emailModeWarning({ kind: "off" }, true)).toMatch(/EMAIL_FROM/u);
-    expect(emailModeWarning({ kind: "log" }, true)).toMatch(/reset links/u);
+    expect(emailModeWarning({ kind: "log" }, true)).toMatch(/sign-in codes/u);
     expect(emailModeWarning({ kind: "log" }, false)).toBeNull();
   });
 });
 
-describe("a reset mail", () => {
-  it("carries its link in the text and the markup, to the address asked for", () => {
-    const url = "http://localhost:5174/api/auth/reset-password/abc?callbackURL=%2Fapp";
-    const message = composeResetEmail("user@example.com", url);
+describe("a sign-in code's mail", () => {
+  it("carries its code in the subject, the text and the markup, to the address asked for", () => {
+    const message = composeSignInCodeEmail("user@example.com", "123456");
     expect(message.to).toBe("user@example.com");
-    expect(message.subject).toBe("Reset your inteligir password");
-    expect(message.text).toContain(url);
-    expect(message.html).toContain(url);
+    expect(message.subject).toBe("123456 is your inteligir sign-in code");
+    expect(message.text).toContain("123456");
+    expect(message.html).toContain("123456");
   });
 
   it("goes nowhere and logs no address with mail off", async () => {
     const warn = vi.spyOn(console, "warn");
 
     await expect(
-      deliverEmail(composeResetEmail("user@example.com", "http://x/reset"), { kind: "off" }),
+      deliverEmail(composeSignInCodeEmail("user@example.com", "123456"), { kind: "off" }),
     ).resolves.toBe("off");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("user@example.com");
   });

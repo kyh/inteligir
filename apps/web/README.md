@@ -31,13 +31,12 @@ vercel.json      the functions' region and the crons
 | `/library`, `/library/settings`                    | the library tab, Settings over it; a 307 to `/app/sign-in?next=…` unsigned  |
 | `/app`                                             | a 307 to `/library`                                                         |
 | `/app/sign-in`, `/app/sign-up`                     | the account pages, skipped to `next` when signed in                         |
-| `/app/forgot-password`                             | asks for the reset mail                                                     |
-| `/app/reset-password`                              | the reset mail's link: a new password on its token                          |
 | `/connect/authorize`                               | an assistant's consent page, on the request the OAuth provider signed       |
 | `/llms.txt`, `/robots.txt`, `/sitemap.xml`         | for agents and crawlers                                                     |
 | `/licenses.md`, `/licenses/*.txt`                  | every production package's licence and each vendored text, at prebuild      |
 | `/api/auth/*`                                      | Better Auth, its allowlisted routes alone (`@repo/service`'s `auth/`)       |
-| `/api/sign-up`                                     | sign-up behind the invite gate, POST alone                                  |
+| `/api/sign-up/code`                                | mails a sign-up code once the invite and the address pass, POST alone       |
+| `/api/sign-up`                                     | sign-up behind the invite gate, on that code, POST alone                    |
 | `/api/markdown/*`                                  | what `proxy.ts` rewrites a markdown request to; no public address           |
 | `/api/health`                                      | `{"ok":true}` once the database answers, else 503                           |
 | `/api/dev/files`                                   | off Vercel with no Blob key, the folder store's upload, PUT alone; else 404 |

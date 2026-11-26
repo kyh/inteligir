@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { styleText } from "node:util";
@@ -14,11 +15,6 @@ import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import manifest from "../package.json" with { type: "json" };
 
-interface Login {
-  readonly email: string;
-  readonly password: string;
-}
-
 type HeaderMap = Readonly<Record<string, string>>;
 
 type Leg =
@@ -31,8 +27,6 @@ const envOf = (name: string) => {
   return value === "" ? undefined : value;
 };
 
-const SMOKE_EMAIL = envOf("SMOKE_EMAIL");
-const SMOKE_PASSWORD = envOf("SMOKE_PASSWORD");
 const SMOKE_URL = envOf("SMOKE_URL");
 const VERCEL_AUTOMATION_BYPASS_SECRET = envOf("VERCEL_AUTOMATION_BYPASS_SECRET");
 
@@ -40,17 +34,7 @@ const GATE = envOf("CI") !== undefined;
 
 const BASE_URL = (SMOKE_URL ?? "http://localhost:5174").replace(/\/$/u, "");
 
-const loginOf = () => {
-  if (SMOKE_URL === undefined) {
-    return { email: "dev@inteligir.local", password: "password" } satisfies Login | null;
-  }
-
-  return (
-    SMOKE_EMAIL === undefined || SMOKE_PASSWORD === undefined
-      ? null
-      : { email: SMOKE_EMAIL, password: SMOKE_PASSWORD }
-  ) satisfies Login | null;
-};
+const SEEDED_EMAIL = "dev@inteligir.local";
 
 const BYPASS: HeaderMap =
   VERCEL_AUTOMATION_BYPASS_SECRET === undefined
@@ -148,14 +132,17 @@ const v1Client = (headers: HeaderMap) =>
     }),
   );
 
-const signIn = async (login: Login, door: HeaderMap) => {
-  const response = await request("/api/auth/sign-in/email", {
-    body: JSON.stringify(login),
+const mintedCode = (email: string) =>
+  execFileSync("pnpm", ["--silent", "sign-in-code", email], { encoding: "utf-8" }).trim();
+
+const signIn = async (email: string, door: HeaderMap) => {
+  const response = await request("/api/auth/sign-in/email-otp", {
+    body: JSON.stringify({ email, otp: mintedCode(email) }),
     headers: { ...door, "content-type": "application/json" },
     method: "POST",
   });
 
-  await expectStatus(response, 200, `sign-in as ${login.email}`);
+  await expectStatus(response, 200, `sign-in as ${email}`);
 
   return response.headers
     .getSetCookie()
@@ -238,37 +225,36 @@ const fileRoundTrip = async (door: HeaderMap) => {
   }
 };
 
-const signedInCalls = async (login: Login) => {
-  const site = { origin: BASE_URL };
-  const browser = await signIn(login, site);
-  const extensionDoor = { authorization: `Bearer ${sessionToken(browser)}` };
+const PHONE_DOOR = { "expo-origin": PHONE_ORIGIN };
+
+const callsThroughDoors = async (extensionDoor: HeaderMap, phone: string) => {
   const asExtension = v1Client(extensionDoor);
-  const phoneDoor = { "expo-origin": PHONE_ORIGIN };
-  const phone = await signIn(login, phoneDoor);
-  const asPhone = v1Client({ ...phoneDoor, cookie: phone });
+  const asPhone = v1Client({ ...PHONE_DOOR, cookie: phone });
 
   for (const client of [asExtension, asPhone]) {
     await client.library.items.list({ limit: 1 });
   }
 
   await fileRoundTrip(extensionDoor);
-  await signOut(phone, phoneDoor);
+};
+
+const signedInCalls = async () => {
+  const site = { origin: BASE_URL };
+  const browser = await signIn(SEEDED_EMAIL, site);
+  const phone = await signIn(SEEDED_EMAIL, PHONE_DOOR);
+  await callsThroughDoors({ authorization: `Bearer ${sessionToken(browser)}` }, phone);
+  await signOut(phone, PHONE_DOOR);
   await signOut(browser, site);
 };
 
-const signedInLeg = (login: Login | null) => {
+const signedInLeg = () => {
   const label =
     "a signed-in call answers through the extension's door and the phone's, and a file goes up and reads back by range";
 
   return (
-    login === null
-      ? { label, skip: "set SMOKE_EMAIL and SMOKE_PASSWORD" }
-      : {
-          label,
-          run: async () => {
-            await signedInCalls(login);
-          },
-        }
+    SMOKE_URL === undefined
+      ? { label, run: signedInCalls }
+      : { label, skip: "its sign-in code is minted in the local database, so it runs locally only" }
   ) satisfies Leg;
 };
 
@@ -335,7 +321,7 @@ const LEGS: readonly Leg[] = [
       await expectStatus(response, 426, "a call from build 0.0.1");
     },
   },
-  signedInLeg(loginOf()),
+  signedInLeg(),
 ];
 
 const runLeg = async (number: string, leg: Leg) => {

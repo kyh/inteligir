@@ -2,6 +2,7 @@ import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
+import { SIGN_IN_CODE_REFUSED } from "../account/account-schema";
 import { shaSchema } from "../library/library-item";
 import { editRefusalSchema } from "../library/library-wire";
 
@@ -63,7 +64,7 @@ export const AgentUnavailableError = error("SERVICE_UNAVAILABLE", {
 });
 
 export const InvalidCredentialsError = error("INVALID_CREDENTIALS", {
-  message: "That email and password don't match an account.",
+  message: SIGN_IN_CODE_REFUSED,
 });
 
 export const signedBase = oc.errors({

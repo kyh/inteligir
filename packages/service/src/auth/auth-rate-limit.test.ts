@@ -25,9 +25,9 @@ const REGISTER_MAX = 10;
 
 const signInFrom = async (callerIp: string) =>
   await authPost(
-    "/sign-in/email",
+    "/sign-in/email-otp",
     { [CALLER_IP_HEADER]: callerIp, origin: ORIGIN },
-    { email: "nobody@example.test", password: "not-the-password" },
+    { email: "nobody@example.test", otp: "000000" },
   );
 
 const signOutFrom = async (callerIp: string) =>
@@ -56,13 +56,13 @@ const statusesOf = async (times: number, call: () => Promise<Response>) => {
 };
 
 dbSuite("Better Auth's limiter", () => {
-  it("holds one address to 3 sign-ins in 10 s, and leaves another's open", async () => {
+  it("holds one address to 3 code sign-ins a minute, and leaves another's open", async () => {
     await expect(
       statusesOf(SIGN_IN_MAX + 1, async () => await signInFrom("203.0.113.10")),
-    ).resolves.toStrictEqual([...Array.from({ length: SIGN_IN_MAX }, () => 401), 429]);
+    ).resolves.toStrictEqual([...Array.from({ length: SIGN_IN_MAX }, () => 400), 429]);
 
     const other = await signInFrom("203.0.113.11");
-    expect(other.status).toBe(401);
+    expect(other.status).toBe(400);
   });
 
   it("holds one address to 10 calls a minute on a route with no rule of its own", async () => {
@@ -87,11 +87,11 @@ dbSuite("Better Auth's limiter", () => {
 
     await db.insert(rateLimit).values([
       { count: 1, id: randomUUID(), key: appKey, lastRequest: lapsed },
-      { count: 1, id: randomUUID(), key: "203.0.113.31|/sign-in/email", lastRequest: lapsed },
+      { count: 1, id: randomUUID(), key: "203.0.113.31|/sign-in/email-otp", lastRequest: lapsed },
     ]);
 
     const rolledOver = await signInFrom("203.0.113.31");
-    expect(rolledOver.status).toBe(401);
+    expect(rolledOver.status).toBe(400);
 
     await vi.waitFor(async () => {
       const rows = await db.select().from(rateLimit).where(eq(rateLimit.key, appKey));

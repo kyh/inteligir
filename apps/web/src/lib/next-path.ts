@@ -51,13 +51,3 @@ export const authPageHref = (pathname: string, next?: string) =>
 
 export const signInHref = (here: Pick<URL, "pathname" | "search">) =>
   `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;
-
-const RESET_PAGE_PATH = "/app/reset-password";
-
-export const resetLanding = (next?: string) => {
-  const wayBack = internalNextPath(next);
-
-  return wayBack === null
-    ? RESET_PAGE_PATH
-    : `${RESET_PAGE_PATH}?${new URLSearchParams({ next: wayBack }).toString()}`;
-};

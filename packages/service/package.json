@@ -27,6 +27,7 @@
   },
   "scripts": {
     "seed": "dotenv -e ../../.env.local -e ../../.env -- tsx src/seed.ts",
+    "sign-in-code": "dotenv -e ../../.env.local -e ../../.env -- tsx src/sign-in-code.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -12,9 +12,9 @@ const DEPLOYMENT_HOST = vi.hoisted(() => {
 
 const signInFrom = async (origin: string) =>
   (await authPost(
-    "/sign-in/email",
+    "/sign-in/email-otp",
     { origin },
-    { email: "nobody@example.test", password: "not-the-password" },
+    { email: "nobody@example.test", otp: "000000" },
   )) satisfies Response;
 
 dbSuite("a sign-in's origin", () => {
@@ -22,7 +22,7 @@ dbSuite("a sign-in's origin", () => {
     it("takes a sign-in from the deployment's own address, as from the app's", async () => {
       for (const origin of [ORIGIN, `https://${DEPLOYMENT_HOST}`]) {
         const response = await signInFrom(origin);
-        expect(response.status).toBe(401);
+        expect(response.status).toBe(400);
       }
     });
 

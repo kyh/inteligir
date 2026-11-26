@@ -29,7 +29,7 @@ export const accountRouter = {
     const deletion = await deleteAccountUnderSession(deploymentAgentRuntime(), {
       accountId: context.principal.accountId,
       headers: context.headers,
-      password: input.password,
+      code: input.code,
     });
 
     switch (deletion) {

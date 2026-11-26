@@ -16,8 +16,8 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # a backstop: verify and the flows run about 25 minutes on a four-core runner
-    timeout-minutes: 45
+    # a backstop: verify and the smoke run about 15 minutes on a four-core runner
+    timeout-minutes: 30
     # the major production runs: the schema's push and the database suites need a real Postgres
     services:
       postgres:
@@ -64,29 +64,39 @@ jobs:
       - name: Schema push
         run: pnpm --filter @repo/db push && pnpm --filter @repo/db push:check
 
-      # `pnpm bootstrap`'s last step, every fresh clone's first sign-in, which no flow runs: the e2e
-      # mints its own accounts. It leans on Better Auth's internals, and run again it must find the
+      # `pnpm bootstrap`'s last step, every fresh clone's first sign-in, which the smoke signs in as.
+      # It leans on Better Auth's internals, and run again it must find the
       # account signing in and the invite there, making neither
       - name: Seed
         run: |
           pnpm db:seed
           again=$(pnpm db:seed)
           echo "$again"
-          grep -qx "dev@inteligir.local: already signs in" <<< "$again"
+          grep -qx "dev@inteligir.local: already there" <<< "$again"
           grep -qx "invite DEV-INVITE: already there" <<< "$again"
 
       # the static gate a developer runs, so a local green predicts this step; turbo continues past
       # a failure, so one run reports every red task. Every step after it is what verify cannot do
       - name: Verify
+        id: verify
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm verify
 
-      # the full Chromium, which loads an extension, at the lockfile's Playwright's version
-      - name: E2E browser
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium
+      # outside verify on purpose: every unit can pass while the composition fails. The build verify
+      # made, on next start, which serves eve's agent (here on the mock model), and the seeded login
+      # through every door (`pnpm smoke`, which waits for the app's health)
+      - name: Smoke
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        env:
+          AGENT_MOCK_MODEL: "true"
+          APP_URL: http://localhost:5174
+          BETTER_AUTH_SECRET: ci-better-auth-secret-000000000000000
+          EMAIL_MODE: log
+          RATE_LIMIT_DISABLED: "true"
+        run: |
+          pnpm --filter @repo/web start > "$RUNNER_TEMP/app.log" 2>&1 &
+          pnpm smoke
 
-      # outside verify on purpose: every unit can pass while the composition fails
-      - name: E2E
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm e2e
+      - name: Server logs
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/app.log"

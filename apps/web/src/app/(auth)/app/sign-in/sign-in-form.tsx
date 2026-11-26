@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { z } from "zod";
 
@@ -13,29 +14,67 @@ import {
   leaveForm,
   useAuthSubmit,
 } from "#components/auth-shell";
+import { SignInCode } from "#components/sign-in-code";
 import { authClient, authErrorMessage } from "#lib/auth-client";
 import { authPageHref, signedInLanding } from "#lib/next-path";
 import { siteConfig } from "#lib/site-config";
 
 const handedOffSchema = z.object({ redirect: z.literal(true), url: z.string() });
 
-export const SignInForm = ({ next }: { next: string | undefined }) => {
+const sendCode = async (email: string) => {
+  const { error } = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
+
+  return error === null ? null : authErrorMessage(error);
+};
+
+const EmailStep = ({ email, onSent }: { email: string; onSent: (email: string) => void }) => {
   const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
-    const { data, error: failure } = await authClient.signIn.email({
-      email: fieldValue(form, "email"),
-      password: fieldValue(form, "password"),
-    });
+    const typed = fieldValue(form, "email").trim();
+    const refusal = await sendCode(typed);
 
-    if (failure !== null) {
-      return authErrorMessage(failure);
+    if (refusal === null) {
+      onSent(typed);
     }
 
-    if (!handedOffSchema.safeParse(data).success) {
-      leaveForm(signedInLanding(next));
+    return refusal;
+  });
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4">
+      <AuthField
+        id="email"
+        name="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        defaultValue={email}
+        required
+        autoFocus
+      />
+      <AuthError message={error} />
+      <Button type="submit" disabled={busy || !ready}>
+        {busy ? "Sending a code…" : "Email me a code"}
+      </Button>
+    </form>
+  );
+};
+
+export const SignInForm = ({ next }: { next: string | undefined }) => {
+  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const handedOff = useRef(false);
+
+  const check = async (otp: string) => {
+    const { data, error } = await authClient.signIn.emailOtp({ email, otp });
+
+    if (error !== null) {
+      return authErrorMessage(error);
     }
+
+    handedOff.current = handedOffSchema.safeParse(data).success;
 
     return null;
-  });
+  };
 
   return (
     <AuthShell
@@ -50,35 +89,29 @@ export const SignInForm = ({ next }: { next: string | undefined }) => {
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-4">
-        <AuthField
-          id="email"
-          name="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          required
-          autoFocus
+      {step === "email" ? (
+        <EmailStep
+          email={email}
+          onSent={(sent) => {
+            setEmail(sent);
+            setStep("code");
+          }}
         />
-        <AuthField
-          id="password"
-          name="password"
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          required
+      ) : (
+        <SignInCode
+          email={email}
+          check={check}
+          resend={async () => await sendCode(email)}
+          onAccepted={() => {
+            if (!handedOff.current) {
+              leaveForm(signedInLanding(next));
+            }
+          }}
+          onBack={() => {
+            setStep("email");
+          }}
         />
-        <AuthError message={error} />
-        <Button type="submit" disabled={busy || !ready}>
-          {busy ? "Signing in…" : "Sign in"}
-        </Button>
-        <Link
-          href={authPageHref("/app/forgot-password", next)}
-          className="text-center text-xs text-muted-foreground underline underline-offset-4"
-        >
-          Forgot your password?
-        </Link>
-      </form>
+      )}
     </AuthShell>
   );
 };

@@ -10,7 +10,6 @@ import type { Dispatcher } from "undici";
 import { statusFailure } from "./fill-sentences";
 import type { FetchFailure, FetchRefusal } from "./fill-sentences";
 import { PrivateAddressError, publicDispatcher } from "./public-dispatcher";
-import { RELAYED_FETCH } from "./relayed-page-fetch";
 
 export interface PageRequest {
   readonly url: string;
@@ -314,5 +313,5 @@ export const dispatchedFetch = (dispatcher: Dispatcher) =>
 
 export const fetchPage: PageFetch = pageFetch({
   deadlineMs: DEADLINE_MS,
-  fetch: RELAYED_FETCH ?? dispatchedFetch(publicDispatcher()),
+  fetch: dispatchedFetch(publicDispatcher()),
 });

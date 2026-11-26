@@ -116,7 +116,7 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 
 - **What the shared packages call that Hermes lacks is core-js's, imported once in the runtime.**
   Hermes has no `Array.prototype.toSorted`, the lint refuses `sort`, and a phone that cannot sort
-  its waiting saves never opens its library; `pnpm e2e:mobile` is what finds the next one.
+  its waiting saves never opens its library; a run on a phone is what finds the next one.
   `apps/mobile/src/runtime/app-runtime.ts`.
 - **The phone ships through EAS to TestFlight, and an unset cloud URL is the production origin on
   both clients.** iPhone only (owner decision), credentials and build numbers EAS's, and

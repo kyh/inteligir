@@ -7,7 +7,7 @@ describe("the manifest", () => {
   it("carries the key, a local app's site and the fixture pages' host in the dev build", () => {
     const dev = extensionManifest("dev", "0.6.0");
     expect(dev).toMatchObject({
-      host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
+      host_permissions: ["http://localhost/*"],
       key: EXTENSION_PUBLIC_KEY,
     });
   });

@@ -14,8 +14,6 @@ const NONCE_DOCUMENTS: ReadonlySet<string> = new Set([
   `${LIBRARY_PAGE_PATH}/settings`,
   "/app/sign-in",
   "/app/sign-up",
-  "/app/forgot-password",
-  "/app/reset-password",
   CONNECTOR_CONSENT_PATH,
 ]);
 
@@ -74,8 +72,6 @@ export const config = {
     "/library/settings",
     "/app/sign-in",
     "/app/sign-up",
-    "/app/forgot-password",
-    "/app/reset-password",
     "/connect/authorize",
     {
       has: [{ key: "accept", type: "header", value: ".*[Mm][Aa][Rr][Kk][Dd][Oo][Ww][Nn].*" }],

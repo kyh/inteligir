@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of November 19, 2026.
+Effective as of November 26, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -61,22 +61,21 @@ through the Service or otherwise includes:
 
 - **Contact data**, such as your name and email address, which you give us when
   you create an account or write to us.
-- **Profile data**, such as the email address and password you set to establish
-  an account on the Service, the invite code you redeemed, and the devices you
-  sign in. Specifically:
-  - **Account data**: your name, your email, a hash of your password and the
-    invite code you redeemed with your email beside it, kept by Better Auth,
-    the sign-in software our cloud runs. Your password is sent over HTTPS only
-    when you create the account (in the app or on our website; from the phone,
-    that also signs the phone in) or sign a device in, and no device keeps it.
-    A password reset emails you a link through Resend.
+- **Profile data**, such as the email address you establish an account on the
+  Service with, the invite code you redeemed, and the devices you sign in.
+  Specifically:
+  - **Account data**: your name, your email and the invite code you redeemed
+    with your email beside it, kept by Better Auth, the sign-in software our
+    cloud runs. There is no password: each sign-in, and deleting the account,
+    asks for a six-digit code we email you through Resend. Our cloud keeps the
+    code until it is used, three wrong tries, or five minutes pass.
   - **Sessions**: one per device you sign in, browser, Mac app and iPhone alike,
     holding a random token our cloud keeps to recognize that device, the IP
     address and user agent it signed in from (by which Settings › Account names
     it, such as Chrome on Mac) and when it was created, last used and expires. A
     sign-in lasts 60 days from its last use; an account keeps at most 20, a
-    further sign-in ending the one used longest ago; a password reset ends them
-    all. The browser extension uses its browser's session.
+    further sign-in ending the one used longest ago. The browser extension uses
+    its browser's session.
 - **Communications data** based on our exchanges with you, including when you
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
@@ -129,7 +128,7 @@ as:
   Specifically:
   - **Each session** keeps the IP address and user agent it signed in from (see
     Sessions, above).
-  - **Your IP address, to stop password guessing: the one record not tied to
+  - **Your IP address, to stop code guessing: the one record not tied to
     your account.** Before you sign in, your address is all our cloud knows of
     you, so it counts attempts per address (an IPv6 address shortened to its
     first 64 bits) to create an account, redeem an invite, sign in or use any
@@ -405,24 +404,22 @@ Specifically, in our cloud:
   account to its daily allowance; deleting a conversation leaves it, and
   deleting the account deletes it.
 - **A session** is deleted when that device signs out, when another device signs
-  it out from Settings › Account, when a password reset or the 20-session limit
-  ends it, and, once it has lapsed 60 days after its last use, the next time it
+  it out from Settings › Account, when the 20-session limit ends it, and, once it has lapsed 60 days after its last use, the next time it
   is presented; the rest go with the account.
 - **Throttling counts** are keyed on an address, a session, an account or an
   assistant's access and filed under none of them, so deleting the account,
   ending a session or removing an assistant does not find them. A count over an
   hour old is deleted the next time a request to our sign-in service, from
   anyone, starts a fresh count; nothing clears them on a timer.
-- **A password-reset link** is deleted when used. An unused one stops working
-  after an hour and is deleted the next time anyone opens a reset link; deleting
-  the account does not look for it, and once the account is gone it opens
-  nothing.
+- **A sign-in code** is deleted when used, after three wrong tries, or when a
+  new one is sent. An unused one stops working after five minutes and is
+  deleted the next time anyone tries it; deleting the account does not look for
+  it, and once the account is gone it signs nothing in.
 - **An assistant you connected** keeps its access until you Disconnect it in
   Settings › Account › Connected assistants, which ends it at once, or until 30
   days after it last renewed it, which it does while it keeps using it: removing
   the connector in the assistant stops its requests, and its access lapses at
-  those 30 days. Resetting your password or deleting the account ends every
-  assistant's access at once. What an assistant registered (its name and
+  those 30 days. Deleting the account ends every assistant's access at once. What an assistant registered (its name and
   addresses, never yours) is filed under no account, so deleting the account
   leaves it; it is deleted within the hour once a day has passed since it
   registered or was last disconnected and no account has it connected.
@@ -479,13 +476,13 @@ and email delivery). Specifically:
     and keeps a record of each: the model, its tokens and searches, what it
     cost, and the id of the agent's session it came from.
 - **Supabase** runs our database, in the eastern United States: your account,
-  sessions, the invite you redeemed, an unused password-reset link, the
+  sessions, the invite you redeemed, an unused sign-in code, the
   throttling counts, each assistant you connected (what it registered, with its
   name and the addresses it gave; its access, filed under your account with
   what you let it do; and its tokens, kept only as hashes), your library and
   what Undo keeps, each link waiting for our cloud to read it, your
   conversations with the built-in agent and what the agent spent.
-- **Resend** delivers your password-reset emails.
+- **Resend** delivers your sign-in codes.
 - **Anthropic** answers the built-in agent for us, on our account, not yours.
   What you ask it, what you were looking at, everything it reads of your
   library to answer you (items, their text, folders and tags), and the pages
@@ -545,8 +542,7 @@ with us through the Service, you may review and update certain account
 information by logging into the account. Settings › Account, in the Mac app or
 in your library at inteligir.com/library, shows the account it is signed in to
 and every device signed in to it, named from the browser or app it signed in
-with, with when each was last used. The sign-in page can email you a link to set
-a new password. To change anything else, such as your name or email address,
+with, with when each was last used. To change anything else, such as your name or email address,
 contact us. Settings › Export saves a copy of your whole library on your
 device, as Markdown files and the files your items hold, which Settings ›
 Import, or any app that reads Markdown, can read back.
@@ -584,16 +580,15 @@ it, stopping it if it is still running; what its turns spent and what Undo
 keeps of them lapse as [Retention](#retention) says.
 
 To delete everything our cloud holds for you, delete your account: Settings ›
-Account › Delete account…, on any Mac or browser tab signed in to it. It asks
-for your password again, and our cloud checks it before it deletes anything, so
-a device's sign-in alone cannot end the account; if you lost your Mac, sign in
+Account › Delete account…, on any Mac or browser tab signed in to it. It
+emails you a code and asks for it, and our cloud checks it before it deletes
+anything, so a device's sign-in alone cannot end the account; if you lost your Mac, sign in
 on any other and delete from there. The device you delete from is signed out,
 and every other device is refused at its next request. You can also ask us to
 close your account by writing to kai@kyh.io from the account's email address.
 
 Deleting the account first removes your email from the invite you redeemed,
-which stays used. It then deletes, at once, your account, your password hash,
-your sessions, everything in your library (every item, its text and what Undo
+which stays used. It then deletes, at once, your account, your sessions, everything in your library (every item, its text and what Undo
 keeps), your conversations with the built-in agent and what it spent, and every
 assistant's access with its tokens. If any step fails, the account stays and you
 can delete it again. Then it ends the agent's session of each conversation, at
@@ -601,7 +596,7 @@ once or at a later try, keeping only the session's, the conversation's and the
 account's ids until it has. Your files go from our file store within a day
 after, a batch at a time, and nothing can read them once the account is gone.
 Each of your devices erases its copy the next time our cloud refuses it. The
-throttling counts, an unused reset link, what an assistant registered and
+throttling counts, an unused sign-in code, what an assistant registered and
 Vercel's request log lapse as [Retention](#retention) says.
 
 ## Other sites and services
@@ -625,10 +620,9 @@ your personal information.
 What our cloud keeps for your account is filed under your account in storage
 every account shares: database rows that name your account, your files under
 your account's own prefix, and the agent's session of each conversation. A few
-things are not filed that way: the throttling counts, an unused reset link,
+things are not filed that way: the throttling counts, an unused sign-in code,
 what an assistant registered, and Vercel's records of each request, of each
-call the built-in agent makes and of each run of its sessions. Your password is
-kept only as a hash; each session is a random token our cloud keeps as it is,
+call the built-in agent makes and of each run of its sessions. Each session is a random token our cloud keeps as it is,
 to recognize that device; and the apps talk to our cloud over HTTPS. Supabase
 encrypts the database and its backups, and Vercel Blob your files, at rest,
 with AES-256.
@@ -1048,7 +1042,7 @@ browser tab and our website's account pages make goes to one origin,
 `https://inteligir.com`, over HTTPS, but for a file's bytes on their way in,
 and is one of these:
 
-- **Signing in and out, sessions and password resets**, which Better Auth
+- **Signing in and out, sessions and sign-in codes**, which Better Auth
   answers, and **creating an account**, which an invite code admits.
 - **Reading and changing your library and your account** (your devices, your
   connected assistants, the built-in agent, deleting the account), each one

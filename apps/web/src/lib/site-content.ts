@@ -148,7 +148,7 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 
 ## Before you write
 
-- **Can't sign in or forgot your password?** The sign-in page can email you a reset link.
+- **Can't sign in?** The sign-in page emails you a code; check your spam folder, or send a new one.
 - **Want to remove your data?** Deleting your account from the app's settings deletes what the
   cloud holds for it; the [privacy policy](${url}/privacy) explains exactly what that covers.
 `;

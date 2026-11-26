@@ -68,19 +68,15 @@ const envSchema = z
 
     EMAIL_FROM: optionalText,
 
-    // WARNING: `log` writes a live password-reset link to the server's log, which production's must never hold
+    // WARNING: `log` writes a live sign-in code to the server's log, which production's must never hold
     EMAIL_MODE: optionalText.pipe(z.enum(["resend", "log", "off"]).optional()),
-
-    EVE_BASE_URL: origin,
 
     FILE_STORE_DIR: optionalText.transform((dir) => dir ?? ".data/files"),
 
     LIBRARY_STORAGE_CAP_BYTES: byteCount(GIB),
 
-    // WARNING: the next release owes the floor: /v1 dropped folders.write and the folder fields 0.7.0 reads
+    // WARNING: the next release owes the floor: /v1 dropped folders.write and the folder fields 0.7.0 reads, and account.delete takes a code, not the password
     MIN_CLIENT_BUILD: buildFloor("0.7.0"),
-
-    PAGE_FETCH_RELAY_URL: optionalText.pipe(z.url({ protocol: /^https?$/u }).optional()),
 
     POSTGRES_URL: postgresUrl,
 

@@ -20,8 +20,6 @@ const NONCE_DOCUMENTS = [
   "/library/settings",
   "/app/sign-in",
   "/app/sign-up",
-  "/app/forgot-password",
-  "/app/reset-password",
   "/connect/authorize",
 ];
 
@@ -135,7 +133,7 @@ describe("the site's headers", () => {
     expect(headers.get("x-content-type-options")).toBeNull();
   });
 
-  it.each(["/library", "/library/settings", "/app/reset-password"])(
+  it.each(["/library", "/library/settings"])(
     "keep %s out of search and its address from other sites",
     async (path) => {
       const headers = await policyAt(path);

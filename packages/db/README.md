@@ -15,7 +15,7 @@ src/auth-schema.ts         Better Auth's tables, rate_limit and invite_code
 src/library-schema.ts      every account's library: items, bodies, search, folders, change sets, the op ledger, files, jobs
 src/agent-schema.ts        the built-in agent's threads, their events and turns, its spend ledger and the account's switch and filing rules
 src/drizzle-relations.ts   every table's relations, where Better Auth's adapter finds its models
-src/run-databases.ts       a run's template database pushed once, its clones and their drop: the suites' and the e2e's
+src/run-databases.ts       a run's template database pushed once, its clones and their drop: the suites'
 src/test-database*.ts      dbSuite, and the vitest globalSetup and setup file that give each suite file a database
 sql/extensions.sql         the extensions push applies before the schema
 supabase/                  local Supabase: Postgres and its pooler alone, natively, no Docker

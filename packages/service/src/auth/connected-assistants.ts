@@ -33,16 +33,11 @@ export const listAssistants = async (userId: string) => {
   }));
 };
 
-const revokeGrants = async (tx: Tx, userId: string, grantId?: string) => {
+const revokeGrants = async (tx: Tx, userId: string, grantId: string) => {
   const grants = await tx
     .select({ clientId: oauthConsent.clientId, id: oauthConsent.id })
     .from(oauthConsent)
-    .where(
-      and(
-        eq(oauthConsent.userId, userId),
-        grantId === undefined ? undefined : eq(oauthConsent.id, grantId),
-      ),
-    )
+    .where(and(eq(oauthConsent.userId, userId), eq(oauthConsent.id, grantId)))
     .for("update");
 
   for (const grant of grants) {
@@ -63,12 +58,6 @@ const revokeGrants = async (tx: Tx, userId: string, grantId?: string) => {
 
 export const revokeAssistant = async (userId: string, grantId: string) =>
   (await db.transaction(async (tx) => await revokeGrants(tx, userId, grantId))) > 0;
-
-export const revokeAllAssistants = async (userId: string) => {
-  await db.transaction(async (tx) => {
-    await revokeGrants(tx, userId);
-  });
-};
 
 const UNNAMED_REGISTRATION_MS = 24 * 60 * 60 * 1000;
 

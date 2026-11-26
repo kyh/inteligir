@@ -188,7 +188,9 @@ const main = async () => {
   console.log(
     `  Verify: ${CYAN}pnpm verify${RESET}    (typecheck · lint · knip · format · test · build)`,
   );
-  console.log(`  Login:  ${CYAN}dev@inteligir.local${RESET} / ${CYAN}password${RESET}  (seeded)`);
+  console.log(
+    `  Login:  ${CYAN}dev@inteligir.local${RESET}, its code from ${CYAN}pnpm sign-in-code${RESET}  (seeded)`,
+  );
   console.log(`  Agents: read ${CYAN}AGENTS.md${RESET}\n`);
 };
 
