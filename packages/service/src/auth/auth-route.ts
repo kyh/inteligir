@@ -7,19 +7,13 @@ const CLIENT_ROUTES: ReadonlySet<string> = new Set([
   "POST /api/auth/oauth2/register",
   "POST /api/auth/oauth2/revoke",
   "POST /api/auth/oauth2/token",
-  "POST /api/auth/request-password-reset",
-  "POST /api/auth/reset-password",
-  "POST /api/auth/sign-in/email",
+  "POST /api/auth/email-otp/send-verification-otp",
+  "POST /api/auth/sign-in/email-otp",
   "POST /api/auth/sign-out",
 ]);
 
-const RESET_LINK = /^GET \/api\/auth\/reset-password\/[^/]+$/u;
-
-const isClientRoute = (method: string, pathname: string) => {
-  const route = `${method} ${pathname}`;
-
-  return CLIENT_ROUTES.has(route) || RESET_LINK.test(route);
-};
+const isClientRoute = (method: string, pathname: string) =>
+  CLIENT_ROUTES.has(`${method} ${pathname}`);
 
 export const handleAuthRequest = async (request: Request) => {
   if (!isClientRoute(request.method, new URL(request.url).pathname)) {

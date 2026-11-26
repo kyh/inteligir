@@ -13,7 +13,7 @@ export interface FakePhoneAuth {
 
 export const fakePhoneAuth = (kept: string | null = null) => {
   let held = kept;
-  let answer: AuthAnswer = { kind: "signed-in" };
+  let answer: AuthAnswer = { kind: "accepted" };
   let checked: SessionCheck = "live";
   let keeps = true;
   const calls: string[] = [];
@@ -21,7 +21,7 @@ export const fakePhoneAuth = (kept: string | null = null) => {
   const entered = async (call: string) => {
     calls.push(call);
 
-    if (answer.kind === "signed-in" && keeps) {
+    if (answer.kind === "accepted" && keeps) {
       held = KEPT_SESSION;
     }
 
@@ -39,6 +39,16 @@ export const fakePhoneAuth = (kept: string | null = null) => {
         return await Promise.resolve(checked);
       },
       cookie: async () => await Promise.resolve(held),
+      sendSignInCode: async () => {
+        calls.push("sendSignInCode");
+
+        return await Promise.resolve(answer);
+      },
+      sendSignUpCode: async () => {
+        calls.push("sendSignUpCode");
+
+        return await Promise.resolve(answer);
+      },
       signIn: async () => await entered("signIn"),
       signOut: async () => {
         calls.push("signOut");

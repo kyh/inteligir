@@ -3,7 +3,7 @@ import { fakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth.test-utils";
 import { createLoginStore } from "./login-store";
 
-const REQUEST = { email: "ada@example.com", password: "a long password" };
+const REQUEST = { code: "123456", email: "ada@example.com" };
 const NEW_ACCOUNT = { ...REQUEST, inviteCode: "INVITE-1", name: "Ada" };
 
 const storeOver = (fake: FakePhoneAuth, opens = true) => {
@@ -40,15 +40,19 @@ describe("the phone's sign-in", () => {
 
   it.each([
     [
-      { kind: "refused", message: "Invalid email or password", status: 401 } as const,
-      "Check your email and password.",
+      { code: "INVALID_OTP", kind: "refused", message: "Invalid OTP", status: 400 } as const,
+      "That code didn't work. Check it, or send a new one.",
     ],
     [
-      { kind: "refused", message: "Too many requests.", status: 429 } as const,
+      { code: "OTP_EXPIRED", kind: "refused", message: "OTP expired", status: 400 } as const,
+      "That code has expired. Send a new one.",
+    ],
+    [
+      { code: null, kind: "refused", message: "Too many requests.", status: 429 } as const,
       "Too many requests.",
     ],
     [
-      { kind: "refused", message: "internal error", status: 500 } as const,
+      { code: null, kind: "refused", message: "internal error", status: 500 } as const,
       "That didn't work. Check your connection and try again.",
     ],
     [{ kind: "unreachable" } as const, "That didn't work. Check your connection and try again."],
@@ -65,17 +69,17 @@ describe("the phone's sign-in", () => {
     const fake = fakePhoneAuth();
     const { store } = storeOver(fake);
 
-    for (const request of [
-      { ...REQUEST, password: "7 chars" },
-      { ...REQUEST, email: "ada@" },
-    ]) {
+    for (const [request, said] of [
+      [{ ...REQUEST, code: "12345" }, "Enter the 6-digit code from the email."],
+      [{ ...REQUEST, code: "12345a" }, "Enter the 6-digit code from the email."],
+      [{ ...REQUEST, email: "ada@" }, "Check your email address."],
+    ] as const) {
       await store.login(request);
-      expect(store.get()).toStrictEqual({
-        kind: "failed",
-        message: "Check your email and password.",
-      });
+      expect(store.get()).toStrictEqual({ kind: "failed", message: said });
     }
 
+    await expect(store.sendSignInCode("ada@")).resolves.toBe(false);
+    expect(store.get()).toStrictEqual({ kind: "failed", message: "Check your email address." });
     expect(fake.calls).toStrictEqual([]);
   });
 
@@ -105,6 +109,38 @@ describe("the phone's sign-in", () => {
   });
 });
 
+describe("the phone's sign-in code", () => {
+  it("is asked once for the email, and says it went", async () => {
+    const fake = fakePhoneAuth();
+    const { store } = storeOver(fake);
+    const asked = store.sendSignInCode(" ada@example.com ");
+    expect(store.get()).toStrictEqual({ kind: "signing-in" });
+    await expect(store.sendSignInCode("ada@example.com")).resolves.toBe(false);
+    await expect(asked).resolves.toBe(true);
+    expect(fake.calls).toStrictEqual(["sendSignInCode"]);
+    expect(store.get()).toStrictEqual({ kind: "idle" });
+  });
+
+  it("is refused at sign-up in the gate's own sentence", async () => {
+    const fake = fakePhoneAuth();
+    const { store } = storeOver(fake);
+    fake.answer({
+      code: null,
+      kind: "refused",
+      message: "That invite code doesn't work.",
+      status: 403,
+    });
+    await expect(
+      store.sendSignUpCode({ email: "ada@example.com", inviteCode: "INVITE-1" }),
+    ).resolves.toBe(false);
+    expect(store.get()).toStrictEqual({
+      kind: "failed",
+      message: "That invite code doesn't work.",
+    });
+    expect(fake.calls).toStrictEqual(["sendSignUpCode"]);
+  });
+});
+
 describe("the phone's sign-up", () => {
   it("makes the account through the invite gate and opens its library", async () => {
     const fake = fakePhoneAuth();
@@ -118,7 +154,12 @@ describe("the phone's sign-up", () => {
   it("says the gate's refusal in the gate's own sentence", async () => {
     const fake = fakePhoneAuth();
     const { opened, store } = storeOver(fake);
-    fake.answer({ kind: "refused", message: "That invite code doesn't work.", status: 403 });
+    fake.answer({
+      code: null,
+      kind: "refused",
+      message: "That invite code doesn't work.",
+      status: 403,
+    });
     await store.signUp(NEW_ACCOUNT);
     expect(store.get()).toStrictEqual({
       kind: "failed",

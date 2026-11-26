@@ -1,12 +1,12 @@
 export type SignInDoor = "sign-in" | "sign-up";
 
-export type SignInField = "name" | "email" | "password" | "inviteCode";
+export type SignInField = "name" | "email" | "inviteCode";
 
 export type SignInForm = Readonly<Record<SignInField, string>>;
 
 const FIELDS: Readonly<Record<SignInDoor, readonly SignInField[]>> = {
-  "sign-in": ["email", "password"],
-  "sign-up": ["name", "email", "password", "inviteCode"],
+  "sign-in": ["email"],
+  "sign-up": ["name", "email", "inviteCode"],
 };
 
 type ReturnKey = { readonly kind: "next"; readonly field: SignInField } | { readonly kind: "send" };
@@ -21,4 +21,4 @@ export const returnOf = (door: SignInDoor, field: SignInField) => {
 };
 
 export const formReady = (door: SignInDoor, form: SignInForm) =>
-  FIELDS[door].every((field) => (field === "password" ? form.password : form[field].trim()) !== "");
+  FIELDS[door].every((field) => form[field].trim() !== "");

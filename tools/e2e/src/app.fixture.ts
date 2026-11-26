@@ -32,7 +32,6 @@ const NEXT_BIN = path.join(WEB, "node_modules/next/dist/bin/next");
 const AGENT_SERVER = path.join(WEB, ".output/server/index.mjs");
 const BOOT_BUDGET_MS = 60_000;
 const MAIL_BUDGET_MS = 10_000;
-const PASSWORD = "e2e-password-1234";
 const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
 
 export interface Cloud {
@@ -42,7 +41,7 @@ export interface Cloud {
   readonly sql: Sql;
   readonly strays: readonly string[];
   readonly build: string;
-  readonly mailedResetLink: (to: string) => Promise<string>;
+  readonly mailedCode: (to: string, ask: () => Promise<void>) => Promise<string>;
 }
 
 interface Cookie {
@@ -52,7 +51,6 @@ interface Cookie {
 
 export interface Account {
   readonly email: string;
-  readonly password: string;
   readonly cookies: readonly Cookie[];
   readonly bearer: string;
   readonly client: V1Client["account"];
@@ -132,13 +130,14 @@ const serve = async (
 };
 
 const MAIL_TO = "[send-email] to: ";
-const RESET_LINK = /https?:\/\/\S*\/api\/auth\/reset-password\/\S+/u;
+const MAILED_CODE = /subject: (?<code>\d+) is your inteligir sign-in code/u;
 
-const loggedResetLink = (log: string, to: string) => {
-  const mail = log.split(MAIL_TO).findLast((entry) => entry.startsWith(`${to}\n`));
-
-  return (mail === undefined ? null : (RESET_LINK.exec(mail)?.[0] ?? null)) satisfies string | null;
-};
+const loggedCodes = (log: string, to: string) =>
+  log
+    .split(MAIL_TO)
+    .filter((entry) => entry.startsWith(`${to}\n`))
+    .map((entry) => MAILED_CODE.exec(entry)?.groups?.code ?? null)
+    .filter((code) => code !== null) satisfies string[];
 
 const buildHeaders = (cloud: Cloud) => {
   const build: ClientBuild = { platform: "extension", version: cloud.build };
@@ -173,17 +172,12 @@ const sessionValue = (cookies: readonly Cookie[]) => {
   return session.value satisfies string;
 };
 
-export const signUp = async (cloud: Cloud) => {
-  const email = `${crypto.randomUUID()}@inteligir.local`;
-
-  const sitePost = async (route: string, body: Readonly<Record<string, string>>) => {
+const postAs =
+  (cloud: Cloud, headers: Readonly<Record<string, string>>) =>
+  async (route: string, body: Readonly<Record<string, string>>) => {
     const response = await fetch(`${cloud.origin}${route}`, {
       body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json",
-        origin: cloud.origin,
-        "sec-fetch-site": "same-origin",
-      },
+      headers: { "content-type": "application/json", ...headers },
       method: "POST",
     });
 
@@ -192,20 +186,37 @@ export const signUp = async (cloud: Cloud) => {
     return cookiesOf(response);
   };
 
-  const inviteCode = await cloud.mint();
+const SITE_HEADERS = { "sec-fetch-site": "same-origin" };
 
-  const signedUp = await sitePost(AUTH_API_PATHS.signUp, {
-    email,
-    inviteCode,
-    name: "E2E",
-    password: PASSWORD,
+const signInByCode = async (
+  cloud: Cloud,
+  email: string,
+  headers: Readonly<Record<string, string>>,
+) => {
+  const post = postAs(cloud, headers);
+
+  const otp = await cloud.mailedCode(email, async () => {
+    await post("/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
   });
 
-  const cookies = await sitePost("/api/auth/sign-in/email", { email, password: PASSWORD });
+  return await post("/api/auth/sign-in/email-otp", { email, otp });
+};
+
+export const signUp = async (cloud: Cloud) => {
+  const email = `${crypto.randomUUID()}@inteligir.local`;
+  const sitePost = postAs(cloud, { ...SITE_HEADERS, origin: cloud.origin });
+  const inviteCode = await cloud.mint();
+
+  const code = await cloud.mailedCode(email, async () => {
+    await sitePost(AUTH_API_PATHS.signUpCode, { email, inviteCode });
+  });
+
+  const signedUp = await sitePost(AUTH_API_PATHS.signUp, { code, email, inviteCode, name: "E2E" });
+  const cookies = await signInByCode(cloud, email, { ...SITE_HEADERS, origin: cloud.origin });
   const bearer = sessionValue(signedUp);
   const { account } = v1Client(cloud, { authorization: `Bearer ${bearer}` });
 
-  return { bearer, client: account, cookies, email, password: PASSWORD } satisfies Account;
+  return { bearer, client: account, cookies, email } satisfies Account;
 };
 
 export const libraryOf = (cloud: Cloud, account: Account) =>
@@ -293,22 +304,22 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           const sql = postgres(database, { max: 1 });
           await use({
             build,
-            mailedResetLink: async (to) => {
+            mailedCode: async (to, ask) => {
+              const before = loggedCodes(await readFile(appLog, "utf-8"), to).length;
+              await ask();
               const deadline = Date.now() + MAIL_BUDGET_MS;
 
               while (Date.now() < deadline) {
-                const link = loggedResetLink(await readFile(appLog, "utf-8"), to);
+                const code = loggedCodes(await readFile(appLog, "utf-8"), to)[before];
 
-                if (link !== null) {
-                  return link;
+                if (code !== undefined) {
+                  return code;
                 }
 
                 await sleep(250);
               }
 
-              throw new Error(
-                `no reset link was mailed to ${to}; the app's output is in ${appLog}`,
-              );
+              throw new Error(`no code was mailed to ${to}; the app's output is in ${appLog}`);
             },
             mint: async () => {
               const code = `E2E-${crypto.randomUUID()}`;
@@ -375,17 +386,8 @@ export const phoneSession = async (cloud: Cloud, account: Account) => {
     "user-agent": PHONE_USER_AGENT,
   };
 
-  const response = await fetch(`${cloud.origin}/api/auth/sign-in/email`, {
-    body: JSON.stringify({ email: account.email, password: account.password }),
-    headers,
-    method: "POST",
-  });
-
-  expect(response.status, "the phone's sign-in").toBe(200);
-
-  const cookie = cookiesOf(response)
-    .map(({ name, value }) => `${name}=${value}`)
-    .join("; ");
+  const cookies = await signInByCode(cloud, account.email, headers);
+  const cookie = cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
 
   return v1Client(cloud, { cookie, "expo-origin": PHONE_ORIGIN }) satisfies V1Client;
 };
@@ -395,12 +397,24 @@ export const openLibrary = async (page: Page, cloud: Cloud, query = "") => {
   await expect(page.getByRole("list", { name: "Library" })).toBeVisible();
 };
 
-export const signInOnSite = async (page: Page, account: Pick<Account, "email" | "password">) => {
-  const submit = page.getByRole("button", { name: "Sign in" });
+export const typeMailedCode = async (
+  page: Page,
+  cloud: Cloud,
+  email: string,
+  ask: () => Promise<void>,
+) => {
+  const code = await cloud.mailedCode(email, ask);
+  await expect(page.getByText(`code to ${email}`)).toBeVisible();
+  await page.getByLabel("Sign-in code").pressSequentially(code);
+};
+
+export const signInOnSite = async (page: Page, cloud: Cloud, account: Pick<Account, "email">) => {
+  const submit = page.getByRole("button", { name: "Email me a code" });
   await expect(submit).toBeEnabled();
   await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Password").fill(account.password);
-  await submit.click();
+  await typeMailedCode(page, cloud, account.email, async () => {
+    await submit.click();
+  });
 };
 
 export const EDITOR = '[data-slate-editor="true"]';

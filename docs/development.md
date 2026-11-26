@@ -22,6 +22,7 @@ pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses 
                         #   context plain http over the network is not (apps/mobile/README.md § Dev)
 pnpm bootstrap          # .env, local Postgres, its schema and the seeded login; safe to run again, --dry-run prints it
 pnpm dev:web            # apps/web: next dev on :5174 (pinned), over the Postgres .env.local names
+pnpm sign-in-code       # A fresh sign-in code for dev@inteligir.local (or the email given), mailing nothing
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects to pnpm dev:web's app
 pnpm package:desktop    # The Mac app's release: the .app and dmg, signed and notarized, and its update (owner; docs/releasing.md)
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
@@ -83,9 +84,9 @@ pass: `/api/health`, the home page's static policy, `/privacy`, `/library`'s
 `CRON_SECRET`, a 426 below the build floor, a signed-in call through the
 extension's door and the phone's, and a file of its own each run sent by
 reserve, PUT and settle to whichever store the app keeps, then read back whole
-and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login; with
-`SMOKE_URL` it checks that deployment, signed in only with `SMOKE_EMAIL` and
-`SMOKE_PASSWORD`, and `VERCEL_AUTOMATION_BYPASS_SECRET` carries it past the
+and as `bytes=0-9` and `bytes=-1`. Locally it signs in as the seeded login, on codes `pnpm sign-in-code` mints; with
+`SMOKE_URL` it checks that deployment, signed in only by `SMOKE_SESSION`, the
+smoke account's kept session (`docs/releasing.md`), and `VERCEL_AUTOMATION_BYPASS_SECRET` carries it past the
 deployment's protection. Without a login it skips the signed-in leg, except on
 CI, where a leg that cannot run fails.
 
@@ -101,8 +102,8 @@ says updates come with the Mac app.
 around the site's URL, and fails without the release's keys
 (`apps/desktop/README.md` § Packaging).
 
-From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
-with `-c jar`, then call `/v1` as the phone does, `-b jar -H 'expo-origin:
+From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email-otp`
+with `pnpm sign-in-code`'s code and `-c jar` (`AGENTS.md` § Seeded login), then call `/v1` as the phone does, `-b jar -H 'expo-origin:
 inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
 A raw, unsigned token is refused, and a build below `MIN_CLIENT_BUILD` (0.7.0

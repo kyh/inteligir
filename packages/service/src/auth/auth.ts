@@ -1,11 +1,12 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { expo } from "@better-auth/expo";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
+import { SIGN_IN_CODE_LENGTH } from "@repo/contract/account/account-schema";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { db } from "@repo/db/drizzle-client";
 import { betterAuth } from "better-auth";
-import { createAuthMiddleware, isAPIError } from "better-auth/api";
+import { APIError, createAuthMiddleware, formCsrfMiddleware, isAPIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins/bearer";
+import { emailOTP } from "better-auth/plugins/email-otp";
 
 import { keepDeletedAccountSessions } from "../agent/deleted-account-sessions";
 import { APP_URL, DEPLOYMENT_ORIGIN } from "../app-url";
@@ -13,16 +14,36 @@ import { startBackground } from "../background";
 import { env } from "../env";
 import { AUTH_RATE_WINDOW_SECONDS } from "../rate-limit";
 import { CLIENT_IP } from "../client-ip";
-import { revokeAllAssistants } from "./connected-assistants";
 import { forgetInviteRedeemer } from "./invite-codes";
 import { oauthPlugins } from "./oauth";
-import { sendResetEmail } from "./reset-email";
 import { EMAIL_MODE, emailModeWarning } from "./send-email";
 import { capSessions } from "./session-devices";
+import { sendSignInCode } from "./sign-in-code-email";
 
 const sendsEmail = EMAIL_MODE.kind !== "off";
 
 const DAY_SECONDS = 24 * 60 * 60;
+
+const SEND_CODE_PATH = "/email-otp/send-verification-otp";
+
+const SIGN_IN_CODE_PATH = "/sign-in/email-otp";
+
+const SIGN_IN_CODE_SECONDS = 5 * 60;
+
+const FRESH_SESSION_SECONDS = 60;
+
+const guardSignInCodes = createAuthMiddleware(async (endpoint) => {
+  if (endpoint.path === SIGN_IN_CODE_PATH) {
+    await formCsrfMiddleware(endpoint);
+  }
+
+  if (endpoint.path === SEND_CODE_PATH && !sendsEmail) {
+    throw APIError.from("SERVICE_UNAVAILABLE", {
+      code: "EMAIL_DISABLED",
+      message: "Sign-in codes are off: this deployment sends no email.",
+    });
+  }
+});
 
 const createAuth = (disableSignUp: boolean) =>
   betterAuth({
@@ -50,22 +71,9 @@ const createAuth = (disableSignUp: boolean) =>
         },
       },
     },
-    emailAndPassword: {
-      disableSignUp,
-      enabled: true,
-      maxPasswordLength: PASSWORD_MAX_LENGTH,
-      minPasswordLength: PASSWORD_MIN_LENGTH,
-      onPasswordReset: async ({ user }) => {
-        await revokeAllAssistants(user.id);
-      },
-      revokeSessionsOnPasswordReset: true,
-      sendResetPassword: sendsEmail
-        ? async ({ user, url }) => {
-            await sendResetEmail(user.email, url);
-          }
-        : undefined,
-    },
     hooks: {
+      // WARNING: better-auth checks no origin on a code's sign-in and answers success when its sender throws
+      before: guardSignInCodes,
       after: createAuthMiddleware(async (endpoint) => {
         if (endpoint.path === "/sign-out" && !isAPIError(endpoint.context.returned)) {
           endpoint.setHeader("clear-site-data", '"cache"');
@@ -74,7 +82,21 @@ const createAuth = (disableSignUp: boolean) =>
         await Promise.resolve();
       }),
     },
-    plugins: [bearer({ requireSignature: true }), expo(), ...oauthPlugins()],
+    plugins: [
+      bearer({ requireSignature: true }),
+      expo(),
+      emailOTP({
+        disableSignUp,
+        expiresIn: SIGN_IN_CODE_SECONDS,
+        otpLength: SIGN_IN_CODE_LENGTH,
+        sendVerificationOTP: async ({ email, otp, type }) => {
+          if (type === "sign-in") {
+            await sendSignInCode(email, otp);
+          }
+        },
+      }),
+      ...oauthPlugins(),
+    ],
     rateLimit: {
       customRules: { "/get-session": false },
       enabled: !env.RATE_LIMIT_DISABLED,
@@ -85,6 +107,7 @@ const createAuth = (disableSignUp: boolean) =>
     secret: env.BETTER_AUTH_SECRET,
     session: {
       expiresIn: 60 * DAY_SECONDS,
+      freshAge: FRESH_SESSION_SECONDS,
       updateAge: DAY_SECONDS,
     },
     trustedOrigins: [PHONE_ORIGIN, ...(DEPLOYMENT_ORIGIN === null ? [] : [DEPLOYMENT_ORIGIN])],
@@ -124,7 +147,7 @@ export const getSignUpAuth = () => {
   return gate satisfies Auth;
 };
 
-export const sessionCredential = (headers: Pick<Headers, "get">) => {
+const sessionCredential = (headers: Pick<Headers, "get">) => {
   const authorization = headers.get("authorization");
 
   if (authorization !== null) {

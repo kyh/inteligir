@@ -97,6 +97,7 @@ type Registration =
 
 interface Connecting {
   readonly account: Account;
+  readonly cloud: Cloud;
   readonly readOnly: boolean;
   readonly registration: Registration;
   readonly signIn: boolean;
@@ -106,7 +107,7 @@ const connect = async (
   page: Page,
   connector: URL,
   clientName: string,
-  { account, readOnly, registration, signIn }: Connecting,
+  { account, cloud, readOnly, registration, signIn }: Connecting,
 ) => {
   const { redirectUrl } = registration;
   const state = crypto.randomUUID();
@@ -156,7 +157,7 @@ const connect = async (
   await page.goto(held.consent?.href ?? "");
 
   if (signIn) {
-    await signInOnSite(page, account);
+    await signInOnSite(page, cloud, account);
   }
 
   await expect(
@@ -237,6 +238,7 @@ test("an assistant finds the sign-in from the connector, registers, is allowed o
 
   const claude = await connect(page, connector, "Claude", {
     account,
+    cloud,
     readOnly: false,
     registration: { kind: "registers", redirectUrl: "https://claude.example/callback" },
     signIn: true,
@@ -268,6 +270,7 @@ test("an assistant finds the sign-in from the connector, registers, is allowed o
 
   const reader = await connect(page, connector, "Reader", {
     account,
+    cloud,
     readOnly: true,
     registration: documentRegistration(cloud, "Reader"),
     signIn: false,

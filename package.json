@@ -10,6 +10,7 @@
     "db:push": "pnpm --filter @repo/db push",
     "db:push-remote": "pnpm --filter @repo/db push:remote",
     "db:seed": "pnpm --filter @repo/service seed",
+    "sign-in-code": "pnpm --silent --filter @repo/service sign-in-code",
     "db:start": "pnpm --filter @repo/db start",
     "dev": "turbo run dev -F @repo/desktop",
     "dev:extension": "turbo watch dev -F @repo/extension...",

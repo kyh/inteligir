@@ -68,7 +68,7 @@ const QUIET_PAGE = "/privacy";
 
 const signIn = async (page: Page, cloud: Cloud, account: Account) => {
   await page.goto(`${cloud.origin}${SIGN_IN_PATH}?next=${QUIET_PAGE}`);
-  await signInOnSite(page, account);
+  await signInOnSite(page, cloud, account);
   await expect(page).toHaveURL(`${cloud.origin}${QUIET_PAGE}`);
 };
 

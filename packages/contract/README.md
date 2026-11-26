@@ -23,7 +23,7 @@ Callers supply the clock, the random bytes and every fresh id.
 src/
   rpc/           every module that reaches oRPC: /v1's one wire, the account's and the library's
                  rows, every refusal it answers and its sentence, and what a failed call means
-  account/       what the account's rows read and answer: the password's bounds, its devices, its
+  account/       what the account's rows read and answer: the sign-in code's shape, its devices, its
                  deletion, sign-up
   library/       the model and its wire: the node set, an item's fields and ops, a body's save, a
                  folder's order, the listing, what moved, the agent's events, the cell's rules

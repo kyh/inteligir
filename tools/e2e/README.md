@@ -26,8 +26,8 @@ root `.env`, their output in `test-results/next-start-<worker>.log` and
 by the directives `packages/service/src/agent/mock-directives.ts` reads. Each
 test:
 
-- `cloud`: the origin, `mint()` for an invite, `mailedResetLink(to)`, the reset
-  link the app last mailed, read off its log (`EMAIL_MODE=log`), and `build`,
+- `cloud`: the origin, `mint()` for an invite, `mailedCode(to, ask)`, the sign-in
+  code the app mails once `ask` runs, read off its log (`EMAIL_MODE=log`), and `build`,
   the floor the app starts with, which every client here names.
 - `web`: a page host of the test's own, whose `pages` map answers the app's
   fetch of each `pageUrl(path)` through `src/page-relay.ts`; any other fetch
@@ -71,5 +71,5 @@ brew install openjdk@21 && curl -fsSL https://get.maestro.mobile.dev | bash
 export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
 ```
 
-The keyboard covers Sign in, so a flow presses Return to put it away:
-Maestro's `hideKeyboard` empties the password field.
+The keyboard covers the screen's button, so a flow presses Return on the email
+to ask for the code, and the code's sixth digit signs in.

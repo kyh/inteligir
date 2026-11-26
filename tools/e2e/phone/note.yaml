@@ -1,18 +1,8 @@
 appId: com.inteligir.mobile
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- tapOn: Email
-- inputText: ${EMAIL}
-- tapOn: Password
-- inputText: ${PASSWORD}
-# Return on the last field sends the form
-- pressKey: Enter
-# the system offers to keep the password once the sign-in lands, while the simulator's AutoFill is on
-- tapOn:
-    text: Not Now
-    optional: true
+# the sixth digit signs in
+- tapOn: Code from the email
+- inputText: ${CODE}
 # a row is one label, its title then its date, and a selector is a regex the whole label matches
 - extendedWaitUntil:
     visible: ${TITLE}, .*

@@ -3,12 +3,14 @@ import { expect } from "@playwright/test";
 import { markdownOf, test } from "../src/app.fixture";
 import { buildCloudPort, openPhone } from "./simulator";
 
+const SIGN_IN_FLOW = path.join(import.meta.dirname, "sign-in.yaml");
 const NOTE_FLOW = path.join(import.meta.dirname, "note.yaml");
 
 test.use({ cloudPort: buildCloudPort() });
 
 test("the phone signs in, and what it types into a note the library holds", async ({
   account,
+  cloud,
   library,
 }) => {
   const title = "Phone plans";
@@ -17,9 +19,12 @@ test("the phone signs in, and what it types into a note the library holds", asyn
   const phone = await openPhone();
 
   try {
+    const code = await cloud.mailedCode(account.email, async () => {
+      await phone.run(SIGN_IN_FLOW, { EMAIL: account.email });
+    });
+
     await phone.run(NOTE_FLOW, {
-      EMAIL: account.email,
-      PASSWORD: account.password,
+      CODE: code,
       TITLE: title,
       TYPED: typed,
     });

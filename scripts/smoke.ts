@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { styleText } from "node:util";
@@ -14,10 +15,9 @@ import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import manifest from "../package.json" with { type: "json" };
 
-interface Login {
-  readonly email: string;
-  readonly password: string;
-}
+type Login =
+  | { readonly kind: "code"; readonly email: string }
+  | { readonly kind: "session"; readonly token: string };
 
 type HeaderMap = Readonly<Record<string, string>>;
 
@@ -31,8 +31,7 @@ const envOf = (name: string) => {
   return value === "" ? undefined : value;
 };
 
-const SMOKE_EMAIL = envOf("SMOKE_EMAIL");
-const SMOKE_PASSWORD = envOf("SMOKE_PASSWORD");
+const SMOKE_SESSION = envOf("SMOKE_SESSION");
 const SMOKE_URL = envOf("SMOKE_URL");
 const VERCEL_AUTOMATION_BYPASS_SECRET = envOf("VERCEL_AUTOMATION_BYPASS_SECRET");
 
@@ -42,13 +41,11 @@ const BASE_URL = (SMOKE_URL ?? "http://localhost:5174").replace(/\/$/u, "");
 
 const loginOf = () => {
   if (SMOKE_URL === undefined) {
-    return { email: "dev@inteligir.local", password: "password" } satisfies Login | null;
+    return { email: "dev@inteligir.local", kind: "code" } satisfies Login | null;
   }
 
   return (
-    SMOKE_EMAIL === undefined || SMOKE_PASSWORD === undefined
-      ? null
-      : { email: SMOKE_EMAIL, password: SMOKE_PASSWORD }
+    SMOKE_SESSION === undefined ? null : { kind: "session", token: SMOKE_SESSION }
   ) satisfies Login | null;
 };
 
@@ -148,14 +145,17 @@ const v1Client = (headers: HeaderMap) =>
     }),
   );
 
-const signIn = async (login: Login, door: HeaderMap) => {
-  const response = await request("/api/auth/sign-in/email", {
-    body: JSON.stringify(login),
+const mintedCode = (email: string) =>
+  execFileSync("pnpm", ["--silent", "sign-in-code", email], { encoding: "utf-8" }).trim();
+
+const signIn = async (email: string, door: HeaderMap) => {
+  const response = await request("/api/auth/sign-in/email-otp", {
+    body: JSON.stringify({ email, otp: mintedCode(email) }),
     headers: { ...door, "content-type": "application/json" },
     method: "POST",
   });
 
-  await expectStatus(response, 200, `sign-in as ${login.email}`);
+  await expectStatus(response, 200, `sign-in as ${email}`);
 
   return response.headers
     .getSetCookie()
@@ -238,21 +238,47 @@ const fileRoundTrip = async (door: HeaderMap) => {
   }
 };
 
-const signedInCalls = async (login: Login) => {
-  const site = { origin: BASE_URL };
-  const browser = await signIn(login, site);
-  const extensionDoor = { authorization: `Bearer ${sessionToken(browser)}` };
+const PHONE_DOOR = { "expo-origin": PHONE_ORIGIN };
+
+const callsThroughDoors = async (extensionDoor: HeaderMap, phone: string) => {
   const asExtension = v1Client(extensionDoor);
-  const phoneDoor = { "expo-origin": PHONE_ORIGIN };
-  const phone = await signIn(login, phoneDoor);
-  const asPhone = v1Client({ ...phoneDoor, cookie: phone });
+  const asPhone = v1Client({ ...PHONE_DOOR, cookie: phone });
 
   for (const client of [asExtension, asPhone]) {
     await client.library.items.list({ limit: 1 });
   }
 
   await fileRoundTrip(extensionDoor);
-  await signOut(phone, phoneDoor);
+};
+
+const KEPT_SESSION_COOKIE = "__Secure-better-auth.session_token";
+
+const keptSessionCalls = async (token: string) => {
+  const cookie = `${KEPT_SESSION_COOKIE}=${token}`;
+  const kept = await request("/api/auth/get-session", { headers: { cookie } });
+  await expectStatus(kept, 200, "the kept session");
+
+  if ((await kept.json()) === null) {
+    fail(
+      "SMOKE_SESSION's session has ended: keep a new one (docs/releasing.md, the deployment's checks)",
+    );
+  }
+
+  await callsThroughDoors({ authorization: `Bearer ${token}` }, cookie);
+};
+
+const signedInCalls = async (login: Login) => {
+  if (login.kind === "session") {
+    await keptSessionCalls(login.token);
+
+    return;
+  }
+
+  const site = { origin: BASE_URL };
+  const browser = await signIn(login.email, site);
+  const phone = await signIn(login.email, PHONE_DOOR);
+  await callsThroughDoors({ authorization: `Bearer ${sessionToken(browser)}` }, phone);
+  await signOut(phone, PHONE_DOOR);
   await signOut(browser, site);
 };
 
@@ -262,7 +288,7 @@ const signedInLeg = (login: Login | null) => {
 
   return (
     login === null
-      ? { label, skip: "set SMOKE_EMAIL and SMOKE_PASSWORD" }
+      ? { label, skip: "set SMOKE_SESSION" }
       : {
           label,
           run: async () => {

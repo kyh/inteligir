@@ -113,9 +113,11 @@ every `.env*` out of the upload. Once:
    you read, `https://inteligir.com/privacy` as the privacy policy, and the
    Beta App Review sign-in: mint a production invite (`apps/web/README.md` §
    Invites), sign up with it at `https://inteligir.com/app/sign-up` with an
-   address you read and a long password, and give the account a link, a note
-   and a picture from `https://inteligir.com/library`. Keep the sign-in in
-   `.release/`, and give the reviewer these notes:
+   address you read, and give the account a link, a note and a picture from
+   `https://inteligir.com/library`. Sign-in is a code mailed to that address,
+   which a reviewer cannot read: send them the code when they ask (owner
+   decision pending on a standing code for the review account). Keep the
+   address in `.release/`, and give the reviewer these notes:
    > Sign in with the account above; its items are already there. What the
    > phone last read opens offline; saving and the agent need a
    > connection. A link shared from another app while offline waits on the
@@ -137,14 +139,16 @@ at it. Once:
 
 1. **The smoke account.** Mint a production invite (`apps/web/README.md` §
    Invites) and sign up with it at the production `/app/sign-up` with an
-   address you read and a long random password, kept in `.release/`. It never
-   holds anything: each run's file names no item, so housekeeping lets it go a
-   day later.
+   address you read, in a private window. It never holds anything: each run's
+   file names no item, so housekeeping lets it go a day later. Copy that
+   window's `__Secure-better-auth.session_token` cookie value, then close the
+   window without signing out: the smoke runs on that kept session, since it
+   reads no mail. Each run slides it, so it lapses only after 60 days with no
+   push; keep a new one the same way when the Smoke run says it has ended.
 2. **Secrets.** In the project's Settings › Deployment Protection, turn on
    Protection Bypass for Automation, then give the repo its secret and the
    account:
-   `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET`, `gh secret set SMOKE_EMAIL`,
-   `gh secret set SMOKE_PASSWORD`. On CI a leg that cannot run fails, so a
+   `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET`, `gh secret set SMOKE_SESSION`. On CI a leg that cannot run fails, so a
    missing secret fails the check rather than passing it unsigned.
 3. **The checks.** Settings › Git turns on repository dispatch events, which
    is how Vercel sends `vercel.deployment.ready` to start the Smoke run, and
@@ -154,7 +158,7 @@ at it. Once:
 
 Passing: a pushed commit's production deployment waits, its checks pending,
 until both pass, and only then do the production domains move to it; a run
-with a wrong `SMOKE_PASSWORD` holds the next one, which Force Promote on its
+with an ended `SMOKE_SESSION` holds the next one, which Force Promote on its
 page releases. Where the team's plan has no Deployment Checks, or they leave
 `inteligir.vercel.app` unheld, the fallback is to watch each push's Smoke run
 (`gh run list --workflow smoke.yml`) and run `vercel rollback` on a red one.
@@ -420,8 +424,9 @@ note under the editor's content policy; what it cannot run is below.
 
 ### The site
 
-- **A password reset** mailed on production signs every device out, and a
-  reset or sign-up started from the consent page lands back there.
+- **A sign-in code** mailed on production arrives through Resend within a
+  minute, and a sign-in or sign-up started from the consent page lands back
+  there.
 - **Notices**: on production, the home page's Licenses and Settings › About's
   open `/licenses.md`, and each vendored text it links answers.
 - **Share cards** for /about and /privacy in a chat app; `apps/web/public/og.jpg`
@@ -541,7 +546,7 @@ Only once every check in § 5 has passed, and the three close together.
 2. **The phone's cohort.** Add the build to the `Cohort` group with its What
    to Test, in the words a tester reads:
 
-   > Sign in with your Inteligir account's email and password. Your library
+   > Sign in with your Inteligir account's email and the code we email you. Your library
    > arrives, and what you last read opens offline. Save a link from the share
    > sheet, write a note on your Mac and read it here, and add a photo. Take a
    > screenshot to send us feedback.

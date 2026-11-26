@@ -1,0 +1,12 @@
+appId: com.inteligir.mobile
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- tapOn: Email
+- inputText: ${EMAIL}
+# Return on the last field asks for the code
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: Code from the email
+    timeout: 30000

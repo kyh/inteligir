@@ -21,27 +21,40 @@ DOM (`oxlint.config.ts`).
 ## Accounts and sessions
 
 - **The account's devices are its sessions, in one list any of them reads and
-  ends.** A lost phone goes from Settings › Account with no password, and Better
+  ends.** A lost phone goes from Settings › Account with no code, and Better
   Auth's own list routes would hand each session's token to the browser; a
   sign-in past the twentieth ends the one used longest ago.
   `packages/service/src/auth/session-devices.ts`.
-- **An account is deleted from any signed-in device, the password asked again,
-  through Better Auth's `deleteUser`** (owner decision: whoever lost their Mac
-  deletes from any Mac). Its rows go by cascade and its `beforeDelete` forgets
+- **An account is deleted from any signed-in device, a code mailed to it asked
+  first, through Better Auth's `deleteUser` under the fresh session that code
+  signs in** (owner decision: whoever lost their Mac deletes from any Mac). The
+  session asking is held stale (`freshAge` 60 s), so only the mailed code
+  deletes. Its rows go by cascade and its `beforeDelete` forgets
   the invite's redeemer and keeps its agent's sessions for the deletion to end
   (§ The built-in agent); a session alone never deletes, since a stolen one could.
   `packages/service/src/auth/delete-account.ts`.
-- **Sign-up is invite-gated by `POST /api/sign-up`, which claims the code in one
-  update, forwards to a second Better Auth instance and releases the claim if
-  the sign-up fails.** Better Auth reads `disableSignUp` per instance, so the
-  public one refuses sign-up outright. `packages/service/src/auth/invite.ts`.
+- **Every sign-in is a six-digit code Better Auth's `emailOTP` mails, and there
+  is no password** (owner decision). One credential to lose, no reset flow, and
+  the address is proven at every sign-in; a code lives five minutes and three
+  tries. `packages/service/src/auth/auth.ts`.
+- **A code's sign-in checks the request's origin before it signs anyone in, in
+  `hooks.before`.** Better Auth guards asking for a code that way and not
+  spending one, and a foreign page that holds a code could sign its visitor in.
+  `packages/service/src/auth/auth.ts`.
+- **Sign-up is invite-gated: `POST /api/sign-up/code` mails a code only for an
+  open invite and an unused address, and `POST /api/sign-up` claims the invite in
+  one update, forwards the code to a second Better Auth instance and releases
+  the claim if the sign-up fails.** Better Auth reads `disableSignUp` per
+  instance, so the public one refuses sign-up outright and mails no unknown
+  address. `packages/service/src/auth/invite.ts`.
 - **The auth door answers the Better Auth routes a client calls, by method and
   path, an assistant's five OAuth routes among them, and a plain 404 to every
   other.** A list of routes to shut leaves open the one a release adds.
   `packages/service/src/auth/auth-route.ts`.
 - **Better Auth's `baseURL` is the deployment's one origin, `APP_URL` or
-  Vercel's production or preview URL, never a request's host.** A reset link
-  minted from a forged `Host` would carry its token to another site.
+  Vercel's production or preview URL, never a request's host.** A link minted
+  from a forged `Host`, an assistant's consent among them, would carry its
+  request to another site.
   `packages/service/src/app-url.ts`.
 - **Better Auth trusts the deployment's own address, `VERCEL_URL`, beside
   `APP_URL`.** The smoke check signs in on a deployment before a production
@@ -67,8 +80,9 @@ DOM (`oxlint.config.ts`).
   `packages/service/src/client-ip.ts`.
 - **Mail goes from `EMAIL_FROM` through Resend only when `EMAIL_MODE=resend`;
   unset, a deployment logs it outside production and sends nothing in it.** A
-  log in production would hold live reset links, and with mail off a reset is
-  refused up front rather than promising a link. No sender is built in (owner
+  log in production would hold live sign-in codes, and with mail off asking
+  for a code is refused up front (`EMAIL_DISABLED`), since Better Auth answers
+  success over a sender that throws. No sender is built in (owner
   decision pending). `packages/service/src/auth/send-email.ts`.
 
 ## The connector
@@ -86,9 +100,8 @@ DOM (`oxlint.config.ts`).
 - **A token the provider bound to a key takes the DPoP scheme and a fresh
   proof; any other, Bearer.** Both metadata documents advertise DPoP, so an
   assistant that holds a key is served. `packages/service/src/mcp/connector-server.ts`.
-- **Disconnecting deletes the consent and every token of that assistant, and a
-  password reset disconnects every one.** Settings lists consents, never tokens,
-  and a reset is the person taking the account back.
+- **Disconnecting deletes the consent and every token of that assistant.**
+  Settings lists consents, never tokens.
   `packages/service/src/auth/connected-assistants.ts`.
 - **Housekeeping deletes a registration no consent or token names once it is a
   day old, counted from its last metadata read or disconnect.** It is filed

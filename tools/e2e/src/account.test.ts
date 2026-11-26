@@ -1,16 +1,17 @@
 import { safe } from "@orpc/client";
 import { expect } from "@playwright/test";
-import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import { AUTH_API_PATHS, SIGN_IN_CODE_REFUSED } from "@repo/contract/account/account-schema";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { isOrpcError } from "@repo/contract/rpc/v1-errors";
-import { openLibrary, phoneSession, signInOnSite, test } from "./app.fixture";
+import { openLibrary, phoneSession, signInOnSite, test, typeMailedCode } from "./app.fixture";
 import type { Cloud } from "./app.fixture";
 
 const SETTINGS = `${LIBRARY_PAGE_PATH}/settings`;
 
 test.use({
-  allowedErrors: /net::ERR_INTERNET_DISCONNECTED|401 \(Unauthorized\) \(\S+\/account\/delete\)/u,
+  allowedErrors:
+    /net::ERR_INTERNET_DISCONNECTED|401 \(Unauthorized\) \(\S+\/account\/delete\)|400 \(BAD_REQUEST\) \(\S+\/sign-in\/email-otp\)/u,
 });
 
 const authPost = async (cloud: Cloud, route: string, body: Readonly<Record<string, string>>) => {
@@ -30,27 +31,23 @@ test("the site's sign-up spends its invite, and a signed-out tab signs in and co
   context,
   page,
 }) => {
-  const person = { email: `${crypto.randomUUID()}@inteligir.local`, password: "e2e-sign-up-1234" };
+  const person = { email: `${crypto.randomUUID()}@inteligir.local` };
   const inviteCode = await cloud.mint();
   await page.goto(`${cloud.origin}/app/sign-up`);
-  const create = page.getByRole("button", { name: "Create account" });
-  await expect(create).toBeEnabled();
+  const ask = page.getByRole("button", { name: "Email me a code" });
+  await expect(ask).toBeEnabled();
   await page.getByLabel("Name").fill("E2E");
   await page.getByLabel("Email").fill(person.email);
-  await page.getByLabel("Password").fill(person.password);
   await page.getByLabel("Invite code").fill(inviteCode);
-  await create.click();
+  await typeMailedCode(page, cloud, person.email, async () => {
+    await ask.click();
+  });
   await expect(page.getByRole("list", { name: "Library" })).toBeVisible();
   await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
 
-  const reused = {
-    email: "second@inteligir.local",
-    inviteCode,
-    name: "E2E",
-    password: "x".repeat(12),
-  };
+  const reused = { email: "second@inteligir.local", inviteCode };
 
-  expect(await authPost(cloud, AUTH_API_PATHS.signUp, reused), "reusing the invite").toBe(403);
+  expect(await authPost(cloud, AUTH_API_PATHS.signUpCode, reused), "reusing the invite").toBe(403);
 
   const signedOut = async () => {
     await page.goto("about:blank");
@@ -61,47 +58,36 @@ test("the site's sign-up spends its invite, and a signed-out tab signs in and co
   await page.goto(`${cloud.origin}${SETTINGS}`);
   await expect(page).toHaveURL((url) => url.pathname === "/app/sign-in");
   expect(new URL(page.url()).searchParams.get("next")).toBe(SETTINGS);
-  await signInOnSite(page, person);
+  await signInOnSite(page, cloud, person);
   await expect(page).toHaveURL(`${cloud.origin}${SETTINGS}`);
 
   await signedOut();
   await page.goto(`${cloud.origin}/app/sign-in`);
-  await signInOnSite(page, person);
+  await signInOnSite(page, cloud, person);
   await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
 });
 
-test("a forgotten password resets by its mailed link: the old one is refused, the new one signs in", async ({
+test("a wrong code is refused and cleared, and the next one signs in", async ({
   account,
   cloud,
   context,
   page,
 }) => {
-  const newPassword = "e2e-reset-5678";
   await context.clearCookies();
   await page.goto(`${cloud.origin}/app/sign-in`);
-  await page.getByRole("link", { name: "Forgot your password?" }).click();
-  await expect(page).toHaveURL(`${cloud.origin}/app/forgot-password`);
-  const send = page.getByRole("button", { name: "Send reset link" });
-  await expect(send).toBeEnabled();
+  const ask = page.getByRole("button", { name: "Email me a code" });
+  await expect(ask).toBeEnabled();
   await page.getByLabel("Email").fill(account.email);
-  await send.click();
-  await expect(page.getByText("a reset link is on its way")).toBeVisible();
 
-  await page.goto(await cloud.mailedResetLink(account.email));
-  await expect(page).toHaveURL(
-    (url) => url.pathname === "/app/reset-password" && url.searchParams.has("token"),
-  );
-  const save = page.getByRole("button", { name: "Set new password" });
-  await expect(save).toBeEnabled();
-  await page.getByLabel("New password").fill(newPassword);
-  await page.getByLabel("Confirm password").fill(newPassword);
-  await save.click();
-  await expect(page.getByRole("heading", { name: "Password changed" })).toBeVisible();
+  const mailed = await cloud.mailedCode(account.email, async () => {
+    await ask.click();
+  });
 
-  const old = { email: account.email, password: account.password };
-  expect(await authPost(cloud, "/api/auth/sign-in/email", old), "the old password").toBe(401);
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
-  await signInOnSite(page, { email: account.email, password: newPassword });
+  const field = page.getByLabel("Sign-in code");
+  await field.pressSequentially(mailed === "000000" ? "111111" : "000000");
+  await expect(page.getByText(SIGN_IN_CODE_REFUSED)).toBeVisible();
+  await expect(field).toHaveValue("");
+  await field.pressSequentially(mailed);
   await expect(page).toHaveURL(`${cloud.origin}${LIBRARY_PAGE_PATH}`);
 });
 
@@ -157,20 +143,32 @@ test("Settings waits offline, ends another device, turns the agent off, signs ou
   );
   await expect(library.agent.status()).resolves.toMatchObject({ enabled: false });
   await page.goto(`${cloud.origin}${SETTINGS}`);
-  await signInOnSite(page, account);
+  await signInOnSite(page, cloud, account);
   await expect(page).toHaveURL(`${cloud.origin}${SETTINGS}`);
 
   await page.getByRole("button", { name: "Delete account…" }).click();
   const dialog = page.getByRole("dialog");
+
+  const code = await cloud.mailedCode(account.email, async () => {
+    await dialog.getByRole("button", { name: "Email me a code" }).click();
+  });
+
   const confirm = dialog.getByRole("button", { name: "Delete everything" });
   await expect(confirm).toBeDisabled();
-  await dialog.getByLabel("Password").fill("not the password");
+  await dialog.getByLabel("Code from the email").fill(code === "000000" ? "111111" : "000000");
   await confirm.click();
-  await expect(page.getByText("That email and password don't match an account.")).toBeVisible();
+  await expect(page.getByText(SIGN_IN_CODE_REFUSED)).toBeVisible();
   await expect(library.agent.status()).resolves.toMatchObject({ enabled: false });
-  await dialog.getByLabel("Password").fill(account.password);
+
+  const fresh = await cloud.mailedCode(account.email, async () => {
+    await dialog.getByRole("button", { name: "Send a new code" }).click();
+  });
+
+  await dialog.getByLabel("Code from the email").fill(fresh);
   await confirm.click();
   await expect(page).toHaveURL((url) => !url.pathname.startsWith(LIBRARY_PAGE_PATH));
-  const signIn = { email: account.email, password: account.password };
-  expect(await authPost(cloud, "/api/auth/sign-in/email", signIn), "the deleted account").toBe(401);
+  const signIn = { email: account.email, otp: fresh };
+  expect(await authPost(cloud, "/api/auth/sign-in/email-otp", signIn), "the deleted account").toBe(
+    400,
+  );
 });

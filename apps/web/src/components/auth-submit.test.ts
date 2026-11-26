@@ -15,8 +15,8 @@ describe("an auth form's submit", () => {
   });
 
   it("shows what a refusal said, and stays busy once the submit went through", async () => {
-    const refused = await settleAuthSubmit(async () => "Wrong email or password.", FORM);
-    expect(submitView(refused)).toMatchObject({ busy: false, error: "Wrong email or password." });
+    const refused = await settleAuthSubmit(async () => "That code didn't work.", FORM);
+    expect(submitView(refused)).toMatchObject({ busy: false, error: "That code didn't work." });
     const through = await settleAuthSubmit(async () => null, FORM);
     expect(submitView(through)).toStrictEqual({ busy: true, done: true, error: null });
   });

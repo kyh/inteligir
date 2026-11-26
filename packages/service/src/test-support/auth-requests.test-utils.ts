@@ -11,10 +11,10 @@ import { z } from "zod";
 
 import { APP_URL } from "../app-url";
 import { handleAuthRequest } from "../auth/auth-route";
-import { handleInviteSignUp } from "../auth/invite";
+import { handleInviteSignUp, handleSignUpCode } from "../auth/invite";
+import { mintSignInCode } from "../auth/sign-in-code";
 
 export const ORIGIN = APP_URL;
-export const PASSWORD = "test-password-1234";
 
 export const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
@@ -53,14 +53,22 @@ export const authPost = async (
     method: "POST",
   });
 
+const siteRequest = (path: string, body: Record<string, string>, headers: Record<string, string>) =>
+  appRequest(path, {
+    body: JSON.stringify(body),
+    headers: { origin: ORIGIN, ...headers, "content-type": "application/json" },
+    method: "POST",
+  });
+
 export const signUp = async (body: Record<string, string>, headers: Record<string, string> = {}) =>
-  await handleInviteSignUp(
-    appRequest(AUTH_API_PATHS.signUp, {
-      body: JSON.stringify(body),
-      headers: { origin: ORIGIN, ...headers, "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
+  await handleInviteSignUp(siteRequest(AUTH_API_PATHS.signUp, body, headers));
+
+export const askSignUpCode = async (
+  body: Record<string, string>,
+  headers: Record<string, string> = {},
+) => await handleSignUpCode(siteRequest(AUTH_API_PATHS.signUpCode, body, headers));
+
+export { mintSignInCode };
 
 export const mintCode = async (code: string) => {
   await db.insert(inviteCode).values({ code });
@@ -97,7 +105,7 @@ export const signUpUser = async (email: string) => {
   await mintCode(code);
 
   const response = await signUp(
-    { email, inviteCode: code, name: "Tester", password: PASSWORD },
+    { code: await mintSignInCode(email), email, inviteCode: code, name: "Tester" },
     { "user-agent": BROWSER_USER_AGENT },
   );
 
@@ -105,15 +113,17 @@ export const signUpUser = async (email: string) => {
   const cookie = cookieHeaderOf(response);
   expect(cookie).toContain("session_token=");
 
-  return { cookie, password: PASSWORD } satisfies { cookie: string; password: string };
+  return { cookie } satisfies { cookie: string };
 };
 
-export const signInPhone = async (email: string, password = PASSWORD) => {
-  const response = await authPost(
-    "/sign-in/email",
-    { "expo-origin": PHONE_ORIGIN, "user-agent": PHONE_USER_AGENT },
-    { email, password },
-  );
+export const signInWithCode = async (email: string, headers: Record<string, string>) =>
+  await authPost("/sign-in/email-otp", headers, { email, otp: await mintSignInCode(email) });
+
+export const signInPhone = async (email: string) => {
+  const response = await signInWithCode(email, {
+    "expo-origin": PHONE_ORIGIN,
+    "user-agent": PHONE_USER_AGENT,
+  });
 
   expect(response.status).toBe(200);
 

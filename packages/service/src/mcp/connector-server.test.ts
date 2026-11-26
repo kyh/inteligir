@@ -16,7 +16,7 @@ import {
 import { TAGGED_ROWS } from "../library/library-tools";
 import { libraryRouter } from "../rpc/library-router";
 import { CONNECTOR_SKILLS, connectorSkillCatalog } from "./connector-skills";
-import { authPost, ORIGIN, signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
+import { signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import {
   connectAssistant,
   connectorFetch,
@@ -25,7 +25,6 @@ import {
   rpc,
   tokensOf,
 } from "../test-support/connector-grants.test-utils";
-import { issueToken } from "../test-support/password-reset.test-utils";
 
 const FULL = "library:read library offline_access";
 const READ_ONLY = "library:read offline_access";
@@ -361,22 +360,5 @@ dbSuite("the connector", () => {
     const dead = await refreshTokens(clientId, fresh.refresh_token);
     expect(dead.status).not.toBe(200);
     expect(await revokeAssistant(userId, grant?.grantId ?? "")).toBe(false);
-  });
-
-  it("disconnects every assistant when the password is reset", async () => {
-    const email = "connector-reset@example.com";
-    const { cookie, userId } = await signedUp(email);
-    const { tokens } = await connectAssistant("Claude", { allowed: FULL, cookie, scope: FULL });
-
-    const reset = await authPost(
-      "/reset-password",
-      { origin: ORIGIN },
-      { newPassword: "a-new-password-5678", token: await issueToken(email) },
-    );
-
-    expect(reset.status).toBe(200);
-    const after = await connectorFetch({ bearer: tokens.access_token, body: rpc("tools/list") });
-    expect(after.status).toBe(401);
-    expect(await listAssistants(userId)).toStrictEqual([]);
   });
 });

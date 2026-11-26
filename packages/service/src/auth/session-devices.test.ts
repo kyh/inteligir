@@ -13,15 +13,14 @@ import {
   BROWSER_USER_AGENT,
   cookieHeaderOf,
   ORIGIN,
-  PASSWORD,
   PHONE_USER_AGENT,
   sessionOf,
   sessionTokenOf,
   signInPhone,
+  signInWithCode,
   signUpUser,
   userIdOf,
 } from "../test-support/auth-requests.test-utils";
-import { issueToken } from "../test-support/password-reset.test-utils";
 import { getAuth } from "./auth";
 import {
   deviceNameOf,
@@ -71,7 +70,7 @@ dbSuite("Better Auth's routes for every device", () => {
     ];
 
     for (const headers of callers) {
-      const signedIn = await authPost("/sign-in/email", headers, { email, password: PASSWORD });
+      const signedIn = await signInWithCode(email, headers);
       expect(signedIn.status).toBe(200);
       expect(signedIn.headers.get("set-auth-token")).toBeNull();
       expect(signedIn.headers.get("access-control-expose-headers")).toBeNull();
@@ -83,11 +82,7 @@ dbSuite("Better Auth's routes for every device", () => {
     const email = "routes-origins@example.test";
     const { cookie } = await signUpUser(email);
 
-    const refused = await authPost(
-      "/sign-in/email",
-      { origin: EXTENSION_ORIGIN },
-      { email, password: PASSWORD },
-    );
+    const refused = await signInWithCode(email, { origin: EXTENSION_ORIGIN });
 
     expect(refused.status).toBe(403);
     const keptOut = await authPost("/sign-out", { cookie, origin: EXTENSION_ORIGIN });
@@ -101,11 +96,10 @@ dbSuite("Better Auth's routes for every device", () => {
     expect(signedOut.headers.get("clear-site-data")).toBe('"cache"');
     await expect(liveSessionsOf(accountId)).resolves.toHaveLength(0);
 
-    const phone = await authPost(
-      "/sign-in/email",
-      { cookie: await signInPhone(email), "expo-origin": PHONE_ORIGIN },
-      { email, password: PASSWORD },
-    );
+    const phone = await signInWithCode(email, {
+      cookie: await signInPhone(email),
+      "expo-origin": PHONE_ORIGIN,
+    });
 
     expect(phone.status).toBe(200);
   });
@@ -127,23 +121,6 @@ dbSuite("Better Auth's routes for every device", () => {
     expect((row?.expiresAt.getTime() ?? 0) - (row?.createdAt.getTime() ?? 0)).toBeGreaterThan(
       59 * DAY_MS,
     );
-  });
-
-  it("signs every device out at a password reset, the phone and the extension included", async () => {
-    const email = "routes-reset@example.test";
-    const { cookie } = await signUpUser(email);
-    const phoneCookie = await signInPhone(email);
-
-    const reset = await authPost(
-      "/reset-password",
-      { origin: ORIGIN },
-      { newPassword: "new-password-5678", token: await issueToken(email) },
-    );
-
-    expect(reset.status).toBe(200);
-    await expect(sessionOf(phoneHeaders(phoneCookie))).resolves.toBeNull();
-    await expect(sessionOf(extensionHeaders(cookie))).resolves.toBeNull();
-    await expect(sessionOf({ cookie })).resolves.toBeNull();
   });
 });
 

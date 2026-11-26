@@ -1,12 +1,15 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
+import { signInCodeRefusal } from "@repo/contract/account/account-schema";
 import { createAuthClient } from "better-auth/client";
+import { emailOTPClient } from "better-auth/client/plugins";
 
-export const authClient = createAuthClient({ plugins: [oauthProviderClient()] });
+export const authClient = createAuthClient({ plugins: [emailOTPClient(), oauthProviderClient()] });
 
 export const AUTH_FALLBACK_ERROR = "Something went wrong — try again.";
 
-export const authErrorMessage = (error: { message?: string | undefined } | null) =>
-  error?.message ?? AUTH_FALLBACK_ERROR;
+export const authErrorMessage = (
+  error: { code?: string | undefined; message?: string | undefined } | null,
+) => signInCodeRefusal(error?.code) ?? error?.message ?? AUTH_FALLBACK_ERROR;
 
 export interface SignedIn {
   readonly email: string;

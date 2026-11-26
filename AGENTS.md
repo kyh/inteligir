@@ -108,22 +108,24 @@ answers 200 once the database does; `pnpm bootstrap --dry-run` prints the steps.
 ### Seeded login
 
 ```
-dev@inteligir.local / password
+dev@inteligir.local
 ```
 
-`pnpm bootstrap` makes it, or `pnpm db:seed` alone after a push. Headless, a
+Sign-in is a mailed six-digit code, never a password. `pnpm bootstrap` makes
+the account, or `pnpm db:seed` alone after a push, and `pnpm sign-in-code`
+prints a fresh code for it (or for the email given) with no inbox. Headless, a
 session is one curl:
 
 ```sh
-curl -s -c jar localhost:5174/api/auth/sign-in/email \
-  -H 'content-type: application/json' -d '{"email":"dev@inteligir.local","password":"password"}'
+curl -s -c jar localhost:5174/api/auth/sign-in/email-otp -H 'content-type: application/json' \
+  -d "{\"email\":\"dev@inteligir.local\",\"otp\":\"$(pnpm --silent sign-in-code)\"}"
 ```
 
 Sign-up stays invite-only: `DEV-INVITE` opens one more account at
 `/app/sign-up`, and another takes a row in `invite_code`
 (`pnpm --filter @repo/db studio`). Auth allows 10 requests/60s per address, 3
-per 10s on sign-in, and `/v1` 1,200 calls a minute per session; a script making
-several users or looping on `/v1` sets `RATE_LIMIT_DISABLED=true` in `.env`. A reset mail lands in `pnpm dev:web`'s
+a minute on asking for a code and on signing in with one, and `/v1` 1,200 calls a minute per session; a script making
+several users or looping on `/v1` sets `RATE_LIMIT_DISABLED=true` in `.env`. A mailed code lands in `pnpm dev:web`'s
 log. **Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it
 pushes the PRODUCTION Postgres. Drive the site with agent-browser
 (`.agents/skills/agent-browser`).

@@ -17,7 +17,7 @@ import type { FakeAgentPlatform } from "../test-support/fake-agent-platform.test
 import {
   cookieHeaderOf,
   mintCode,
-  PASSWORD,
+  mintSignInCode,
   readCode,
   sessionOf,
   signInPhone,
@@ -27,18 +27,21 @@ import {
 } from "../test-support/auth-requests.test-utils";
 import { deleteAccountUnderSession } from "./delete-account";
 
+const mailedCode = async (cookie: string) => {
+  const signedIn = await sessionOf({ cookie });
+
+  return signedIn === null ? "000000" : await mintSignInCode(signedIn.user.email);
+};
+
 const deleteUnder = async (
   cookie: string,
   accountId: string,
-  {
-    password = PASSWORD,
-    runtime = null,
-  }: { password?: string; runtime?: AgentRuntime | null } = {},
+  { code, runtime = null }: { code?: string; runtime?: AgentRuntime | null } = {},
 ) =>
   await deleteAccountUnderSession(runtime, {
     accountId,
+    code: code ?? (await mailedCode(cookie)),
     headers: new Headers({ cookie }),
-    password,
   });
 
 const userExists = async (userId: string) => {
@@ -60,7 +63,7 @@ const keptSessionsOf = async (accountId: string) => {
 };
 
 dbSuite("deleting the account", () => {
-  it("re-checks the password, and deletes the account and every session it held", async () => {
+  it("asks for a mailed code, and deletes the account and every session it held", async () => {
     const email = "delete-from-app@example.test";
     const { cookie } = await signUpUser(email);
     const laptop = await signInPhone(email);
@@ -82,10 +85,10 @@ dbSuite("deleting the account", () => {
     await mintCode("INVITE-FORGOTTEN");
 
     const signedUp = await signUp({
+      code: await mintSignInCode("Forgotten@Example.test"),
       email: "Forgotten@Example.test",
       inviteCode: "INVITE-FORGOTTEN",
       name: "Forgotten",
-      password: PASSWORD,
     });
 
     expect(signedUp.status).toBe(200);
@@ -98,15 +101,15 @@ dbSuite("deleting the account", () => {
     expect(row?.redeemedAt).not.toBeNull();
   });
 
-  it("refuses a wrong password, and deletes nothing", async () => {
-    const email = "delete-wrong-password@example.test";
+  it("refuses a wrong code, and deletes nothing", async () => {
+    const email = "delete-wrong-code@example.test";
     const { cookie } = await signUpUser(email);
     const phone = await signInPhone(email);
     const userId = await userIdOf(cookie);
+    const mailed = await mintSignInCode(email);
+    const wrong = mailed === "000000" ? "111111" : "000000";
 
-    await expect(deleteUnder(phone, userId, { password: "not-the-password" })).resolves.toBe(
-      "invalid-credentials",
-    );
+    await expect(deleteUnder(phone, userId, { code: wrong })).resolves.toBe("invalid-credentials");
 
     await expect(userExists(userId)).resolves.toBe(true);
     await expect(sessionOf({ cookie: phone })).resolves.not.toBeNull();

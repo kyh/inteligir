@@ -7,7 +7,7 @@ import { expect, it } from "vitest";
 import {
   authFetch,
   authPost,
-  PASSWORD,
+  mintSignInCode,
   sessionOf,
   signInPhone,
   signUpUser,
@@ -98,9 +98,11 @@ dbSuite("the account's devices", () => {
 });
 
 dbSuite("deleting the account", () => {
-  it("deletes it with its password, and every device is signed out", async () => {
-    const { cookie, phone, phoneCookie } = await signedUp("rows-delete@example.test");
-    await expect(phone.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
+  it("deletes it with a code mailed to it, and every device is signed out", async () => {
+    const email = "rows-delete@example.test";
+    const { cookie, phone, phoneCookie } = await signedUp(email);
+    const code = await mintSignInCode(email);
+    await expect(phone.account.delete({ code })).resolves.toStrictEqual({
       deleted: true,
     });
 
@@ -114,14 +116,14 @@ dbSuite("deleting the account", () => {
     });
   });
 
-  it("refuses a wrong password, and a session past its minute's guesses", async () => {
-    const { phone, phoneCookie } = await signedUp("rows-delete-guesses@example.test");
+  it("refuses a wrong code, and a session past its minute's guesses", async () => {
+    const email = "rows-delete-guesses@example.test";
+    const { phone, phoneCookie } = await signedUp(email);
     const refusals = [];
 
     for (let guess = 0; guess < 6; guess += 1) {
-      refusals.push(
-        await phone.refusalOf(phone.account.delete({ password: `not-the-password-${guess}` })),
-      );
+      const code = `${String(guess)}00000`;
+      refusals.push(await phone.refusalOf(phone.account.delete({ code })));
     }
 
     expect(refusals.map((refusal) => [refusal.code, refusal.status])).toStrictEqual([
@@ -129,7 +131,7 @@ dbSuite("deleting the account", () => {
       ["TOO_MANY_REQUESTS", 429],
     ]);
     await expect(
-      phone.refusalOf(phone.account.delete({ password: PASSWORD })),
+      phone.refusalOf(phone.account.delete({ code: await mintSignInCode(email) })),
     ).resolves.toMatchObject({ code: "TOO_MANY_REQUESTS", defined: true });
     await expect(sessionOf({ cookie: phoneCookie })).resolves.not.toBeNull();
   });
