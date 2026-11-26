@@ -19,7 +19,13 @@ export type UpdateState =
   | { message: string; status: "check-failed" }
   | { message: string; status: "download-failed" | "install-failed"; version: string };
 
+/** Mirrored by `quickCaptureSchema` in `apps/web/src/library/shell/desktop-bridge.ts`. */
+interface QuickCapture {
+  clipboard: string;
+}
+
 /** What each event carries. */
 export interface EventPayloads {
+  "quick-capture": QuickCapture;
   "update-state": UpdateState;
 }

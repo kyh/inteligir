@@ -169,6 +169,21 @@ describe("a command", () => {
     expect(gone.verbs.createNote).toHaveBeenCalledWith({ parentId: null, tags: [] });
   });
 
+  it("saves a copied web address from quick capture, and starts a note for anything else", async () => {
+    const { commands, heard, verbs } = await commandsAt();
+    commands.quickCapture("  https://example.com/essay \n");
+    expect(verbs.saveLinks).toHaveBeenCalledExactlyOnceWith(
+      [{ title: null, url: "https://example.com/essay" }],
+      { parentId: null, tags: [] },
+      expect.any(Function),
+    );
+
+    commands.quickCapture("a thought, not an address");
+    await heard.openItem.promise;
+    expect(verbs.createNote).toHaveBeenCalledExactlyOnceWith({ parentId: null, tags: [] });
+    expect(verbs.saveLinks).toHaveBeenCalledOnce();
+  });
+
   it("leaves the open item unasked when it is among what a delete takes", async () => {
     const { commands, goes, heard, verbs } = await commandsAt({ openItem: NOTE });
 

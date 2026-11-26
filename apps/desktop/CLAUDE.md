@@ -27,6 +27,11 @@ carries, and updates.
   `https://inteligir.com.evil.example` in; any other web page opens in the browser, `window.open`
   opens nothing in the app, a frame loads only the site, and a download lands in Downloads.
   `apps/desktop/src/main/navigation.ts`.
+- **Quick capture is one global shortcut, ⌘⇧Space, that brings the window forward and hands the
+  tab what the clipboard holds; the tab saves a web address and starts a note for anything else.**
+  A capture window of the shell's own would be a second renderer to pin, and the tab already
+  saves and writes; a shortcut another app holds leaves capture off, logged.
+  `apps/desktop/src/main/index.ts`.
 - **A quit is the system's, and the shell asks the tab nothing** (owner decision). Quit is the
   menu's `quit` role with no hook, since a window that is a tab needs no message from main. Closing
   the window hides it; ⌘Q and the dock quit. `apps/desktop/src/main/window.ts`.

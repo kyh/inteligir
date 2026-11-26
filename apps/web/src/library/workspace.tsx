@@ -29,6 +29,7 @@ import type { ListedItem } from "./cloud/library-queries";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
+import { desktopBridge } from "./shell/desktop-bridge";
 import { Rail } from "./sidebar/rail";
 
 const NOTHING_LISTED = { items: [], total: 0 };
@@ -135,6 +136,14 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
       selection.apply({ kind: "clear" });
     }
   }, [spent, selection]);
+
+  useEffect(
+    () =>
+      desktopBridge()?.onQuickCapture(({ clipboard }) => {
+        commands.quickCapture(clipboard);
+      }),
+    [commands],
+  );
 
   useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
