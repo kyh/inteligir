@@ -193,10 +193,11 @@ first sign-in goes red; it installs Playwright's Chromium
 (`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
 and runs `pnpm e2e`, two Playwright workers on its four cores, so a green
 `verify` is not a green CI; run `pnpm e2e` too before claiming one. CI's
-`verify` covers the shell too, under node. The Mac pack runs on GitHub only in
-`.github/workflows/desktop-release.yml`, unsigned, on a published release and
-by hand (`gh workflow run desktop-release.yml --ref <branch>`), never on a push
-or a PR: a macOS runner bills about ten times a Linux one. Each step CI adds on top of
+`verify` covers the shell too, under node. The Mac and Windows packs run on
+GitHub only in `.github/workflows/desktop-release.yml`, unsigned, on a published
+release and by hand (`gh workflow run desktop-release.yml --ref <branch>`),
+never on a push or a PR: a macOS runner bills about ten times a Linux one and a
+Windows runner twice. Each step CI adds on top of
 `pnpm verify` carries the reason `verify` cannot run it as a comment beside it
 in `.github/workflows/ci.yml`.
 
