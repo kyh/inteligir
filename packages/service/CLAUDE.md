@@ -133,14 +133,6 @@ DOM (`oxlint.config.ts`).
 - **The registration hour is Better Auth's longest window, so its prune of
   `rate_limit` waits an hour.** The app's own windows stay within 60 s, pruned
   only after they lapse. `packages/service/src/auth/oauth.ts`.
-- **An assistant's metadata document and a fill's every hop are fetched
-  through `PAGE_FETCH_RELAY_URL` when it is set off Vercel.** cimd's transport
-  and the fill's dispatcher refuse every host a test can serve.
-  `packages/service/src/fill/relayed-page-fetch.ts`.
-- **The app reaches its agent at `EVE_BASE_URL` when it is set off Vercel, and
-  through its own `/eve/v1` otherwise.** `next build` writes the agent's one
-  port into the rewrite, so parallel e2e workers on one build each name their
-  own. `packages/service/src/agent/platform.ts`.
 
 ## The wire
 

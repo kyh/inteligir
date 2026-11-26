@@ -8,25 +8,6 @@
     // root's `dev` is already persistent, and uncached as an interactive task must be.
     "dev": {
       "interactive": true
-    },
-    // the Release build `pnpm e2e:mobile` installs in the simulator, its native project made afresh
-    // from app.config.js, and its cloud the origin EXPO_PUBLIC_CLOUD_URL names (unset, production's,
-    // as every build's), which keys the build stored in the cache. A miss is a clean prebuild and a
-    // full pod compile, about ten minutes, so the docs, the suites and EAS's profiles stay out of
-    // its key, and the root's package.json, whose version app.config.js reads, goes in
-    "simulator": {
-      "dependsOn": ["^build"],
-      "env": ["EXPO_PUBLIC_CLOUD_URL"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/package.json",
-        "!**/*.md",
-        "!eas.json",
-        "!src/**/*.test.ts",
-        "!src/test-support/**",
-        "!vitest.config.ts"
-      ],
-      "outputs": [".simulator/**"]
     }
   }
 }

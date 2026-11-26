@@ -55,7 +55,7 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   agent to install, and one they pay for should find the library.
 - **Stock before custom**, in dataembed's layout: App Router routes, a zod
   contract over a service over drizzle, Better Auth, eve, Vercel Cron and Blob,
-  an Expo DOM editor, Playwright. Why: a custom piece is ours forever, so it
+  an Expo DOM editor. Why: a custom piece is ours forever, so it
   needs a reason.
 - **Dictation is the operating system's.** Why: it is already there.
 - **Every feature is core, and serves saving, reading or writing or goes**: no
@@ -81,7 +81,6 @@ packages/page-reader   * a saved page read into an item, over linkedom on every 
 packages/client        * what the tab and the phone share above the contract: what moved, labels, the agent's threads; a waiting save, the extension's too
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * the fitness test over the repo's product words
-tools/e2e                the Playwright flows `pnpm e2e` runs, one next start and its agent per worker on its own database
 ```
 
 `*` marks a `CLAUDE.md` holding the workspace's decisions. The product has no
@@ -130,31 +129,31 @@ log. **Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it
 pushes the PRODUCTION Postgres. Drive the site with agent-browser
 (`.agents/skills/agent-browser`).
 
+Each session gets its own browser: the SessionStart hook sets `AGENT_BROWSER_SESSION` to the session's id, and the SessionEnd hook closes every browser named after it. The SubagentStart hook tells each subagent a `--session` of its own, named after the session's, so SessionEnd closes those too. Locate by `snapshot -i` refs or `find role … --name`, never `find text`, which can match a hidden duplicate label. A background tab gets no animation frames, so menus won't open: `agent-browser tab keep live` fixes it.
+
 ## Verify a change
 
 ```sh
 pnpm format:fix && pnpm verify          # typecheck, lint, knip, format, test, build; check-only
-pnpm e2e                                # Playwright over the build, a next start per worker on its own database
-pnpm smoke                              # the legs a deployment passes, against the app on 5174 (SMOKE_URL for a deployment)
+pnpm smoke                              # the legs a deployment passes, against the app on 5174 (SMOKE_URL: a deployment's signed-out legs)
 TURBO_SCM_BASE=<base> pnpm verify:affected   # a work stream: only what it reaches
 ```
 
-CI runs `verify` and `e2e` on every push to main (`docs/development.md` §
-Quality gates), so a green `verify` is not a green CI. A push to main deploys
-production, which waits for CI and for `pnpm smoke` against the deployment
-(`.github/workflows/smoke.yml`).
+CI runs `verify` and then `pnpm smoke` on `next start` on every push to main
+(`docs/development.md` § Quality gates), so a green `verify` is not a green CI. A push to main deploys
+production, which waits for CI's `check`.
 
 ### Platform matrix
 
-| Surface         | Dev command          | Agent-verifiable at runtime? (specs in `tools/e2e/src`)                                                     |
-| --------------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                                   |
-| Library tab     | `pnpm dev:web`       | **Yes**: `account`, `library`, `search`, `editor`, `note-links`, `saved-note`, `saving`, `import`, `export` |
-| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                                        |
-| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                                              |
-| Mac app         | `pnpm dev`           | **Its shell and engine**: its vitest suites; Chromium's flows; the window needs a human                     |
-| Extension       | `pnpm dev:extension` | **Yes, in Chromium**: its suites; `extension`                                                               |
-| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites; `pnpm e2e:mobile` (`tools/e2e/phone`)                                     |
+| Surface         | Dev command          | Agent-verifiable at runtime?                                                  |
+| --------------- | -------------------- | ----------------------------------------------------------------------------- |
+| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; the service's suites                             |
+| Library tab     | `pnpm dev:web`       | **Yes**: agent-browser; its suites under jsdom                                |
+| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; the service's suites |
+| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: agent-browser; the service's suites           |
+| Mac app         | `pnpm dev`           | **Its shell**: its vitest suites; the window needs a human                    |
+| Extension       | `pnpm dev:extension` | **Its suites**; a real browser needs a human                                  |
+| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites                                              |
 
 ## Rules that matter
 

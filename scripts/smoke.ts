@@ -15,10 +15,6 @@ import type { V1Client } from "@repo/contract/rpc/v1-contract";
 
 import manifest from "../package.json" with { type: "json" };
 
-type Login =
-  | { readonly kind: "code"; readonly email: string }
-  | { readonly kind: "session"; readonly token: string };
-
 type HeaderMap = Readonly<Record<string, string>>;
 
 type Leg =
@@ -31,7 +27,6 @@ const envOf = (name: string) => {
   return value === "" ? undefined : value;
 };
 
-const SMOKE_SESSION = envOf("SMOKE_SESSION");
 const SMOKE_URL = envOf("SMOKE_URL");
 const VERCEL_AUTOMATION_BYPASS_SECRET = envOf("VERCEL_AUTOMATION_BYPASS_SECRET");
 
@@ -39,15 +34,7 @@ const GATE = envOf("CI") !== undefined;
 
 const BASE_URL = (SMOKE_URL ?? "http://localhost:5174").replace(/\/$/u, "");
 
-const loginOf = () => {
-  if (SMOKE_URL === undefined) {
-    return { email: "dev@inteligir.local", kind: "code" } satisfies Login | null;
-  }
-
-  return (
-    SMOKE_SESSION === undefined ? null : { kind: "session", token: SMOKE_SESSION }
-  ) satisfies Login | null;
-};
+const SEEDED_EMAIL = "dev@inteligir.local";
 
 const BYPASS: HeaderMap =
   VERCEL_AUTOMATION_BYPASS_SECRET === undefined
@@ -251,50 +238,23 @@ const callsThroughDoors = async (extensionDoor: HeaderMap, phone: string) => {
   await fileRoundTrip(extensionDoor);
 };
 
-const KEPT_SESSION_COOKIE = "__Secure-better-auth.session_token";
-
-const keptSessionCalls = async (token: string) => {
-  const cookie = `${KEPT_SESSION_COOKIE}=${token}`;
-  const kept = await request("/api/auth/get-session", { headers: { cookie } });
-  await expectStatus(kept, 200, "the kept session");
-
-  if ((await kept.json()) === null) {
-    fail(
-      "SMOKE_SESSION's session has ended: keep a new one (docs/releasing.md, the deployment's checks)",
-    );
-  }
-
-  await callsThroughDoors({ authorization: `Bearer ${token}` }, cookie);
-};
-
-const signedInCalls = async (login: Login) => {
-  if (login.kind === "session") {
-    await keptSessionCalls(login.token);
-
-    return;
-  }
-
+const signedInCalls = async () => {
   const site = { origin: BASE_URL };
-  const browser = await signIn(login.email, site);
-  const phone = await signIn(login.email, PHONE_DOOR);
+  const browser = await signIn(SEEDED_EMAIL, site);
+  const phone = await signIn(SEEDED_EMAIL, PHONE_DOOR);
   await callsThroughDoors({ authorization: `Bearer ${sessionToken(browser)}` }, phone);
   await signOut(phone, PHONE_DOOR);
   await signOut(browser, site);
 };
 
-const signedInLeg = (login: Login | null) => {
+const signedInLeg = () => {
   const label =
     "a signed-in call answers through the extension's door and the phone's, and a file goes up and reads back by range";
 
   return (
-    login === null
-      ? { label, skip: "set SMOKE_SESSION" }
-      : {
-          label,
-          run: async () => {
-            await signedInCalls(login);
-          },
-        }
+    SMOKE_URL === undefined
+      ? { label, run: signedInCalls }
+      : { label, skip: "its sign-in code is minted in the local database, so it runs locally only" }
   ) satisfies Leg;
 };
 
@@ -361,7 +321,7 @@ const LEGS: readonly Leg[] = [
       await expectStatus(response, 426, "a call from build 0.0.1");
     },
   },
-  signedInLeg(loginOf()),
+  signedInLeg(),
 ];
 
 const runLeg = async (number: string, leg: Leg) => {

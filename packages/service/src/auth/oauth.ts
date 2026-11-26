@@ -4,7 +4,6 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { CONNECTOR_CONSENT_PATH } from "@repo/contract/connector";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 
-import { RELAYED_FETCH } from "../fill/relayed-page-fetch";
 import {
   CONNECTOR_RESOURCE,
   CONNECTOR_SCOPES,
@@ -39,5 +38,5 @@ export const oauthPlugins = () =>
       scopes: [...CONNECTOR_SCOPES],
       storeTokens: { hash: (token) => hashOAuthToken(token) },
     }),
-    cimd({ fetchClientMetadataResource: RELAYED_FETCH ?? fetchClientMetadataResource }),
+    cimd({ fetchClientMetadataResource }),
   ] as const;

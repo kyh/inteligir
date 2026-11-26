@@ -7,7 +7,7 @@
     "generate": {
       "outputs": [".wxt/**"]
     },
-    // the unpacked dev build the e2e loads with --extension. Its manifest carries the product's
+    // the unpacked dev build, loaded by hand. Its manifest carries the product's
     // version, the root package.json's, outside this workspace, so turbo hashes it only where it is
     // named
     "build": {

@@ -4,8 +4,15 @@ import type { MenuItemConstructorOptions } from "electron";
 /**
  * The standard macOS menu, its Edit menu titled "Edit" so macOS adds Start Dictation, plus
  * View › Reload, the way back once a launch with no connection finds one. Quit is the system's.
+ * Windows draws a menu as a bar across the library, so there the window has none.
  */
 export const installMenu = (onReload: () => void) => {
+  if (process.platform !== "darwin") {
+    Menu.setApplicationMenu(null);
+
+    return;
+  }
+
   const view: MenuItemConstructorOptions[] = [
     { accelerator: "CmdOrCtrl+R", click: onReload, label: "Reload" },
     { type: "separator" },

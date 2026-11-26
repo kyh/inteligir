@@ -7,7 +7,7 @@ carries, and updates.
 
 - **The shell is Electron, as kyh/init's is** (owner decision). A main process, a sandboxed
   preload and what the two share, bundled by electron-vite and packed by electron-builder. Why: one
-  engine (Chromium) on every Mac, the one the e2e drives, and one shell layout across the repos.
+  engine (Chromium) on every Mac, and one shell layout across the repos.
   `apps/desktop/src/main/index.ts`.
 - **Dictation is the operating system's** (owner decision). macOS dictation types as a keyboard
   does, so the app holds no entitlement, usage description, model or socket, and every session
@@ -29,11 +29,21 @@ carries, and updates.
   `apps/desktop/src/main/navigation.ts`.
 - **A quit is the system's, and the shell asks the tab nothing** (owner decision). Quit is the
   menu's `quit` role with no hook, since a window that is a tab needs no message from main. Closing
-  the window hides it; ⌘Q and the dock quit. `apps/desktop/src/main/window.ts`.
+  the window hides it; ⌘Q and the dock quit. On Windows, with no dock, closing it quits.
+  `apps/desktop/src/main/window.ts`.
 - **The .app is signed with the hardened runtime and electron-builder's default entitlements, and
   notarized.** Those are the JIT grants V8 needs and nothing more; electron-builder signs and
   notarizes the app, and the pack script notarizes and staples the dmg.
   `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/package.ts`.
+- **The app targets macOS and Windows, never Linux** (owner decision), as kyh/init's and
+  dataembed's do. Windows packs with NSIS and draws no menu, since a menu there is a bar across the
+  library; it is packed but not published. `apps/desktop/electron-builder.yml`,
+  `apps/desktop/src/main/menu.ts`.
+- **A macOS and a Windows runner pack the app only on a release and by hand**
+  (`.github/workflows/desktop-release.yml`): unsigned, with no Developer ID, and never on a push or
+  a PR. Why: a macOS runner bills about ten times a Linux one and a Windows runner twice, which
+  spent the account's Actions budget, and the shell's tests already run under node in CI's
+  `verify`. `.github/workflows/desktop-release.yml`.
 - **The .app's fuses are off for anything that runs other code as it**: running as plain Node,
   `NODE_OPTIONS`, `--inspect`, any app code but the `app.asar` whose integrity the bundle
   records, and `file://`'s extra privileges, since no page loads from a file, as Electron's

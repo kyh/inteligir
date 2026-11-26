@@ -47,7 +47,7 @@ what it may reach, and how it builds.
   every listener registers in `main()`'s first turn. `apps/extension/src/entrypoints/background.ts`.
 - **`activeTab` and the cloud's site, never `<all_urls>`.** The site's host reads its session cookie
   with no CORS and a click grants the tab a save is made over, since `<all_urls>` warns that every
-  page is readable at any time; the dev build adds `127.0.0.1` for the e2e's fixture pages.
+  page is readable at any time.
   `apps/extension/src/manifest.ts`.
 - **The build floor holds the extension as it holds every client.** Every call names
   `<version>+extension`, the product's version, so the one `MIN_CLIENT_BUILD` refuses it, since a

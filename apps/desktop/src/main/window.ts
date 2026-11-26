@@ -75,7 +75,10 @@ interface WindowOptions {
   title: string;
 }
 
-/** The one window, on the site's library tab. Closing it hides it, so the tab keeps its state. */
+/**
+ * The one window, on the site's library tab. On a Mac closing it hides it, so the tab keeps its
+ * state; on Windows, with no dock to bring it back, closing it quits.
+ */
 export const createMainWindow = ({ appUrl, quitting, title }: WindowOptions) => {
   const window = new BrowserWindow({
     height: 800,
@@ -102,7 +105,7 @@ export const createMainWindow = ({ appUrl, quitting, title }: WindowOptions) => 
     window.show();
   });
   window.on("close", (event) => {
-    if (!quitting()) {
+    if (process.platform === "darwin" && !quitting()) {
       event.preventDefault();
       window.hide();
     }
