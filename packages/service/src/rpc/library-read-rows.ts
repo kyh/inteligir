@@ -14,6 +14,7 @@ import {
   listingTitles,
   readLibrary,
 } from "../library/library-listing";
+import { savedViews } from "../library/saved-views";
 import { libraryOutline, listItems, readItemView, searchItems } from "../library/library-reads";
 import { readItemRow, readItemWhole } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
@@ -98,7 +99,12 @@ export const libraryReadRows = {
     ),
     scopes: reading.listing.scopes.handler(
       async ({ context }) =>
-        await readLibrary(async (tx) => await listingScopes(tx, context.library.accountId)),
+        await readLibrary(async (tx) => {
+          const { accountId } = context.library;
+          const { views } = await savedViews(tx, accountId);
+
+          return { ...(await listingScopes(tx, accountId)), views };
+        }),
     ),
     titles: reading.listing.titles.handler(
       async ({ context }) => await listingTitles(db, context.library.accountId),

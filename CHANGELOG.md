@@ -6,6 +6,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
+- **Saved views**: in ⌘P, choose Show every match to see a search's results in the grid. Then, or on any kind you narrowed to, choose Save view… to keep it under Views in the sidebar on every Mac and browser you sign in to. The iPhone app doesn't show views yet.
 - **Highlight what matters**: select words in a saved page, a PDF's text or a note and press ⌘⇧H, or the highlighter in the toolbar; typing `==words==` highlights too. The agent, a connected assistant and an export see your highlights. Reading a page again replaces its text, highlights in it included.
 - **Triage with one key**: in the grid, press M to move what you selected, T to tag it, and P to pin or unpin it.
 - **Quick capture on your Mac**: press ⌘⇧Space in any app and Inteligir comes forward. A web address you just copied is saved there and then; anything else starts a new note. If another app already uses ⌘⇧Space, quick capture stays off.

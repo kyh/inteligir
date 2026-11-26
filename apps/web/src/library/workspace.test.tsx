@@ -219,6 +219,49 @@ describe("one-key triage", () => {
   });
 });
 
+describe("a saved view", () => {
+  it("shows every match of a search in the grid, keeps it by name in the sidebar, and opens it again there", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    cell.seed.item({ title: "Tidal essay" });
+    cell.seed.item({ title: NOTE });
+    await pageAt("/library", cell);
+    await screen.findByRole("gridcell", { name: NOTE });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.change(await screen.findByLabelText("Search the library"), {
+      target: { value: "tidal" },
+    });
+    fireEvent.click(await screen.findByRole("option", { name: "Show every match for “tidal”" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("gridcell", { name: NOTE })).toBeNull();
+    });
+    expect(screen.getByRole("gridcell", { name: "Tidal essay" })).toBeDefined();
+    expect(window.location.search).toBe("?q=tidal");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save view…" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "View name" }), {
+      target: { value: "Tides" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const views = await screen.findByRole("list", { name: "Views" });
+
+    fireEvent.click(screen.getByRole("link", { name: /^All items/u }));
+    await screen.findByRole("gridcell", { name: NOTE });
+    fireEvent.click(within(views).getByRole("link", { name: "Tides" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("gridcell", { name: NOTE })).toBeNull();
+    });
+    expect(window.location.search).toBe("?q=tidal");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete the view Tides" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("list", { name: "Views" })).toBeNull();
+    });
+  });
+});
+
 describe("Empty Deleted", () => {
   it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to, one it lists none of too", async () => {
     const cell = createFakeCell();

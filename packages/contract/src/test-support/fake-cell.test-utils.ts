@@ -5,6 +5,8 @@ import { RPCLink } from "@orpc/client/fetch";
 import { implement, withEventMeta } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
+import { viewsWith, viewsWithout } from "../library/saved-views";
+import type { SavedView } from "../library/saved-views";
 import { deferred } from "../deferred";
 import type { AgentEvent } from "../library/agent-events";
 import type { bodyWriteSchema, listedItemSchema } from "../library/library-wire";
@@ -141,6 +143,8 @@ const filesOf = (fields: LibraryItemFields, blocks: readonly BodyBlock[]) =>
 export const createFakeCell = () => {
   let head = 0;
   let signedOut = false;
+  let views: SavedView[] = [];
+  let viewsSeq = 0;
   const items = new Map<string, CellItem>();
   const tombstones = new Map<string, number>();
 
@@ -533,14 +537,17 @@ export const createFakeCell = () => {
         items: stamped,
         threads: [],
         tree:
+          viewsSeq > after ||
           [...items.values()].some(
             ({ fields, seq }) => seq > after && canHoldChildren(fields.kind),
-          ) || [...tombstones.values()].some((seq) => seq > after),
+          ) ||
+          [...tombstones.values()].some((seq) => seq > after),
       },
     } satisfies Changes;
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
+  const seqAnswerSchema = z.object({ seq: z.number() });
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
   const deletedSchema = z.object({ deleted: z.array(z.string()), missing: z.array(z.string()) });
 
@@ -826,8 +833,36 @@ export const createFakeCell = () => {
         children: os.library.listing.children.handler(({ input }) =>
           listing().children(input.parentId),
         ),
-        scopes: os.library.listing.scopes.handler(() => listing().scopes()),
+        scopes: os.library.listing.scopes.handler(() => ({ ...listing().scopes(), views })),
         titles: os.library.listing.titles.handler(() => listing().titles()),
+      },
+      views: {
+        remove: os.library.views.remove.handler(({ input }) =>
+          once(input.opId, seqAnswerSchema, () => {
+            if (views.some(({ id }) => id === input.id)) {
+              head += 1;
+              viewsSeq = head;
+              views = viewsWithout(views, input.id);
+            }
+
+            return { seq: head };
+          }),
+        ),
+        save: os.library.views.save.handler(({ input }) =>
+          once(input.opId, seqAnswerSchema, () => {
+            const next = viewsWith(views, input.view);
+
+            if (next === null) {
+              throw new PayloadTooLargeError();
+            }
+
+            head += 1;
+            viewsSeq = head;
+            views = next;
+
+            return { seq: head };
+          }),
+        ),
       },
       write: os.library.write.handler(({ input }) =>
         once(input.opId, landedSchema, () => write(input)),

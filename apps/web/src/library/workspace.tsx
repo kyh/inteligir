@@ -78,11 +78,12 @@ const WorkspaceMain = ({
 export interface WorkspaceProps {
   readonly scope: LibraryScope;
   readonly kind: ItemKind | null;
+  readonly words: string | null;
   readonly openItem: string | null;
   readonly covered: boolean;
 }
 
-export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) => {
+export const Workspace = ({ scope, kind, words, openItem, covered }: WorkspaceProps) => {
   const { workspace } = usePageLibrary();
   const queries = useLibraryQueries();
   const commands = useLibraryCommands();
@@ -102,9 +103,9 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
   const scopeName = scopeTitle(scope, folders, "All items");
   const listId = listIdOf(scope, folders);
 
-  const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
+  const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort, words })));
   const view = listingView(listing.data?.pages ?? []);
-  const scopeKey = JSON.stringify(scope);
+  const scopeKey = JSON.stringify({ scope, words });
   const [listedScope, setListedScope] = useState(scopeKey);
 
   if (!listing.isPlaceholderData && listedScope !== scopeKey) {
@@ -250,6 +251,7 @@ export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) =>
                         }),
                       }}
                       kind={kind}
+                      words={words}
                       sort={sort}
                       onSortChange={setSort}
                       selection={selection}

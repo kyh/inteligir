@@ -16,7 +16,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
+import { ArrowDownUpIcon, PlusIcon, XIcon } from "lucide-react";
 import { useRef } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
@@ -55,6 +55,7 @@ export interface LibraryViewProps {
   readonly title: string;
   readonly listing: LibraryListing;
   readonly kind: ItemKind | null;
+  readonly words: string | null;
   readonly sort: LibrarySort;
   readonly onSortChange: (sort: LibrarySort) => void;
   readonly selection: LibrarySelectionStore;
@@ -215,9 +216,14 @@ const Skeleton = () => (
   </div>
 );
 
-type LibraryBodyProps = Pick<LibraryViewProps, "scope" | "listing" | "kind" | "selection">;
+type LibraryBodyProps = Pick<
+  LibraryViewProps,
+  "scope" | "listing" | "kind" | "words" | "selection"
+>;
 
-const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
+const NO_MATCH = { body: "Nothing here holds those words.", title: "No matches" };
+
+const LibraryBody = ({ scope, listing, kind, words, selection }: LibraryBodyProps) => {
   const commands = useLibraryCommands();
   const { standing, more, placeholder } = listing;
 
@@ -258,7 +264,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
     return <Skeleton />;
   }
 
-  const empty = emptyWords(scope);
+  const empty = words === null ? emptyWords(scope) : NO_MATCH;
 
   return (
     <>
@@ -279,7 +285,7 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
       ) : (
         <LibraryGrid
           listing={page}
-          shown={placeholder === null ? { kind, scope } : null}
+          shown={placeholder === null && words === null ? { kind, scope } : null}
           selection={selection}
           onNearEnd={more}
         />
@@ -288,11 +294,33 @@ const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
   );
 };
 
+const WordsChip = ({ words }: { words: string }) => {
+  const commands = useLibraryCommands();
+
+  return (
+    <span className="flex min-w-0 items-center gap-0.5 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-body">
+      <span className="truncate">“{words}”</span>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        className="size-5 shrink-0"
+        aria-label="Clear the words"
+        onClick={() => {
+          commands.showWords(null);
+        }}
+      >
+        <XIcon />
+      </Button>
+    </span>
+  );
+};
+
 export const LibraryView = ({
   scope,
   title,
   listing,
   kind,
+  words,
   sort,
   onSortChange,
   selection,
@@ -313,7 +341,19 @@ export const LibraryView = ({
         {total === null ? null : (
           <span className="text-body text-muted-foreground tabular-nums">{formatCount(total)}</span>
         )}
+        {words === null ? null : <WordsChip words={words} />}
         <div className="ml-auto flex items-center gap-1.5">
+          {scope.kind !== "deleted" && (words !== null || kind !== null) ? (
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={() => {
+                commands.saveView();
+              }}
+            >
+              Save view…
+            </Button>
+          ) : null}
           {tidyOffered && scope.kind !== "deleted" ? (
             <Button
               size="compact"
@@ -342,7 +382,13 @@ export const LibraryView = ({
           )}
         </div>
       </TopBar>
-      <LibraryBody scope={scope} listing={listing} kind={kind} selection={selection} />
+      <LibraryBody
+        scope={scope}
+        listing={listing}
+        kind={kind}
+        words={words}
+        selection={selection}
+      />
     </div>
   );
 };

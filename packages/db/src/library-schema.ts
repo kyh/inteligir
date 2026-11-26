@@ -6,6 +6,7 @@ import type {
   ItemCard,
 } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { SavedView } from "@repo/contract/library/saved-views";
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -53,6 +54,8 @@ export const libraryState = pgTable.withRLS("library_state", {
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   head: ms("head").default(0).notNull(),
+  views: jsonb("views").$type<SavedView[]>().default([]).notNull(),
+  viewsSeq: ms("views_seq").default(0).notNull(),
 });
 
 export const item = pgTable.withRLS(

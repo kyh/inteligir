@@ -81,6 +81,11 @@ random bytes and fresh ids are injected.
   agent's policies and each device's words are typed against.** A name spelled
   in each package lets a rename compile and draw as "Used the library".
   `packages/contract/src/library/agent-tools.ts`.
+- **A saved view is a named listing ask, a scope, kinds and words, kept on the account's
+  `library_state` row and read with the scopes.** It moves the head and reads as the tree moving,
+  so every device's rail follows with no feed of its own, and fifty names fit one row; a grid of
+  words offers no scope-wide verb, since a sweep reads no words.
+  `packages/contract/src/library/saved-views.ts`.
 - **A sweep names its items by their scope, in a row no tool carries** (owner
   decision). A device reads a scope a page at a time, so no list of ids it
   holds is all of it, and an agent's delete names its ids.

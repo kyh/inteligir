@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { libraryHref, parseLibraryAddress, scopeAddress } from "./library-address";
+import {
+  isViewAt,
+  libraryHref,
+  parseLibraryAddress,
+  scopeAddress,
+  viewAddress,
+} from "./library-address";
 
 const FOLDER = "01a0f4c2-c400-78d9-a955-7935ec13d6d5";
 
@@ -28,5 +34,32 @@ describe("the tab's address", () => {
     expect(scopeAt(`tag=${"t".repeat(1001)}`)).toStrictEqual({ kind: "all" });
     expect(scopeAt("scope=everything")).toStrictEqual({ kind: "all" });
     expect(scopeAt(`folder=${FOLDER}&tag=design`)).toStrictEqual({ kind: "all" });
+  });
+
+  it("carries a search's words beside its scope and kind, and none blank", () => {
+    const address = parseLibraryAddress(
+      "/library",
+      new URLSearchParams("tag=design&kind=pdf&q=grid"),
+    );
+
+    expect(address).toMatchObject({ kind: "pdf", words: "grid" });
+    expect(libraryHref(address)).toBe("/library?tag=design&kind=pdf&q=grid");
+    expect(parseLibraryAddress("/library", new URLSearchParams("q=%20")).words).toBeNull();
+  });
+
+  it("opens a saved view at its address, and lights it there alone", () => {
+    const view = {
+      id: FOLDER,
+      kinds: ["pdf" as const],
+      name: "Grid papers",
+      scope: { kind: "tag" as const, tag: "design" },
+      words: "grid",
+    };
+
+    const at = viewAddress(view);
+    expect(libraryHref(at)).toBe("/library?tag=design&kind=pdf&q=grid");
+    expect(isViewAt(view, at)).toBe(true);
+    expect(isViewAt(view, { ...at, words: null })).toBe(false);
+    expect(isViewAt(view, { ...at, openItem: FOLDER })).toBe(false);
   });
 });

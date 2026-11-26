@@ -5,7 +5,7 @@ import { item, purgedItem } from "@repo/db/library-schema";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import type { z } from "zod";
 
-import { libraryHead } from "./library-rows";
+import { savedViews } from "./saved-views";
 
 type LibraryMoved = z.infer<typeof libraryMovedSchema>;
 
@@ -14,7 +14,7 @@ const MOVED_IDS_MAX = 200;
 const EVERYTHING: LibraryMoved = { items: "all", threads: "all", tree: true };
 
 export const libraryChanges = async (db: DbExecutor, accountId: string, after?: number) => {
-  const head = await libraryHead(db, accountId);
+  const { head, viewsSeq } = await savedViews(db, accountId);
 
   if (after === undefined || after === head) {
     return { head, moved: null };
@@ -57,9 +57,9 @@ export const libraryChanges = async (db: DbExecutor, accountId: string, after?: 
   ]);
 
   const stamped = [...items, ...purged];
-  const treeMoved = parents.length > 0 || purged.length > 0;
+  const treeMoved = parents.length > 0 || purged.length > 0 || viewsSeq > after;
 
-  if (stamped.length === 0 && threads.length === 0) {
+  if (stamped.length === 0 && threads.length === 0 && !treeMoved) {
     return { head, moved: null };
   }
 

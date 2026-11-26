@@ -14,6 +14,7 @@ import {
 import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { storableBlockSchema } from "../library/library-nodes";
 import { listingSortSchema } from "../library/listing-sort";
+import { savedViewSchema, savedViewsSchema } from "../library/saved-views";
 
 import {
   AgentBudgetError,
@@ -552,6 +553,7 @@ const listingContract = {
       total: count,
       unsorted: count,
       untagged: count,
+      views: savedViewsSchema,
     }),
   ),
 
@@ -736,6 +738,17 @@ const agentContract = {
     ),
 };
 
+const viewsContract = {
+  remove: signedBase
+    .input(z.strictObject({ id: idSchema, opId }))
+    .output(z.object({ seq: seqSchema })),
+
+  save: signedBase
+    .errors({ [PayloadTooLargeError.code]: PayloadTooLargeError })
+    .input(z.strictObject({ opId, view: savedViewSchema }))
+    .output(z.object({ seq: seqSchema })),
+};
+
 export const libraryContract = {
   agent: agentContract,
 
@@ -757,6 +770,8 @@ export const libraryContract = {
   search: signedBase
     .input(searchInputSchema)
     .output(z.object({ cursor: nextCursor, hits: z.array(searchHitSchema) })),
+
+  views: viewsContract,
 
   write: signedBase
     .errors({

@@ -4,6 +4,7 @@ import type { BodyBlock } from "../library/derive-item";
 import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { newIdSchema } from "../library/library-wire";
 import type { LibraryBlock } from "../library/library-nodes";
+import type { SavedView } from "../library/saved-views";
 import type { V1Client } from "../rpc/v1-contract";
 import { isOrpcError } from "../rpc/v1-errors";
 import { paragraph } from "./library-items.test-utils";
@@ -641,6 +642,58 @@ export const cellConformance = (withHost: WithHost) => {
         await expect(library.items.create({ ...made, opId: OP_ID })).resolves.toStrictEqual(first);
         await expect(codeOf(library.items.create(made))).resolves.toBe("CONFLICT");
         await expect(library.listing.scopes()).resolves.toMatchObject({ total: 1 });
+      });
+    });
+  });
+
+  describe("a cell's saved views", () => {
+    it("keeps views by name, a save of one id replacing it, a remove dropping it, and each tells a device the tree moved", async () => {
+      await withLaptop(async ({ library }) => {
+        const { head } = await library.changes({});
+
+        const reading: SavedView = {
+          id: idOf(901),
+          name: "Reading",
+          scope: { kind: "all" },
+          words: "essay",
+        };
+
+        const pdfs: SavedView = {
+          id: idOf(902),
+          kinds: ["pdf"],
+          name: "Papers",
+          scope: { kind: "all" },
+        };
+
+        await library.views.save({ view: reading });
+        await library.views.save({ view: pdfs });
+        await expect(library.listing.scopes()).resolves.toMatchObject({ views: [pdfs, reading] });
+        await expect(library.changes({ after: head })).resolves.toMatchObject({
+          moved: { tree: true },
+        });
+
+        const renamed: SavedView = { ...reading, name: "Essays" };
+        await library.views.save({ view: renamed });
+        await library.views.remove({ id: pdfs.id });
+        await expect(library.listing.scopes()).resolves.toMatchObject({ views: [renamed] });
+      });
+    });
+
+    it("refuses a view past fifty", async () => {
+      await withLaptop(async ({ library }) => {
+        for (let at = 0; at < 50; at += 1) {
+          await library.views.save({
+            view: { id: idOf(1000 + at), name: `View ${String(at)}`, scope: { kind: "unsorted" } },
+          });
+        }
+
+        await expect(
+          codeOf(
+            library.views.save({
+              view: { id: idOf(2000), name: "One more", scope: { kind: "all" } },
+            }),
+          ),
+        ).resolves.toBe("PAYLOAD_TOO_LARGE");
       });
     });
   });

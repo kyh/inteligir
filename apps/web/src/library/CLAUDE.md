@@ -118,7 +118,7 @@ links; `shell/desktop-bridge.ts` the Mac app's update and quick capture.
   which holds the window's pref above 768px and a sheet's open below it, since a write of the pref
   alone opens nothing in a narrow window. `apps/web/src/library/workspace-store.ts`.
 - **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope
-  (`?scope=unsorted`, `?folder=<id>`, `?tag=<name>`), the kind and the open item are flat
+  (`?scope=unsorted`, `?folder=<id>`, `?tag=<name>`), the kind, a search's words (`?q=`) and the open item are flat
   parameters, each move a shallow `pushState` Next renders nothing for, so Back and Forward walk
   them, a link opens them and a bare `/library` is All items; a kind replaces its entry, a search's
   words ride beside the item as `?find=` until its find bar is on them, and Settings is a layer over
