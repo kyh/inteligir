@@ -23,7 +23,7 @@ import {
   inChunks,
   inPool,
 } from "./import-landing";
-import type { ImportCell, ImportTally } from "./import-landing";
+import type { ImportCell, ImportReader } from "./import-landing";
 
 export const NOT_A_ZIP =
   "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, such as your Obsidian folder.";
@@ -172,12 +172,7 @@ const settleDocs = async (cell: ImportCell, docs: readonly PlannedDoc[]) =>
     });
   });
 
-export const readMarkdownZip = async (
-  file: Blob,
-  cell: ImportCell,
-  tally: ImportTally,
-  heard: () => void,
-) => {
+export const readMarkdownZip: ImportReader = async (file, cell, tally, heard) => {
   const listing = await listZip(file);
 
   if (listing === null) {

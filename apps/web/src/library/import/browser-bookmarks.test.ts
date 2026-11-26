@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseBookmarksHtml } from "./bookmarks-plan";
-import { planRaindropImport } from "./raindrop-plan";
+import { planBookmarks } from "./bookmark-plan";
+import { parseBookmarksHtml } from "./browser-bookmarks";
 
 const CHROME = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file. -->
@@ -73,7 +73,7 @@ describe("a browser's bookmarks file", () => {
 
   it("plans the bookmarks as saved links, dated as they were added", () => {
     const parsed = parseBookmarksHtml(CHROME);
-    const plan = parsed.ok ? planRaindropImport(parsed.rows, 0) : null;
+    const plan = parsed.ok ? planBookmarks(parsed.rows, 0) : null;
     expect(
       plan?.items.map(({ folder, savedMs, tags, url }) => ({ folder, savedMs, tags, url })),
     ).toStrictEqual([

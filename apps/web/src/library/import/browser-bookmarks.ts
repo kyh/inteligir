@@ -1,10 +1,9 @@
 import { isWebUrl } from "@repo/contract/items/item-url";
 
-import type { RaindropRow } from "./raindrop-plan";
+import { bookmarkReader } from "./bookmark-reader";
+import type { BookmarkParse, BookmarkRow } from "./bookmark-plan";
 
-type BookmarksParse =
-  | { ok: true; rows: RaindropRow[]; skipped: number }
-  | { ok: false; reason: "not-bookmarks" | "empty" };
+type BookmarksParse = BookmarkParse<"not-bookmarks">;
 
 const TOKEN = /<(?<slash>\/?)(?<tag>dl|h3|a|dd|dt)\b(?<source>[^>]*)>|(?<text>[^<]+)/giu;
 
@@ -112,11 +111,11 @@ const linkRow = (held: Open, folders: readonly (string | null)[]) => {
       .filter((tag) => tag !== ""),
     title: textOf(held.text),
     url,
-  } satisfies RaindropRow;
+  } satisfies BookmarkRow;
 };
 
 class BookmarksReader {
-  readonly rows: RaindropRow[] = [];
+  readonly rows: BookmarkRow[] = [];
   skipped = 0;
   seen = 0;
   private readonly folders: (string | null)[] = [];
@@ -210,3 +209,12 @@ export const parseBookmarksHtml = (html: string) => {
     ? ({ ok: false, reason: "empty" } satisfies BookmarksParse)
     : ({ ok: true, rows: reader.rows, skipped: reader.skipped } satisfies BookmarksParse);
 };
+
+export const readBookmarksHtml = bookmarkReader({
+  parse: parseBookmarksHtml,
+  unreadable: {
+    empty: "This file has no bookmarks in it.",
+    "not-bookmarks":
+      "This file isn't a browser's bookmarks. In Chrome, open the bookmarks manager and choose Export bookmarks from its ⋮ menu; in Safari, choose File › Export › Bookmarks; in Firefox, choose Export Bookmarks to HTML in the Library.",
+  },
+});

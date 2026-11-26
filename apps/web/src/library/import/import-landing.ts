@@ -47,6 +47,13 @@ export interface ImportTally {
   total: number | null;
 }
 
+export type ImportReader = (
+  file: Blob,
+  cell: ImportCell,
+  tally: ImportTally,
+  heard: () => void,
+) => Promise<void>;
+
 export const freshTally = () =>
   ({
     added: 0,

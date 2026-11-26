@@ -1,14 +1,14 @@
 import type { SessionEnd } from "@repo/contract/rpc/call-outcome";
 import { z } from "zod";
 
+import { IMPORT_SOURCES } from "./import-sources";
+
 export const importAskSchema = z.strictObject({
   file: z.instanceof(Blob),
-  source: z.enum(["raindrop", "bookmarks", "markdown"]),
+  source: z.enum(IMPORT_SOURCES),
 });
 
 export type ImportAsk = z.infer<typeof importAskSchema>;
-
-export type ImportSource = ImportAsk["source"];
 
 const count = z.number().int().nonnegative();
 

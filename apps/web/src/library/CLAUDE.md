@@ -46,6 +46,10 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   the file again carries on; read in the cloud, a zip waits in the file store as a second copy and
   each job reads a page of it.
   `apps/web/src/library/import/import-run.ts`.
+- **An import source is an id in `IMPORT_SOURCES`, its pick, and an `ImportReader` in `READERS`;
+  a bookmark file is only a parse into `BookmarkRow`s for `bookmarkReader`.** The id's records fail
+  to compile until the button and the reader are there, and a second bookmark format would
+  otherwise copy the plan, its duplicates and its batches. `apps/web/src/library/import/import-sources.ts`.
 - **An export is written in the tab, on a module worker, as the zip an import reads.** It lists
   every live item, reads each whole a few ahead and writes it by the codec with the files it holds
   from `/v1/blobs`, so Stop or closing the tab, which the browser asks about, leaves no zip; written
