@@ -9,7 +9,7 @@
       "autoIncrement": true,
       "channel": "production",
       "node": "24.21.0",
-      "pnpm": "12.3.4"
+      "pnpm": "12.23.0"
     }
   },
   "submit": {
