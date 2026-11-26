@@ -128,6 +128,8 @@ log. **Never run `pnpm db:push-remote` (`@repo/db`'s `push:remote`)**: it
 pushes the PRODUCTION Postgres. Drive the site with agent-browser
 (`.agents/skills/agent-browser`).
 
+Give each agent its own browser with `AGENT_BROWSER_SESSION=<repo>-<task>` (or `--session`): the default one is shared. Locate by `snapshot -i` refs or `find role … --name`, never `find text`, which can match a hidden duplicate label. A background tab gets no animation frames, so menus won't open: `agent-browser tab keep live` fixes it.
+
 ## Verify a change
 
 ```sh
