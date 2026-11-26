@@ -128,8 +128,8 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   site's theme, the dials, spell check) reach every window, the window's layout opens the next, and
   the account's id goes with the account, each a zod field behind `usePref`, since a pref nothing
   subscribes to grows a sync of its own. `apps/web/src/library/prefs.ts`.
-- **Spell check is the tab's attribute.** WKWebView has no session-wide spell-check switch, so it
-  is a pref on the document root. `apps/web/src/library/document-prefs.ts`.
+- **Spell check is the tab's attribute.** A browser has no spell-check switch a page can reach, and
+  the Mac app's Chromium honours the same attribute, so it is a pref on the document root. `apps/web/src/library/document-prefs.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is
   `user-select: none` and what a person would copy opts in, since selectable by default makes every
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.

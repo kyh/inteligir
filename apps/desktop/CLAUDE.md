@@ -1,66 +1,77 @@
 # Decisions: @repo/desktop
 
-The Tauri shell: one window on the library tab the site serves, its pin, its menu, what the .app
+The Electron shell: one window on the library tab the site serves, its pin, its menu, what the .app
 carries, and updates.
 
 ## The shell
 
+- **The shell is Electron, as kyh/init's is** (owner decision). A main process, a sandboxed
+  preload and what the two share, bundled by electron-vite and packed by electron-builder. Why: one
+  engine (Chromium) on every Mac, the one the e2e drives, and one shell layout across the repos.
+  `apps/desktop/src/main/index.ts`.
 - **Dictation is the operating system's** (owner decision). macOS dictation types as a keyboard
-  does, so the app holds no entitlement, usage description, model or socket, and the window denies
-  every permission request. `apps/desktop/src-tauri/src/window.rs`.
+  does, so the app holds no entitlement, usage description, model or socket, and every session
+  denies every permission request and check. `apps/desktop/src/main/window.ts`.
 - **The window is the library tab the site serves** (owner decision). A release loads
-  `https://inteligir.com/library` and bundles only the shell, since offline copies would be most of the
-  code; its site is compiled in from the config, so nothing at launch moves it.
-  `apps/desktop/src-tauri/tauri.conf.json`.
-- **A debug build is an app of its own.** `pnpm dev` loads `http://localhost:5174/library` as
-  `com.inteligir.desktop.dev`, so its WebKit store and cookie are never the release's.
-  `apps/desktop/src-tauri/tauri.local.conf.json`.
-- **The window is pinned to its site's origin, compared by its parts.** A prefix compare lets
+  `https://inteligir.com/library` and bundles only the shell, since offline copies would be most of
+  the code; the site is compiled into main, so nothing at launch moves it.
+  `apps/desktop/src/main/index.ts`.
+- **A dev launch is an app of its own.** `pnpm dev` loads `http://localhost:5174/library` as
+  "Inteligir (Dev)", with its own user data folder, so its cookie and storage are never the
+  release's. `apps/desktop/src/main/index.ts`.
+- **The renderer is a web page and nothing more**: `contextIsolation`, `sandbox`, no node, no
+  webview, no second window. The preload exposes `window.desktopBridge`, one function per command and event, only on the site's origin,
+  and main answers a command only from the window's top frame on that origin.
+  `apps/desktop/src/preload/index.ts`, `apps/desktop/src/main/index.ts`.
+- **Every web contents is pinned to the site's origin, compared by its parts.** A prefix compare lets
   `https://inteligir.com.evil.example` in; any other web page opens in the browser, `window.open`
-  opens nothing, and a download lands in Downloads. `apps/desktop/src-tauri/src/navigation.rs`.
+  opens nothing in the app, a frame loads only the site, and a download lands in Downloads.
+  `apps/desktop/src/main/navigation.ts`.
 - **A quit is the system's, and the shell asks the tab nothing** (owner decision). Quit is the
-  predefined menu item with no quit hook, since a window that is a tab needs no message from Rust.
-  `apps/desktop/src-tauri/src/menu.rs`.
-- **The .app is signed with the hardened runtime and no entitlement.** The shell runs no JavaScript
-  of its own, loads no unsigned code and is not sandboxed, so it asks for no JIT, unsigned memory or
-  network grant, which the owner's Mac smoke checks. `apps/desktop/src-tauri/tauri.package.conf.json`.
-- **A pack is `tauri build` on a committed config, and is a release or fails.** Tauri stops one with
-  no updater key and the assets step one with no notarization ticket, since a half-release differs
-  from a release only by a log line. `apps/desktop/scripts/release-assets.ts`.
-- **What only a release has is the pack's config, never `tauri.conf.json`.** tauri-build copies
-  `bundle.resources` on every cargo build, so a checkout that never packed would fail its typecheck
-  for want of the notices, and a build with no update feed reports its updates off.
-  `apps/desktop/src-tauri/tauri.package.conf.json`.
-- **The icon is a committed `Assets.car` compiled from the phone's `app.icon`, never the `.icon`
-  itself.** Tauri hands actool a lone `.icon`, which Xcode 27's actool refuses ("Bad file
-  descriptor"); compile it beside an empty `.xcassets` with `--app-icon app`, macOS 13.5 as the
-  minimum deployment target, so the catalog carries older Macs' bitmaps too.
-  `apps/desktop/src-tauri/icons/Assets.car`.
-- **The .app asks for macOS 13.5, the oldest the owner's smoke opens it on.** Its WebKit runs the
-  page's ES2023, and a floor nobody opened the app on is a promise nobody checked.
-  `apps/desktop/src-tauri/tauri.package.conf.json`.
-- **An update waits for a click to download and another to restart** (owner decision). Rust drives
-  Tauri's updater behind three commands and one event, its session one phase moved by one pure step,
-  so an ask that does not fit the phase is a no-op. `apps/desktop/src-tauri/src/updater.rs`.
+  menu's `quit` role with no hook, since a window that is a tab needs no message from main. Closing
+  the window hides it; ⌘Q and the dock quit. `apps/desktop/src/main/window.ts`.
+- **The .app is signed with the hardened runtime and electron-builder's default entitlements, and
+  notarized.** Those are the JIT grants V8 needs and nothing more; electron-builder signs and
+  notarizes the app, and the pack script notarizes and staples the dmg.
+  `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/package.ts`.
+- **The .app's fuses are off for anything that runs other code as it**: running as plain Node,
+  `NODE_OPTIONS`, `--inspect`, any app code but the `app.asar` whose integrity the bundle
+  records, and `file://`'s extra privileges, since no page loads from a file, as Electron's
+  security checklist asks. `apps/desktop/electron-builder.yml`.
+- **A pack is a release or fails.** It refuses to start without the signing identity and the
+  notary key, and refuses to finish without a stapled app, a notarized dmg and every asset a
+  release carries, since a half-release differs from a release only by a log line.
+  `apps/desktop/scripts/package.ts`.
+- **The icon is a committed `Assets.car` compiled from the phone's `app.icon`, beside the `.icns`.**
+  macOS 26 reads the catalog's `app` icon (`CFBundleIconName`) and older Macs the `.icns`; compile
+  it beside an empty `.xcassets` with `--app-icon app`, macOS 13.5 as the minimum deployment
+  target. `apps/desktop/resources/Assets.car`.
+- **The .app asks for macOS 13.5, the oldest the owner's smoke opens it on.** A floor nobody opened
+  the app on is a promise nobody checked. `apps/desktop/electron-builder.yml`.
+- **The feed is GitHub's latest release, through electron-updater**: `latest-mac.yml` and the zip.
+  A build with no `app-update.yml` (a dev launch, an unpacked build) reports its updates off.
+  `apps/desktop/src/main/updater.ts`.
+- **An update waits for a click to download and another to restart** (owner decision). Main drives
+  electron-updater behind three commands and one event, its session one phase moved by one pure
+  step, so an ask that does not fit the phase is a no-op. `apps/desktop/src/main/update-session.ts`.
 - **A check, a download and an install that failed are each a state of their own.** The page checks
   each time it loads, so a feed it could not read is no update to act on, and puts no toast up over
-  nothing. `apps/desktop/src-tauri/src/updater.rs`.
-- **A failed download keeps its release, and a failed install its verified bytes too.** Try again
+  nothing. `apps/desktop/src/main/update-session.ts`.
+- **A failed download keeps its release, and a failed install its downloaded bytes too.** Try again
   reruns that step, since a new check after a download cut off offline fails as well and leaves
-  nothing to retry. `apps/desktop/src-tauri/src/updater.rs`.
+  nothing to retry. `apps/desktop/src/main/update-session.ts`.
 - **A download reads as under way only once its first bytes arrive.** Until then the page goes on
   showing the step it was asked from, since a retry offline fails at once and a progress bar
-  between two failures is a flash. `apps/desktop/src-tauri/src/updater.rs`.
+  between two failures is a flash. `apps/desktop/src/main/update-session.ts`.
 - **Only the page asks for a check, and the menu holds no update item** (owner decision). Settings
   words every answer a check gives, and a menu item's commonest one, up to date, has no screen of
-  its own to say it. `apps/desktop/src-tauri/src/menu.rs`.
+  its own to say it. `apps/desktop/src/main/menu.ts`.
 - **The release notes are the changelog, written for the person using the app.** A release's body is
   `CHANGELOG.md`'s top section, refused unless titled for the version, since a list of commit
   subjects says only that something changed. `apps/desktop/scripts/release-notes.ts`.
-- **The shell is proved by `cargo test`, its engine by Playwright's WebKit, and the packaged app by
-  the owner's Mac smoke.** WebKitGTK is not the Mac's engine, `pnpm e2e:webkit` runs the tab's own
-  flows in WebKit, and only the window opens a browser, saves a download or hides on close.
-  `docs/releasing.md`.
+- **The shell's logic is proved by its vitest suites, and the packaged app by the owner's Mac
+  smoke.** The pin, the save path and the update session are pure; only the window opens a
+  browser, saves a download or hides on close. `docs/releasing.md`.
 - **The shell's plumbing is copied between repos and diverges on purpose.** The window, pin and
   updater are shared with kyh/init and the pin and packaging with kyh/idlebiz, each shaped to its
-  product, so a fix is ported by hand. `apps/desktop/src-tauri/src/navigation.rs`.
+  product, so a fix is ported by hand. `apps/desktop/src/main/navigation.ts`.

@@ -33,7 +33,6 @@
     "@repo/service": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@tauri-apps/api": "^2.12.5",
     "@zip.js/zip.js": "catalog:",
     "ai": "catalog:",
     "better-auth": "catalog:",

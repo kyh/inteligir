@@ -1,6 +1,3 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import type { UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
 
 const updateStateSchema = z.discriminatedUnion("status", [
@@ -39,30 +36,39 @@ const read = (from: string, parsed: z.ZodSafeParseResult<DesktopUpdateState>) =>
   return null;
 };
 
-const register = async (listener: (state: DesktopUpdateState) => void) => {
-  try {
-    return await listen<unknown>("update-state", ({ payload }) => {
-      const state = read("update-state", updateStateSchema.safeParse(payload));
+interface NativeBridge {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- the preload's answers arrive unparsed; ask parses each one
+  readonly checkForUpdates: () => Promise<unknown>;
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- as above
+  readonly downloadUpdate: () => Promise<unknown>;
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- as above
+  readonly installUpdate: () => Promise<unknown>;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the preload's events arrive unparsed; the listener parses each one
+  readonly onUpdateState: (listener: (payload: unknown) => void) => () => void;
+}
 
-      if (state !== null) {
-        listener(state);
-      }
-    });
-  } catch (error) {
-    console.warn("[desktop] the shell refused the update listener", error);
-
-    return null;
+declare global {
+  interface Window {
+    desktopBridge?: unknown;
   }
-};
+}
 
-const detach = async (registration: Promise<UnlistenFn | null>) => {
-  const stop = await registration;
-  stop?.();
-};
+const isNativeBridge = (value: unknown): value is NativeBridge =>
+  typeof value === "object" &&
+  value !== null &&
+  "checkForUpdates" in value &&
+  typeof value.checkForUpdates === "function" &&
+  "downloadUpdate" in value &&
+  typeof value.downloadUpdate === "function" &&
+  "installUpdate" in value &&
+  typeof value.installUpdate === "function" &&
+  "onUpdateState" in value &&
+  typeof value.onUpdateState === "function";
 
-const ask = async (command: string) => {
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- the preload's answer arrives unparsed; ask parses it
+const ask = async (command: string, call: () => Promise<unknown>) => {
   try {
-    return read(command, updateStateSchema.safeParse(await invoke<unknown>(command)));
+    return read(command, updateStateSchema.safeParse(await call()));
   } catch (error) {
     console.warn(`[desktop] the shell refused ${command}`, error);
 
@@ -70,18 +76,24 @@ const ask = async (command: string) => {
   }
 };
 
-const tauriBridge: DesktopBridge = {
-  checkForUpdates: async () => await ask("check_for_updates"),
-  downloadUpdate: async () => await ask("download_update"),
-  installUpdate: async () => await ask("install_update"),
-  onUpdateState: (listener) => {
-    const registration = register(listener);
+const bridgeOf = (native: NativeBridge) =>
+  ({
+    checkForUpdates: async () => await ask("check-for-updates", native.checkForUpdates),
+    downloadUpdate: async () => await ask("download-update", native.downloadUpdate),
+    installUpdate: async () => await ask("install-update", native.installUpdate),
+    onUpdateState: (listener) =>
+      native.onUpdateState((payload) => {
+        const state = read("update-state", updateStateSchema.safeParse(payload));
 
-    return () => {
-      void detach(registration);
-    };
-  },
+        if (state !== null) {
+          listener(state);
+        }
+      }),
+  }) satisfies DesktopBridge;
+
+/** The Mac app's shell (apps/desktop, its preload's `desktopBridge`), or null in a browser tab. */
+export const desktopBridge = () => {
+  const native = typeof window === "undefined" ? undefined : window.desktopBridge;
+
+  return isNativeBridge(native) ? bridgeOf(native) : null;
 };
-
-/** The Mac app's shell (apps/desktop), or null in a browser tab. */
-export const desktopBridge = () => (isTauri() ? tauriBridge : null);

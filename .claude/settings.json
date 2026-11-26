@@ -31,8 +31,6 @@
       "Bash(pnpm exec oxfmt:*)",
       "Bash(pnpm exec vitest:*)",
       "Bash(pnpm exec playwright:*)",
-      "Bash(cargo test:*)",
-      "Bash(cargo clippy:*)",
       "Bash(agent-browser:*)"
     ],
     "deny": [

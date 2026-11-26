@@ -1,14 +1,12 @@
-import { emit } from "@tauri-apps/api/event";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { desktopBridge } from "./shell/desktop-bridge";
 import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 import { createUpdatesStore } from "./desktop-updates";
+import { underShell } from "./test-support/desktop-shell.test-utils";
 
 afterEach(() => {
-  clearMocks();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -96,18 +94,16 @@ describe("the updates store", () => {
 
   it("treats an answer it can't read alike from the shell's commands and its event", async () => {
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const answers = new Map<string, unknown>([["check_for_updates", AVAILABLE]]);
-    vi.stubGlobal("isTauri", true);
-    mockIPC(
-      (command) => {
-        if (command === "install_update") {
-          throw new Error("not allowed");
-        }
+    const answers = new Map<string, unknown>([["check-for-updates", AVAILABLE]]);
 
-        return answers.get(command) ?? { status: "ready" };
-      },
-      { shouldMockEvents: true },
-    );
+    const shell = underShell((command) => {
+      if (command === "install-update") {
+        throw new Error("not allowed");
+      }
+
+      return answers.get(command) ?? { status: "ready" };
+    });
+
     const store = createUpdatesStore(desktopBridge());
     const { result } = renderHook(store.use);
     await vi.waitFor(() => {
@@ -123,7 +119,7 @@ describe("the updates store", () => {
     });
     expect(result.current).toStrictEqual(AVAILABLE);
     await act(async () => {
-      await emit("update-state", { status: "ready" });
+      shell.push("update-state", { status: "ready" });
     });
     expect(result.current).toStrictEqual(AVAILABLE);
     expect(warned).toHaveBeenCalledTimes(3);

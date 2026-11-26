@@ -106,7 +106,7 @@ test("the site's pages render their docs, and the home page links the latest Mac
   }
 
   const dmg = /^const DMG_NAME = "(?<name>[^"]+)";$/mu.exec(
-    await readFile(path.join(REPO, "apps/desktop/scripts/release-assets.ts"), "utf-8"),
+    await readFile(path.join(REPO, "apps/desktop/scripts/package.ts"), "utf-8"),
   )?.groups?.name;
 
   expect(dmg).not.toMatch(/\d+\.\d+/u);

@@ -1,33 +1,26 @@
-import { emit } from "@tauri-apps/api/event";
-import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DesktopUpdateState } from "./shell/desktop-bridge";
+import { underShell as standIn } from "./test-support/desktop-shell.test-utils";
 
 beforeEach(() => {
   vi.resetModules();
 });
 
 afterEach(() => {
-  clearMocks();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
+let push: ReturnType<typeof standIn>["push"] = () => {};
+
 const underShell = (answers: ReadonlyMap<string, DesktopUpdateState>) => {
-  const asked: string[] = [];
-  vi.stubGlobal("isTauri", true);
-  mockIPC(
-    (command) => {
-      asked.push(command);
+  const shell = standIn((command) => answers.get(command) ?? null);
 
-      return answers.get(command) ?? null;
-    },
-    { shouldMockEvents: true },
-  );
+  ({ push } = shell);
 
-  return asked;
+  return shell.asked;
 };
 
 const shown = async () => {
@@ -54,7 +47,7 @@ const banner = async () => await within(notices()).findByRole("listitem");
 
 const pushed = async (state: DesktopUpdateState) => {
   await act(async () => {
-    await emit("update-state", state);
+    push("update-state", state);
   });
 };
 
@@ -62,8 +55,8 @@ describe("the Mac app's update", () => {
   it("is offered once the page's check finds one, and downloads only on a click", async () => {
     const asked = underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { status: "available", version: "1.2.3" }],
-        ["download_update", { downloadPercent: 0, status: "downloading" }],
+        ["check-for-updates", { status: "available", version: "1.2.3" }],
+        ["download-update", { downloadPercent: 0, status: "downloading" }],
       ]),
     );
 
@@ -71,17 +64,17 @@ describe("the Mac app's update", () => {
     const offered = await banner();
     expect(within(offered).getByText("Update available")).toBeDefined();
     expect(within(offered).getByText("Inteligir 1.2.3 is ready to download.")).toBeDefined();
-    expect(asked).toStrictEqual(["check_for_updates"]);
+    expect(asked).toStrictEqual(["check-for-updates"]);
 
     fireEvent.click(within(offered).getByRole("button", { name: "Download" }));
     await within(offered).findByText("Downloading the update");
-    expect(asked).toStrictEqual(["check_for_updates", "download_update"]);
+    expect(asked).toStrictEqual(["check-for-updates", "download-update"]);
   });
 
   it("draws the download's progress the shell pushes", async () => {
     underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { downloadPercent: 0, status: "downloading" }],
+        ["check-for-updates", { downloadPercent: 0, status: "downloading" }],
       ]),
     );
     await shown();
@@ -100,27 +93,27 @@ describe("the Mac app's update", () => {
   it("restarts only on a click once the download is in", async () => {
     const asked = underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { status: "downloaded", version: "1.2.3" }],
-        ["install_update", { status: "downloaded", version: "1.2.3" }],
+        ["check-for-updates", { status: "downloaded", version: "1.2.3" }],
+        ["install-update", { status: "downloaded", version: "1.2.3" }],
       ]),
     );
 
     await shown();
     const ready = await banner();
     expect(within(ready).getByText("Restart to finish installing Inteligir 1.2.3.")).toBeDefined();
-    expect(asked).toStrictEqual(["check_for_updates"]);
+    expect(asked).toStrictEqual(["check-for-updates"]);
 
     fireEvent.click(within(ready).getByRole("button", { name: "Restart" }));
     await vi.waitFor(() => {
-      expect(asked).toStrictEqual(["check_for_updates", "install_update"]);
+      expect(asked).toStrictEqual(["check-for-updates", "install-update"]);
     });
   });
 
   it("says why a download didn't go through, and downloads again on Try again until it does", async () => {
     const answers = new Map<string, DesktopUpdateState>([
-      ["check_for_updates", { status: "available", version: "1.2.3" }],
+      ["check-for-updates", { status: "available", version: "1.2.3" }],
       [
-        "download_update",
+        "download-update",
         { message: "The connection dropped.", status: "download-failed", version: "1.2.3" },
       ],
     ]);
@@ -133,7 +126,7 @@ describe("the Mac app's update", () => {
     expect(within(update).getByText("The connection dropped.")).toBeDefined();
     expect(screen.getByText("Inteligir 1.2.3 didn't download.")).toBeDefined();
 
-    answers.set("download_update", {
+    answers.set("download-update", {
       message: "The feed is offline.",
       status: "download-failed",
       version: "1.2.3",
@@ -141,16 +134,16 @@ describe("the Mac app's update", () => {
     fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
     expect(await within(update).findByText("The feed is offline.")).toBeDefined();
     expect(within(update).getByText("The download didn't go through")).toBeDefined();
-    expect(asked).toStrictEqual(["check_for_updates", "download_update", "download_update"]);
+    expect(asked).toStrictEqual(["check-for-updates", "download-update", "download-update"]);
 
-    answers.set("download_update", { downloadPercent: 0, status: "downloading" });
+    answers.set("download-update", { downloadPercent: 0, status: "downloading" });
     fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
     expect(await within(update).findByText("Downloading the update")).toBeDefined();
     expect(asked).toStrictEqual([
-      "check_for_updates",
-      "download_update",
-      "download_update",
-      "download_update",
+      "check-for-updates",
+      "download-update",
+      "download-update",
+      "download-update",
     ]);
   });
 
@@ -158,10 +151,10 @@ describe("the Mac app's update", () => {
     const asked = underShell(
       new Map<string, DesktopUpdateState>([
         [
-          "check_for_updates",
+          "check-for-updates",
           { message: "The disk is full.", status: "install-failed", version: "1.2.3" },
         ],
-        ["install_update", { status: "downloaded", version: "1.2.3" }],
+        ["install-update", { status: "downloaded", version: "1.2.3" }],
       ]),
     );
 
@@ -173,13 +166,13 @@ describe("the Mac app's update", () => {
 
     fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
     expect(await within(update).findByText("Update ready")).toBeDefined();
-    expect(asked).toStrictEqual(["check_for_updates", "install_update"]);
+    expect(asked).toStrictEqual(["check-for-updates", "install-update"]);
   });
 
   it("says a check that failed in Settings alone", async () => {
     underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { status: "available", version: "1.2.3" }],
+        ["check-for-updates", { status: "available", version: "1.2.3" }],
       ]),
     );
     await shown();
@@ -196,7 +189,7 @@ describe("the Mac app's update", () => {
   it("leaves once there is nothing to do about the update", async () => {
     underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { status: "available", version: "1.2.3" }],
+        ["check-for-updates", { status: "available", version: "1.2.3" }],
       ]),
     );
     await shown();

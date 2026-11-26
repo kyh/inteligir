@@ -70,7 +70,7 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
 
 ```
 apps/web               * the one Next.js app: the site, the cloud's routes, crons and health check, the built-in agent (agent/); the library tab (src/library *)
-apps/desktop           * the Mac app: a Tauri window on the site's /library, its origin pin, menu and updater
+apps/desktop           * the Mac app: an Electron window on the site's /library, its origin pin, menu and updater
 apps/mobile            * the iPhone app: native lists, the share sheet, the editor in an Expo DOM component
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
@@ -151,7 +151,7 @@ production, which waits for CI and for `pnpm smoke` against the deployment
 | Library tab     | `pnpm dev:web`       | **Yes**: `account`, `library`, `search`, `editor`, `note-links`, `saved-note`, `saving`, `import`, `export` |
 | Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                                        |
 | Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                                              |
-| Mac app         | `pnpm dev`           | **Its shell and engine**: `cargo test`; `pnpm e2e:webkit`; the window needs a human                         |
+| Mac app         | `pnpm dev`           | **Its shell and engine**: its vitest suites; Chromium's flows; the window needs a human                     |
 | Extension       | `pnpm dev:extension` | **Yes, in Chromium**: its suites; `extension`                                                               |
 | Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites; `pnpm e2e:mobile` (`tools/e2e/phone`)                                     |
 

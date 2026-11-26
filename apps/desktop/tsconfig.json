@@ -1,0 +1,10 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.json"
+  },
+  "include": ["src", "electron.vite.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules"]
+}

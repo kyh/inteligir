@@ -1,54 +1,55 @@
 # @repo/desktop — the Mac app
 
 A window on the library tab the site serves at `/library`
-([`apps/web/src/library`](../web/src/library/CLAUDE.md)), with a menu and the
-stock updater. The shell is Tauri 2: Rust over the Mac's own WebKit. It bundles
-no page, runs no node and no server, and keeps nothing of the library: the page
+([`apps/web/src/library`](../web/src/library/CLAUDE.md)), with a menu and
+electron-updater. The shell is Electron: a main process and a sandboxed preload
+around the site, bundled by electron-vite and packed by electron-builder. It
+bundles no page and runs no server, and keeps nothing of the library: the page
 signs in, reads and writes as a browser tab does, so the app needs a
 connection. Its decisions are this app's [`CLAUDE.md`](CLAUDE.md).
 
 ## Layout
 
 ```
-src-tauri/      the shell, in Rust: the window and its origin pin, the menu, the updater
-scripts/        a pack's release assets and the release notes, TypeScript node runs as it stands
+src/main/       the main process: the window and its origin pin, the menu, the updater
+src/preload/    the sandboxed preload: window.desktopBridge, on the site's origin only
+src/shared/     what the two share: the bridge's commands, events and update states
+resources/      the icon, and the Assets.car compiled from the phone's app.icon
+scripts/        the pack and the release notes, TypeScript node runs as it stands
 ```
 
 ## Seams
 
 The page reaches the shell only for its update: three commands
-(`check_for_updates`, `download_update`, `install_update`) and one
-`update-state` event, which the window's one capability grants
-(`src-tauri/capabilities/web-app.json`) and the page parses
+(`check-for-updates`, `download-update`, `install-update`) and one
+`update-state` event, over `window.desktopBridge`
+(`src/shared/bridge.ts`), which the page parses
 (`apps/web/src/library/shell/desktop-bridge.ts`).
 
 ## Testing and the dev loop
 
 ```bash
-pnpm dev:web          # the local app, which the debug window opens
-pnpm dev              # tauri dev: the shell compiled and launched on localhost:5174/library
+pnpm dev:web          # the local app, which the dev window opens
+pnpm dev              # electron-vite dev: the shell built and launched on localhost:5174/library
 ```
 
 An edit to the page reaches the window once `pnpm dev:web` rebuilt it and the
-window reloads (⌘R); an edit to the Rust rebuilds and relaunches the shell. A
-debug build's window has WebKit's inspector. `cargo test`, this workspace's
-`pnpm test`, covers the origin pin and the update states' wire; the packaged
+window reloads (⌘R); an edit to main or the preload rebuilds and relaunches the
+shell. A dev window has Chromium's DevTools in its View menu. `pnpm test`
+covers the origin pin, the download path and the update session; the packaged
 app is the owner's Mac smoke (`docs/releasing.md` § 5).
 
 ## Packaging
 
 ```bash
-pnpm package:desktop      # the release → src-tauri/target/release/bundle/macos/Inteligir.app,
-                          #   and its assets in .output/bin
-pnpm --filter @repo/desktop tauri build   # an unsigned .app for this Mac: no notices, no updates
+pnpm package:desktop      # the release → .output/bin/mac-arm64/Inteligir.app, and its assets in .output/bin
 ```
 
-A pack is `tauri build` on `src-tauri/tauri.package.conf.json`, which holds
-what only a release has: the Rust crates' notices, written by `cargo about` as
-its `beforeBuildCommand`, the dmg, the oldest macOS, and the update feed with
-the public key the owner commits (`docs/releasing.md` § Once per product: the
-update key). It signs with `<repo>/.release/release.env`, in Tauri's own names
-and taken as written (`dotenv --no-expand`, since a password may hold a `$`).
-`scripts/release-assets.ts` then refuses an app with no notarization ticket
-and names the dmg, the signed update and `latest.json` as a release carries
-them. The release path is `docs/releasing.md`.
+A pack is `electron-vite build`, then `scripts/package.ts` with
+`<repo>/.release/release.env`, taken as written (`dotenv --no-expand`, since a
+value may hold a `$`). It runs electron-builder on `electron-builder.yml`, which signs with the
+hardened runtime and notarizes the app, then notarizes and staples the dmg,
+and refuses to finish without the dmg, the zip, its blockmap and
+`latest-mac.yml` as a release carries them. The npm packages' notices are
+Vite's (`.output/app/main/notices/npm-packages.md`); Chromium's ship inside
+Electron. The release path is `docs/releasing.md`.
