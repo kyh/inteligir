@@ -28,6 +28,12 @@ export const bodyBytes = (blocks: readonly unknown[]) => utf8ByteLength(JSON.str
 const AGENT_SELECTION_MAX = 4000;
 export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;
+
+export const modelKeySchema = z
+  .string()
+  .trim()
+  .regex(/^sk-ant-[\w-]{20,300}$/u, "That isn't an Anthropic key: one starts with sk-ant-.");
+
 export const PAGE_MAX = 50;
 export const LISTING_PAGE_MAX = 1000;
 

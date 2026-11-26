@@ -48,6 +48,7 @@ import {
   libraryMovedSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
+  modelKeySchema,
   listedItemSchema,
   listingPageInputSchema,
   MARKDOWN_MAX,
@@ -718,6 +719,12 @@ const agentContract = {
     .output(z.object({ enabled: z.boolean() })),
 
   rules: signedBase.output(z.object({ rules: z.string().nullable() })),
+
+  modelKey: signedBase.output(z.object({ hint: z.string().nullable() })),
+
+  setModelKey: signedBase
+    .input(z.strictObject({ key: modelKeySchema.nullable(), opId }))
+    .output(z.object({ hint: z.string().nullable() })),
 
   setRules: signedBase
     .input(z.strictObject({ opId, rules: z.string().max(FILING_RULES_MAX) }))

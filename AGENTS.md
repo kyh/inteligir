@@ -52,8 +52,9 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   agent is on. Why: a save is instant.
 - **The built-in agent is ours, on our bill**: eve's, served by the
   deployment, on Sonnet 5.5 through Vercel's AI Gateway, searching and reading
-  the web without asking, a daily allowance, each turn one undoable change set;
-  your Claude or ChatGPT joins by the connector. Why: a knowledge worker has no
+  the web without asking, a daily allowance (or the person's own Anthropic key,
+  on their bill), each turn one undoable change set; your Claude or ChatGPT
+  joins by the connector. Why: a knowledge worker has no
   agent to install, and one they pay for should find the library.
 - **Stock before custom**, in dataembed's layout: App Router routes, a zod
   contract over a service over drizzle, Better Auth, eve, Vercel Cron and Blob,

@@ -57,6 +57,7 @@ const jsonObjectSchema = z.looseObject({
 const LIBRARY_READS = new Set([
   "agent.events",
   "agent.list",
+  "agent.modelKey",
   "agent.rules",
   "agent.status",
   "agent.undoable",

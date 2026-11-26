@@ -447,6 +447,10 @@ note under the editor's content policy; what it cannot run is below.
 - **A saved page files itself** on a deployment with the gateway: within a
   minute a link saved to Unsorted shows a summary on its card and moves into a
   folder it clearly fits, and a screenshot's words show beside it.
+- **Your own Anthropic key**, on a deployment with the gateway: saved in
+  Settings › Account, the agent answers, Settings shows 199 turns left after
+  one, and the turn's tokens appear on that key's Anthropic console, not the
+  team's; a revoked key's next turn fails, and Remove brings back the allowance.
 - **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
   with, and its download saves it under that name; in a wide window it sits
   left of its text, each scrolling alone, and under it in a narrow one.

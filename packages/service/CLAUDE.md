@@ -486,6 +486,15 @@ DOM (`oxlint.config.ts`).
   Anthropic on the team's own key, so eve reports no cost, and a ledger off the
   thread gives nothing back when a conversation is deleted.
   `packages/service/src/agent/agent-limits.ts`.
+- **A person's own Anthropic key is sealed in `agent_preference` under a key
+  derived from the auth secret, answered back only as its last four, and handed
+  to the gateway per turn as its `byok` credential; with one, the day takes 200
+  turns and a model call costs the account no dollars.** The key bills the
+  person, so our allowance has nothing to guard but web searches, and a key
+  stored plain is one database read from anyone's bill. A key that fails falls
+  back to the team's own unless the gateway's Fallback to Vercel Keys is off,
+  so 200 turns is also the most such a key can cost us.
+  `packages/service/src/agent/model-key.ts`.
 - **A limit stops a turn by stamping `agent_turn.stop_reason`, then eve's
   cancel; a turn is booked under the account's lock as it starts, and a send
   that would start one is refused first.** eve settles a hook's cancel with no
