@@ -422,7 +422,7 @@ const dropsSaves: (call: CellCall) => undefined = (call: CellCall) => {
   }
 };
 
-describe("an open PDF", () => {
+describe("an open PDF or picture", () => {
   it("shows the file beside the text read from it, which takes edits and saves like a note", async () => {
     const cell = createFakeCell();
 
@@ -458,6 +458,32 @@ describe("an open PDF", () => {
       },
       { timeout: 4000 },
     );
+  });
+
+  it("shows a picture beside the words read from it", async () => {
+    const cell = createFakeCell();
+
+    const id = cell.seed.item({ kind: "image", originalSha: "d".repeat(64), title: "Shot" }, [
+      {
+        block: { children: [{ text: "Ship the export by Friday" }], id: "p1", type: "p" },
+        section: "article",
+      },
+    ]);
+
+    await pageAt(`/library?item=${id}`, cell);
+    await screen.findByText(
+      "The words read from this picture. Fix anything it misread right here.",
+    );
+    expect(screen.getByRole("img", { name: "Shot" })).toBeDefined();
+  });
+
+  it("shows a picture with no words on its own", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ kind: "image", originalSha: "c".repeat(64), title: "Photo" });
+
+    await pageAt(`/library?item=${id}`, cell);
+    await screen.findByRole("img", { name: "Photo" });
+    expect(screen.queryByText(/The words read from this picture/u)).toBeNull();
   });
 });
 

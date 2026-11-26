@@ -32,7 +32,7 @@ import {
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { askMeaning } from "./meaning-job";
-import { askPdfTexts } from "./pdf-text-job";
+import { askFileTexts } from "./file-text-job";
 import { anyOf, chunksOf } from "./set-sql";
 
 export interface LiveItemRow {
@@ -272,7 +272,7 @@ export const landItem = async (scope: WriteScope, landing: Landing) => {
     });
   }
 
-  await askPdfTexts(scope, [{ before: before.fields, fields, id: itemId }]);
+  await askFileTexts(scope, [{ before: before.fields, fields, id: itemId }]);
 
   return { card: derived.card, fields, id: itemId, seq, updatedAt: now } satisfies LiveItemRow;
 };
@@ -444,7 +444,7 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]) => {
     now,
   );
 
-  await askPdfTexts(
+  await askFileTexts(
     scope,
     landed.map(({ made }) => ({ before: null, fields: made.fields, id: made.id })),
   );

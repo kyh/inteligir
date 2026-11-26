@@ -494,8 +494,8 @@ export const libraryWrites = ({
         },
         onSuccess: ({ item }) => {
           toast.success(
-            item.fields.kind === "pdf" && item.fields.url === null
-              ? "Reading the PDF again. Its text replaces what's below it soon."
+            item.fields.url === null
+              ? "Reading the file again. Its text replaces the text shown soon."
               : "Reading the page again. Its text lands soon.",
           );
         },

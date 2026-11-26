@@ -61,10 +61,18 @@ const PdfObject = ({
   </object>
 );
 
-export const PdfPane = ({ fields, title }: { fields: LibraryItemFields; title: string }) =>
+export const FilePane = ({ fields, title }: { fields: LibraryItemFields; title: string }) =>
   fields.originalSha === null ? null : (
-    <div className="h-[45vh] shrink-0 border-b border-border p-3 lg:h-auto lg:w-1/2 lg:border-r lg:border-b-0">
-      <PdfObject fields={fields} sha={fields.originalSha} title={title} className="h-full" />
+    <div className="flex h-[45vh] shrink-0 justify-center border-b border-border p-3 lg:h-auto lg:w-1/2 lg:border-r lg:border-b-0">
+      {fields.kind === "pdf" ? (
+        <PdfObject fields={fields} sha={fields.originalSha} title={title} className="h-full" />
+      ) : (
+        <img
+          alt={title}
+          src={fileUrl(fields.originalSha, fields.originalName)}
+          className="max-h-full max-w-full rounded-md object-contain"
+        />
+      )}
     </div>
   );
 

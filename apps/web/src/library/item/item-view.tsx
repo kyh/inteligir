@@ -17,7 +17,7 @@ import { useLibraryCommands } from "../library/library-commands";
 import { libraryGoes, useLibraryAddress } from "../library-history";
 import { shortcutFor } from "../shortcuts";
 import { TopBar } from "../top-bar";
-import { FileStage, PdfPane, ReadingNotice, SourceHeader } from "./item-stages";
+import { FilePane, FileStage, ReadingNotice, SourceHeader } from "./item-stages";
 import { useAgentHolds } from "./use-agent-holds";
 
 export interface ItemViewProps {
@@ -108,7 +108,10 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
 
   const held = item.data ?? null;
 
-  const split = held?.fields.kind === "pdf" && held.fields.originalSha !== null;
+  const split =
+    held !== null &&
+    held.fields.originalSha !== null &&
+    (held.fields.kind === "pdf" || (held.fields.kind === "image" && held.card.words > 0));
 
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
@@ -148,7 +151,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
       <FindBarAnchor />
       <div className={cn("flex min-h-0 flex-1 flex-col", split && "lg:flex-row")}>
         {held !== null && split ? (
-          <PdfPane fields={held.fields} title={shownTitle(held.card.title)} />
+          <FilePane fields={held.fields} title={shownTitle(held.card.title)} />
         ) : null}
         <EditorScroller>
           {held === null ? null : (
@@ -157,7 +160,10 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
               <ReadingNotice fields={held.fields} />
               {split ? (
                 <p className="m-0 px-8 pt-4 text-caption text-muted-foreground">
-                  The text read from this PDF. Fix anything it misread right here.
+                  {held.fields.kind === "pdf"
+                    ? "The text read from this PDF."
+                    : "The words read from this picture."}{" "}
+                  Fix anything it misread right here.
                 </p>
               ) : (
                 <FileStage fields={held.fields} title={shownTitle(held.card.title)} />

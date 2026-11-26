@@ -47,8 +47,8 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   cost more than they pay.
 - **A save's write calls no model.** The extension reads its page; any other
   save lands unread for the cloud's fill job, and an embedding for meaning
-  search is a job after the commit, on the gateway or a hashed fallback without
-  it; the agent files and tags only when asked. Why: a save is instant.
+  search and a picture's words are jobs after the commit, on the gateway; the
+  agent files and tags only when asked. Why: a save is instant.
 - **The built-in agent is ours, on our bill**: eve's, served by the
   deployment, on Sonnet 5.5 through Vercel's AI Gateway, searching and reading
   the web without asking, a daily allowance, each turn one undoable change set;

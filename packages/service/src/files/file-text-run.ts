@@ -12,20 +12,21 @@ import { readItemWhole } from "../library/library-rows";
 import type { StoredItem } from "../library/library-rows";
 import type { LibraryWriter, WriteScope } from "../library/library-store";
 import { writeLibrary } from "../library/library-store";
-import { pdfTextJobSchema } from "../library/pdf-text-job";
-import type { PdfTextJob } from "../library/pdf-text-job";
+import { fileTextJobSchema } from "../library/file-text-job";
+import type { FileTextJob } from "../library/file-text-job";
 import { FILE_STORE } from "./file-store-of";
+import { imageParagraphs } from "./image-text";
 import { pdfParagraphs } from "./pdf-text";
 
 const landedSchema = z.enum(["landed", "stale"]);
 
 const waits = (
   whole: { readonly item: StoredItem; readonly blocks: readonly BodyBlock[] } | null,
-  job: PdfTextJob,
+  job: FileTextJob,
 ): whole is { readonly item: StoredItem; readonly blocks: readonly BodyBlock[] } =>
   whole !== null &&
   whole.item.fields.deletedAt === null &&
-  whole.item.fields.kind === "pdf" &&
+  (whole.item.fields.kind === "pdf" || whole.item.fields.kind === "image") &&
   whole.item.fields.originalSha === job.sha &&
   (job.again || !whole.blocks.some(({ section }) => section === "article"));
 
@@ -41,7 +42,11 @@ const articleOf = (paragraphs: readonly string[]) =>
     (text) => ({ children: [{ text }], id: crypto.randomUUID(), type: "p" }) satisfies LibraryBlock,
   );
 
-const landText = async (writer: LibraryWriter, job: PdfTextJob, article: readonly LibraryBlock[]) =>
+const landText = async (
+  writer: LibraryWriter,
+  job: FileTextJob,
+  article: readonly LibraryBlock[],
+) =>
   await writeLibrary(
     writer,
     { answer: landedSchema, opId: undefined },
@@ -67,15 +72,23 @@ const landText = async (writer: LibraryWriter, job: PdfTextJob, article: readonl
     },
   );
 
-export const PDF_TEXT_RUN = {
-  payload: pdfTextJobSchema,
+const paragraphsOf = async (kind: "image" | "pdf", bytes: Uint8Array) =>
+  kind === "pdf" ? await pdfParagraphs(bytes) : await imageParagraphs(bytes);
+
+export const FILE_TEXT_RUN = {
+  payload: fileTextJobSchema,
   run: async (job, { accountId }) => {
-    if (!waits(await readItemWhole(db, accountId, job.itemId), job)) {
+    const whole = await readItemWhole(db, accountId, job.itemId);
+
+    if (!waits(whole, job)) {
       return "done";
     }
 
+    const { kind } = whole.item.fields;
     const bytes = await bytesOf(accountId, job.sha);
-    const paragraphs = bytes === null ? [] : await pdfParagraphs(bytes);
+
+    const paragraphs =
+      bytes === null || (kind !== "pdf" && kind !== "image") ? [] : await paragraphsOf(kind, bytes);
 
     if (paragraphs.length === 0) {
       return "done";
@@ -89,10 +102,10 @@ export const PDF_TEXT_RUN = {
     }
 
     if (!landed.ok && landed.refusal.kind !== "gone") {
-      console.warn({ event: "pdf-text-refused", refusal: landed.refusal.kind });
+      console.warn({ event: "file-text-refused", refusal: landed.refusal.kind });
     }
 
     return "done";
   },
   tries: { kind: "until-done" },
-} satisfies JobRun<PdfTextJob>;
+} satisfies JobRun<FileTextJob>;

@@ -407,16 +407,22 @@ DOM (`oxlint.config.ts`).
   before its item names it, and each device decodes it at the size it draws.**
   A cover whose item stopped waiting goes with housekeeping a day on, like any
   file no row names. `packages/service/src/fill/fill-run.ts`.
-- **A PDF's words are its article, read by a `pdf-text` job any landing asks
-  once its item holds a new PDF, and never over an article it already has.**
-  Search, the agent, find and export then read a PDF as they read a saved
-  page, whoever added it, and the parse runs after the commit, never under the
-  lock. `packages/service/src/files/pdf-text-run.ts`.
-- **A PDF's text is its article, edited as a note's body is, and `items.refresh`
-  on a PDF with no address asks its `pdf-text` job `again`, over the article as
-  it stands.** A misread word is fixed where it reads, and a fresh read is the
-  person's ask, so it replaces what they edited.
-  `packages/service/src/library/pdf-text-job.ts`.
+- **A PDF's or a picture's words are its article, read by a `file-text` job any
+  landing asks once its item holds a new file of either, and never over an
+  article it already has.** Search, the agent, find and export then read a file
+  as they read a saved page, whoever added it, and the read runs after the
+  commit, never under the lock. `packages/service/src/files/file-text-run.ts`.
+- **A picture is read by the gateway's Claude Haiku 5.5 when it is reachable,
+  only a JPEG, PNG, GIF or WebP under 3.75 MB, and by nothing otherwise; a
+  retryable failure tries again and any other lands no words.** A screenshot's
+  words need a model that reads layout, the model takes those types at that
+  size, and development and the suites call nothing off the machine.
+  `packages/service/src/files/image-text.ts`.
+- **A file's text is its article, edited as a note's body is, and
+  `items.refresh` on a PDF or picture with no address asks its `file-text` job
+  `again`, over the article as it stands.** A misread word is fixed where it
+  reads, and a fresh read is the person's ask, so it replaces what they edited.
+  `packages/service/src/library/file-text-job.ts`.
 
 ## The built-in agent
 

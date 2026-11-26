@@ -33,7 +33,7 @@ const TAG_ORIGINS = [
   "inline",
 ] as const satisfies readonly DerivedItem["tags"][number]["origin"][];
 
-const JOB_KINDS = ["fill", "file-release", "meaning", "pdf-text", "sweep"] as const;
+const JOB_KINDS = ["fill", "file-release", "file-text", "meaning", "sweep"] as const;
 
 export const itemKind = pgEnum("item_kind", ITEM_KINDS);
 export const tagOrigin = pgEnum("tag_origin", TAG_ORIGINS);

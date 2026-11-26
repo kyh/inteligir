@@ -2,7 +2,7 @@ import { db } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
 import { and, eq, ne } from "drizzle-orm";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { drainJobs } from "../jobs/drain-jobs";
 import { JOB_RUNS } from "../jobs/job-kinds";
@@ -10,6 +10,7 @@ import { mintLibraryId } from "../library/library-ids";
 import { readItemWhole } from "../library/library-rows";
 import { personalLibrary } from "../test-support/library.fixture";
 import { keepFile } from "./keep-file";
+import { transcriptParagraphs } from "./image-text";
 import { pdfParagraphs } from "./pdf-text";
 
 const pageOf = (lines: readonly string[]) =>
@@ -51,9 +52,14 @@ const pdfOf = (pages: readonly (readonly string[])[]) => {
 
 const PAPER = pdfOf([["Herons wade the marsh at dawn"], ["Tidal flats feed the colony"]]);
 
-const savedPdf = async (bytes: Uint8Array) => {
+const PNG = Uint8Array.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1,
+  0, 0, 0, 1, 8, 6, 0, 0, 0,
+]);
+
+const savedFile = async (bytes: Uint8Array, mime: string, name: string) => {
   const { accountId, library } = await personalLibrary();
-  const kept = await keepFile({ accountId, actor: { kind: "fill" } }, bytes, "application/pdf");
+  const kept = await keepFile({ accountId, actor: { kind: "fill" } }, bytes, mime);
 
   if (!kept.ok) {
     throw new Error("the PDF was not kept");
@@ -63,7 +69,7 @@ const savedPdf = async (bytes: Uint8Array) => {
   const id = mintLibraryId(savedAt);
   await library.items.createFile({
     id,
-    name: "field-notes.pdf",
+    name,
     parentId: null,
     savedAt,
     sha: kept.value,
@@ -73,8 +79,21 @@ const savedPdf = async (bytes: Uint8Array) => {
   return { accountId, id, library };
 };
 
+const savedPdf = async (bytes: Uint8Array) =>
+  await savedFile(bytes, "application/pdf", "field-notes.pdf");
+
 const drained = async (accountId: string) =>
   await drainJobs({ accountId, budgetMs: 10_000, runs: JOB_RUNS });
+
+describe("a picture's transcript", () => {
+  it("keeps each paragraph on one line, and none for a picture with no words", () => {
+    expect(transcriptParagraphs("Quarterly plan\n\nShip the\nexport  by Friday\n")).toStrictEqual([
+      "Quarterly plan",
+      "Ship the export by Friday",
+    ]);
+    expect(transcriptParagraphs(" NO TEXT\n")).toStrictEqual([]);
+  });
+});
 
 dbSuite("a PDF's text", () => {
   it("reads each page's words as paragraphs", async () => {
@@ -158,5 +177,14 @@ dbSuite("a PDF's text", () => {
       { block: { children: [{ text: "Herons wade the marsh at dawn" }] } },
       { block: { children: [{ text: "Tidal flats feed the colony" }] } },
     ]);
+  });
+
+  it("reads no picture's words without a model to read them, and leaves it as it was", async () => {
+    const { accountId, id } = await savedFile(PNG, "image/png", "screenshot.png");
+    const before = await readItemWhole(db, accountId, id);
+
+    expect(before?.item.fields.kind).toBe("image");
+    await expect(drained(accountId)).resolves.toMatchObject({ failed: 0, ran: 1 });
+    await expect(readItemWhole(db, accountId, id)).resolves.toStrictEqual(before);
   });
 });
