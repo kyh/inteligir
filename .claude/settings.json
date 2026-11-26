@@ -3,8 +3,6 @@
   "permissions": {
     "allow": [
       "Bash(pnpm install:*)",
-      "Bash(pnpm verify)",
-      "Bash(pnpm verify:affected)",
       "Bash(pnpm typecheck)",
       "Bash(pnpm lint)",
       "Bash(pnpm lint:fix)",
@@ -14,10 +12,6 @@
       "Bash(pnpm build:*)",
       "Bash(pnpm knip)",
       "Bash(pnpm e2e:*)",
-      "Bash(pnpm dev)",
-      "Bash(pnpm dev:web)",
-      "Bash(pnpm dev:extension)",
-      "Bash(pnpm dev:mobile)",
       "Bash(pnpm bootstrap:*)",
       "Bash(pnpm smoke)",
       "Bash(pnpm --filter @repo/db status)",
@@ -31,14 +25,18 @@
       "Bash(pnpm exec oxfmt:*)",
       "Bash(pnpm exec vitest:*)",
       "Bash(pnpm exec playwright:*)",
-      "Bash(agent-browser:*)"
+      "Bash(agent-browser:*)",
+      "Bash(pnpm verify:*)",
+      "Bash(pnpm dev:*)"
     ],
     "deny": [
       "Bash(pnpm * push:remote*)",
       "Bash(pnpm * studio:remote*)",
       "Bash(pnpm push:remote*)",
       "Bash(pnpm studio:remote*)",
-      "Read(.env.production*)"
+      "Read(.env.production*)",
+      "Bash(pnpm db:push-remote:*)",
+      "Bash(pnpm * db:push-remote:*)"
     ]
   },
   "hooks": {
