@@ -447,6 +447,11 @@ note under the editor's content policy; what it cannot run is below.
 - **A saved page files itself** on a deployment with the gateway: within a
   minute a link saved to Unsorted shows a summary on its card and moves into a
   folder it clearly fits, and a screenshot's words show beside it.
+- **The inteligir command** against production: `inteligir sign-in` opens the
+  browser, the consent page warns it is an app on this computer, and once
+  allowed `inteligir tools` lists the tools and `inteligir search_library
+  query=…` answers JSON; Disconnect in Settings makes the next call ask for a
+  sign-in.
 - **Your own Anthropic key**, on a deployment with the gateway: saved in
   Settings › Account, the agent answers, Settings shows 199 turns left after
   one, and the turn's tokens appear on that key's Anthropic console, not the

@@ -75,6 +75,7 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
 apps/web               * the one Next.js app: the site, the cloud's routes, crons and health check, the built-in agent (agent/); the library tab (src/library *)
 apps/desktop           * the Mac app: an Electron window on the site's /library, its origin pin, menu and updater
 apps/mobile            * the iPhone app: native lists, the share sheet, the editor in an Expo DOM component
+apps/cli               * the `inteligir` command: a thin client of the connector, signing in by OAuth with PKCE
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
 packages/service       * the cloud's code apps/web serves: accounts, /v1, the library, files, jobs, the fill, the connector, the agent's tools and limits
@@ -87,8 +88,9 @@ tools/repo-guards      * the fitness test over the repo's product words
 tools/e2e                the Playwright flows `pnpm e2e` runs, one next start and its agent per worker on its own database
 ```
 
-`*` marks a `CLAUDE.md` holding the workspace's decisions. The product has no
-command line: drive the site in a browser, `/v1` with curl.
+`*` marks a `CLAUDE.md` holding the workspace's decisions. The product's only
+command line is `inteligir`, the connector's tools as commands (`pnpm cli
+tools` from the repo); drive the site in a browser, `/v1` with curl.
 
 ## Quickstart
 
@@ -154,6 +156,7 @@ production, which waits for CI and for `pnpm smoke` against the deployment
 | Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; `site`; the service's suites                                                   |
 | Library tab     | `pnpm dev:web`       | **Yes**: `account`, `library`, `search`, `editor`, `note-links`, `saved-note`, `saving`, `import`, `export` |
 | Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; `connector`                                        |
+| Command line    | `pnpm cli`           | **Yes**: its suites; `connector` signs it in and calls the tools                                            |
 | Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: `agent-panel`, `agent-context`                                              |
 | Mac app         | `pnpm dev`           | **Its shell and engine**: its vitest suites; Chromium's flows; the window needs a human                     |
 | Extension       | `pnpm dev:extension` | **Yes, in Chromium**: its suites; `extension`                                                               |

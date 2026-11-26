@@ -11,7 +11,14 @@ import type {
 } from "@modelcontextprotocol/client";
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import { defaultTransport, run } from "@repo/cli/commands";
+import type { Io } from "@repo/cli/commands";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
+import { deferred } from "@repo/contract/deferred";
 import { z } from "zod";
 import { openLibrary, signInOnSite, test } from "./app.fixture";
 import type { Account, Cloud } from "./app.fixture";
@@ -304,4 +311,66 @@ test("an assistant finds the sign-in from the connector, registers, is allowed o
   await expect(probe(connector, reader.token())).resolves.toMatchObject({ status: 200 });
   await claude.client.close();
   await reader.client.close();
+});
+
+interface Said {
+  readonly err: string[];
+  readonly out: string[];
+}
+
+test("the inteligir command signs in on the consent page, works the library by the connector's tools, refreshes its token and signs out", async ({
+  account,
+  cloud,
+  context,
+  page,
+}) => {
+  const opened = deferred<URL>();
+  const said: Said = { err: [], out: [] };
+
+  const io: Io = {
+    env: { XDG_CONFIG_HOME: await mkdtemp(path.join(tmpdir(), "inteligir-cli-")) },
+    err: (text) => {
+      said.err.push(text);
+    },
+    open: (url) => {
+      opened.resolve(url);
+    },
+    out: (text) => {
+      said.out.push(text);
+    },
+    transport: defaultTransport,
+  };
+
+  await context.clearCookies();
+  const signing = run(io, ["sign-in", "--site", cloud.origin]);
+  const consent = await opened.promise;
+  await page.goto(consent.href);
+  await signInOnSite(page, account);
+  await expect(
+    page.getByRole("heading", {
+      name: "Allow Inteligir on the command line to read and change your library?",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("note")).toContainText("an app on this computer");
+  await page.getByRole("button", { name: "Allow", exact: true }).click();
+  await expect(page.getByText("Signed in. You can close this tab.")).toBeVisible();
+  await expect(signing).resolves.toBe(0);
+  expect(said.out).toStrictEqual([`Signed in to ${new URL(cloud.origin).origin}.`]);
+
+  await expect(run(io, ["tools"])).resolves.toBe(0);
+  expect(said.out).toContainEqual(expect.stringMatching(/^search_library\s+Searches/u));
+  await expect(
+    run(io, ["create_note", "title=Typed at a prompt", "markdown=The quick brown fox."]),
+  ).resolves.toBe(0);
+  await expect(run(io, ["search_library", "query=quick fox"])).resolves.toBe(0);
+  expect(JSON.parse(said.out.at(-1) ?? "")).toMatchObject({
+    hits: [{ title: "Typed at a prompt" }],
+  });
+
+  await cloud.sql`update oauth_access_token set expires_at = now() - interval '1 minute'`;
+  await expect(run(io, ["list_tags_and_folders"])).resolves.toBe(0);
+
+  await expect(run(io, ["sign-out"])).resolves.toBe(0);
+  await expect(run(io, ["tools"])).resolves.toBe(2);
+  expect(said.err.at(-1)).toBe("You're signed out. Run `inteligir sign-in` first.");
 });

@@ -16,6 +16,7 @@
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@playwright/test": "catalog:",
+    "@repo/cli": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@types/node": "catalog:",
