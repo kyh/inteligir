@@ -20,7 +20,7 @@ carries, and updates.
   "Inteligir (Dev)", with its own user data folder, so its cookie and storage are never the
   release's. `apps/desktop/src/main/index.ts`.
 - **The renderer is a web page and nothing more**: `contextIsolation`, `sandbox`, no node, no
-  webview, no second window. The preload exposes `window.desktopBridge` only on the site's origin,
+  webview, no second window. The preload exposes `window.desktopBridge`, one function per command and event, only on the site's origin,
   and main answers a command only from the window's top frame on that origin.
   `apps/desktop/src/preload/index.ts`, `apps/desktop/src/main/index.ts`.
 - **Every web contents is pinned to the site's origin, compared by its parts.** A prefix compare lets

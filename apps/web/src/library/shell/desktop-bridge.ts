@@ -38,9 +38,13 @@ const read = (from: string, parsed: z.ZodSafeParseResult<DesktopUpdateState>) =>
 
 interface NativeBridge {
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- the preload's answers arrive unparsed; ask parses each one
-  readonly invoke: (command: string) => Promise<unknown>;
+  readonly checkForUpdates: () => Promise<unknown>;
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- as above
+  readonly downloadUpdate: () => Promise<unknown>;
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- as above
+  readonly installUpdate: () => Promise<unknown>;
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the preload's events arrive unparsed; the listener parses each one
-  readonly on: (event: string, listener: (payload: unknown) => void) => () => void;
+  readonly onUpdateState: (listener: (payload: unknown) => void) => () => void;
 }
 
 declare global {
@@ -52,36 +56,40 @@ declare global {
 const isNativeBridge = (value: unknown): value is NativeBridge =>
   typeof value === "object" &&
   value !== null &&
-  "invoke" in value &&
-  typeof value.invoke === "function" &&
-  "on" in value &&
-  typeof value.on === "function";
+  "checkForUpdates" in value &&
+  typeof value.checkForUpdates === "function" &&
+  "downloadUpdate" in value &&
+  typeof value.downloadUpdate === "function" &&
+  "installUpdate" in value &&
+  typeof value.installUpdate === "function" &&
+  "onUpdateState" in value &&
+  typeof value.onUpdateState === "function";
 
-const bridgeOf = (native: NativeBridge) => {
-  const ask = async (command: string) => {
-    try {
-      return read(command, updateStateSchema.safeParse(await native.invoke(command)));
-    } catch (error) {
-      console.warn(`[desktop] the shell refused ${command}`, error);
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- the preload's answer arrives unparsed; ask parses it
+const ask = async (command: string, call: () => Promise<unknown>) => {
+  try {
+    return read(command, updateStateSchema.safeParse(await call()));
+  } catch (error) {
+    console.warn(`[desktop] the shell refused ${command}`, error);
 
-      return null;
-    }
-  };
+    return null;
+  }
+};
 
-  return {
-    checkForUpdates: async () => await ask("check-for-updates"),
-    downloadUpdate: async () => await ask("download-update"),
-    installUpdate: async () => await ask("install-update"),
+const bridgeOf = (native: NativeBridge) =>
+  ({
+    checkForUpdates: async () => await ask("check-for-updates", native.checkForUpdates),
+    downloadUpdate: async () => await ask("download-update", native.downloadUpdate),
+    installUpdate: async () => await ask("install-update", native.installUpdate),
     onUpdateState: (listener) =>
-      native.on("update-state", (payload) => {
+      native.onUpdateState((payload) => {
         const state = read("update-state", updateStateSchema.safeParse(payload));
 
         if (state !== null) {
           listener(state);
         }
       }),
-  } satisfies DesktopBridge;
-};
+  }) satisfies DesktopBridge;
 
 /** The Mac app's shell (apps/desktop, its preload's `desktopBridge`), or null in a browser tab. */
 export const desktopBridge = () => {

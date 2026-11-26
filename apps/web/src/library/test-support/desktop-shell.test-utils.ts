@@ -13,17 +13,21 @@ export const underShell = (answer: (command: string) => unknown) => {
   const asked: string[] = [];
   const listeners = new Map<string, Set<Listener>>();
 
-  vi.stubGlobal("desktopBridge", {
-    invoke: async (command: string) => {
-      asked.push(command);
+  const ask = async (command: string) => {
+    asked.push(command);
 
-      return await Promise.resolve().then(() => answer(command));
-    },
-    on: (event: string, listener: Listener) => {
-      const heard = listeners.get(event) ?? new Set<Listener>();
+    return await Promise.resolve().then(() => answer(command));
+  };
+
+  vi.stubGlobal("desktopBridge", {
+    checkForUpdates: async () => await ask("check-for-updates"),
+    downloadUpdate: async () => await ask("download-update"),
+    installUpdate: async () => await ask("install-update"),
+    onUpdateState: (listener: Listener) => {
+      const heard = listeners.get("update-state") ?? new Set<Listener>();
 
       heard.add(listener);
-      listeners.set(event, heard);
+      listeners.set("update-state", heard);
 
       return () => {
         heard.delete(listener);
