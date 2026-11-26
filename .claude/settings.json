@@ -11,7 +11,6 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm build:*)",
       "Bash(pnpm knip)",
-      "Bash(pnpm e2e:*)",
       "Bash(pnpm bootstrap:*)",
       "Bash(pnpm smoke)",
       "Bash(pnpm --filter @repo/db status)",
@@ -24,7 +23,6 @@
       "Bash(pnpm exec oxlint:*)",
       "Bash(pnpm exec oxfmt:*)",
       "Bash(pnpm exec vitest:*)",
-      "Bash(pnpm exec playwright:*)",
       "Bash(agent-browser:*)",
       "Bash(pnpm verify:*)",
       "Bash(pnpm dev:*)"

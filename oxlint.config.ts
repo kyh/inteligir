@@ -215,10 +215,6 @@ export default defineConfig({
       rules: { "unicorn/filename-case": "off" },
     },
     {
-      files: ["tools/e2e/**"],
-      rules: { "no-empty-pattern": "off", "react-hooks/rules-of-hooks": "off" },
-    },
-    {
       files: [
         "packages/editor/src/nodes/diagram-preview.test.tsx",
         "packages/editor/src/typing-budget.test.tsx",

@@ -7,7 +7,7 @@ carries, and updates.
 
 - **The shell is Electron, as kyh/init's is** (owner decision). A main process, a sandboxed
   preload and what the two share, bundled by electron-vite and packed by electron-builder. Why: one
-  engine (Chromium) on every Mac, the one the e2e drives, and one shell layout across the repos.
+  engine (Chromium) on every Mac, and one shell layout across the repos.
   `apps/desktop/src/main/index.ts`.
 - **Dictation is the operating system's** (owner decision). macOS dictation types as a keyboard
   does, so the app holds no entitlement, usage description, model or socket, and every session

@@ -45,10 +45,7 @@ export const extensionManifest = (flavor: ExtensionFlavor, version: string) => {
     background: { service_worker: "background.js", type: "module" },
     commands: { _execute_action: {} },
     description: "Save the page you're on to your Inteligir library.",
-    host_permissions:
-      flavor === "dev"
-        ? ["http://127.0.0.1/*", cloudHostPattern(flavor)]
-        : [cloudHostPattern(flavor)],
+    host_permissions: [cloudHostPattern(flavor)],
     icons,
     manifest_version: 3,
     minimum_chrome_version: "148",

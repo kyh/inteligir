@@ -344,6 +344,3 @@ by Sign out.
 **vault** — Obsidian's word for its folder of notes, which an import reads
 from a zip; no product surface says it
 (`tools/repo-guards/src/product-words.test.ts`).
-
-**flow** and **spec** — a Playwright test is a flow, and its file under
-`tools/e2e/src` a spec.

@@ -30,10 +30,7 @@ pnpm build              # Build all
 pnpm typecheck          # Type check all
 pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
 pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
-pnpm verify             # The static gate (CI adds the e2e flows on top)
-pnpm e2e                # The Playwright flows, over the app's build and the extension's dev build
-pnpm e2e:webkit         # The same flows but the extension's, in WebKit; e2e:firefox in Firefox (not in CI)
-pnpm e2e:mobile         # The phone's flows: Maestro drives a Release build in the iOS simulator (a Mac; not in CI)
+pnpm verify             # The static gate (CI adds the smoke on next start on top)
 pnpm smoke              # The runtime legs a deployment passes, against the app on :5174 (SMOKE_URL for another)
 ```
 
@@ -123,8 +120,8 @@ WXT's dev loop (`wxt`), which builds the extension into
 `apps/extension/.output/chrome-mv3-dev`, rebuilds it on every change and
 reloads it in the browser; load that folder once with Load unpacked on
 `chrome://extensions` (Developer mode on). `pnpm --filter @repo/extension
-build` writes the same flavor, without the dev server, to `.output/chrome-mv3`,
-which the e2e loads. Its committed key gives the unpacked build the id
+build` writes the same flavor, without the dev server, to `.output/chrome-mv3`.
+Its committed key gives the unpacked build the id
 `EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`).
 
 THE DEV BUILD SAVES TO `pnpm dev:web`'S APP, AS WHOEVER IS SIGNED IN THERE:
@@ -134,8 +131,7 @@ port) and sends it as its bearer. Its welcome page's Sign in to Inteligir
 opens `http://localhost:5174/app/sign-in`, and signing in there is the whole of
 it. A dev build saves to a local app on another port once its storage names
 it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
-in the welcome page's console, which is how the e2e points the dev build at the
-app it boots (`tools/e2e/src/extension.test.ts`). The store builds
+in the welcome page's console. The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
 `https://inteligir.com/*` as their one host and save there alone, whatever
@@ -145,13 +141,13 @@ their storage holds.
 
 | What                                                                       | Where                                                                                                                                                                                   |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)                  | 5174 (pinned in `apps/web`'s scripts); each e2e worker's `next start` on a free port, the phone flows' on 5175                                                                          |
+| The app (`pnpm dev:web`, `pnpm --filter @repo/web start`)                  | 5174 (pinned in `apps/web`'s scripts)                                                                                                                                                   |
 | Extension dev server (`pnpm dev:extension`)                                | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)            | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
 | The extension's account (email, its cookie's SHA-256), waiting saves       | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
 | The iPhone's kept reads, the shares it waits on, its files                 | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Local Postgres (`pnpm db:start`)                                           | 54622, its transaction pooler 54629; its files in the Supabase CLI's own store, `~/.supabase/stacks`                                                                                    |
-| Accounts, sessions (every device's sign-in), invites                       | Local Postgres's `postgres` database; the suites' and the e2e's throwaway databases beside it (`wt_<name>__…`, `e2e_<run>…`)                                                            |
+| Accounts, sessions (every device's sign-in), invites                       | Local Postgres's `postgres` database; the suites' throwaway databases beside it (`wt_<name>__…`)                                                                                        |
 | Every account's library: items, bodies, search, folders, jobs, change sets | Local Postgres's `postgres` database (`packages/db/src/library-schema.ts`)                                                                                                              |
 | The built-in agent's threads, turns, events and spend                      | the same database (`packages/db/src/agent-schema.ts`); eve's own sessions, its build beside them, in `apps/web/.eve`                                                                    |
 | Connected assistants' clients, consents and tokens                         | the same database, Better Auth's OAuth provider's tables (`packages/db/src/auth-schema.ts`)                                                                                             |
@@ -189,10 +185,9 @@ type-aware pass reads the site's route types and the extension's
 CI then runs what `verify` cannot: on the schema it pushed, it runs
 `pnpm db:seed` twice, the second run having to find the dev account signing in
 and `DEV-INVITE` there, so a Better Auth change that breaks a fresh clone's
-first sign-in goes red; it installs Playwright's Chromium
-(`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
-and runs `pnpm e2e`, two Playwright workers on its four cores, so a green
-`verify` is not a green CI; run `pnpm e2e` too before claiming one. CI's
+first sign-in goes red; then it starts the build `verify` made on `next start`,
+which serves eve's agent, here on the mock model, and runs `pnpm smoke` against it
+signed in as that account, so a green `verify` is not a green CI. CI's
 `verify` covers the shell too, under node. The Mac and Windows packs run on
 GitHub only in `.github/workflows/desktop-release.yml`, unsigned, on a published
 release and by hand (`gh workflow run desktop-release.yml --ref <branch>`),
@@ -218,17 +213,3 @@ template once `TEST_POSTGRES_URL` names a server (`packages/service/README.md`
 § Testing); `@repo/web`'s are the site's under node and the library tab's under
 jsdom. A suite that reads generated types (the extension's) needs its
 workspace's `generate` first, which `turbo run` does.
-
-End-to-end: `pnpm e2e` is Playwright Test over apps/web's build and the
-extension's dev build, which turbo builds first (`tools/e2e/turbo.json`). Its
-globalSetup pushes the schema once into a template database on the server
-`POSTGRES_URL` names; each Playwright worker runs one `next start` and the agent
-eve built beside it (`apps/web/.output`) over its own clone, on a fixed set of
-variables and nothing of `.env`, the app reaching that agent at `EVE_BASE_URL`,
-and each test signs up an account by invite (`tools/e2e/src/app.fixture.ts`). It is deliberately outside
-`pnpm verify` — `tools/e2e/README.md` is the one-pager. `pnpm e2e -- <file>`
-runs one spec and `pnpm e2e -- -g <name>` the tests whose title matches;
-retries are 0, since a flaky flow is a bug. `pnpm e2e:webkit` and
-`pnpm e2e:firefox` run the same flows in Playwright's other engines, and
-`pnpm e2e:mobile` the phone's in the iOS simulator under Maestro, on a Mac;
-none runs in CI (`tools/e2e/README.md` § The phone).

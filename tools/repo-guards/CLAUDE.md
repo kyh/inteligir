@@ -52,7 +52,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `npx expo install --check` in `apps/mobile`. Why: `update.ignoreDeps` matches
   by name, and `typescript` is web's too. `pnpm-workspace.yaml`.
 - **A turbo cache key names everything its output reads.** Why: a hit replays
-  the output with no error, and the e2e and `package:*` ship it. `apps/web/turbo.json`.
+  the output with no error, and the smoke and `package:*` ship it. `apps/web/turbo.json`.
 - **A changed file counts for every task whose inputs name it**, under
   `futureFlags.affectedUsingTaskInputs`. Why: an edit to the legal texts alone
   rebuilds the site, and `verify:affected` lints and knips a change in any workspace,
@@ -65,15 +65,15 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `packages/editor/src/headless/markdown/parse-cost.test.ts`;
   @platejs/core: `packages/editor/src/typing-budget.test.tsx`; react-dom:
   `packages/editor/src/commit-selection-walk.test.tsx`; next, its react-dom:
-  `apps/web/src/library/commit-selection-walk.test.tsx`; slate-react:
-  `tools/e2e/src/editor.test.ts`).
+  `apps/web/src/library/commit-selection-walk.test.tsx`; slate-react: none
+  since the e2e went, so check a picker by hand on a bump).
 - **No type assertion, and no escape comment** (owner decision):
   `assertionStyle: "never"`, tests included. Why: a cast is a claim nothing
   checks, where a library's own guard or schema narrows. `oxlint.config.ts`.
 - **A release script is TypeScript node runs as it stands**, checked under
   `nodenext`, `erasableSyntaxOnly` and `verbatimModuleSyntax`. Why: a bad
   import fails the typecheck, not the release. `apps/desktop/scripts/tsconfig.json`.
-- **A test sits beside the module it tests, Playwright's flows included
+- **A test sits beside the module it tests
   (`*.test.ts`, never `*.spec.ts`), and shared test code in `test-support/` as
   `*.test-utils.ts`, seed data as `*.fixture.ts`, which only a suite imports.**
   Why: those names are all a config, and landmines' `colocated-tests` and
@@ -108,7 +108,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `matchMedia`, canvas, navigation, the Mac app's `window.desktopBridge`, the fake browser's missing
   APIs, a dependency's internal calls counted, and a store or session failure
   injected into a database suite. Why: no real implementation runs under
-  vitest; Playwright covers them in a browser. `oxlint.config.ts`.
+  vitest. `oxlint.config.ts`.
 - **A suite that drives its subject through the editor harness, or tests a
   stylesheet, is exempt from `colocated-tests` (`HARNESS_DRIVEN_SUITES`).**
   Why: its subject is loaded by the kit or is CSS, so no import names it.
@@ -134,8 +134,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   context's value); a string spread is allowed (it means code points),
   `instanceof Function` is allowed (anti-slop owns `typeof`), plain JS files
   turn off the unsafe-`any` rules (no program includes them), eve's two tool
-  files keep snake_case names, Playwright's `{}` fixture destructure and `use`
-  pass, and suites skip `require-await`, the unsafe-`any` rules and
+  files keep snake_case names, and suites skip `require-await`, the unsafe-`any` rules and
   `no-empty-function` (a stub is `async` to match its port, vitest types its
   matchers `any`). `oxlint.config.ts`.
 - **An icon-only button shows `@repo/ui`'s Tooltip, never the native `title`**,

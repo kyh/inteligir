@@ -56,5 +56,4 @@ pnpm --filter @repo/contract typecheck
 generator (`test-support/seeded-random.test-utils.ts`). The fake cell runs the cases in
 `test-support/cell-conformance.test-utils.ts`, which the service runs over the real cell,
 so a case added there holds both. A change to a row reaches every
-client and the cloud at once: run the service's suites and the e2e flows that
-drive it too.
+client and the cloud at once: run the service's suites and every client's.
