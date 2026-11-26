@@ -32,7 +32,7 @@ dbSuite("the wire past admission", () => {
     await signUpUser("wire-cors@example.test");
     const phone = phoneHeaders(await signInPhone("wire-cors@example.test"));
 
-    for (const origin of ["https://elsewhere.example", "tauri://localhost"]) {
+    for (const origin of ["https://elsewhere.example", "null"]) {
       const answer = await v1Post("account/devices/list", { ...phone, origin });
       expect(answer.status).toBe(200);
       expect(answer.headers.get("access-control-allow-origin"), origin).toBeNull();

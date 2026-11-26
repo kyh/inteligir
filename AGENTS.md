@@ -90,10 +90,9 @@ command line: drive the site in a browser, `/v1` with curl.
 ## Quickstart
 
 ```sh
-pnpm install
-pnpm bootstrap         # .env, local Postgres, its schema and the seeded login: no server needed, safe to run again
-pnpm dev:web           # next dev at http://localhost:5174 (pinned)
-pnpm dev               # the Mac app's window on it
+pnpm install && pnpm bootstrap --yes   # .env, local Postgres, its schema and the seeded login: no server needed, safe to run again
+pnpm dev:web                           # next dev at http://localhost:5174 (pinned)
+pnpm dev                               # the Mac app's window on it
 ```
 
 Node 24 and pnpm 12 (`corepack enable`), no Vercel or Anthropic account, no
