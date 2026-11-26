@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const importAskSchema = z.strictObject({
   file: z.instanceof(Blob),
-  source: z.enum(["raindrop", "markdown"]),
+  source: z.enum(["raindrop", "bookmarks", "markdown"]),
 });
 
 export type ImportAsk = z.infer<typeof importAskSchema>;

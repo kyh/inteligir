@@ -256,8 +256,8 @@ The apps also hold to these:
   reads the page as above, so a page only your own network reaches is not read.
   A link inside shared text is saved the same way, the words around it its note;
   other text is saved as you shared it.
-- **Importing.** The file you import (a Raindrop CSV, or a zip of notes such as
-  an Obsidian folder) is read on your device, in the window you import from;
+- **Importing.** The file you import (a Raindrop CSV, a browser's exported
+  bookmarks, or a zip of notes such as an Obsidian folder) is read on your device, in the window you import from;
   only the items it holds and the files they name go to your library. Each
   imported link is then read as above.
 - **Exporting.** Settings › Export writes every item in your library, with the

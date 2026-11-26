@@ -50,6 +50,7 @@ export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>) => {
 
 const SOURCES: readonly { source: ImportSource; label: string; accept: string }[] = [
   { accept: ".csv,text/csv", label: "Import from Raindrop…", source: "raindrop" },
+  { accept: ".html,.htm,text/html", label: "Import browser bookmarks…", source: "bookmarks" },
   { accept: ".zip,application/zip", label: "Import a zip of notes…", source: "markdown" },
 ];
 

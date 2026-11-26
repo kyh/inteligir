@@ -69,8 +69,9 @@ saves once you're back.
 
 ## Bring it in, take it out
 
-A zip of markdown notes comes in with its folders, and Raindrop bookmarks come
-in from a backup with their collections and tags. Export the library at any time: every item as a
+A zip of markdown notes comes in with its folders, Raindrop bookmarks come
+in from a backup with their collections and tags, and a browser's bookmarks come in from its
+exported file with their folders. Export the library at any time: every item as a
 markdown file in its folders, with its fields, tags and files, in a zip that imports back as the
 same items.
 
@@ -169,7 +170,7 @@ the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
 in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
 own Claude or ChatGPT can reach the same library through the connector at ${appUrl}${CONNECTOR_PATH}. It imports
-Raindrop backups and zips of markdown notes. It is open source (MIT), and shared with a small invited group; the
+Raindrop backups, a browser's exported bookmarks and zips of markdown notes. It is open source (MIT), and shared with a small invited group; the
 Mac app is for Apple silicon.
 
 ## When to use ${name}

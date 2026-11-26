@@ -1,5 +1,6 @@
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 
+import { readBookmarksHtml } from "./bookmarks-import";
 import { freshTally, ImportStoppedError } from "./import-landing";
 import type { ImportCell, ImportTally } from "./import-landing";
 import type { ImportAsk, ImportCounts, ImportNews, ImportSource } from "./import-news";
@@ -17,6 +18,7 @@ type Reader = (
 ) => Promise<void>;
 
 const READERS: Readonly<Record<ImportSource, Reader>> = {
+  bookmarks: readBookmarksHtml,
   markdown: readMarkdownZip,
   raindrop: readRaindropCsv,
 };

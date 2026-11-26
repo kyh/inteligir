@@ -308,8 +308,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   Download lands in Downloads, from an item and from a file in a note.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
-- **Import** from Settings › Import: a real Obsidian vault's zip and a Raindrop
-  CSV land, a 2 MB note in the zip is counted unreadable while the rest lands,
+- **Import** from Settings › Import: a real Obsidian vault's zip, a Raindrop
+  CSV and Chrome's and Safari's exported bookmarks land, a 2 MB note in the zip is counted unreadable while the rest lands,
   and closing the window midway then choosing the zip again adds nothing twice.
 - **Export** from Settings › Export: the zip lands in Downloads as
   `Inteligir library <date>.zip`, a library of several hundred MB exports with
