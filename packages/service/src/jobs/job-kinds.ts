@@ -1,4 +1,5 @@
 import { RELEASE_RUN } from "../files/file-release";
+import { AUTO_FILE_RUN } from "../filing/auto-file-run";
 import { FILE_TEXT_RUN } from "../files/file-text-run";
 import { FILL_RUN } from "../fill/fill-run";
 import { SWEEP_RUN } from "../library/library-sweeps";
@@ -33,6 +34,7 @@ export const leasedRun = <P>({ payload, run, tries }: JobRun<P>) =>
 export type JobRuns = { readonly [K in JobKind]: LeasedRun };
 
 export const JOB_RUNS: JobRuns = {
+  "auto-file": leasedRun(AUTO_FILE_RUN),
   "file-release": leasedRun(RELEASE_RUN),
   fill: leasedRun(FILL_RUN),
   meaning: leasedRun(MEANING_RUN),

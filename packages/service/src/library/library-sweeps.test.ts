@@ -5,7 +5,7 @@ import { paragraph } from "@repo/contract/test-support/library-items.test-utils"
 import { db } from "@repo/db/drizzle-client";
 import { item, itemTag, job, libraryState, purgedItem } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, count, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { z } from "zod";
 
@@ -16,6 +16,7 @@ import { landNewItems } from "./library-landing";
 import type { NewItem } from "./library-landing";
 import { writeLibrary } from "./library-store";
 import { sweepLotSchema } from "./library-sweeps";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const PERSON = { kind: "person" } as const;
 const SAVED_AT = 1_700_000_000_000;
@@ -203,7 +204,7 @@ dbSuite("a sweep over a scope", () => {
         db
           .select({ id: job.id })
           .from(job)
-          .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning"))),
+          .where(and(eq(job.accountId, accountId), notSettling)),
       ).resolves.toStrictEqual([]);
       await expect(headOf(accountId)).resolves.toBe(head + 2);
     },

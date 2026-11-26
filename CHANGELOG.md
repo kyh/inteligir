@@ -6,6 +6,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
+- **What you save files itself**: a page, link or file you save to Unsorted is summed up in a couple of sentences, shown on its card and in Info, then moved into the folder or list it clearly belongs in and given tags you already use, following your filing rules. Nothing moves when no folder fits, and nothing you filed yourself is touched. Turning the agent off in Settings turns this off too.
 - **Search finds the words in a screenshot or photo**: a picture you add has its words read a moment later, and when it has any they sit beside it to correct, like a PDF's; ⌘P, the agent and export read them too. Read the text again in Info reads them afresh.
 - **Fix a PDF's text beside the PDF**: open a PDF and its text sits next to it, ready to edit like a note, so a word it misread is a quick fix; search, the agent and export read what you corrected. In a narrow window the text sits under the PDF. Read the text again in Info reads it from the file afresh, replacing your edits.
 - **Find what you meant, not only what you typed**: Show every match in ⌘P now also lists items about the same thing that use other words, after the ones holding your words. Info shows up to five Related items for whatever you have open; click one to open it. An item you save or edit joins both a moment later.

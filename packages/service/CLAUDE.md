@@ -423,6 +423,17 @@ DOM (`oxlint.config.ts`).
   `again`, over the article as it stands.** A misread word is fixed where it
   reads, and a fresh read is the person's ask, so it replaces what they edited.
   `packages/service/src/library/file-text-job.ts`.
+- **A page, link or file saved one at a time asks an `auto-file` job 20 s on,
+  which waits out its reading and its file's text, then asks the gateway's
+  Claude Haiku 5.5 for a summary, one existing folder or list and up to three
+  existing tags, under the account's filing rules, while its agent is on.** A
+  save stays instant and free of a model, a folder or tag nobody made is a
+  guess the person never asked for, and an import is the person's own filing,
+  so it asks none. `packages/service/src/filing/auto-file-run.ts`.
+- **A filing moves only an item still in Unsorted, and writes its summary as
+  `description` only over the one it read.** The person filing meanwhile wins,
+  and a page's own description is a machine's guess the summary betters.
+  `packages/service/src/filing/auto-file-run.ts`.
 
 ## The built-in agent
 

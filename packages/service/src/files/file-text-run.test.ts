@@ -1,7 +1,7 @@
 import { db } from "@repo/db/drizzle-client";
 import { job } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { drainJobs } from "../jobs/drain-jobs";
@@ -12,6 +12,7 @@ import { personalLibrary } from "../test-support/library.fixture";
 import { keepFile } from "./keep-file";
 import { transcriptParagraphs } from "./image-text";
 import { pdfParagraphs } from "./pdf-text";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const pageOf = (lines: readonly string[]) =>
   lines.map((line, at) => `BT /F1 12 Tf 20 ${String(700 - at * 40)} Td (${line}) Tj ET`).join("\n");
@@ -131,7 +132,7 @@ dbSuite("a PDF's text", () => {
       db
         .select()
         .from(job)
-        .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning"))),
+        .where(and(eq(job.accountId, accountId), notSettling)),
     ).resolves.toHaveLength(0);
   });
 

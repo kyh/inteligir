@@ -14,6 +14,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { dropItemFiles, fileOf } from "./file-names";
 import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
+import { askAutoFile } from "./auto-file-job";
 import { askFills } from "./library-fills";
 import { compareText } from "@repo/contract/library/order-key";
 
@@ -56,11 +57,15 @@ export const createFile = async (scope: WriteScope, input: CreateFileInput) => {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
 
-  return await landNew(scope, {
+  const made = await landNew(scope, {
     blocks: [],
     fields: fileFields({ ...input, mime: held.mime }),
     id: input.id,
   });
+
+  await askAutoFile(scope, made.id);
+
+  return made;
 };
 
 export interface CreateNoteInput {

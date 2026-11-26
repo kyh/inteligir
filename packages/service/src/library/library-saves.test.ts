@@ -3,7 +3,7 @@ import { isOrpcError } from "@repo/contract/rpc/v1-errors";
 import { db } from "@repo/db/drizzle-client";
 import { item, job, libraryState } from "@repo/db/library-schema";
 import { dbSuite } from "@repo/db/test-database";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { env } from "../env";
@@ -11,6 +11,7 @@ import { signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import { personalLibrary, seedFile, seedItem } from "../test-support/library.fixture";
 import { extensionHeaders, v1Link } from "../test-support/v1-link.test-utils";
 import { mintLibraryId } from "./library-ids";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const SAVED_AT = 1_700_000_000_000;
 const PDF_SHA = "b".repeat(64);
@@ -56,7 +57,7 @@ const fillJobs = async (accountId: string) =>
   await db
     .select({ attempts: job.attempts, id: job.id, kind: job.kind, payload: job.payload })
     .from(job)
-    .where(and(eq(job.accountId, accountId), ne(job.kind, "meaning")))
+    .where(and(eq(job.accountId, accountId), notSettling))
     .orderBy(asc(job.id));
 
 const headOf = async (accountId: string) => {

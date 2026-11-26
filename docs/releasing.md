@@ -444,6 +444,9 @@ note under the editor's content policy; what it cannot run is below.
   20 s.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
+- **A saved page files itself** on a deployment with the gateway: within a
+  minute a link saved to Unsorted shows a summary on its card and moves into a
+  folder it clearly fits, and a screenshot's words show beside it.
 - **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
   with, and its download saves it under that name; in a wide window it sits
   left of its text, each scrolling alone, and under it in a narrow one.

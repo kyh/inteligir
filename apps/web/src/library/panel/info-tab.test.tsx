@@ -89,6 +89,16 @@ describe("Info over an item", () => {
     });
   });
 
+  it("says what an item is about when it holds a summary", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ description: "A quick miso soup.", title: "Soup" });
+    const { library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+
+    await expect(screen.findByText("A quick miso soup.")).resolves.toBeDefined();
+  });
+
   it("names a note an item is filed under by its title, under the folders that hold the note", async () => {
     const cell = createFakeCell();
     const folder = cell.seed.folder("Trips");

@@ -148,6 +148,11 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                 </Button>
               </span>
             </Row>
+            {fields.description === null ? null : (
+              <Row label="About">
+                <span className="select-text">{fields.description}</span>
+              </Row>
+            )}
             <Row label="Tags">
               <span className="flex flex-wrap items-center gap-1.5">
                 {fields.tags.map((tag) => (

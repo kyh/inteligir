@@ -17,7 +17,7 @@ import newsArticle from "@repo/page-reader/test-support/corpus/news-article.html
 import recipe from "@repo/page-reader/test-support/corpus/recipe.html?raw";
 import scriptHeavy from "@repo/page-reader/test-support/corpus/script-heavy.html?raw";
 import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 
 import { fileOf } from "../library/file-names";
@@ -39,6 +39,7 @@ import type { FillJob } from "../library/fill-job";
 import { fillRun } from "./fill-run";
 import { oembedEndpoint } from "./oembed";
 import { pageFetch } from "./page-fetch";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const CORPUS = {
   "bare-title": bareTitle,
@@ -371,7 +372,7 @@ dbSuite("a saved link's reading", () => {
       db
         .select()
         .from(job)
-        .where(and(eq(job.accountId, saved.accountId), ne(job.kind, "meaning"))),
+        .where(and(eq(job.accountId, saved.accountId), notSettling)),
     ).resolves.toStrictEqual([]);
   });
 });
