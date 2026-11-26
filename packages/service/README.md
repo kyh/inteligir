@@ -13,9 +13,10 @@ src/env.ts              every key the cloud reads, parsed once
 src/app-url.ts          the deployment's one origin: Better Auth's baseURL, llms.txt's connector
 src/rate-limit.ts       the app's own windows on Better Auth's rate_limit table
 src/auth/auth.ts        the two Better Auth instances, the session reads, the token strip
-src/auth/auth-route.ts  /api/auth/*: the six routes a client calls, a 404 to the rest
-src/auth/invite.ts      POST /api/sign-up: claim the code, forward, release on failure
-src/auth/send-email.ts  the reset mail's one transport, in EMAIL_MODE's way
+src/auth/auth-route.ts  /api/auth/*: the routes a client calls, a 404 to the rest
+src/auth/invite.ts      POST /api/sign-up/code, then /api/sign-up: claim the invite, forward, release on failure
+src/auth/send-email.ts  the sign-in code's one transport, in EMAIL_MODE's way
+src/auth/delete-account.ts account.delete: the mailed code checked by a fresh sign-in, then deleteUser
 src/auth/oauth.ts       the connector's sign-in: Better Auth's OAuth provider and cimd, PKCE
 src/mcp/connector-server.ts /connector: the library's tools to a connected assistant, its grant read each call
 src/seed.ts             pnpm db:seed: the dev account and DEV-INVITE
@@ -74,8 +75,8 @@ a page's session through `src/lib/auth-server.ts`.
 pnpm db:seed    # into the database POSTGRES_URL names (.env.local); no server needed, safe to run again
 ```
 
-It makes `dev@inteligir.local` / `password` (again, if the account is there
-under another password) and the open invite `DEV-INVITE`.
+It makes `dev@inteligir.local` and the open invite `DEV-INVITE`; the account
+signs in with a code `pnpm sign-in-code` prints, mailing nothing.
 
 ## Testing
 
@@ -83,7 +84,7 @@ One vitest project under node, with `@repo/db`'s database setup: a suite that
 reaches Postgres is a `dbSuite`, which runs only with `TEST_POSTGRES_URL` set
 (`packages/db/README.md` § Testing). The account suites hand requests to the
 route handlers themselves, each from an address of its own, with the limiter on
-and mail in log mode, where a test reads the reset link off the log.
+and mail in log mode, where a test mints a sign-in code itself (`auth/sign-in-code.ts`).
 
 ```bash
 TEST_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:54622/wt_<name> pnpm --filter @repo/service test

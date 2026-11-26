@@ -218,7 +218,7 @@ describe("/v1's error statuses", () => {
     {
       code: "INVALID_CREDENTIALS",
       data: undefined,
-      refusal: async (client) => await refusalOf(client.account.delete({ password: "password1" })),
+      refusal: async (client) => await refusalOf(client.account.delete({ code: "123456" })),
       router: {
         account: {
           delete: os.account.delete.handler(({ errors }) => {

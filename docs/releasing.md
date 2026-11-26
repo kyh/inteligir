@@ -113,9 +113,11 @@ every `.env*` out of the upload. Once:
    you read, `https://inteligir.com/privacy` as the privacy policy, and the
    Beta App Review sign-in: mint a production invite (`apps/web/README.md` §
    Invites), sign up with it at `https://inteligir.com/app/sign-up` with an
-   address you read and a long password, and give the account a link, a note
-   and a picture from `https://inteligir.com/library`. Keep the sign-in in
-   `.release/`, and give the reviewer these notes:
+   address you read, and give the account a link, a note and a picture from
+   `https://inteligir.com/library`. Sign-in is a code mailed to that address,
+   which a reviewer cannot read: send them the code when they ask (owner
+   decision pending on a standing code for the review account). Keep the
+   address in `.release/`, and give the reviewer these notes:
    > Sign in with the account above; its items are already there. What the
    > phone last read opens offline; saving and the agent need a
    > connection. A link shared from another app while offline waits on the
@@ -130,34 +132,15 @@ the fallback is a custom build, `.eas/build/production.yml`, that installs with
 
 Every push to main is a production deployment of the Vercel project
 `inteligir`, and Vercel moves the production domains to it only once its
-Deployment Checks pass: CI's `check` on the commit, and
-`Vercel - inteligir: smoke`, the status `.github/workflows/smoke.yml` sets when
-`pnpm smoke` passes against the deployment's own URL, before any domain points
-at it. Once:
+Deployment Check passes: CI's `check` on the commit, which runs `pnpm smoke`
+on `next start` against a fresh database. Once: Settings › Environments ›
+Production keeps automatic aliasing on, and Settings › Build and Deployment ›
+Deployment Checks › Add Checks › GitHub requires `check`.
 
-1. **The smoke account.** Mint a production invite (`apps/web/README.md` §
-   Invites) and sign up with it at the production `/app/sign-up` with an
-   address you read and a long random password, kept in `.release/`. It never
-   holds anything: each run's file names no item, so housekeeping lets it go a
-   day later.
-2. **Secrets.** In the project's Settings › Deployment Protection, turn on
-   Protection Bypass for Automation, then give the repo its secret and the
-   account:
-   `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET`, `gh secret set SMOKE_EMAIL`,
-   `gh secret set SMOKE_PASSWORD`. On CI a leg that cannot run fails, so a
-   missing secret fails the check rather than passing it unsigned.
-3. **The checks.** Settings › Git turns on repository dispatch events, which
-   is how Vercel sends `vercel.deployment.ready` to start the Smoke run, and
-   Settings › Environments › Production keeps automatic aliasing on. After a push whose Smoke run reported, Settings › Build and
-   Deployment › Deployment Checks › Add Checks › GitHub requires `check` and
-   `Vercel - inteligir: smoke`.
-
-Passing: a pushed commit's production deployment waits, its checks pending,
-until both pass, and only then do the production domains move to it; a run
-with a wrong `SMOKE_PASSWORD` holds the next one, which Force Promote on its
-page releases. Where the team's plan has no Deployment Checks, or they leave
-`inteligir.vercel.app` unheld, the fallback is to watch each push's Smoke run
-(`gh run list --workflow smoke.yml`) and run `vercel rollback` on a red one.
+Passing: a pushed commit's production deployment waits, its check pending,
+until it passes, and only then do the production domains move to it. Where the
+team's plan has no Deployment Checks, the fallback is to watch each push's CI
+run (`gh run list --workflow ci.yml`) and run `vercel rollback` on a red one.
 
 ## 1. Version and changelog
 
@@ -208,12 +191,11 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    lines, each of which skips what is there. Read any drop or recreate in it
    (`packages/db/CLAUDE.md` § Postgres), then `pnpm db:push-remote`; a second
    `--explain` plans nothing. Every push to main deploys at once, so a commit
-   that reads a new schema lands after this push, or its deployment fails
-   smoke.
+   that reads a new schema lands after this push, or its deployment fails.
 
 2. **The cloud.** The release commit's production deployment passed its checks
-   and serves the domains (`gh run list --workflow smoke.yml` shows its Smoke
-   run green), and it answers as itself:
+   and serves the domains (`gh run list --workflow ci.yml` shows its CI run
+   green), and it answers as itself:
 
    ```sh
    curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+mobile' \
@@ -266,8 +248,8 @@ production.
 - **Files**: the project's Blob store, `inteligir-files`, is private and
   connected to Production, Preview and Development, each holding its
   `BLOB_READ_WRITE_TOKEN`; the store's contract passes given that key
-  (`packages/service/README.md` § Testing); `pnpm smoke` with `SMOKE_URL`, a
-  login and `VERCEL_AUTOMATION_BYPASS_SECRET` passes its file leg; a 100 MB
+  (`packages/service/README.md` § Testing); `pnpm smoke` against a local
+  `next start` holding that key passes its file leg; a 100 MB
   file uploads and reads back a `bytes=0-9` range as 206, and a PDF dropped
   into `/library` draws in its frame; a `library.files.reserve`, a PUT of bytes
   hashing to another sha, then `settle` answers 400 and leaves nothing in the
@@ -419,8 +401,9 @@ Nothing drives the phone headless; check these by hand.
 
 ### The site
 
-- **A password reset** mailed on production signs every device out, and a
-  reset or sign-up started from the consent page lands back there.
+- **A sign-in code** mailed on production arrives through Resend within a
+  minute, and a sign-in or sign-up started from the consent page lands back
+  there.
 - **Notices**: on production, the home page's Licenses and Settings › About's
   open `/licenses.md`, and each vendored text it links answers.
 - **Share cards** for /about and /privacy in a chat app; `apps/web/public/og.jpg`
@@ -540,7 +523,7 @@ Only once every check in § 5 has passed, and the three close together.
 2. **The phone's cohort.** Add the build to the `Cohort` group with its What
    to Test, in the words a tester reads:
 
-   > Sign in with your Inteligir account's email and password. Your library
+   > Sign in with your Inteligir account's email and the code we email you. Your library
    > arrives, and what you last read opens offline. Save a link from the share
    > sheet, write a note on your Mac and read it here, and add a photo. Take a
    > screenshot to send us feedback.

@@ -23,6 +23,9 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Deleting a folder deletes the folders and lists inside it**, which Deleted lists and restores; the notes and saved things in it show in Unsorted.
 - **What another device changed shows in about a second**, not up to 15 seconds later: a save, move, tag or delete made elsewhere appears in the window or app you have in front almost at once.
 - **The Mac app, the iPhone app and the extension wear Inteligir's I**, the mark on inteligir.com's tab, which follows the Dock's and the Home Screen's dark, tinted and clear looks on macOS 26 and iOS 26 or later.
+- **Sign in with a code we email you, not a password**: enter your email, then the six digits from the email, on the website, the Mac app and your iPhone. Your password no longer signs you in and there is nothing to reset; devices already signed in stay signed in.
+- **Creating an account emails you a code too**: fill in your name, email and invite code, then enter the code we send.
+- **Deleting your account asks for a code we email you** instead of your password.
 
 ## 0.7.0 — 2026-11-20
 

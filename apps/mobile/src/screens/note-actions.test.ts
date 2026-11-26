@@ -52,7 +52,7 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
   });
 
   await runtime.start();
-  await runtime.login.login({ email: "ada@example.com", password: "a long password" });
+  await runtime.login.login({ code: "123456", email: "ada@example.com" });
   const session = runtime.session.get();
 
   if (session.kind !== "signed-in") {

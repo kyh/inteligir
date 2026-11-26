@@ -18,7 +18,7 @@ import { composeRuntime, COPY_NOT_CLEARED, SIGNED_OUT_ELSEWHERE } from "./compos
 import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
 import { nextTask } from "../test-support/async.test-utils";
 
-const SIGN_IN = { email: "ada@example.com", password: "a long password" };
+const SIGN_IN = { code: "123456", email: "ada@example.com" };
 
 const PAGE = "https://example.com/later";
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";

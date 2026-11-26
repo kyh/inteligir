@@ -1,5 +1,6 @@
 import { createAuthClient } from "better-auth/client";
 import type { BetterAuthClientPlugin } from "better-auth/client";
+import { emailOTPClient } from "better-auth/client/plugins";
 import type { JsonValue } from "@repo/contract/library/canonical-json";
 import { describe, expect, it } from "vitest";
 import { deferred } from "@repo/contract/deferred";
@@ -51,7 +52,7 @@ const phoneOver = (answers: Record<string, Answer>) => {
         return await answer();
       },
     },
-    plugins: [keychain],
+    plugins: [emailOTPClient(), keychain],
   });
 
   return { asked, auth: phoneAuthOver(client, CLOUD), jar };
@@ -63,61 +64,78 @@ const unreachable: Answer = async () => {
 };
 
 describe("the phone's sign-in over Better Auth's client", () => {
-  it("is signed in on the cloud's yes, refused with its status and sentence, and unreachable on no answer", async () => {
-    const yes = phoneOver({ "/api/auth/sign-in/email": json(200, { token: "t", user: {} }) });
+  it("is signed in on the cloud's yes, refused with its status, code and sentence, and unreachable on no answer", async () => {
+    const yes = phoneOver({ "/api/auth/sign-in/email-otp": json(200, { token: "t", user: {} }) });
     await expect(
-      yes.auth.signIn({ email: "ada@example.com", password: "pw" }),
-    ).resolves.toStrictEqual({
-      kind: "signed-in",
-    });
+      yes.auth.signIn({ code: "123456", email: "ada@example.com" }),
+    ).resolves.toStrictEqual({ kind: "accepted" });
     expect(yes.asked).toStrictEqual([
       {
-        body: JSON.stringify({ email: "ada@example.com", password: "pw" }),
-        path: "/api/auth/sign-in/email",
+        body: JSON.stringify({ email: "ada@example.com", otp: "123456" }),
+        path: "/api/auth/sign-in/email-otp",
       },
     ]);
 
     const no = phoneOver({
-      "/api/auth/sign-in/email": json(401, {
-        code: "INVALID_EMAIL_OR_PASSWORD",
-        message: "Invalid email or password",
-      }),
+      "/api/auth/sign-in/email-otp": json(400, { code: "INVALID_OTP", message: "Invalid OTP" }),
     });
 
     await expect(
-      no.auth.signIn({ email: "ada@example.com", password: "pw" }),
+      no.auth.signIn({ code: "123456", email: "ada@example.com" }),
     ).resolves.toStrictEqual({
+      code: "INVALID_OTP",
       kind: "refused",
-      message: "Invalid email or password",
-      status: 401,
+      message: "Invalid OTP",
+      status: 400,
     });
 
-    const away = phoneOver({ "/api/auth/sign-in/email": unreachable });
+    const away = phoneOver({ "/api/auth/sign-in/email-otp": unreachable });
     await expect(
-      away.auth.signIn({ email: "ada@example.com", password: "pw" }),
-    ).resolves.toStrictEqual({
-      kind: "unreachable",
+      away.auth.signIn({ code: "123456", email: "ada@example.com" }),
+    ).resolves.toStrictEqual({ kind: "unreachable" });
+  });
+
+  it("asks Better Auth for a sign-in code", async () => {
+    const phone = phoneOver({
+      "/api/auth/email-otp/send-verification-otp": json(200, { success: true }),
     });
+
+    await expect(phone.auth.sendSignInCode("ada@example.com")).resolves.toStrictEqual({
+      kind: "accepted",
+    });
+    expect(phone.asked).toStrictEqual([
+      {
+        body: JSON.stringify({ email: "ada@example.com", type: "sign-in" }),
+        path: "/api/auth/email-otp/send-verification-otp",
+      },
+    ]);
   });
 
   it("makes an account through the invite gate, beside Better Auth's own routes", async () => {
-    const request = {
-      email: "ada@example.com",
-      inviteCode: "INVITE-1",
-      name: "Ada",
-      password: "pw",
-    };
+    const asking = { email: "ada@example.com", inviteCode: "INVITE-1" };
+    const request = { ...asking, code: "123456", name: "Ada" };
 
     const gate = phoneOver({
-      "/api/sign-up": json(403, { message: "That invite code doesn't work." }),
+      "/api/sign-up": json(400, { message: "That code didn't work. Check it, or send a new one." }),
+      "/api/sign-up/code": json(403, { message: "That invite code doesn't work." }),
     });
 
-    await expect(gate.auth.signUp(request)).resolves.toStrictEqual({
+    await expect(gate.auth.sendSignUpCode(asking)).resolves.toStrictEqual({
+      code: null,
       kind: "refused",
       message: "That invite code doesn't work.",
       status: 403,
     });
-    expect(gate.asked).toStrictEqual([{ body: JSON.stringify(request), path: "/api/sign-up" }]);
+    await expect(gate.auth.signUp(request)).resolves.toStrictEqual({
+      code: null,
+      kind: "refused",
+      message: "That code didn't work. Check it, or send a new one.",
+      status: 400,
+    });
+    expect(gate.asked).toStrictEqual([
+      { body: JSON.stringify(asking), path: "/api/sign-up/code" },
+      { body: JSON.stringify(request), path: "/api/sign-up" },
+    ]);
   });
 
   it("reads the kept session, and none once it is gone", async () => {

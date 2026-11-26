@@ -1,5 +1,5 @@
-import type { SignUpRequest } from "@repo/contract/account/account-schema";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
+import type { SignUpCodeRequest, SignUpRequest } from "@repo/contract/account/account-schema";
+import { SIGN_IN_CODE_LENGTH, signInCodeRefusal } from "@repo/contract/account/account-schema";
 import { z } from "zod";
 import type { AuthAnswer, PhoneAuth } from "../auth/phone-auth";
 import { messageOf } from "../lib/error-message";
@@ -11,38 +11,45 @@ export type LoginState =
   | { readonly kind: "signing-in" }
   | { readonly kind: "failed"; readonly message: string };
 
+const emailSchema = z.string().trim().pipe(z.email());
+
 const loginRequestSchema = z.strictObject({
-  email: z.string().trim().pipe(z.email()),
-  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+  code: z.string().trim().length(SIGN_IN_CODE_LENGTH).regex(/^\d+$/u),
+  email: emailSchema,
 });
 
 type LoginRequest = z.input<typeof loginRequestSchema>;
 
 export interface LoginStoreArgs {
-  readonly auth: Pick<PhoneAuth, "cookie" | "signIn" | "signOut" | "signUp">;
+  readonly auth: Pick<
+    PhoneAuth,
+    "cookie" | "sendSignInCode" | "sendSignUpCode" | "signIn" | "signOut" | "signUp"
+  >;
   readonly signedIn: () => Promise<void>;
 }
 
 export interface LoginStore extends ReadableStore<LoginState> {
+  readonly sendSignInCode: (email: string) => Promise<boolean>;
+  readonly sendSignUpCode: (request: SignUpCodeRequest) => Promise<boolean>;
   readonly login: (request: LoginRequest) => Promise<void>;
   readonly signUp: (request: SignUpRequest) => Promise<void>;
   readonly fail: (message: string) => void;
 }
 
 const DID_NOT_WORK = "That didn't work. Check your connection and try again.";
-const NOT_A_SIGN_IN = "Check your email and password.";
+const NOT_AN_EMAIL = "Check your email address.";
+const NOT_A_CODE = `Enter the ${String(SIGN_IN_CODE_LENGTH)}-digit code from the email.`;
 const NOT_KEPT = "This iPhone couldn't keep your sign-in.";
 
-const saidOf = (answer: Exclude<AuthAnswer, { kind: "signed-in" }>) => {
+const saidOf = (answer: Exclude<AuthAnswer, { kind: "accepted" }>) => {
   if (answer.kind === "unreachable") {
     return DID_NOT_WORK;
   }
 
-  if (answer.status === 401) {
-    return NOT_A_SIGN_IN;
-  }
-
-  return answer.status >= 500 || answer.message === null ? DID_NOT_WORK : answer.message;
+  return (
+    signInCodeRefusal(answer.code) ??
+    (answer.status >= 500 || answer.message === null ? DID_NOT_WORK : answer.message)
+  );
 };
 
 export const createLoginStore = (args: LoginStoreArgs) => {
@@ -57,7 +64,7 @@ export const createLoginStore = (args: LoginStoreArgs) => {
     state.set({ kind: "signing-in" });
     const answer = await ask();
 
-    if (answer.kind !== "signed-in") {
+    if (answer.kind !== "accepted") {
       state.set({ kind: "failed", message: saidOf(answer) });
 
       return;
@@ -87,6 +94,25 @@ export const createLoginStore = (args: LoginStoreArgs) => {
     }
   };
 
+  const send = async (ask: () => Promise<AuthAnswer>) => {
+    if (state.get().kind === "signing-in") {
+      return false;
+    }
+
+    state.set({ kind: "signing-in" });
+    const answer = await ask();
+
+    if (answer.kind !== "accepted") {
+      state.set({ kind: "failed", message: saidOf(answer) });
+
+      return false;
+    }
+
+    state.set({ kind: "idle" });
+
+    return true;
+  };
+
   return {
     fail(message) {
       state.set({ kind: "failed", message });
@@ -100,13 +126,29 @@ export const createLoginStore = (args: LoginStoreArgs) => {
       const asked = loginRequestSchema.safeParse(request);
 
       if (!asked.success) {
-        state.set({ kind: "failed", message: NOT_A_SIGN_IN });
+        state.set({
+          kind: "failed",
+          message: emailSchema.safeParse(request.email).success ? NOT_A_CODE : NOT_AN_EMAIL,
+        });
 
         return;
       }
 
       await enter(async () => await args.auth.signIn(asked.data));
     },
+    async sendSignInCode(email) {
+      const asked = emailSchema.safeParse(email);
+
+      if (!asked.success) {
+        state.set({ kind: "failed", message: NOT_AN_EMAIL });
+
+        return false;
+      }
+
+      return await send(async () => await args.auth.sendSignInCode(asked.data));
+    },
+    sendSignUpCode: async (request) =>
+      await send(async () => await args.auth.sendSignUpCode(request)),
     async signUp(request) {
       if (state.get().kind === "signing-in") {
         return;

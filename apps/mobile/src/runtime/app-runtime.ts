@@ -2,6 +2,7 @@ import "core-js/actual/array/to-sorted";
 import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/client";
+import { emailOTPClient } from "better-auth/client/plugins";
 import { AppState, Image } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
@@ -63,6 +64,7 @@ const phoneAuth = (cloudUrl: string) =>
     createAuthClient({
       baseURL: cloudUrl,
       plugins: [
+        emailOTPClient(),
         expoClient({
           scheme: PHONE_ORIGIN.replace(/:\/\/$/u, ""),
           storage: keychainStorage(SecureStore),

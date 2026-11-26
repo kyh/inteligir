@@ -58,11 +58,11 @@ export const EMAIL_MODE = emailModeOf(env, process.env.NODE_ENV === "production"
 /** for the boot log: what the mode means for whoever runs the deployment, if anything */
 export const emailModeWarning = (mode: EmailMode, production: boolean) => {
   if (mode.kind === "off") {
-    return "This deployment sends no email: a forgotten password cannot be reset. Set EMAIL_MODE=resend with RESEND_API_KEY and EMAIL_FROM.";
+    return "This deployment sends no email, so nobody can sign in: a sign-in code is mailed. Set EMAIL_MODE=resend with RESEND_API_KEY and EMAIL_FROM.";
   }
 
   if (mode.kind === "log" && production) {
-    return "EMAIL_MODE=log writes every mail to the server's log, live reset links included.";
+    return "EMAIL_MODE=log writes every mail to the server's log, live sign-in codes included.";
   }
 
   return null;

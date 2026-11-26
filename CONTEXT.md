@@ -114,8 +114,7 @@ Connector is Claude's word for it and the product's, which never says MCP.
 (`apps/web/src/app/(auth)/connect/authorize/`); its model runs on its own
 plan, never ours. Each one is a grant, a consent on the account, which
 Settings › Account's Connected assistants lists and disconnects
-(`packages/service/src/auth/connected-assistants.ts`), and a password reset
-disconnects them all.
+(`packages/service/src/auth/connected-assistants.ts`).
 Not the **built-in agent**, though both call the same tools, and it reads as
 a guide the spec the agent's prompt holds.
 
@@ -328,8 +327,9 @@ row to **Devices**.
 the Mac app's window holds its cookie, the iPhone keeps it in the Keychain,
 and the browser extension rides its browser's. It slides with each use, an
 account holds a capped number, a sign-in past the cap ending the one used
-longest ago, and a password reset ends them all
-(`packages/service/src/auth/auth.ts`). Not a credential of our own: there is
+longest ago (`packages/service/src/auth/auth.ts`). A session starts from a
+**sign-in code**, six digits mailed to the account's address; there is no
+password. Not a credential of our own: there is
 none.
 
 **Account**, **Devices** and **Connected assistants** — Settings › Account: the

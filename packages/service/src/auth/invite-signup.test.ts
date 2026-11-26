@@ -1,19 +1,24 @@
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
+import { user } from "@repo/db/auth-schema";
+import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
-import { expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
+  askSignUpCode,
   authFetch,
   authPost,
   CALLER_IP_HEADER,
   cookieHeaderOf,
   mintCode,
+  mintSignInCode,
   ORIGIN,
-  PASSWORD,
   readCode,
   sessionOf,
+  signInWithCode,
   signUp,
+  signUpUser,
 } from "../test-support/auth-requests.test-utils";
 
 const UNLISTED_AUTH_ROUTES = [
@@ -21,149 +26,160 @@ const UNLISTED_AUTH_ROUTES = [
   ["POST", "/delete-user"],
   ["GET", "/callback/x"],
   ["POST", "/get-session"],
+  ["POST", "/sign-in/email"],
+  ["POST", "/sign-up/email"],
+  ["POST", "/request-password-reset"],
 ] as const;
 
 const INVITE_REFUSED = "That invite code doesn't work.";
+const ACCOUNT_EXISTS = "An account already uses that email. Sign in instead.";
+const CODE_REFUSED = "That code didn't work. Check it, or send a new one.";
 
 const signInBodySchema = z.looseObject({ token: z.string() });
 
-const signInAs = async (email: string) =>
-  await authPost("/sign-in/email", { origin: ORIGIN }, { email, password: PASSWORD });
+const signInAs = async (email: string) => await signInWithCode(email, { origin: ORIGIN });
+
+const accountsAt = async (email: string) =>
+  await db.select({ id: user.id }).from(user).where(eq(user.email, email));
+
+const invited = async (email: string, inviteCode: string, name = "Invited") => ({
+  code: await mintSignInCode(email),
+  email,
+  inviteCode,
+  name,
+});
 
 dbSuite("invite-gated sign-up", () => {
-  it("creates the account and burns the code", async () => {
+  it("creates the account from its mailed code and burns the invite", async () => {
     await mintCode("INVITE-OK");
 
-    const response = await signUp({
-      email: "ada@example.test",
-      inviteCode: "INVITE-OK",
-      name: "Ada",
-      password: PASSWORD,
-    });
+    const response = await signUp(await invited("ada@example.test", "INVITE-OK", "Ada"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("set-auth-token")).toBeNull();
     expect(response.headers.get("access-control-expose-headers")).toBeNull();
     expect(response.headers.getSetCookie().some((c) => c.includes("session_token="))).toBe(true);
+    const signedIn = await sessionOf({ cookie: cookieHeaderOf(response) });
+    expect(signedIn?.user).toMatchObject({ email: "ada@example.test", name: "Ada" });
 
     const row = await readCode("INVITE-OK");
     expect(row?.redeemedBy).toBe("ada@example.test");
     expect(row?.redeemedAt).not.toBeNull();
   });
 
-  it("refuses an unknown code without creating anything", async () => {
-    const response = await signUp({
-      email: "mallory@example.test",
-      inviteCode: "NO-SUCH-CODE",
-      name: "Mallory",
-      password: PASSWORD,
-    });
+  it("refuses an unknown invite without creating anything", async () => {
+    const response = await signUp(await invited("mallory@example.test", "NO-SUCH-CODE"));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ message: INVITE_REFUSED });
-
-    const signIn = await signInAs("mallory@example.test");
-    expect(signIn.status).not.toBe(200);
+    await expect(accountsAt("mallory@example.test")).resolves.toStrictEqual([]);
   });
 
-  it("refuses a code that has already been redeemed", async () => {
+  it("refuses an invite that has already been redeemed", async () => {
     await mintCode("INVITE-ONCE");
-
-    const first = await signUp({
-      email: "first@example.test",
-      inviteCode: "INVITE-ONCE",
-      name: "First",
-      password: PASSWORD,
-    });
-
+    const first = await signUp(await invited("first@example.test", "INVITE-ONCE"));
     expect(first.status).toBe(200);
 
-    const second = await signUp({
-      email: "second@example.test",
-      inviteCode: "INVITE-ONCE",
-      name: "Second",
-      password: PASSWORD,
-    });
-
+    const second = await signUp(await invited("second@example.test", "INVITE-ONCE"));
     expect(second.status).toBe(403);
     await expect(second.json()).resolves.toStrictEqual({ message: INVITE_REFUSED });
     const claimed = await readCode("INVITE-ONCE");
     expect(claimed?.redeemedBy).toBe("first@example.test");
   });
 
-  it("releases the claim when Better Auth rejects the sign-up", async () => {
-    await mintCode("INVITE-TAKEN");
+  it("refuses an address an account holds, before the invite is claimed", async () => {
+    await signUpUser("taken@example.test");
     await mintCode("INVITE-AGAIN");
-    const taken = { email: "taken@example.test", name: "Taken", password: PASSWORD };
-    const first = await signUp({ ...taken, inviteCode: "INVITE-TAKEN" });
-    expect(first.status).toBe(200);
 
-    const response = await signUp({ ...taken, inviteCode: "INVITE-AGAIN" });
-    expect(response.status).not.toBe(200);
+    const response = await signUp(await invited("Taken@Example.test", "INVITE-AGAIN"));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toStrictEqual({ message: ACCOUNT_EXISTS });
 
     const row = await readCode("INVITE-AGAIN");
     expect(row?.redeemedAt).toBeNull();
-    expect(row?.redeemedBy).toBeNull();
   });
 
-  it("refuses a password outside the contract's bounds before touching the invite", async () => {
-    await mintCode("INVITE-BOUNDS");
+  it("releases the claim when the code is wrong", async () => {
+    await mintCode("INVITE-WRONG");
+    const asked = await invited("wrong@example.test", "INVITE-WRONG");
+    const code = asked.code === "000000" ? "111111" : "000000";
 
-    for (const password of [
-      "x".repeat(PASSWORD_MIN_LENGTH - 1),
-      "x".repeat(PASSWORD_MAX_LENGTH + 1),
-    ]) {
-      const response = await signUp({
-        email: "bounds@example.test",
-        inviteCode: "INVITE-BOUNDS",
-        name: "Bounds",
-        password,
-      });
-
-      expect(response.status, String(password.length)).toBe(400);
-      await expect(response.json()).resolves.toStrictEqual({
-        message: `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
-      });
-    }
-
-    const untouched = await readCode("INVITE-BOUNDS");
-    expect(untouched?.redeemedAt).toBeNull();
-  });
-
-  it("refuses a malformed body before touching the invite", async () => {
-    await mintCode("INVITE-UNTOUCHED");
-    const response = await signUp({ inviteCode: "INVITE-UNTOUCHED" });
+    const response = await signUp({ ...asked, code });
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ message: CODE_REFUSED });
+
+    const row = await readCode("INVITE-WRONG");
+    expect(row?.redeemedAt).toBeNull();
+    expect(row?.redeemedBy).toBeNull();
+    await expect(accountsAt("wrong@example.test")).resolves.toStrictEqual([]);
+  });
+
+  it("refuses a malformed body or code before touching the invite", async () => {
+    await mintCode("INVITE-UNTOUCHED");
+
+    const malformed = await signUp({ inviteCode: "INVITE-UNTOUCHED" });
+    expect(malformed.status).toBe(400);
+
+    const shortCode = await signUp({
+      code: "123",
+      email: "short@example.test",
+      inviteCode: "INVITE-UNTOUCHED",
+      name: "Short",
+    });
+
+    expect(shortCode.status).toBe(400);
+    await expect(shortCode.json()).resolves.toStrictEqual({ message: CODE_REFUSED });
     const untouched = await readCode("INVITE-UNTOUCHED");
     expect(untouched?.redeemedAt).toBeNull();
   });
 
-  it("refuses Better Auth's own sign-up route, which takes no code", async () => {
-    const response = await authPost(
-      "/sign-up/email",
+  it("mails a code for an open invite and a new address, and spends neither", async () => {
+    await mintCode("INVITE-ASK");
+    const logged = vi.spyOn(console, "log");
+
+    const asked = await askSignUpCode({ email: "asker@example.test", inviteCode: "INVITE-ASK" });
+    expect(asked.status).toBe(200);
+    expect(logged.mock.calls.flat().join("\n")).toMatch(/\d{6} is your inteligir sign-in code/u);
+    logged.mockRestore();
+
+    const row = await readCode("INVITE-ASK");
+    expect(row?.redeemedAt).toBeNull();
+    await expect(accountsAt("asker@example.test")).resolves.toStrictEqual([]);
+  });
+
+  it("mails no code for an unknown invite or an address an account holds", async () => {
+    await signUpUser("holder@example.test");
+    await mintCode("INVITE-HOLDER");
+
+    const unknown = await askSignUpCode({ email: "x@example.test", inviteCode: "NOPE-NOPE" });
+    expect(unknown.status).toBe(403);
+
+    const held = await askSignUpCode({ email: "holder@example.test", inviteCode: "INVITE-HOLDER" });
+    expect(held.status).toBe(409);
+    await expect(held.json()).resolves.toStrictEqual({ message: ACCOUNT_EXISTS });
+  });
+
+  it("never makes an account from the public sign-in, with a code or without", async () => {
+    const logged = vi.spyOn(console, "log");
+
+    const sent = await authPost(
+      "/email-otp/send-verification-otp",
       { origin: ORIGIN },
-      { email: "eve@example.test", name: "Eve", password: PASSWORD },
+      { email: "stranger@example.test", type: "sign-in" },
     );
 
-    expect(response.status).toBe(404);
-    await expect(response.text()).resolves.toBe("not found");
+    expect(sent.status).toBe(200);
+    expect(logged.mock.calls.flat().join("\n")).not.toContain("stranger@example.test");
+    logged.mockRestore();
 
-    const signIn = await signInAs("eve@example.test");
-    expect(signIn.status).not.toBe(200);
+    const signIn = await signInAs("stranger@example.test");
+    expect(signIn.status).toBe(400);
+    await expect(accountsAt("stranger@example.test")).resolves.toStrictEqual([]);
   });
 
   it("answers 404 on a Better Auth route no client calls, even to a signed-in browser", async () => {
-    await mintCode("INVITE-SURFACE");
-
-    const signedUp = await signUp({
-      email: "surface@example.test",
-      inviteCode: "INVITE-SURFACE",
-      name: "Surface",
-      password: PASSWORD,
-    });
-
-    expect(signedUp.status).toBe(200);
-    const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
+    const { cookie } = await signUpUser("surface@example.test");
+    const headers = { cookie, origin: ORIGIN };
 
     for (const [method, path] of UNLISTED_AUTH_ROUTES) {
       const response = await authFetch(path, {
@@ -177,17 +193,8 @@ dbSuite("invite-gated sign-up", () => {
     }
   });
 
-  it("signs an invited account back in through Better Auth, into a cookie and nothing else", async () => {
-    await mintCode("INVITE-RETURNS");
-
-    const signedUp = await signUp({
-      email: "grace@example.test",
-      inviteCode: "INVITE-RETURNS",
-      name: "Grace",
-      password: PASSWORD,
-    });
-
-    expect(signedUp.status).toBe(200);
+  it("signs an invited account back in by a code, into a cookie and nothing else", async () => {
+    await signUpUser("grace@example.test");
 
     const signIn = await signInAs("grace@example.test");
     expect(signIn.status).toBe(200);
@@ -200,11 +207,11 @@ dbSuite("invite-gated sign-up", () => {
   });
 });
 
-const windowAttempt = (code: string) => ({
+const windowAttempt = (inviteCode: string) => ({
+  code: "123456",
   email: "window@example.test",
-  inviteCode: code,
+  inviteCode,
   name: "Window",
-  password: PASSWORD,
 });
 
 dbSuite("the invite gate's window", () => {

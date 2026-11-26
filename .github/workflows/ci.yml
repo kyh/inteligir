@@ -72,7 +72,7 @@ jobs:
           pnpm db:seed
           again=$(pnpm db:seed)
           echo "$again"
-          grep -qx "dev@inteligir.local: already signs in" <<< "$again"
+          grep -qx "dev@inteligir.local: already there" <<< "$again"
           grep -qx "invite DEV-INVITE: already there" <<< "$again"
 
       # the static gate a developer runs, so a local green predicts this step; turbo continues past
