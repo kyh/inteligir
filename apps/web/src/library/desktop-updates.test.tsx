@@ -22,7 +22,6 @@ const fakeBridge = (check: Ask) => {
     checkForUpdates: vi.fn<Ask>(check),
     downloadUpdate: vi.fn<Ask>(async () => ({ downloadPercent: 0, status: "downloading" })),
     installUpdate: vi.fn<Ask>(async () => AVAILABLE),
-    onQuickCapture: () => () => {},
     onUpdateState: (listener: (state: DesktopUpdateState) => void) => {
       pushes.push(listener);
 

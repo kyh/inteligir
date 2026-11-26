@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { app, clipboard, dialog, globalShortcut, ipcMain } from "electron";
+import { app, dialog, ipcMain } from "electron";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 
 import { channelOf, COMMANDS } from "../shared/bridge";
@@ -12,8 +12,6 @@ import { createMainWindow, pinNavigation, reloadWindow, showWindow } from "./win
 
 const development = !app.isPackaged;
 const APP_NAME = development ? "Inteligir (Dev)" : "Inteligir";
-const QUICK_CAPTURE = "CommandOrControl+Shift+Space";
-const CLIPBOARD_MAX = 4096;
 const SITE_URL = development ? "http://localhost:5174/library" : "https://inteligir.com/library";
 const siteOrigin = new URL(SITE_URL).origin;
 
@@ -108,24 +106,6 @@ const start = async () => {
 
   app.on("activate", reveal);
   app.on("second-instance", reveal);
-
-  const capture = async () => {
-    reveal();
-    const copied = await clipboard.readText();
-    send("quick-capture", { clipboard: copied.slice(0, CLIPBOARD_MAX) });
-  };
-
-  const captured = globalShortcut.register(QUICK_CAPTURE, () => {
-    void capture();
-  });
-
-  if (!captured) {
-    console.warn(`[desktop] ${QUICK_CAPTURE} is taken by another app, so quick capture is off`);
-  }
-
-  app.on("will-quit", () => {
-    globalShortcut.unregisterAll();
-  });
 };
 
 const run = async () => {

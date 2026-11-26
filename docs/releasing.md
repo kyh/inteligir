@@ -300,9 +300,6 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   folder opens it in the browser with the window left where it was, offline it
   says so, and View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
-- **Quick capture**: with the window closed and another app in front, copy a
-  web address and press ⌘⇧Space: the window comes forward on the saved link;
-  copy a sentence and press it again: a new note opens.
 - **Outline and find**: in a long note, a heading picked from the outline and a
   ⌘F match a screen away glide there, and one far off lands at once and stays.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,

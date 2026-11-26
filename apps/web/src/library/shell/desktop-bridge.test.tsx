@@ -115,33 +115,4 @@ describe("the Mac app's door", () => {
     expect(warned).toHaveBeenCalledOnce();
     stop();
   });
-
-  it("hands on what quick capture copied, and drops a capture it can't read", () => {
-    const bridge = underShell(() => null);
-    const warned = silenced();
-    const heard: string[] = [];
-
-    const stop = bridge.onQuickCapture(({ clipboard }) => {
-      heard.push(clipboard);
-    });
-
-    push("quick-capture", { clipboard: "https://example.com" });
-    push("quick-capture", { copied: 3 });
-    stop();
-
-    push("quick-capture", { clipboard: "after it stopped" });
-    expect(heard).toStrictEqual(["https://example.com"]);
-    expect(warned).toHaveBeenCalledOnce();
-  });
-
-  it("hears no quick capture from a shell older than it", () => {
-    vi.stubGlobal("desktopBridge", {
-      checkForUpdates: async () => await Promise.resolve(null),
-      downloadUpdate: async () => await Promise.resolve(null),
-      installUpdate: async () => await Promise.resolve(null),
-      onUpdateState: () => () => {},
-    });
-    const bridge = desktopBridge();
-    expect(bridge?.onQuickCapture(() => {})).toBeTypeOf("function");
-  });
 });

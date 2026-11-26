@@ -65,14 +65,6 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
     return { parentId: saveFolderOf(scope), tags: saveTagsOf(scope) } satisfies SaveInto;
   };
 
-  const newNote = press(async () => {
-    try {
-      goes.openItem(await verbs.createNote(into()));
-    } catch (error) {
-      toast.error(refusalText(error, "The note couldn't be made."));
-    }
-  });
-
   const saveLink = (url: string) => {
     void verbs.saveLinks([{ title: null, url }], into(), goes.openItem);
   };
@@ -152,7 +144,13 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         verbs.createFolder(name, parentId, "list");
       }
     }),
-    newNote,
+    newNote: press(async () => {
+      try {
+        goes.openItem(await verbs.createNote(into()));
+      } catch (error) {
+        toast.error(refusalText(error, "The note couldn't be made."));
+      }
+    }),
     newNoteIn: press(async (parentId: string) => {
       try {
         goes.openItem(await verbs.createNote({ parentId, tags: [] }));
@@ -213,15 +211,6 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
 
       void verbs.saveLinks(payload.urls, into(), goes.openItem);
       void verbs.addFiles(payload.files, into());
-    },
-    quickCapture: (clipboard: string) => {
-      const copied = clipboard.trim();
-
-      if (isWebUrl(copied)) {
-        saveLink(copied);
-      } else {
-        newNote();
-      }
     },
     saveLink,
     saveView: press(async () => {

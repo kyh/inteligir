@@ -139,7 +139,6 @@ export const spyCommands = () =>
     openSettings: vi.fn<LibraryCommands["openSettings"]>(),
     pin: vi.fn<LibraryCommands["pin"]>(),
     purge: vi.fn<LibraryCommands["purge"]>(),
-    quickCapture: vi.fn<LibraryCommands["quickCapture"]>(),
     refresh: vi.fn<LibraryCommands["refresh"]>(),
     remove: vi.fn<LibraryCommands["remove"]>(),
     removeView: vi.fn<LibraryCommands["removeView"]>(),

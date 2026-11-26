@@ -19,23 +19,20 @@ export const underShell = (answer: (command: string) => unknown) => {
     return await Promise.resolve().then(() => answer(command));
   };
 
-  const listen = (event: string, listener: Listener) => {
-    const heard = listeners.get(event) ?? new Set<Listener>();
-
-    heard.add(listener);
-    listeners.set(event, heard);
-
-    return () => {
-      heard.delete(listener);
-    };
-  };
-
   vi.stubGlobal("desktopBridge", {
     checkForUpdates: async () => await ask("check-for-updates"),
     downloadUpdate: async () => await ask("download-update"),
     installUpdate: async () => await ask("install-update"),
-    onQuickCapture: (listener: Listener) => listen("quick-capture", listener),
-    onUpdateState: (listener: Listener) => listen("update-state", listener),
+    onUpdateState: (listener: Listener) => {
+      const heard = listeners.get("update-state") ?? new Set<Listener>();
+
+      heard.add(listener);
+      listeners.set("update-state", heard);
+
+      return () => {
+        heard.delete(listener);
+      };
+    },
   });
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a test sends what main might, malformed too
