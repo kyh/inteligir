@@ -156,7 +156,7 @@ and no read casts.
   `packages/editor/src/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
-  `tools/e2e/src/editor.test.ts`.
+  `packages/editor/src/headless/combobox-input.ts`.
 - **Every editor of a note keeps its blocks' ids and fixes its nodes alike.** A save, a merge and a
   laid body match blocks by id, and a body one kit stores opens unchanged in another.
   `packages/editor/src/stored-kits.test.tsx`.

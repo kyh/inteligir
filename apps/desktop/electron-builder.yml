@@ -7,9 +7,6 @@ directories:
 files:
   - .output/app/**
   - package.json
-extraResources:
-  - from: resources/Assets.car
-    to: Assets.car
 forceCodeSigning: true
 electronFuses:
   runAsNode: false
@@ -23,6 +20,9 @@ mac:
   category: public.app-category.productivity
   extendInfo:
     CFBundleIconName: app
+  extraResources:
+    - from: resources/Assets.car
+      to: Assets.car
   hardenedRuntime: true
   icon: resources/icon.icns
   minimumSystemVersion: "13.5"
@@ -32,6 +32,9 @@ mac:
       arch: arm64
     - target: zip
       arch: arm64
+win:
+  icon: resources/icon.png
+  target: [nsis]
 publish:
   provider: github
   owner: kyh

@@ -183,7 +183,7 @@ On main, clean, at the commit to ship:
 ## 2. Gates
 
 ```sh
-pnpm format:fix && pnpm verify && pnpm e2e && pnpm package:desktop && pnpm package:extension
+pnpm format:fix && pnpm verify && pnpm smoke && pnpm package:desktop && pnpm package:extension
 ```
 
 `package:desktop` is `electron-vite build`, then
@@ -225,8 +225,8 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    `BETTER_AUTH_SECRET`, `CRON_SECRET`, `EMAIL_MODE=resend` with
    `RESEND_API_KEY` and `EMAIL_FROM`, `BLOB_READ_WRITE_TOKEN` and the Supabase
    integration's `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`, and none of the
-   keys `.env.example` keeps off Vercel (`AGENT_MOCK_MODEL`, `EVE_BASE_URL`,
-   `PAGE_FETCH_RELAY_URL`, `FILE_STORE_DIR`, `RATE_LIMIT_DISABLED`). The agent
+   keys `.env.example` keeps off Vercel (`AGENT_MOCK_MODEL`,
+   `FILE_STORE_DIR`, `RATE_LIMIT_DISABLED`). The agent
    reaches AI Gateway by the project's OIDC token, so no gateway key is set. A
    variable changed takes effect at the next deployment.
 
@@ -405,8 +405,7 @@ The unpacked store build, against production, with no dev build loaded.
 
 ### The iPhone app, in the simulator or a development build
 
-`pnpm e2e:mobile` signs a Release build in the simulator in and types into a
-note under the editor's content policy; what it cannot run is below.
+Nothing drives the phone headless; check these by hand.
 
 - **A release build in the simulator**: the `+native-intent` share address, a
   killed WebContent process reloading, and every screen in light and dark.

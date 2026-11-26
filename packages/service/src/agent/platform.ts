@@ -4,7 +4,6 @@ import type { ReconnectOptions, SessionStreamEvent } from "eve/client";
 import { z } from "zod";
 
 import { APP_URL } from "../app-url";
-import { env } from "../env";
 import type { EveTokenSubject } from "./eve-token";
 import { eveOperationId, mintEveToken } from "./eve-token";
 
@@ -130,13 +129,10 @@ const bypassHeaders = () => {
   return headers;
 };
 
-const agentBaseUrl = () =>
-  env.EVE_BASE_URL !== undefined && process.env.VERCEL !== "1" ? env.EVE_BASE_URL : APP_URL;
-
 const clientFor = (caller: AgentCaller, eveSessionId: string | null) =>
   new Client({
     auth: { bearer: async () => await mintEveToken({ ...caller, eveSessionId }) },
-    baseUrl: agentBaseUrl(),
+    baseUrl: APP_URL,
     headers: bypassHeaders(),
   }) satisfies Client;
 
