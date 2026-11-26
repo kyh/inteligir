@@ -24,6 +24,7 @@ const mark = z.literal(true).optional();
 export const libraryTextSchema = z.strictObject({
   bold: mark,
   code: mark,
+  highlight: mark,
   italic: mark,
   strikethrough: mark,
   text: z.string(),

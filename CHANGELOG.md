@@ -6,6 +6,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
+- **Highlight what matters**: select words in a saved page, a PDF's text or a note and press ⌘⇧H, or the highlighter in the toolbar; typing `==words==` highlights too. The agent, a connected assistant and an export see your highlights. Reading a page again replaces its text, highlights in it included.
 - **Triage with one key**: in the grid, press M to move what you selected, T to tag it, and P to pin or unpin it.
 - **Quick capture on your Mac**: press ⌘⇧Space in any app and Inteligir comes forward. A web address you just copied is saved there and then; anything else starts a new note. If another app already uses ⌘⇧Space, quick capture stays off.
 - **Bring your browser's bookmarks in**: export them from Chrome, Arc, Edge, Safari or Firefox and choose Import browser bookmarks… in Settings › Import. Each lands as a saved link in a folder named after the one it sat in, dated when you bookmarked it, with its tags; the browser's own Bookmarks bar and Other bookmarks folders are left out, and bookmarklets are skipped.

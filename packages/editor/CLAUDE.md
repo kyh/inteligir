@@ -50,6 +50,11 @@ and no read casts.
 - **The dialect has no JSX, and raw HTML is its text.** Its blocks are remark-directive containers
   and a tag is the text it spells, since an MDX tokenizer or a raw html node is a second spelling
   the editor cannot edit. `packages/editor/src/headless/markdown/md-plugins.ts`.
+- **A highlight is a mark written `:highlight[…]`; a typed `==…==` makes one, and markdown's
+  `==…==` stays text.** A directive the dialect already tokenizes and escapes keeps the mark
+  through every read and write, where `==` needs a tokenizer of its own and reads typed text as a
+  mark.
+  `packages/editor/src/headless/markdown/md-rules.ts`.
 - **The alert is the only callout, and the quote's `alert` prop is the whole of it** (owner
   decision). A quote led by `[!NOTE]` to `[!CAUTION]` reads as that alert and writes its marker on a
   line of its own; any other marker, one a write escaped, an `inteligir-callout` fence or a

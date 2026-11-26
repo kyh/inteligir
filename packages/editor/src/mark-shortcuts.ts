@@ -2,7 +2,11 @@ import { KEYS } from "platejs";
 
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 
-export type MarkShortcutAction = "toggle-bold" | "toggle-italic" | "toggle-underline";
+export type MarkShortcutAction =
+  | "toggle-bold"
+  | "toggle-highlight"
+  | "toggle-italic"
+  | "toggle-underline";
 
 export interface MarkShortcut extends EditorShortcut<MarkShortcutAction> {
   readonly mark: string;
@@ -12,6 +16,12 @@ export const MARK_SHORTCUTS: readonly MarkShortcut[] = [
   { action: "toggle-bold", hotkey: "mod+b", label: "Bold", mark: KEYS.bold },
   { action: "toggle-italic", hotkey: "mod+i", label: "Italic", mark: KEYS.italic },
   { action: "toggle-underline", hotkey: "mod+u", label: "Underline", mark: KEYS.underline },
+  {
+    action: "toggle-highlight",
+    hotkey: "mod+shift+h",
+    label: "Highlight",
+    mark: KEYS.highlight,
+  },
 ];
 
 export const markShortcut = (mark: string) =>

@@ -69,6 +69,10 @@ const readableText = (node: TextDirective) => {
       return formulaAttributesSchema.safeParse(attributes).success;
     }
 
+    case "highlight": {
+      return Object.keys(attributes).length === 0;
+    }
+
     case undefined: {
       return false;
     }

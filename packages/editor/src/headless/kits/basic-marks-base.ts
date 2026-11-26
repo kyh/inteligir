@@ -1,6 +1,7 @@
 import {
   BaseBoldPlugin,
   BaseCodePlugin,
+  BaseHighlightPlugin,
   BaseItalicPlugin,
   BaseStrikethroughPlugin,
   BaseUnderlinePlugin,
@@ -12,4 +13,5 @@ export const BasicMarksBaseKit = [
   BaseUnderlinePlugin,
   BaseStrikethroughPlugin,
   BaseCodePlugin,
+  BaseHighlightPlugin,
 ];
