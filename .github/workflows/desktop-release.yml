@@ -1,0 +1,59 @@
+name: Desktop release
+
+# The Mac app packed on a macOS runner, unsigned, kept as an artifact: on a published release and
+# by hand (`gh workflow run desktop-release.yml --ref <branch>`), never on a push or a PR, since a
+# macOS runner bills about ten times a Linux one. The signed, notarized release is the owner's
+# pack (docs/releasing.md § 2); this one holds no Developer ID and publishes nothing.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# a release's pack always finishes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  desktop:
+    name: macOS (zip)
+    runs-on: macos-latest
+    # a backstop: a cold install and pack run a few minutes
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter @repo/desktop...
+
+      - name: Test
+        working-directory: apps/desktop
+        run: pnpm test
+
+      # electron-builder directly, not `pnpm package`, which refuses a pack with no release.env;
+      # the overrides turn off the signing and notarizing electron-builder.yml asks for
+      - name: Pack
+        working-directory: apps/desktop
+        run: >-
+          pnpm build && pnpm exec electron-builder --mac zip --publish never
+          -c.forceCodeSigning=false -c.mac.identity=null -c.mac.notarize=false
+
+      - name: Keep the bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: inteligir-macOS
+          path: apps/desktop/.output/bin/*.zip
+          if-no-files-found: error

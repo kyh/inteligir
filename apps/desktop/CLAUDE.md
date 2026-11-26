@@ -34,6 +34,11 @@ carries, and updates.
   notarized.** Those are the JIT grants V8 needs and nothing more; electron-builder signs and
   notarizes the app, and the pack script notarizes and staples the dmg.
   `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/package.ts`.
+- **A macOS runner packs the app only on a release and by hand**
+  (`.github/workflows/desktop-release.yml`): unsigned, with no Developer ID, and never on a push or
+  a PR. Why: a macOS runner bills about ten times a Linux one, which spent the account's Actions
+  budget, and the shell's tests already run under node in CI's `verify`.
+  `.github/workflows/desktop-release.yml`.
 - **The .app's fuses are off for anything that runs other code as it**: running as plain Node,
   `NODE_OPTIONS`, `--inspect`, any app code but the `app.asar` whose integrity the bundle
   records, and `file://`'s extra privileges, since no page loads from a file, as Electron's
