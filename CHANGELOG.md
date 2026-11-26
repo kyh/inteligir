@@ -6,6 +6,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
+- **Search finds the words inside a PDF**: a PDF you add or save from a link has its text read a moment later, shown under it, and ⌘P, the agent and a connected assistant search and read it like a saved page. A PDF that is only pictures of pages has no text to find.
 - **Lists sit in the sidebar beside folders**: choose New list inside… on a folder for a list of its own; a folder holds folders, lists and anything else, and a list holds anything but a folder or list.
 - **A note can hold notes**, and a saved link or file can be filed under a note; a folder lists everything filed anywhere under it.
 - **The sidebar is your library's tree**: open a folder to see its lists and notes, open a note that holds notes to see them, and click a note to open it. Folders start open and stay as you leave them; your notes outside any folder follow the folders, with More in Unsorted when there are many.

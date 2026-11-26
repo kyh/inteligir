@@ -53,6 +53,7 @@ src/fill/read-page.ts        a page fetched and read by @repo/page-reader into a
 src/fill/page-fetch.ts       the guarded read: each hop's address judged, redirects, caps, a deadline
 src/fill/public-dispatcher.ts the Agent whose lookup refuses a name that resolves into private space
 src/fill/fill-landing.ts     a reading landed on an item still waiting for it
+src/files/pdf-text-run.ts    the pdf-text job: a PDF's words read after it lands, kept as its article
 src/search/search-vector.ts  an item's tsvector literal, from search-query.ts's tokenizer
 src/search/search-sql.ts     a search's two tiers, words and the literal, and each hit's passage
 src/eve/eve-agent.ts       what eve asks of the app: the library tools as the turn, the record and limits hooks

@@ -170,6 +170,8 @@ catalog:
   # addresses, where Node's global fetch runs an older undici beside it
   undici: ^8.13.1
   unified: ^11.0.5
+  # a PDF's text for search and the agent: pdf.js's serverless build, no canvas or worker
+  unpdf: ^2.2.2
   vite: ^8.3.8
   vitest: ^4.1.12
   yaml: ^2.9.1

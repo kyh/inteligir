@@ -407,6 +407,11 @@ DOM (`oxlint.config.ts`).
   before its item names it, and each device decodes it at the size it draws.**
   A cover whose item stopped waiting goes with housekeeping a day on, like any
   file no row names. `packages/service/src/fill/fill-run.ts`.
+- **A PDF's words are its article, read by a `pdf-text` job any landing asks
+  once its item holds a new PDF, and never over an article it already has.**
+  Search, the agent, find and export then read a PDF as they read a saved
+  page, whoever added it, and the parse runs after the commit, never under the
+  lock. `packages/service/src/files/pdf-text-run.ts`.
 
 ## The built-in agent
 
