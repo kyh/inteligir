@@ -31,6 +31,9 @@ type Shortcut =
       | "clear-selection"
       | "select-all"
       | "delete-selection"
+      | "move-selection"
+      | "tag-selection"
+      | "pin-selection"
     >
   | Row<"item", "back-to-library">
   | Row<"list", "previous-in-list" | "next-in-list">;
@@ -61,6 +64,9 @@ const SHORTCUTS: readonly Shortcut[] = [
   { action: "clear-selection", key: "escape", scope: "grid" },
   { action: "select-all", key: "a", mod: true, scope: "grid" },
   { action: "delete-selection", key: "backspace", mod: true, scope: "grid" },
+  { action: "move-selection", key: "m", scope: "grid" },
+  { action: "tag-selection", key: "t", scope: "grid" },
+  { action: "pin-selection", key: "p", scope: "grid" },
   { action: "back-to-library", key: "escape", scope: "item" },
   { action: "previous-in-list", key: "[", mod: true, scope: "list" },
   { action: "next-in-list", key: "]", mod: true, scope: "list" },

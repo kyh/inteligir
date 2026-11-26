@@ -97,6 +97,39 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
     }
   };
 
+  const actOnSelection = (
+    action: "delete-selection" | "move-selection" | "tag-selection" | "pin-selection",
+  ) => {
+    const subjects = selectedRows();
+    const target = targetOf(state.selected, listing, shown);
+
+    if (target === null || subjects.length === 0) {
+      return subjects.length > 0;
+    }
+
+    if (subjects.some((row) => row.fields.deletedAt !== null)) {
+      return action === "delete-selection";
+    }
+
+    if (action === "delete-selection") {
+      commands.remove(target);
+    } else if (action === "move-selection") {
+      commands.move(target);
+    } else if (action === "tag-selection") {
+      commands.tag(
+        target,
+        subjects.map((subject) => subject.fields.tags),
+      );
+    } else {
+      commands.pin(
+        target,
+        target.kind !== "ids" || subjects.some((subject) => subject.fields.pinnedAt === null),
+      );
+    }
+
+    return true;
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
 
@@ -155,16 +188,12 @@ export const LibraryGrid = ({ listing, shown, selection, onNearEnd }: LibraryGri
         return;
       }
 
-      case "delete-selection": {
-        const subjects = selectedRows();
-
-        if (subjects.length > 0) {
+      case "delete-selection":
+      case "move-selection":
+      case "tag-selection":
+      case "pin-selection": {
+        if (actOnSelection(shortcut.action)) {
           event.preventDefault();
-          const target = targetOf(state.selected, listing, shown);
-
-          if (target !== null && subjects.every((row) => row.fields.deletedAt === null)) {
-            commands.remove(target);
-          }
         }
 
         break;

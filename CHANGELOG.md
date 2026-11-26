@@ -6,6 +6,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### New
 
+- **Triage with one key**: in the grid, press M to move what you selected, T to tag it, and P to pin or unpin it.
 - **Quick capture on your Mac**: press ⌘⇧Space in any app and Inteligir comes forward. A web address you just copied is saved there and then; anything else starts a new note. If another app already uses ⌘⇧Space, quick capture stays off.
 - **Bring your browser's bookmarks in**: export them from Chrome, Arc, Edge, Safari or Firefox and choose Import browser bookmarks… in Settings › Import. Each lands as a saved link in a folder named after the one it sat in, dated when you bookmarked it, with its tags; the browser's own Bookmarks bar and Other bookmarks folders are left out, and bookmarklets are skipped.
 - **Search finds the words inside a PDF**: a PDF you add or save from a link has its text read a moment later, shown under it, and ⌘P, the agent and a connected assistant search and read it like a saved page. A PDF that is only pictures of pages has no text to find.

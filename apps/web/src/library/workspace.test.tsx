@@ -192,6 +192,33 @@ describe("a card in the grid", () => {
   });
 });
 
+describe("one-key triage", () => {
+  it("pins the selection on P, and asks where on M and which tags on T", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: NOTE });
+    await pageAt("/library", cell);
+
+    const card = await screen.findByRole("gridcell", { name: NOTE });
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: "p" });
+    await within(card).findByLabelText("Pinned");
+    await vi.waitFor(() => {
+      expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
+    });
+
+    fireEvent.keyDown(card, { key: "m" });
+    await screen.findByRole("dialog", { name: "Move to" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    fireEvent.keyDown(card, { key: "t" });
+    await screen.findByRole("dialog", { name: "Tag" });
+  });
+});
+
 describe("Empty Deleted", () => {
   it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to, one it lists none of too", async () => {
     const cell = createFakeCell();
