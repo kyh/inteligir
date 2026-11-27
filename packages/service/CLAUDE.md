@@ -127,7 +127,13 @@ DOM (`oxlint.config.ts`).
   `packages/service/src/mcp/connector-server.ts`.
 - **The MCP Registry lists the connector by the root `server.json`, naming
   `https://www.inteligir.com/mcp`.** A registry reads that file alone, so it
-  moves with the path. `server.json`.
+  moves with the path. It is published as `com.inteligir/library`, DNS-verified;
+  republish with `mcp-publisher publish` only when that metadata changes,
+  bumping `version` first (the registry refuses a republished one). A 401 means
+  logging in again with the DNS key, kept outside the repo at
+  `~/.config/inteligir/mcp-registry-ed25519.pem` on the maintainer's machine:
+  `mcp-publisher login dns --domain inteligir.com --private-key "$(openssl pkey -in <pem> -outform DER | tail -c 32 | xxd -p -c 64)"`.
+  `server.json`.
 - **A 2026-07-28 request goes to the SDK's `createMcpHandler` with `legacy:
   "reject"`, a 2025-era one to a stateless transport of ours answering JSON.**
   The SDK's own fallback (`legacy: "stateless"`) answers every 2025 call as an
