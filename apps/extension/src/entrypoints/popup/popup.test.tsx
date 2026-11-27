@@ -18,8 +18,8 @@ import { Popup, saveOpenedTab } from "./app";
 
 afterEach(cleanup);
 
-const SIGN_IN_URL = "https://inteligir.com/app/sign-in";
-const LIBRARY_URL = "https://inteligir.com/library";
+const SIGN_IN_URL = "https://www.inteligir.com/app/sign-in";
+const LIBRARY_URL = "https://www.inteligir.com/library";
 const FULL = "Your library is full.";
 
 const saved = (created: boolean) =>

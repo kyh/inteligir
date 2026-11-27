@@ -226,7 +226,7 @@ describe("the worker", () => {
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
       account: null,
-      signInUrl: "https://inteligir.com/app/sign-in",
+      signInUrl: "https://www.inteligir.com/app/sign-in",
     });
   });
 

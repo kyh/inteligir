@@ -185,8 +185,8 @@ facilitated by cookies and other technologies. The Service uses only these:
   storage on your Mac. The iPhone app keeps a session cookie of its own in the
   iPhone's Keychain, for that iPhone alone and only while it is unlocked, and
   sends it only to our cloud. The browser extension keeps no cookie of its own:
-  with the `cookies` permission for inteligir.com alone, it reads your
-  browser's inteligir.com session cookie and sends it with each save.
+  with the `cookies` permission for www.inteligir.com alone, it reads your
+  browser's www.inteligir.com session cookie and sends it with each save.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's local storage and never sends it to us; your
   library in a browser tab keeps its settings and layout there too, and the
@@ -1039,7 +1039,7 @@ personal information is transferred by contacting us at kai@kyh.io.
 
 Every call the Mac app, the phone, the browser extension, your library in a
 browser tab and our website's account pages make goes to one origin,
-`https://inteligir.com`, over HTTPS, but for a file's bytes on their way in,
+`https://www.inteligir.com`, over HTTPS, but for a file's bytes on their way in,
 and is one of these:
 
 - **Signing in and out, sessions and sign-in codes**, which Better Auth

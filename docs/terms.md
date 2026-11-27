@@ -144,7 +144,7 @@ included in the apps comes under its own license terms.
 ## 3. Privacy
 
 Your use of the Site is also governed by our Privacy Policy, which is available
-at [https://inteligir.com/privacy](https://inteligir.com/privacy) and is
+at [https://www.inteligir.com/privacy](https://www.inteligir.com/privacy) and is
 incorporated into these Terms by reference. The Privacy Policy describes the
 types of personal data and other information we collect from you or your device,
 how we use that information, and the circumstances under which we may share it
@@ -162,7 +162,7 @@ beacons, pixels, and similar tracking technologies ("**Tracking Technologies**")
 to collect information about your use of the Site. For details on what Tracking
 Technologies the Site uses, what information they collect, and how you can
 manage your preferences, please refer to the [Tracking & Other
-Technologies](https://inteligir.com/privacy#tracking--other-technologies)
+Technologies](https://www.inteligir.com/privacy#tracking--other-technologies)
 section of our Privacy Policy.
 
 ## 4. Indemnification
@@ -257,7 +257,7 @@ know what personal information we collect, the right to delete your personal
 information, the right to correct inaccurate personal information, and the right
 to opt out of the sale or sharing of your personal information. For details on
 how to exercise these rights, please see our Privacy Policy at
-[https://inteligir.com/privacy](https://inteligir.com/privacy).
+[https://www.inteligir.com/privacy](https://www.inteligir.com/privacy).
 
 9.2 **Colorado.** If you are a Colorado resident, you may have additional rights
 under the Colorado Privacy Act (CPA), including the right to opt out of the

@@ -11,5 +11,5 @@ export const siteConfig = {
   shortName: "Inteligir",
   twitter: "@kaiyuhsu",
   twitterUrl: "https://x.com/kaiyuhsu",
-  url: "https://inteligir.com",
+  url: "https://www.inteligir.com",
 };

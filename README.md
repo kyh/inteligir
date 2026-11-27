@@ -26,7 +26,7 @@ library through the connector, once you connect it.
 
 ## Get it
 
-**[Download for Mac (Apple silicon)](https://inteligir.com)**
+**[Download for Mac (Apple silicon)](https://www.inteligir.com)**
 
 What you need:
 

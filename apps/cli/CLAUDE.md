@@ -4,7 +4,7 @@ The `inteligir` command: the connector's tools as commands, for a person at a
 shell or a script. It holds no tool of its own, so the library's rows tagged a
 tool are its whole surface (`packages/service/CLAUDE.md` § The connector).
 
-- **The command is a client of `/connector` and nothing else: it lists the
+- **The command is a client of `/mcp` and nothing else: it lists the
   tools the connector serves and calls them by name, with no per-tool code.**
   A tool added to the connector reaches the command with no release of it, and
   the command does nothing an assistant can't (owner decision: a thin wrapper

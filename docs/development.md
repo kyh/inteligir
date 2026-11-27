@@ -72,7 +72,7 @@ the steps and does none of them.
 
 `pnpm dev:web` is `next dev` on 5174 over that database: the site, the account
 pages, the library tab, `/api/auth/*`, `/api/sign-up`, `/v1/rpc`, the connector
-at `/connector`, `/api/health`, and the built-in agent under `/eve/v1`, for
+at `/mcp`, `/api/health`, and the built-in agent under `/eve/v1`, for
 which `next dev` starts eve's own server. `pnpm build` then
 `pnpm --filter @repo/web start` serves the production build on the same port.
 
@@ -135,7 +135,7 @@ it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
 in the welcome page's console. The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
-`https://inteligir.com/*` as their one host and save there alone, whatever
+`https://www.inteligir.com/*` as their one host and save there alone, whatever
 their storage holds.
 
 ## Where state lives

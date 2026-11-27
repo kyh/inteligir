@@ -12,7 +12,11 @@ import { createMainWindow, pinNavigation, reloadWindow, showWindow } from "./win
 
 const development = !app.isPackaged;
 const APP_NAME = development ? "Inteligir (Dev)" : "Inteligir";
-const SITE_URL = development ? "http://localhost:5174/library" : "https://inteligir.com/library";
+
+const SITE_URL = development
+  ? "http://localhost:5174/library"
+  : "https://www.inteligir.com/library";
+
 const siteOrigin = new URL(SITE_URL).origin;
 
 let mainWindow: BrowserWindow | null = null;

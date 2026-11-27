@@ -101,7 +101,7 @@ refuses is parked with the library's words, for Try again or Let it go. The
 only writes a device keeps offline. Not a queue of edits: a save typed into an
 app, a photo and a delete each need a connection.
 
-**connector** — the library as a remote MCP server: `/connector`
+**connector** — the library as a remote MCP server: `/mcp`
 (`packages/service/src/mcp/connector-server.ts`), the library's procedures
 tagged as tools (`packages/service/src/library/library-tools.ts`), behind
 Better Auth's OAuth provider with a read-and-change scope, `library`, and a

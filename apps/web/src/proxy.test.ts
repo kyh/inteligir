@@ -60,7 +60,7 @@ describe("which requests the proxy sees", () => {
   it.each([
     "/api/health",
     "/v1/rpc/account/devices/list",
-    "/connector",
+    "/mcp",
     "/llms.txt",
     "/licenses.md",
     "/og.jpg",

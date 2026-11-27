@@ -13,7 +13,7 @@ carries, and updates.
   does, so the app holds no entitlement, usage description, model or socket, and every session
   denies every permission request and check. `apps/desktop/src/main/window.ts`.
 - **The window is the library tab the site serves** (owner decision). A release loads
-  `https://inteligir.com/library` and bundles only the shell, since offline copies would be most of
+  `https://www.inteligir.com/library` and bundles only the shell, since offline copies would be most of
   the code; the site is compiled into main, so nothing at launch moves it.
   `apps/desktop/src/main/index.ts`.
 - **A dev launch is an app of its own.** `pnpm dev` loads `http://localhost:5174/library` as
@@ -24,7 +24,7 @@ carries, and updates.
   and main answers a command only from the window's top frame on that origin.
   `apps/desktop/src/preload/index.ts`, `apps/desktop/src/main/index.ts`.
 - **Every web contents is pinned to the site's origin, compared by its parts.** A prefix compare lets
-  `https://inteligir.com.evil.example` in; any other web page opens in the browser, `window.open`
+  `https://www.inteligir.com.evil.example` in; any other web page opens in the browser, `window.open`
   opens nothing in the app, a frame loads only the site, and a download lands in Downloads.
   `apps/desktop/src/main/navigation.ts`.
 - **A quit is the system's, and the shell asks the tab nothing** (owner decision). Quit is the

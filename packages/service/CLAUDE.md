@@ -93,7 +93,7 @@ DOM (`oxlint.config.ts`).
   and a consent page of the site's own reads the signed request on the server
   and can offer read-only. `packages/service/src/auth/oauth.ts`.
 - **A token is opaque, `ito_`-prefixed, stored hashed and minted for
-  `${APP_URL}/connector` alone, and each call reads its grant again: token,
+  `${APP_URL}/mcp` alone, and each call reads its grant again: token,
   assistant and consent, its scopes those both hold.** A disconnect or a
   narrowed consent reaches a live token at once, and no token reaches another
   resource. `packages/service/src/auth/oauth-auth.ts`.
@@ -120,11 +120,14 @@ DOM (`oxlint.config.ts`).
   files is the guide for the agent, the tool and the skill, and an assistant
   that loads the skill reads only the section its edit needs.
   `packages/service/src/mcp/connector-skills.ts`.
-- **`/connector` refuses a foreign Origin before anything, then a request with
+- **`/mcp` refuses a foreign Origin before anything, then a request with
   no valid token, then one not a POST, then the grant's budget spent, a batch
   and a body past Vercel's 4.5 MB.** One request is one call of the budget, and
   a browser page can't spend a person's token.
   `packages/service/src/mcp/connector-server.ts`.
+- **The MCP Registry lists the connector by the root `server.json`, naming
+  `https://www.inteligir.com/mcp`.** A registry reads that file alone, so it
+  moves with the path. `server.json`.
 - **A 2026-07-28 request goes to the SDK's `createMcpHandler` with `legacy:
   "reject"`, a 2025-era one to a stateless transport of ours answering JSON.**
   The SDK's own fallback (`legacy: "stateless"`) answers every 2025 call as an
