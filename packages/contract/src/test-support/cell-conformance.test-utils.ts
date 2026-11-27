@@ -558,6 +558,39 @@ export const cellConformance = (withHost: WithHost) => {
       });
     });
 
+    it("keeps a PDF's saved version beside its original, takes it back, and keeps none for any other item", async () => {
+      await withLaptop(async ({ library, newId, note, upload }) => {
+        const original = await upload(bytesOf("%PDF-1.7 the original"), "application/pdf");
+        const id = newId();
+
+        await library.items.createFile({
+          id,
+          name: "invoice.pdf",
+          parentId: null,
+          savedAt: SAVED_AT,
+          sha: original,
+          tags: [],
+        });
+
+        await expect(refusalOf(library.items.saveEdited({ id, sha: SHA }))).resolves.toStrictEqual({
+          code: "BLOB_MISSING",
+          data: { shas: [SHA] },
+        });
+
+        const edited = await upload(bytesOf("%PDF-1.7 the edited"), "application/pdf");
+
+        await expect(library.items.saveEdited({ id, sha: edited })).resolves.toMatchObject({
+          item: { fields: { editedSha: edited, originalSha: original }, id },
+        });
+        await expect(library.items.saveEdited({ id, sha: null })).resolves.toMatchObject({
+          item: { fields: { editedSha: null, originalSha: original }, id },
+        });
+        await expect(
+          codeOf(library.items.saveEdited({ id: await note(["Mine."]), sha: null })),
+        ).resolves.toBe("NOT_FOUND");
+      });
+    });
+
     it("makes a note whose block names a file sent up first, and refuses one naming bytes never sent", async () => {
       await withLaptop(async ({ library, noteOf, upload }) => {
         const unsent = noteOf([]);

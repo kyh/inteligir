@@ -15,6 +15,7 @@ import {
   relativePath,
 } from "@repo/contract/knowledge/folder-path";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { shownFileSha } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";
 import type { LibrarySection } from "@repo/contract/library/library-nodes";
@@ -56,11 +57,11 @@ export const heldShas = ({
   fields,
 }: {
   readonly blocks: readonly BodyBlock[];
-  readonly fields: Pick<LibraryItemFields, "coverSha" | "originalSha">;
+  readonly fields: Pick<LibraryItemFields, "coverSha" | "editedSha" | "originalSha">;
 }) => {
   const shas = new Set<string>();
 
-  for (const sha of [fields.coverSha, fields.originalSha]) {
+  for (const sha of [fields.coverSha, shownFileSha(fields)]) {
     if (sha !== null) {
       shas.add(sha);
     }
@@ -145,7 +146,8 @@ const writeBody = (item: ExportItem, path: string, ports: ExportPorts) => {
   };
 
   const held: TElement[] = [];
-  const { coverSha, originalSha } = fields;
+  const { coverSha } = fields;
+  const originalSha = shownFileSha(fields);
 
   if (coverSha !== null && (coverSha !== originalSha || fields.kind !== "image")) {
     const cover = `${COVERS_DIR}/${fileName(coverSha, ports.typeOf(coverSha))}`;

@@ -70,6 +70,7 @@ export const item = pgTable.withRLS(
     coverSha: text("cover_sha"),
     deletedAt: ms("deleted_at"),
     description: text("description"),
+    editedSha: text("edited_sha"),
     parentId: text("parent_id"),
     id: text("id").notNull(),
     kind: itemKind("kind").notNull(),

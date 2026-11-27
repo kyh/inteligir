@@ -36,6 +36,7 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("coverSha"),
   setOf("deletedAt"),
   setOf("description"),
+  setOf("editedSha"),
   setOf("parentId"),
   setOf("kind"),
   setOf("lang"),

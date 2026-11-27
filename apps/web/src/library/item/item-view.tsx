@@ -111,7 +111,8 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const split =
     held !== null &&
     held.fields.originalSha !== null &&
-    (held.fields.kind === "pdf" || (held.fields.kind === "image" && held.card.words > 0));
+    held.fields.kind === "image" &&
+    held.card.words > 0;
 
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
@@ -160,14 +161,21 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
               <ReadingNotice fields={held.fields} />
               {split ? (
                 <p className="m-0 px-8 pt-4 text-caption text-muted-foreground">
-                  {held.fields.kind === "pdf"
-                    ? "The text read from this PDF."
-                    : "The words read from this picture."}{" "}
-                  Fix anything it misread right here.
+                  The words read from this picture. Fix anything it misread right here.
                 </p>
               ) : (
-                <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
+                <FileStage
+                  fields={held.fields}
+                  itemId={itemId}
+                  title={shownTitle(held.card.title)}
+                />
               )}
+              {held.fields.kind === "pdf" && held.fields.originalSha !== null ? (
+                <p className="m-0 px-8 pt-4 text-caption text-muted-foreground">
+                  The text read from this PDF, which search and the agent read. Saving an edit reads
+                  it again.
+                </p>
+              ) : null}
             </>
           )}
           <ItemEditor

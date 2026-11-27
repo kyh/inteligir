@@ -438,9 +438,13 @@ Nothing drives the phone headless; check these by hand.
   Settings › Account, the agent answers, Settings shows 199 turns left after
   one, and the turn's tokens appear on that key's Anthropic console, not the
   team's; a revoked key's next turn fails, and Remove brings back the allowance.
-- **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
-  with, and its download saves it under that name; in a wide window it sits
-  left of its text, each scrolling alone, and under it in a narrow one.
+- **A PDF item**, in Chrome, Safari and the Mac app: its pages draw sharp at
+  the window's width, their words select and copy, and Download saves it under
+  the name it was added with. Edit text, click a line, change a word, Save: the
+  page shows the new words where the old were, in a matching font, size and
+  colour (Chrome asks to use your fonts the first time), Download edited PDF
+  opens in Preview with the old words gone, and Revert to the original brings
+  them back; a PDF with a highlighted or coloured line keeps its background.
 - **A file of nearly 100 MB**, dropped on the grid and pasted into a note, in
   Chrome, Safari and the Mac app: the window keeps scrolling and taking typing
   until its upload starts.

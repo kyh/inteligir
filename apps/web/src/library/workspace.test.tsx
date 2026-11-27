@@ -423,7 +423,7 @@ const dropsSaves: (call: CellCall) => undefined = (call: CellCall) => {
 };
 
 describe("an open PDF or picture", () => {
-  it("shows the file beside the text read from it, which takes edits and saves like a note", async () => {
+  it("shows a PDF's pages above the text read from it, which takes edits and saves like a note", async () => {
     const cell = createFakeCell();
 
     const id = cell.seed.item({ kind: "pdf", originalSha: "a".repeat(64), title: "Paper" }, [
@@ -435,8 +435,9 @@ describe("an open PDF or picture", () => {
 
     await pageAt(`/library?item=${id}`, cell);
 
-    expect(await screen.findByLabelText("Paper")).toHaveProperty("type", "application/pdf");
-    await screen.findByText("The text read from this PDF. Fix anything it misread right here.");
+    await screen.findByRole("region", { name: "Paper" });
+    expect(screen.getByRole("button", { name: "Edit text" })).toHaveProperty("disabled", true);
+    await screen.findByText(/^The text read from this PDF, which search and the agent read\./u);
     await waitFor(() => {
       expect(document.querySelector("[data-slate-editor]")?.textContent).toContain("dwan");
     });

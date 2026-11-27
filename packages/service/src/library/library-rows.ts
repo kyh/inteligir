@@ -56,6 +56,7 @@ const FIELD_COLUMNS = {
   coverSha: item.coverSha,
   deletedAt: item.deletedAt,
   description: item.description,
+  editedSha: item.editedSha,
   parentId: item.parentId,
   kind: item.kind,
   lang: item.lang,

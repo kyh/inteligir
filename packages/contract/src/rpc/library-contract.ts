@@ -545,6 +545,11 @@ const itemsContract = {
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema, opId }))
     .output(landed),
+
+  saveEdited: signedBase
+    .errors({ [BlobMissingError.code]: BlobMissingError, [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema, opId, sha: FIELDS.editedSha }))
+    .output(landed),
 };
 
 const listingContract = {

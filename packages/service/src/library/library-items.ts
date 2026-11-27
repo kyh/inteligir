@@ -3,6 +3,7 @@ import type { OrganizeInput, ParentTarget } from "@repo/contract/library/cell-ru
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { withReading } from "@repo/contract/library/item-reading";
 import { sameJson } from "@repo/contract/library/canonical-json";
+import { shownFileSha } from "@repo/contract/library/library-item";
 import type { ListSettings } from "@repo/contract/library/library-item";
 import { NEW_LIST, renamedProperties } from "@repo/contract/library/list-settings";
 import type { PropertyRename } from "@repo/contract/library/list-settings";
@@ -251,7 +252,7 @@ export const setDeleted = async (
 
 export const refreshItem = async (scope: WriteScope, itemId: string) => {
   const held = await readItem(scope.tx, scope.accountId, itemId);
-  const fileSha = held !== null && readsText(held.fields) ? held.fields.originalSha : null;
+  const fileSha = held !== null && readsText(held.fields) ? shownFileSha(held.fields) : null;
 
   if (held !== null && held.fields.url === null && fileSha !== null) {
     await askFileTextAgain(scope, itemId, fileSha);
@@ -265,6 +266,26 @@ export const refreshItem = async (scope: WriteScope, itemId: string) => {
 
   const landed = await landFields(scope, held, withReading(held.fields, { kind: "asked" }));
   await askFills(scope, [landed]);
+
+  return landed;
+};
+
+export const saveEditedFile = async (
+  scope: WriteScope,
+  input: { readonly id: string; readonly sha: string | null },
+) => {
+  const held = await readItem(scope.tx, scope.accountId, input.id);
+
+  if (held === null || held.fields.kind !== "pdf" || held.fields.originalSha === null) {
+    return refuse({ kind: "not-found" });
+  }
+
+  const landed = await landFields(scope, held, { ...held.fields, editedSha: input.sha });
+  const shown = shownFileSha(landed.fields);
+
+  if (shown !== null && shown !== shownFileSha(held.fields)) {
+    await askFileTextAgain(scope, input.id, shown);
+  }
 
   return landed;
 };

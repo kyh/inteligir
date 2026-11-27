@@ -746,6 +746,19 @@ export const createFakeCell = () => {
         purge: os.library.items.purge.handler(({ input }) =>
           once(input.opId, purgedSchema, () => purge(input.ids)),
         ),
+        saveEdited: os.library.items.saveEdited.handler(({ input }) =>
+          once(input.opId, landedSchema, () => {
+            const { fields } = holding(input.id);
+
+            if (fields.kind !== "pdf" || fields.originalSha === null) {
+              throw new NotFoundError();
+            }
+
+            needsBlobs(input.sha === null ? [] : [input.sha]);
+
+            return landFields(input.id, { ...fields, editedSha: input.sha });
+          }),
+        ),
         refresh: os.library.items.refresh.handler(({ input }) =>
           once(input.opId, landedSchema, () => {
             const { fields } = holding(input.id);

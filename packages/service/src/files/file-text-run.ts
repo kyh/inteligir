@@ -1,3 +1,4 @@
+import { shownFileSha } from "@repo/contract/library/library-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { db } from "@repo/db/drizzle-client";
@@ -27,7 +28,7 @@ const waits = (
   whole !== null &&
   whole.item.fields.deletedAt === null &&
   (whole.item.fields.kind === "pdf" || whole.item.fields.kind === "image") &&
-  whole.item.fields.originalSha === job.sha &&
+  shownFileSha(whole.item.fields) === job.sha &&
   (job.again || !whole.blocks.some(({ section }) => section === "article"));
 
 const bytesOf = async (accountId: string, sha: string) => {

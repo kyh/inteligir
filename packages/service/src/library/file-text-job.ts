@@ -1,3 +1,4 @@
+import { shownFileSha } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
@@ -11,7 +12,7 @@ export const fileTextJobSchema = z.strictObject({
 
 export type FileTextJob = z.infer<typeof fileTextJobSchema>;
 
-type Read = Pick<LibraryItemFields, "deletedAt" | "kind" | "originalSha">;
+type Read = Pick<LibraryItemFields, "deletedAt" | "editedSha" | "kind" | "originalSha">;
 
 interface Landed {
   readonly id: string;
@@ -36,7 +37,7 @@ const askOf = (payload: FileTextJob) => ({
 
 export const askFileTexts = async (scope: WriteScope, items: readonly Landed[]) => {
   const asks = items.flatMap((landed) => {
-    const sha = landed.fields.originalSha;
+    const sha = shownFileSha(landed.fields);
 
     return !asksText(landed) || sha === null
       ? []

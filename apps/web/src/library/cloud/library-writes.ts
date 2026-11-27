@@ -19,6 +19,8 @@ import type {
   QueryKey,
 } from "@tanstack/react-query";
 
+import { UnwritableTextError } from "../item/pdf/text-edits";
+import type { TextEdit } from "../item/pdf/text-edits";
 import type { ListedItem } from "./library-queries";
 import { newId } from "./new-id";
 import { uploadFile } from "./library-files";
@@ -339,6 +341,12 @@ interface NoteMade {
   readonly blocks: readonly LibraryBlock[];
 }
 
+interface EditedPdf {
+  readonly bytes: Uint8Array;
+  readonly edits: readonly TextEdit[];
+  readonly id: string;
+}
+
 const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
 
 export const libraryWrites = ({
@@ -540,5 +548,33 @@ export const libraryWrites = ({
         onSettled: readAgainSaved,
       }),
     sweep: () => orpc.library.items.sweep.mutationOptions({ scope: LIBRARY_WRITES }),
+    saveEditedPdf: () =>
+      mutationOptions({
+        mutationFn: async ({ bytes, edits, id }: EditedPdf) => {
+          const [{ savedVersion }, { tabFonts }] = await Promise.all([
+            import("../item/pdf/pdf-save"),
+            import("../item/pdf/system-fonts"),
+          ]);
+
+          const saved = await savedVersion(bytes, edits, { fontFor: tabFonts.choose, strip: true });
+          const sha = await uploadFile(cloud, Uint8Array.from(saved), "application/pdf");
+          await client.library.items.saveEdited({ id, opId: newId(), sha });
+        },
+        onError: (cause) => {
+          toast.error(
+            cause instanceof UnwritableTextError
+              ? `${cause.message} Try other letters, or leave that line as it was.`
+              : refusalText(cause, "The edited PDF couldn't be saved."),
+          );
+        },
+        onSettled: readAgainSaved,
+      }),
+    revertPdf: () =>
+      orpc.library.items.saveEdited.mutationOptions({
+        onError: (cause) => {
+          toast.error(refusalText(cause, "The PDF couldn't go back to its original."));
+        },
+        onSettled: readAgainSaved,
+      }),
   };
 };

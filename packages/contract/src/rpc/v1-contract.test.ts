@@ -323,6 +323,7 @@ describe("the library's wire", () => {
         coverSha: null,
         deletedAt: null,
         description: null,
+        editedSha: null,
         parentId: null,
         kind: "note",
         lang: null,

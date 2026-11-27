@@ -428,6 +428,12 @@ DOM (`oxlint.config.ts`).
   `again`, over the article as it stands.** A misread word is fixed where it
   reads, and a fresh read is the person's ask, so it replaces what they edited.
   `packages/service/src/library/file-text-job.ts`.
+- **A PDF's edited version is a second file, `editedSha`, beside its
+  `originalSha`, landed by `items.saveEdited`, and every reader of the file
+  reads `shownFileSha`.** The original is kept for Revert (`sha: null`), the
+  device builds the new file, so no font or PDF code runs in the cloud, and a
+  new shown file asks the `file-text` job `again`, so search and the agent read
+  the edited words. `packages/service/src/library/library-items.ts`.
 - **A page, link or file saved one at a time asks an `auto-file` job 20 s on,
   which waits out its reading and its file's text, then asks the gateway's
   Claude Haiku 5.5 for a summary, one existing folder or list and up to three

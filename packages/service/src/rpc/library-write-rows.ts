@@ -17,6 +17,7 @@ import {
   organizeItems,
   purgeItems,
   refreshItem,
+  saveEditedFile,
   setDeleted,
   setList,
 } from "../library/library-items";
@@ -141,6 +142,15 @@ export const libraryWriteRows = {
           context.library,
           { answer: landedSchema, opId: input.opId },
           async (scope) => ({ item: await refreshItem(scope, input.id) }),
+        ),
+      ),
+    ),
+    saveEdited: writing.items.saveEdited.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: landedSchema, opId: input.opId },
+          async (scope) => ({ item: await saveEditedFile(scope, input) }),
         ),
       ),
     ),

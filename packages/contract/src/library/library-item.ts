@@ -103,6 +103,7 @@ export const libraryItemFieldsSchema = z.strictObject({
   coverSha: shaSchema.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
+  editedSha: shaSchema.nullable(),
   parentId: z.uuid().nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
@@ -134,3 +135,6 @@ export const importedFieldsSchema = libraryItemFieldsSchema.omit({
 export type ImportedFields = z.infer<typeof importedFieldsSchema>;
 
 export type PropertyValue = LibraryItemFields["properties"][string];
+
+export const shownFileSha = (fields: Pick<LibraryItemFields, "editedSha" | "originalSha">) =>
+  fields.editedSha ?? fields.originalSha;

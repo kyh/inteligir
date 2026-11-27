@@ -34,6 +34,10 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
+  # an edited PDF's font: a system font's bytes, subset into the saved version
+  "@pdf-lib/fontkit": ^1.1.1
+  # pdf-lib's own metrics of the fourteen standard fonts, which a PDF may name with no widths
+  "@pdf-lib/standard-fonts": ^1.0.0
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
   "@tailwindcss/postcss": ^4.3.5
@@ -168,6 +172,10 @@ catalog:
   # addresses, where Node's global fetch runs an older undici beside it
   undici: ^8.13.1
   unified: ^11.0.5
+  # the library tab's PDF viewer: pages drawn to canvas under a text layer that can be edited
+  pdfjs-dist: ^6.5.438
+  # an edited PDF's saved version, written in the tab
+  pdf-lib: ^1.17.1
   # a PDF's text for search and the agent: pdf.js's serverless build, no canvas or worker
   unpdf: ^2.2.2
   vite: ^8.3.8
