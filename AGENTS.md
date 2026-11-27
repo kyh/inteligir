@@ -145,15 +145,15 @@ production, which waits for CI's `check`.
 
 ### Platform matrix
 
-| Surface         | Dev command          | Agent-verifiable at runtime?                                                  |
-| --------------- | -------------------- | ----------------------------------------------------------------------------- |
-| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; the service's suites                             |
-| Library tab     | `pnpm dev:web`       | **Yes**: agent-browser; its suites under jsdom                                |
-| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/connector`, OAuth with PKCE; the service's suites |
-| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: agent-browser; the service's suites           |
-| Mac app         | `pnpm dev`           | **Its shell**: its vitest suites; the window needs a human                    |
-| Extension       | `pnpm dev:extension` | **Its suites**; a real browser needs a human                                  |
-| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites                                              |
+| Surface         | Dev command          | Agent-verifiable at runtime?                                            |
+| --------------- | -------------------- | ----------------------------------------------------------------------- |
+| Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; the service's suites                       |
+| Library tab     | `pnpm dev:web`       | **Yes**: agent-browser; its suites under jsdom                          |
+| Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/mcp`, OAuth with PKCE; the service's suites |
+| Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: agent-browser; the service's suites     |
+| Mac app         | `pnpm dev`           | **Its shell**: its vitest suites; the window needs a human              |
+| Extension       | `pnpm dev:extension` | **Its suites**; a real browser needs a human                            |
+| Phone           | `pnpm dev:mobile`    | **In the simulator**: its suites                                        |
 
 ## Rules that matter
 

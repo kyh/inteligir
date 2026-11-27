@@ -68,7 +68,7 @@ const drag = (type: "dragover" | "drop", target: Element, uris: string, text = "
 
 const card = () => screen.getByRole("button", { name: "a card" });
 
-const PAGE_FILE = `https://inteligir.com/v1/blobs/${"a".repeat(64)}`;
+const PAGE_FILE = `https://www.inteligir.com/v1/blobs/${"a".repeat(64)}`;
 
 describe("a paste no field claimed", () => {
   it("saves the links it holds", () => {

@@ -25,6 +25,6 @@ The pages ask the worker, and the worker asks the cloud.
 saves to `pnpm dev:web`'s app (`docs/development.md` § Browser extension).
 `wxt build` writes the dev build to `.output/chrome-mv3`; `pnpm package:extension`
 (`--mode store`) writes the Web Store zip and the unpacked store build, which
-ride inteligir.com's sign-in alone. `pnpm --filter @repo/extension test` runs
+ride www.inteligir.com's sign-in alone. `pnpm --filter @repo/extension test` runs
 the worker's suites under node with no DOM and the pages' under jsdom, compiled
 as they ship.

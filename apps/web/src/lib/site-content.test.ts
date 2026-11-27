@@ -97,8 +97,8 @@ describe("the site's markdown", () => {
   });
 
   it("sends an agent to the connector of the deployment it asked, and every reader to the site", () => {
-    expect(LLMS).toContain(`${PREVIEW}/connector`);
-    expect(LLMS).not.toContain(`${siteConfig.url}/connector`);
+    expect(LLMS).toContain(`${PREVIEW}/mcp`);
+    expect(LLMS).not.toContain(`${siteConfig.url}/mcp`);
     expect(LLMS).toContain(`(${siteConfig.url}/privacy)`);
   });
 

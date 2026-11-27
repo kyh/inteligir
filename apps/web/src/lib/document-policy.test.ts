@@ -6,7 +6,7 @@ import { noFlashThemeScript } from "#library/no-flash-theme";
 
 import { libraryPolicy, mintNonce, SITE_POLICY } from "./document-policy";
 
-const SITE = new URL("https://inteligir.com/library");
+const SITE = new URL("https://www.inteligir.com/library");
 
 const directiveOf = (policy: string, name: string) =>
   policy.split("; ").find((directive) => directive.startsWith(`${name} `));
@@ -26,7 +26,7 @@ describe("the policy of a document rendered per request", () => {
 
   it("frames the library's own files on this origin, and nothing else", () => {
     expect(directiveOf(libraryPolicy(SITE, "n"), "frame-src")).toBe(
-      "frame-src https://inteligir.com/v1/blobs/",
+      "frame-src https://www.inteligir.com/v1/blobs/",
     );
     expect(
       directiveOf(libraryPolicy(new URL("http://localhost:5174/library"), "n"), "frame-src"),

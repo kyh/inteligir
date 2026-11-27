@@ -8,7 +8,7 @@ import { keepConnection, readConnection } from "./connection";
 import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "./sign-in";
 import { keptAs } from "./test-support/fake-cloud.test-utils";
 
-const SITE = "https://inteligir.com";
+const SITE = "https://www.inteligir.com";
 const LOCAL = "http://localhost:5174";
 
 const storeBuild = () => {

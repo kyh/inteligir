@@ -15,10 +15,10 @@ describe("the manifest", () => {
   it("names the production site as its one host in the store builds, and the key in the unpacked one alone", () => {
     const store = extensionManifest("store", "0.6.0");
     expect("key" in store).toBe(false);
-    expect(store.host_permissions).toStrictEqual(["https://inteligir.com/*"]);
+    expect(store.host_permissions).toStrictEqual(["https://www.inteligir.com/*"]);
     const unpacked = extensionManifest("store-unpacked", "0.6.0");
     expect(unpacked).toMatchObject({ key: EXTENSION_PUBLIC_KEY });
-    expect(unpacked.host_permissions).toStrictEqual(["https://inteligir.com/*"]);
+    expect(unpacked.host_permissions).toStrictEqual(["https://www.inteligir.com/*"]);
   });
 
   it("asks for activeTab and the site's cookies, never every site, and runs on the Chrome that has `browser`", () => {

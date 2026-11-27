@@ -2,14 +2,14 @@ import { assert, describe, test } from "vitest";
 
 import { classify, opensExternally, reloadTarget, savePathOf } from "./navigation";
 
-const SITE = "https://inteligir.com/library";
+const SITE = "https://www.inteligir.com/library";
 const LOCAL = "http://localhost:5174/library";
 
 describe("the window's pin", () => {
   test("keeps every page of the site", () => {
-    assert.strictEqual(classify("https://inteligir.com/library/settings", SITE), "allow");
+    assert.strictEqual(classify("https://www.inteligir.com/library/settings", SITE), "allow");
     assert.strictEqual(
-      classify("https://inteligir.com/app/sign-in?next=%2Flibrary", SITE),
+      classify("https://www.inteligir.com/app/sign-in?next=%2Flibrary", SITE),
       "allow",
     );
   });
@@ -17,11 +17,11 @@ describe("the window's pin", () => {
   test("compares origins, not prefixes", () => {
     assert.strictEqual(classify("http://localhost:51740/library", LOCAL), "open-externally");
     assert.strictEqual(classify("https://localhost:5174/library", LOCAL), "open-externally");
-    assert.strictEqual(classify("https://inteligir.com.evil/library", SITE), "open-externally");
+    assert.strictEqual(classify("https://www.inteligir.com.evil/library", SITE), "open-externally");
   });
 
   test("lets a blob the page made load as its save, and no other", () => {
-    assert.strictEqual(classify("blob:https://inteligir.com/065f281d-fbc4", SITE), "allow");
+    assert.strictEqual(classify("blob:https://www.inteligir.com/065f281d-fbc4", SITE), "allow");
     assert.strictEqual(classify("blob:https://example.com/065f281d-fbc4", SITE), "deny");
     assert.strictEqual(classify("blob:null/065f281d-fbc4", SITE), "deny");
   });
@@ -42,8 +42,8 @@ describe("the window's pin", () => {
 
   test("opens no second window and hands a web page to the browser", () => {
     assert.strictEqual(opensExternally("https://example.com/"), true);
-    assert.strictEqual(opensExternally("https://inteligir.com/licenses.md"), true);
-    assert.strictEqual(opensExternally("blob:https://inteligir.com/065f281d-fbc4"), false);
+    assert.strictEqual(opensExternally("https://www.inteligir.com/licenses.md"), true);
+    assert.strictEqual(opensExternally("blob:https://www.inteligir.com/065f281d-fbc4"), false);
     assert.strictEqual(opensExternally("about:blank"), false);
     assert.strictEqual(opensExternally("mailto:a@example.com"), false);
   });
@@ -52,11 +52,11 @@ describe("the window's pin", () => {
 describe("View › Reload", () => {
   test("reloads the page shown while it is the site's", () => {
     assert.strictEqual(
-      reloadTarget("https://inteligir.com/library/settings?scope=all", SITE),
+      reloadTarget("https://www.inteligir.com/library/settings?scope=all", SITE),
       "shown",
     );
     assert.strictEqual(
-      reloadTarget("https://inteligir.com/app/sign-in?next=%2Flibrary", SITE),
+      reloadTarget("https://www.inteligir.com/app/sign-in?next=%2Flibrary", SITE),
       "shown",
     );
   });

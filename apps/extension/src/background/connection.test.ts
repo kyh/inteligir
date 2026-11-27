@@ -18,7 +18,7 @@ describe("the cloud a build saves to", () => {
   it("is the production site in a store build, whatever its storage names", async () => {
     vi.stubEnv("MODE", "store");
     await browser.storage.local.set({ [NAMED]: "http://localhost:51234" });
-    await expect(cloudOrigin()).resolves.toBe("https://inteligir.com");
+    await expect(cloudOrigin()).resolves.toBe("https://www.inteligir.com");
   });
 
   it("is `pnpm dev:web`'s app in the dev build, or the local app its storage names", async () => {
@@ -29,7 +29,7 @@ describe("the cloud a build saves to", () => {
 
   it("is never a site the dev build's one host does not reach", async () => {
     for (const named of [
-      "https://inteligir.com",
+      "https://www.inteligir.com",
       "https://localhost:5174",
       "http://127.0.0.1:5174",
       "http://localhost.evil.example:5174",

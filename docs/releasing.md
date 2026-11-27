@@ -19,7 +19,7 @@ notes are `CHANGELOG.md`'s top section, which
 for that version.
 
 The cloud is not one of them: every push to main deploys production on the
-Vercel project `inteligir`, which serves inteligir.com once its checks pass
+Vercel project `inteligir`, which serves www.inteligir.com once its checks pass
 (Once per product: the deployment's checks). **The order is the rule**: the
 production schema, then the cloud, then any build that calls a route the cloud
 just gained. An app ahead of its cloud fails every such call; a cloud ahead of
@@ -110,11 +110,11 @@ every `.env*` out of the upload. Once:
    yourself in it, and the external group `Cohort`. Every build reaches `Owner`
    first, and `Cohort` only once it has passed there.
 4. Fill TestFlight's Test Information: a beta description, a feedback email
-   you read, `https://inteligir.com/privacy` as the privacy policy, and the
+   you read, `https://www.inteligir.com/privacy` as the privacy policy, and the
    Beta App Review sign-in: mint a production invite (`apps/web/README.md` §
-   Invites), sign up with it at `https://inteligir.com/app/sign-up` with an
+   Invites), sign up with it at `https://www.inteligir.com/app/sign-up` with an
    address you read, and give the account a link, a note and a picture from
-   `https://inteligir.com/library`. Sign-in is a code mailed to that address,
+   `https://www.inteligir.com/library`. Sign-in is a code mailed to that address,
    which a reviewer cannot read: send them the code when they ask (owner
    decision pending on a standing code for the review account). Keep the
    address in `.release/`, and give the reviewer these notes:
@@ -199,14 +199,15 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
    ```sh
    curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+mobile' \
-     --data '{}' https://inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
-   curl -s https://inteligir.com/.well-known/oauth-authorization-server/api/auth   # "issuer":"https://inteligir.com/api/auth"
+     --data '{}' https://www.inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
+   curl -s https://www.inteligir.com/.well-known/oauth-authorization-server/api/auth   # "issuer":"https://www.inteligir.com/api/auth"
    ```
 
 3. **The environment.** The project's Production variables name
-   `BETTER_AUTH_SECRET`, `CRON_SECRET`, `EMAIL_MODE=resend` with
-   `RESEND_API_KEY` and `EMAIL_FROM`, `BLOB_READ_WRITE_TOKEN` and the Supabase
-   integration's `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`, and none of the
+   `APP_URL=https://www.inteligir.com`, `BETTER_AUTH_SECRET`, `CRON_SECRET`,
+   `EMAIL_MODE=resend` with `RESEND_API_KEY` and `EMAIL_FROM`,
+   `BLOB_READ_WRITE_TOKEN` and the Supabase integration's `POSTGRES_URL` and
+   `POSTGRES_URL_NON_POOLING`, and none of the
    keys `.env.example` keeps off Vercel (`AGENT_MOCK_MODEL`,
    `FILE_STORE_DIR`, `RATE_LIMIT_DISABLED`). The agent
    reaches AI Gateway by the project's OIDC token, so no gateway key is set. A
@@ -453,7 +454,7 @@ Nothing drives the phone headless; check these by hand.
 
 ### The connector
 
-On production's `/connector`, signed in to an account there.
+On production's `/mcp`, signed in to an account there.
 
 - **claude.ai**: add the custom connector, sign in and Allow on
   `/connect/authorize`, read, edit, Disconnect in Settings and the next call
@@ -540,14 +541,14 @@ Only once every check in § 5 has passed, and the three close together.
    screenshots, the single-purpose statement ("saves the page you are on to
    your Inteligir library"), a justification for each permission (`activeTab`
    and `scripting` to read the page only when you click, `contextMenus` for the
-   right-click Save, `cookies` and the `https://inteligir.com/*` host to read
-   your inteligir.com sign-in, so the extension saves as you with no sign-in of
+   right-click Save, `cookies` and the `https://www.inteligir.com/*` host to read
+   your www.inteligir.com sign-in, so the extension saves as you with no sign-in of
    its own and sends a save made signed out as you sign in, `storage` to keep
    which account it saves to and a save made offline or signed out, `alarms` to
    send a save made offline once you're back online), the privacy practices
    (website content and authentication information, sent to the person's own
    Inteligir library, never sold or transferred) and the policy URL
-   `https://inteligir.com/privacy`. Submit for review; § 7 installs what the
+   `https://www.inteligir.com/privacy`. Submit for review; § 7 installs what the
    store approves.
 
 ## 7. After
@@ -570,7 +571,7 @@ Only once every check in § 5 has passed, and the three close together.
   check.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
-  build loaded. Passing: the install prompt names inteligir.com as the one
+  build loaded. Passing: the install prompt names www.inteligir.com as the one
   site it can read and change, chrome://extensions shows `EXTENSION_ID`, and,
   signed in to inteligir.com in that browser, the toolbar button saves the page
   into the library with no other step.

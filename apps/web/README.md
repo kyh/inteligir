@@ -48,7 +48,7 @@ vercel.json      the functions' region and the crons
 | `/v1/rpc/library/agent/events`                     | a thread's events as one stream, cut at 280 s for the device to pick up     |
 | `/v1/blobs/<sha>`                                  | a library file's bytes, HEAD and ranges, under the file's own policy        |
 | `/eve/v1/*`                                        | the built-in agent, eve's, which only the app calls; `/eve/v1/health` open  |
-| `/connector`                                       | the library's tools for a connected assistant, POST alone (`mcp/`)          |
+| `/mcp`                                             | the library's tools for a connected assistant, POST alone (`mcp/`)          |
 | `/.well-known/oauth-protected-resource/*`          | the connector's metadata, naming its authorization server                   |
 | `/.well-known/oauth-authorization-server/api/auth` | the OAuth provider's metadata, its issuer `/api/auth`                       |
 
