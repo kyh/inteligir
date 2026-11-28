@@ -13,7 +13,7 @@ export const containerDirectiveSchema = z.enum([
 
 export type ContainerDirectiveName = z.infer<typeof containerDirectiveSchema>;
 
-export const textDirectiveSchema = z.enum(["date", "formula"]);
+export const textDirectiveSchema = z.enum(["date", "formula", "highlight"]);
 
 export type TextDirectiveName = z.infer<typeof textDirectiveSchema>;
 

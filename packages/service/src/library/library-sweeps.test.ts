@@ -16,6 +16,7 @@ import { landNewItems } from "./library-landing";
 import type { NewItem } from "./library-landing";
 import { writeLibrary } from "./library-store";
 import { sweepLotSchema } from "./library-sweeps";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const PERSON = { kind: "person" } as const;
 const SAVED_AT = 1_700_000_000_000;
@@ -200,7 +201,10 @@ dbSuite("a sweep over a scope", () => {
       });
       await expect(taggedWith(accountId, "lot")).resolves.toBe(1001);
       await expect(
-        db.select({ id: job.id }).from(job).where(eq(job.accountId, accountId)),
+        db
+          .select({ id: job.id })
+          .from(job)
+          .where(and(eq(job.accountId, accountId), notSettling)),
       ).resolves.toStrictEqual([]);
       await expect(headOf(accountId)).resolves.toBe(head + 2);
     },

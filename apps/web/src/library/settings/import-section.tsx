@@ -7,7 +7,8 @@ import { useOnline } from "../cloud/needs-connection";
 import { usePageLibrary } from "../cloud/library-context";
 import { startImport, stopImport, useImportRun } from "../import/import-run";
 import type { ImportRun } from "../import/import-run";
-import type { ImportSource } from "../import/import-news";
+import { IMPORT_PICKS, IMPORT_SOURCES } from "../import/import-sources";
+import type { ImportSource } from "../import/import-sources";
 import { Row, SectionHeading } from "./settings-chrome";
 
 export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>) => {
@@ -48,11 +49,6 @@ export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>) => {
   }
 };
 
-const SOURCES: readonly { source: ImportSource; label: string; accept: string }[] = [
-  { accept: ".csv,text/csv", label: "Import from Raindrop…", source: "raindrop" },
-  { accept: ".zip,application/zip", label: "Import a zip of notes…", source: "markdown" },
-];
-
 const ImportRow = () => {
   const { cloud } = usePageLibrary();
   const online = useOnline();
@@ -65,22 +61,22 @@ const ImportRow = () => {
     <Row label="Import">
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-wrap gap-1.5">
-          {SOURCES.map((option) => (
+          {IMPORT_SOURCES.map((option) => (
             <Button
-              key={option.source}
+              key={option}
               size="compact"
               variant="secondary"
               disabled={running || !online}
               onClick={() => {
-                setSource(option.source);
+                setSource(option);
 
                 if (pickerRef.current !== null) {
-                  pickerRef.current.accept = option.accept;
+                  pickerRef.current.accept = IMPORT_PICKS[option].accept;
                   pickerRef.current.click();
                 }
               }}
             >
-              {option.label}
+              {IMPORT_PICKS[option].label}
             </Button>
           ))}
         </div>

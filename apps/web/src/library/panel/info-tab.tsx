@@ -1,4 +1,5 @@
 import { KIND_LABELS } from "@repo/client/library-labels";
+import { shownTitle } from "@repo/contract/items/item-name";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
@@ -9,7 +10,7 @@ import { z } from "zod";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
-import { isUrlItem } from "../library/item-labels";
+import { isUrlItem, readsFileText } from "../library/item-labels";
 import { useLibraryCommands } from "../library/library-commands";
 import { folderPaths } from "../library/folder-paths";
 import { PropertiesPanel } from "./properties-panel";
@@ -22,6 +23,37 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
     <dd className="m-0 min-w-0 flex-1 text-body break-words select-text">{children}</dd>
   </div>
 );
+
+const Related = ({ id }: { readonly id: string }) => {
+  const commands = useLibraryCommands();
+  const near = useQuery(useLibraryQueries().related(id)).data?.items ?? [];
+
+  if (near.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-label="Related" className="flex flex-col gap-1">
+      <h3 className="m-0 text-caption text-muted-foreground">Related</h3>
+      <ul className="m-0 flex list-none flex-col p-0">
+        {near.map((row) => (
+          <li key={row.id}>
+            <Button
+              size="compact"
+              variant="ghost"
+              className="h-auto w-full justify-start py-1 text-left whitespace-normal"
+              onClick={() => {
+                commands.openItem(row.id);
+              }}
+            >
+              {shownTitle(row.card.title)}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 const ReadFailure = ({ reading }: { reading: Reading }) =>
   reading.state === "failed" ? (
@@ -116,6 +148,11 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                 </Button>
               </span>
             </Row>
+            {fields.description === null ? null : (
+              <Row label="About">
+                <span className="select-text">{fields.description}</span>
+              </Row>
+            )}
             <Row label="Tags">
               <span className="flex flex-wrap items-center gap-1.5">
                 {fields.tags.map((tag) => (
@@ -173,6 +210,19 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
               </Button>
             </div>
           ) : null}
+          {readsFileText(fields) ? (
+            <Button
+              variant="secondary"
+              size="compact"
+              disabled={refreshing}
+              onClick={() => {
+                refresh.mutate({ id });
+              }}
+            >
+              Read the text again
+            </Button>
+          ) : null}
+          {fields.deletedAt === null ? <Related id={id} /> : null}
         </div>
       )}
     </CellAnswer>

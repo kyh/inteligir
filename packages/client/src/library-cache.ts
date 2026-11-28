@@ -55,6 +55,7 @@ export const invalidateMoved = (
     onceQueueEmpty(queryClient, () => {
       void queryClient.invalidateQueries({ queryKey: library.items.row.key() });
       void queryClient.invalidateQueries({ queryKey: library.listing.key() });
+      void queryClient.invalidateQueries({ queryKey: library.items.related.key() });
     });
   } else if (moved.items.length > 0) {
     const named = moved.items;
@@ -78,6 +79,7 @@ export const invalidateMoved = (
       }
 
       void queryClient.invalidateQueries({ queryKey: library.listing.key() });
+      void queryClient.invalidateQueries({ queryKey: library.items.related.key() });
     });
   }
 

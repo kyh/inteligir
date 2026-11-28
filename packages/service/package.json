@@ -53,6 +53,7 @@
     "resend": "catalog:",
     "stemmer": "catalog:",
     "undici": "catalog:",
+    "unpdf": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

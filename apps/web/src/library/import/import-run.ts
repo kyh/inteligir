@@ -3,7 +3,8 @@ import { useEffect, useSyncExternalStore } from "react";
 
 import type { TabSession, TabSessionStore } from "../cloud/library-context";
 import { importNewsSchema } from "./import-news";
-import type { ImportAsk, ImportCounts, ImportNews, ImportSource } from "./import-news";
+import type { ImportAsk, ImportCounts, ImportNews } from "./import-news";
+import type { ImportSource } from "./import-sources";
 
 export type ImportRun =
   | { readonly kind: "idle" }

@@ -3,6 +3,7 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { libraryScopeSchema, listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
+import type { SavedView } from "@repo/contract/library/saved-views";
 import { z } from "zod";
 
 const SETTINGS_PATH = `${LIBRARY_PAGE_PATH}/settings`;
@@ -12,6 +13,7 @@ export interface LibraryAddress {
   readonly kind: ItemKind | null;
   readonly openItem: string | null;
   readonly find: string | null;
+  readonly words: string | null;
   readonly settings: boolean;
 }
 
@@ -50,6 +52,7 @@ export const parseLibraryAddress = (pathname: string, search: URLSearchParams) =
   const kind = search.get("kind");
   const item = search.get("item");
   const find = search.get("find");
+  const words = search.get("q")?.trim() ?? "";
 
   return {
     find: find === "" ? null : find,
@@ -57,6 +60,7 @@ export const parseLibraryAddress = (pathname: string, search: URLSearchParams) =
     openItem: itemId.safeParse(item).success ? item : null,
     scope: scopeOf(search),
     settings: pathname === SETTINGS_PATH,
+    words: words === "" ? null : words,
   } satisfies LibraryAddress;
 };
 
@@ -92,6 +96,14 @@ export const scopeAddress = (scope: LibraryScope) =>
     openItem: null,
     scope,
     settings: false,
+    words: null,
+  }) satisfies LibraryAddress;
+
+export const viewAddress = (view: SavedView) =>
+  ({
+    ...scopeAddress(view.scope),
+    kind: view.kinds?.[0] ?? null,
+    words: view.words ?? null,
   }) satisfies LibraryAddress;
 
 export const libraryHref = (address: LibraryAddress) => {
@@ -99,6 +111,10 @@ export const libraryHref = (address: LibraryAddress) => {
 
   if (address.kind !== null) {
     search.set("kind", address.kind);
+  }
+
+  if (address.words !== null) {
+    search.set("q", address.words);
   }
 
   if (address.openItem !== null) {
@@ -119,3 +135,7 @@ export const shownScope = (
   addressed: LibraryScope,
   listed: { readonly containers: readonly { readonly id: string }[] } | undefined,
 ) => (listed === undefined ? addressed : listedScope(addressed, listed.containers));
+
+export const isViewAt = (view: SavedView, address: LibraryAddress) =>
+  address.openItem === null &&
+  libraryHref(viewAddress(view)) === libraryHref({ ...address, find: null });

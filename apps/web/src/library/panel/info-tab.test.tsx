@@ -1,7 +1,7 @@
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell.test-utils";
 import { toast } from "@repo/ui/components/sonner";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -55,6 +55,48 @@ describe("Info over an item", () => {
     await waitFor(() => {
       expect(cell.item(id)?.fields.reading.state).toBe("pending");
     });
+  });
+
+  it("lists the items nearest it under Related, and opens one by its id", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: "Tidal pools and starfish" });
+    const near = cell.seed.item({ title: "Starfish in rock pools" });
+    cell.seed.item({ title: "Quarterly budget" });
+    const { library } = fakePageLibrary({ cell });
+    const commands = spyCommands();
+
+    renderOnLibrary(<InfoTab itemId={id} />, library, commands);
+    const related = await screen.findByRole("region", { name: "Related" });
+    fireEvent.click(within(related).getByRole("button", { name: "Starfish in rock pools" }));
+
+    expect(within(related).getAllByRole("button")).toHaveLength(1);
+    expect(commands.openItem).toHaveBeenCalledWith(near);
+  });
+
+  it("reads a PDF's text again on asking", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ kind: "pdf", originalSha: "b".repeat(64), title: "Paper" });
+    const { calls, library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+    fireEvent.click(await screen.findByRole("button", { name: "Read the text again" }));
+
+    expect(screen.queryByRole("button", { name: "Read the page again" })).toBeNull();
+    await waitFor(() => {
+      expect(calls.filter((call) => call.path === "library.items.refresh")).toStrictEqual([
+        { input: { id }, path: "library.items.refresh" },
+      ]);
+    });
+  });
+
+  it("says what an item is about when it holds a summary", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ description: "A quick miso soup.", title: "Soup" });
+    const { library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} />, library);
+
+    await expect(screen.findByText("A quick miso soup.")).resolves.toBeDefined();
   });
 
   it("names a note an item is filed under by its title, under the folders that hold the note", async () => {

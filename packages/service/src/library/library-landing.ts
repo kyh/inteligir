@@ -31,6 +31,8 @@ import {
 } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
+import { askMeaning } from "./meaning-job";
+import { askFileTexts } from "./file-text-job";
 import { anyOf, chunksOf } from "./set-sql";
 
 export interface LiveItemRow {
@@ -209,6 +211,7 @@ const replaceSearch = async (
 ) => {
   const { accountId, tx } = scope;
   const search = searchRowOf(accountId, itemId, { ...derived.search, body: text });
+  await askMeaning(scope);
   await tx
     .insert(itemSearch)
     .values(search)
@@ -268,6 +271,8 @@ export const landItem = async (scope: WriteScope, landing: Landing) => {
       itemId,
     });
   }
+
+  await askFileTexts(scope, [{ before: before.fields, fields, id: itemId }]);
 
   return { card: derived.card, fields, id: itemId, seq, updatedAt: now } satisfies LiveItemRow;
 };
@@ -414,6 +419,10 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]) => {
     await tx.insert(itemSearch).values(chunk.map((row) => row.search));
   }
 
+  if (rows.length > 0) {
+    await askMeaning(scope);
+  }
+
   for (const chunk of chunksOf(
     rows.flatMap((row) => row.tags),
     1000,
@@ -433,6 +442,11 @@ const insertMade = async (scope: WriteScope, landed: readonly Candidate[]) => {
     accountId,
     landed.map(({ files, made }) => ({ itemId: made.id, shas: files })),
     now,
+  );
+
+  await askFileTexts(
+    scope,
+    landed.map(({ made }) => ({ before: null, fields: made.fields, id: made.id })),
   );
 
   if (setId !== null) {

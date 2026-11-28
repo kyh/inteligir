@@ -19,6 +19,8 @@ import { deleteAgentThread, sendToAgent } from "./agent-sessions";
 import { threadOf } from "./agent-threads";
 import type { AgentRuntime } from "./runtime";
 
+const OWN_KEY = `sk-ant-api03-${"k".repeat(40)}`;
+
 const CREATE_NOTE = 'call create_note {"markdown":"Water the garden.","title":"Garden"}';
 
 let platform: FakeAgentPlatform;
@@ -136,6 +138,27 @@ dbSuite("the built-in agent's limits", () => {
       code: "AGENT_BUDGET",
     });
     await expect(library.agent.status()).resolves.toMatchObject({ turnsLeft: 0 });
+  });
+
+  it("charges the account no dollars for a model call on the person's own key, and lifts the day's turns", async () => {
+    const { accountId, library } = await personalLibrary();
+    await library.agent.setModelKey({ key: OWN_KEY });
+    const threadId = await turnIn(accountId, `${CREATE_NOTE}\ntokens 60000`);
+
+    const shown = await shownIn(library, threadId);
+    expect(shown.at(-1)).toMatchObject({ reason: "done", type: "turn.ended" });
+
+    const spent = await db
+      .select({ cost: agentUsage.costMicroUsd, kind: agentUsage.kind })
+      .from(agentUsage)
+      .where(eq(agentUsage.accountId, accountId));
+
+    expect(spent.filter(({ kind }) => kind === "model").length).toBeGreaterThan(0);
+    expect(spent.every(({ cost }) => cost === 0)).toBe(true);
+    await expect(library.agent.status()).resolves.toMatchObject({ turnsLeft: 199 });
+
+    await library.agent.setModelKey({ key: null });
+    await expect(library.agent.status()).resolves.toMatchObject({ turnsLeft: 1 });
   });
 
   it("stops a turn at its 21st model call, after its 20th step", async () => {

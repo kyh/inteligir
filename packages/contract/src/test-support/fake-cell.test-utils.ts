@@ -5,6 +5,8 @@ import { RPCLink } from "@orpc/client/fetch";
 import { implement, withEventMeta } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
+import { viewsWith, viewsWithout } from "../library/saved-views";
+import type { SavedView } from "../library/saved-views";
 import { deferred } from "../deferred";
 import type { AgentEvent } from "../library/agent-events";
 import type { bodyWriteSchema, listedItemSchema } from "../library/library-wire";
@@ -138,9 +140,13 @@ const derivedOf = (item: CellItem) => {
 const filesOf = (fields: LibraryItemFields, blocks: readonly BodyBlock[]) =>
   itemFilesOf(fields, deriveBody(blocks).digest.files);
 
+const MEANING_HITS = 50;
+
 export const createFakeCell = () => {
   let head = 0;
   let signedOut = false;
+  let views: SavedView[] = [];
+  let viewsSeq = 0;
   const items = new Map<string, CellItem>();
   const tombstones = new Map<string, number>();
 
@@ -224,6 +230,57 @@ export const createFakeCell = () => {
       passage: (id) => lines.get(id)?.trim() ?? null,
       rank: new Map([...lines.keys()].map((id, place) => [id, place])),
     } satisfies SearchHits;
+  };
+
+  const wordsOf = (item: CellItem) => {
+    const { search, text } = derivedOf(item);
+    const all = `${search.title} ${text}`.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
+
+    return new Set(all);
+  };
+
+  const nearest = (words: ReadonlySet<string>, except: string | null, limit: number) =>
+    [...items]
+      .flatMap(([id, item]) => {
+        if (id === except || item.fields.deletedAt !== null || isContainerKind(item.fields.kind)) {
+          return [];
+        }
+
+        const held = wordsOf(item);
+        const shared = [...words].filter((word) => held.has(word)).length;
+
+        return shared === 0 ? [] : [{ id, score: shared / (words.size + held.size - shared) }];
+      })
+      .toSorted((a, b) => b.score - a.score || compareText(a.id, b.id))
+      .slice(0, limit)
+      .map(({ id }) => id);
+
+  const withMeaning = (hits: SearchHits, words: string) => {
+    const rank = new Map(hits.rank);
+    const asked = new Set(words.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu));
+
+    for (const id of nearest(asked, null, MEANING_HITS)) {
+      if (!rank.has(id)) {
+        rank.set(id, rank.size);
+      }
+    }
+
+    return { ...hits, rank } satisfies SearchHits;
+  };
+
+  const related = (id: string, limit: number) => {
+    const own = items.get(id);
+
+    return {
+      items:
+        own === undefined
+          ? []
+          : nearest(wordsOf(own), id, limit).flatMap((near) => {
+              const held = items.get(near);
+
+              return held === undefined ? [] : [listedItem(listingRow(near, held))];
+            }),
+    };
   };
 
   const needsBlobs = (shas: readonly string[]) => {
@@ -533,14 +590,17 @@ export const createFakeCell = () => {
         items: stamped,
         threads: [],
         tree:
+          viewsSeq > after ||
           [...items.values()].some(
             ({ fields, seq }) => seq > after && canHoldChildren(fields.kind),
-          ) || [...tombstones.values()].some((seq) => seq > after),
+          ) ||
+          [...tombstones.values()].some((seq) => seq > after),
       },
     } satisfies Changes;
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
+  const seqAnswerSchema = z.object({ seq: z.number() });
   const savedSchema = z.object({ created: z.boolean() }).and(landedSchema);
   const deletedSchema = z.object({ deleted: z.array(z.string()), missing: z.array(z.string()) });
 
@@ -686,9 +746,26 @@ export const createFakeCell = () => {
         purge: os.library.items.purge.handler(({ input }) =>
           once(input.opId, purgedSchema, () => purge(input.ids)),
         ),
+        saveEdited: os.library.items.saveEdited.handler(({ input }) =>
+          once(input.opId, landedSchema, () => {
+            const { fields } = holding(input.id);
+
+            if (fields.kind !== "pdf" || fields.originalSha === null) {
+              throw new NotFoundError();
+            }
+
+            needsBlobs(input.sha === null ? [] : [input.sha]);
+
+            return landFields(input.id, { ...fields, editedSha: input.sha });
+          }),
+        ),
         refresh: os.library.items.refresh.handler(({ input }) =>
           once(input.opId, landedSchema, () => {
             const { fields } = holding(input.id);
+
+            if (fields.url === null && fields.kind === "pdf" && fields.originalSha !== null) {
+              return landFields(input.id, fields);
+            }
 
             if (fields.url === null) {
               throw new NotFoundError();
@@ -704,6 +781,7 @@ export const createFakeCell = () => {
             return { addressHeld, missing, restored: changed };
           }),
         ),
+        related: os.library.items.related.handler(({ input }) => related(input.id, input.limit)),
         row: os.library.items.row.handler(({ input }) => openRow(input.id)),
         saveBody: os.library.items.saveBody.handler(({ input }) => saveBody(input)),
         setList: os.library.items.setList.handler(({ input }) =>
@@ -821,13 +899,49 @@ export const createFakeCell = () => {
       },
       listing: {
         page: os.library.listing.page.handler(({ input }) =>
-          listingPageOf(listing(), input, searchHits, (row) => row),
+          listingPageOf(
+            listing(),
+            input,
+            (words, deleted) =>
+              input.meaning && !deleted
+                ? withMeaning(searchHits(words, deleted), words)
+                : searchHits(words, deleted),
+            (row) => row,
+          ),
         ),
         children: os.library.listing.children.handler(({ input }) =>
           listing().children(input.parentId),
         ),
-        scopes: os.library.listing.scopes.handler(() => listing().scopes()),
+        scopes: os.library.listing.scopes.handler(() => ({ ...listing().scopes(), views })),
         titles: os.library.listing.titles.handler(() => listing().titles()),
+      },
+      views: {
+        remove: os.library.views.remove.handler(({ input }) =>
+          once(input.opId, seqAnswerSchema, () => {
+            if (views.some(({ id }) => id === input.id)) {
+              head += 1;
+              viewsSeq = head;
+              views = viewsWithout(views, input.id);
+            }
+
+            return { seq: head };
+          }),
+        ),
+        save: os.library.views.save.handler(({ input }) =>
+          once(input.opId, seqAnswerSchema, () => {
+            const next = viewsWith(views, input.view);
+
+            if (next === null) {
+              throw new PayloadTooLargeError();
+            }
+
+            head += 1;
+            viewsSeq = head;
+            views = next;
+
+            return { seq: head };
+          }),
+        ),
       },
       write: os.library.write.handler(({ input }) =>
         once(input.opId, landedSchema, () => write(input)),
@@ -939,6 +1053,13 @@ export const createFakeCell = () => {
 
         if (seeded.deletedAt === null && seeded.url !== null && holderOf(seeded.url) !== null) {
           throw new Error(`a live item holds ${seeded.url} already`);
+        }
+
+        if (seeded.originalSha !== null && !blobs.has(seeded.originalSha)) {
+          blobs.set(seeded.originalSha, {
+            bytes: new Uint8Array(0),
+            mime: "application/octet-stream",
+          });
         }
 
         const id = mintId();

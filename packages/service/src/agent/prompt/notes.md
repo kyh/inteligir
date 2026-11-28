@@ -221,6 +221,7 @@ one, and an unknown name (`:::note`) stays its own text.
 | Tag                      | `#tag`                       |
 | Formula pill             | `:formula[4]{source="2+2"}`  |
 | Strikethrough            | `~~text~~`                   |
+| Highlight                | `:highlight[text]`           |
 | Inline math              | `$$E = mc^2$$`               |
 
 ```markdown
@@ -230,7 +231,7 @@ Ship the queue by :date[2026-08-22]; it moves :formula[1,200]{source="1200"} job
 `[[Note Title]]` links the one item with that title once you write it, and otherwise stays text
 (inteligir Links). Code — inline or fenced — is inert: nothing inside it is parsed as a
 construct, which is how you write an example of any syntax on this page. In prose, a backslash
-before the colon keeps a date or a pill plain text: `\:date[2026-08-22]`. A date that is no day
+before the colon keeps a date, a pill or a highlight plain text: `\:date[2026-08-22]`. A date that is no day
 of the calendar stays text.
 
 ### What Markdown Cannot Hold
@@ -240,8 +241,8 @@ of the calendar stays text.
 - A link's title (`[words](https://… "title")`) and a table's column alignment are dropped.
 - Raw HTML (`<u>`, `<mark>`, `<div>`) reads as the text it spells, so a styled layout belongs in
   an `inteligir-html` fence.
-- A highlight (`==…==`), a comment (`%%…%%`), a block id (`^ref`) and a footnote (`[^1]`) are
-  plain text.
+- `==…==`, a comment (`%%…%%`), a block id (`^ref`) and a footnote (`[^1]`) are plain text; a
+  highlight is `:highlight[…]`.
 
 ## Before You Finish
 

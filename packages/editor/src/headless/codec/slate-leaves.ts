@@ -10,6 +10,7 @@ export type Marks = Omit<LibraryText, "text">;
 export const MARK_KEYS = [
   "bold",
   "code",
+  "highlight",
   "italic",
   "strikethrough",
   "underline",

@@ -46,6 +46,10 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   the file again carries on; read in the cloud, a zip waits in the file store as a second copy and
   each job reads a page of it.
   `apps/web/src/library/import/import-run.ts`.
+- **An import source is an id in `IMPORT_SOURCES`, its pick, and an `ImportReader` in `READERS`;
+  a bookmark file is only a parse into `BookmarkRow`s for `bookmarkReader`.** The id's records fail
+  to compile until the button and the reader are there, and a second bookmark format would
+  otherwise copy the plan, its duplicates and its batches. `apps/web/src/library/import/import-sources.ts`.
 - **An export is written in the tab, on a module worker, as the zip an import reads.** It lists
   every live item, reads each whole a few ahead and writes it by the codec with the files it holds
   from `/v1/blobs`, so Stop or closing the tab, which the browser asks about, leaves no zip; written
@@ -118,7 +122,7 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   which holds the window's pref above 768px and a sheet's open below it, since a write of the pref
   alone opens nothing in a narrow window. `apps/web/src/library/workspace-store.ts`.
 - **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope
-  (`?scope=unsorted`, `?folder=<id>`, `?tag=<name>`), the kind and the open item are flat
+  (`?scope=unsorted`, `?folder=<id>`, `?tag=<name>`), the kind, a search's words (`?q=`) and the open item are flat
   parameters, each move a shallow `pushState` Next renders nothing for, so Back and Forward walk
   them, a link opens them and a bare `/library` is All items; a kind replaces its entry, a search's
   words ride beside the item as `?find=` until its find bar is on them, and Settings is a layer over
@@ -137,6 +141,16 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   of the rail's scope; an item opens full size in its place, a file in its viewer and a note in the
   editor over its saved body, since a list beside an open item reads saved pages as text files.
   `apps/web/src/library/item/item-view.tsx`.
+- **A PDF is drawn by react-pdf, and its text is edited on the page and saved as a new file the
+  tab builds.** Pages draw only as they near the view, under pdf.js's own text layer, and Edit text
+  lays a button over each line; Save strips the old glyphs from the content stream and draws the
+  new words with pdf-lib, in the installed font Local Font Access matches or the closest standard
+  14, uploads the file and lands `items.saveEdited`, since the browser's own viewer edits nothing
+  and the cloud holds no fonts. The content-stream walk and a font collection's split are ours,
+  since no library exposes either. react-pdf runs with `suspense={false}`, since a suspended first
+  mount drops the worker and file it was handed and loads again forever; a worker per document,
+  since pdf.js breaks a shared port once a document is put away; core-js fills in what pdf.js's
+  build calls before every browser has it. `apps/web/src/library/item/pdf/pdf-viewer.tsx`.
 - **A list's scope draws its view, grouped by its select, not the grid, and an item opens beside
   it.** The groups are `groupsOf`'s, the empty ones offered while the list groups so a note can be
   made in any; moving a row, by its menu or a drag onto a group, is one property op, and a new note

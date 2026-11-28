@@ -1,42 +1,33 @@
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
-import { useMutation } from "@tanstack/react-query";
-import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
+import { shownFileSha } from "@repo/contract/library/library-item";
+import { ExternalLinkIcon } from "lucide-react";
 
-import { usePageLibrary } from "../cloud/library-context";
-import { fileUrl, readFile } from "../cloud/library-files";
-import { saveBlob } from "@repo/ui/lib/save-blob";
+import { fileUrl } from "../cloud/library-files";
 import { readingNotice } from "../library/item-labels";
+import { PdfStage } from "./pdf/pdf-stage";
+import { SaveFile } from "./save-file";
 
-const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
-  const { cloud } = usePageLibrary();
-
-  const save = useMutation({
-    mutationFn: async () => {
-      saveBlob(await readFile(cloud, sha), name);
-    },
-    onError: () => {
-      toast.error("The file couldn't be saved. Check your connection and try again.");
-    },
-  });
-
-  return (
-    <Button
-      variant="secondary"
-      disabled={save.isPending}
-      onClick={() => {
-        save.mutate();
-      }}
-    >
-      <DownloadIcon />
-      {label}
-    </Button>
+export const FilePane = ({ fields, title }: { fields: LibraryItemFields; title: string }) =>
+  fields.originalSha === null ? null : (
+    <div className="flex h-[45vh] shrink-0 justify-center border-b border-border p-3 lg:h-auto lg:w-1/2 lg:border-r lg:border-b-0">
+      <img
+        alt={title}
+        src={fileUrl(fields.originalSha, fields.originalName)}
+        className="max-h-full max-w-full rounded-md object-contain"
+      />
+    </div>
   );
-};
 
-export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
-  const sha = fields.originalSha;
+export const FileStage = ({
+  fields,
+  itemId,
+  title,
+}: {
+  fields: LibraryItemFields;
+  itemId: string;
+  title: string;
+}) => {
+  const sha = shownFileSha(fields);
 
   if (sha === null) {
     return null;
@@ -58,22 +49,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
     }
 
     case "pdf": {
-      return (
-        <div className="px-8 pt-4">
-          <object
-            aria-label={title}
-            data={url}
-            type="application/pdf"
-            className="h-[70vh] w-full rounded-md border border-border"
-          >
-            <SaveFile
-              sha={sha}
-              name={fields.originalName ?? title}
-              label={`Download ${fields.originalName ?? "the PDF"}`}
-            />
-          </object>
-        </div>
-      );
+      return <PdfStage key={sha} fields={fields} itemId={itemId} sha={sha} title={title} />;
     }
 
     case "video": {

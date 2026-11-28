@@ -10,6 +10,7 @@ import {
 } from "platejs/react";
 import {
   BoldIcon,
+  HighlighterIcon,
   CodeIcon,
   ItalicIcon,
   KeyboardOffIcon,
@@ -46,6 +47,7 @@ type TouchAction = keyof typeof TOUCH_ACTIONS;
 
 const MARK_ICONS = {
   "toggle-bold": BoldIcon,
+  "toggle-highlight": HighlighterIcon,
   "toggle-italic": ItalicIcon,
   "toggle-underline": UnderlineIcon,
 } satisfies Record<MarkShortcutAction, IconComponent>;

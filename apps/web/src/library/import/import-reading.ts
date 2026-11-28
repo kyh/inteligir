@@ -1,22 +1,18 @@
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 
+import { readBookmarksHtml } from "./browser-bookmarks";
 import { freshTally, ImportStoppedError } from "./import-landing";
-import type { ImportCell, ImportTally } from "./import-landing";
-import type { ImportAsk, ImportCounts, ImportNews, ImportSource } from "./import-news";
+import type { ImportCell, ImportReader, ImportTally } from "./import-landing";
+import type { ImportAsk, ImportCounts, ImportNews } from "./import-news";
+import type { ImportSource } from "./import-sources";
 import { readMarkdownZip } from "./markdown-import";
-import { readRaindropCsv } from "./raindrop-import";
+import { readRaindropCsv } from "./raindrop-csv";
 
 const IMPORT_INTERRUPTED =
   "The import stopped before it finished. Choose the file again to carry on; what it added stays.";
 
-type Reader = (
-  file: Blob,
-  cell: ImportCell,
-  tally: ImportTally,
-  heard: () => void,
-) => Promise<void>;
-
-const READERS: Readonly<Record<ImportSource, Reader>> = {
+const READERS: Readonly<Record<ImportSource, ImportReader>> = {
+  bookmarks: readBookmarksHtml,
   markdown: readMarkdownZip,
   raindrop: readRaindropCsv,
 };

@@ -4,6 +4,7 @@ import type { BodyBlock } from "../library/derive-item";
 import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { newIdSchema } from "../library/library-wire";
 import type { LibraryBlock } from "../library/library-nodes";
+import type { SavedView } from "../library/saved-views";
 import type { V1Client } from "../rpc/v1-contract";
 import { isOrpcError } from "../rpc/v1-errors";
 import { paragraph } from "./library-items.test-utils";
@@ -557,6 +558,39 @@ export const cellConformance = (withHost: WithHost) => {
       });
     });
 
+    it("keeps a PDF's saved version beside its original, takes it back, and keeps none for any other item", async () => {
+      await withLaptop(async ({ library, newId, note, upload }) => {
+        const original = await upload(bytesOf("%PDF-1.7 the original"), "application/pdf");
+        const id = newId();
+
+        await library.items.createFile({
+          id,
+          name: "invoice.pdf",
+          parentId: null,
+          savedAt: SAVED_AT,
+          sha: original,
+          tags: [],
+        });
+
+        await expect(refusalOf(library.items.saveEdited({ id, sha: SHA }))).resolves.toStrictEqual({
+          code: "BLOB_MISSING",
+          data: { shas: [SHA] },
+        });
+
+        const edited = await upload(bytesOf("%PDF-1.7 the edited"), "application/pdf");
+
+        await expect(library.items.saveEdited({ id, sha: edited })).resolves.toMatchObject({
+          item: { fields: { editedSha: edited, originalSha: original }, id },
+        });
+        await expect(library.items.saveEdited({ id, sha: null })).resolves.toMatchObject({
+          item: { fields: { editedSha: null, originalSha: original }, id },
+        });
+        await expect(
+          codeOf(library.items.saveEdited({ id: await note(["Mine."]), sha: null })),
+        ).resolves.toBe("NOT_FOUND");
+      });
+    });
+
     it("makes a note whose block names a file sent up first, and refuses one naming bytes never sent", async () => {
       await withLaptop(async ({ library, noteOf, upload }) => {
         const unsent = noteOf([]);
@@ -641,6 +675,92 @@ export const cellConformance = (withHost: WithHost) => {
         await expect(library.items.create({ ...made, opId: OP_ID })).resolves.toStrictEqual(first);
         await expect(codeOf(library.items.create(made))).resolves.toBe("CONFLICT");
         await expect(library.listing.scopes()).resolves.toMatchObject({ total: 1 });
+      });
+    });
+  });
+
+  describe("what a cell finds by meaning", () => {
+    it("names the items nearest an item, never itself or one deleted, once its jobs ran", async () => {
+      await withLaptop(async ({ library, note, runDue }) => {
+        const pools = await note(["Tidal pools hold anemones, starfish and periwinkles."]);
+        const rocks = await note(["Starfish and anemones crowd the tidal rock pools at dawn."]);
+        await note(["Quarterly budget spreadsheet for the office move."]);
+        await runDue();
+
+        const near = await library.items.related({ id: pools });
+        expect(near.items.map(({ id }) => id)).toStrictEqual([rocks]);
+
+        await library.items.delete({ ids: [rocks] });
+        await expect(library.items.related({ id: pools })).resolves.toStrictEqual({ items: [] });
+      });
+    });
+
+    it("lists, when asked, what shares only some of a search's words", async () => {
+      await withLaptop(async ({ library, note, runDue }) => {
+        const pools = await note(["Tidal pools hold anemones, starfish and periwinkles."]);
+        await note(["Quarterly budget spreadsheet for the office move."]);
+        await runDue();
+
+        const meant = await library.listing.page({
+          limit: 20,
+          meaning: true,
+          scope: { kind: "all" },
+          words: "starfish lighthouse",
+        });
+
+        expect(meant.items.map(({ id }) => id)).toStrictEqual([pools]);
+      });
+    });
+  });
+
+  describe("a cell's saved views", () => {
+    it("keeps views by name, a save of one id replacing it, a remove dropping it, and each tells a device the tree moved", async () => {
+      await withLaptop(async ({ library }) => {
+        const { head } = await library.changes({});
+
+        const reading: SavedView = {
+          id: idOf(901),
+          name: "Reading",
+          scope: { kind: "all" },
+          words: "essay",
+        };
+
+        const pdfs: SavedView = {
+          id: idOf(902),
+          kinds: ["pdf"],
+          name: "Papers",
+          scope: { kind: "all" },
+        };
+
+        await library.views.save({ view: reading });
+        await library.views.save({ view: pdfs });
+        await expect(library.listing.scopes()).resolves.toMatchObject({ views: [pdfs, reading] });
+        await expect(library.changes({ after: head })).resolves.toMatchObject({
+          moved: { tree: true },
+        });
+
+        const renamed: SavedView = { ...reading, name: "Essays" };
+        await library.views.save({ view: renamed });
+        await library.views.remove({ id: pdfs.id });
+        await expect(library.listing.scopes()).resolves.toMatchObject({ views: [renamed] });
+      });
+    });
+
+    it("refuses a view past fifty", async () => {
+      await withLaptop(async ({ library }) => {
+        for (let at = 0; at < 50; at += 1) {
+          await library.views.save({
+            view: { id: idOf(1000 + at), name: `View ${String(at)}`, scope: { kind: "unsorted" } },
+          });
+        }
+
+        await expect(
+          codeOf(
+            library.views.save({
+              view: { id: idOf(2000), name: "One more", scope: { kind: "all" } },
+            }),
+          ),
+        ).resolves.toBe("PAYLOAD_TOO_LARGE");
       });
     });
   });

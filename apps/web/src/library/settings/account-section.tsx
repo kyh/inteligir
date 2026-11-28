@@ -1,5 +1,5 @@
 import { SIGN_IN_CODE_LENGTH } from "@repo/contract/account/account-schema";
-import { FILING_RULES_MAX } from "@repo/contract/library/library-wire";
+import { FILING_RULES_MAX, modelKeySchema } from "@repo/contract/library/library-wire";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
@@ -24,6 +24,7 @@ const accountReads = (orpc: CloudWire["orpc"]) => ({
   agent: orpc.library.agent.status.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
   assistants: orpc.account.assistants.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
+  modelKey: orpc.library.agent.modelKey.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
 });
 
 const DevicesRow = () => {
@@ -172,6 +173,105 @@ const AgentRow = () => {
             </span>
           </div>
         )}
+      </CellAnswer>
+    </Row>
+  );
+};
+
+const ModelKeyRow = () => {
+  const { orpc } = usePageLibrary().wire;
+  const queryClient = useQueryClient();
+  const held = useQuery(accountReads(orpc).modelKey);
+  const [typed, setTyped] = useState("");
+  const [wrong, setWrong] = useState<string | null>(null);
+
+  const save = useMutation(
+    orpc.library.agent.setModelKey.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "Your key couldn't be saved."));
+      },
+      onSuccess: async (data) => {
+        setTyped("");
+        toast.success(
+          data.hint === null
+            ? "Removed. The agent runs on the daily allowance again."
+            : "Saved. The agent's next answer runs on your key.",
+        );
+        await queryClient.invalidateQueries({ queryKey: orpc.library.agent.key() });
+      },
+    }),
+  );
+
+  return (
+    <Row label="Your Anthropic key">
+      <CellAnswer query={held} failed="Your key couldn't be read.">
+        {(data) =>
+          data.hint === null ? (
+            <form
+              className="flex flex-col gap-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const parsed = modelKeySchema.safeParse(typed);
+
+                if (parsed.success) {
+                  setWrong(null);
+                  save.mutate({ key: parsed.data });
+                } else {
+                  setWrong(parsed.error.issues[0]?.message ?? "That key can't be read.");
+                }
+              }}
+            >
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  aria-label="Anthropic key"
+                  autoComplete="off"
+                  placeholder="sk-ant-…"
+                  value={typed}
+                  onChange={(event) => {
+                    setTyped(event.target.value);
+                    setWrong(null);
+                  }}
+                />
+                <Button
+                  type="submit"
+                  size="compact"
+                  variant="secondary"
+                  disabled={typed.trim() === "" || save.isPending}
+                >
+                  Save
+                </Button>
+              </div>
+              <span
+                className="text-caption text-muted-foreground"
+                role={wrong === null ? undefined : "alert"}
+              >
+                {wrong ??
+                  "Optional. With your own key the agent answers up to 200 turns a day, billed to your Anthropic account."}
+              </span>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span>Ending …{data.hint}</span>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  className="ml-auto"
+                  disabled={save.isPending}
+                  onClick={() => {
+                    save.mutate({ key: null });
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+              <span className="text-caption text-muted-foreground">
+                The agent runs on your key, up to 200 turns a day, billed to your Anthropic account.
+              </span>
+            </div>
+          )
+        }
       </CellAnswer>
     </Row>
   );
@@ -393,6 +493,7 @@ export const AccountSection = () => {
         <DevicesRow />
         <AssistantsRow />
         <AgentRow />
+        <ModelKeyRow />
         <FilingRulesRow />
         <Row label="">
           <div className="flex flex-col gap-2">

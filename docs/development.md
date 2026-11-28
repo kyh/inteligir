@@ -23,6 +23,7 @@ pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses 
 pnpm bootstrap          # .env, local Postgres, its schema and the seeded login; safe to run again, --dry-run prints it
 pnpm dev:web            # apps/web: next dev on :5174 (pinned), over the Postgres .env.local names
 pnpm sign-in-code       # A fresh sign-in code for dev@inteligir.local (or the email given), mailing nothing
+pnpm cli <args>         # apps/cli: builds and runs the inteligir command (sign-in --site http://localhost:5174 for pnpm dev:web's app)
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects to pnpm dev:web's app
 pnpm package:desktop    # The Mac app's release: the .app and dmg, signed and notarized, and its update (owner; docs/releasing.md)
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output

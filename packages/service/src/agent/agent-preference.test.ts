@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { agentUsage } from "@repo/db/agent-schema";
+import { agentPreference, agentUsage } from "@repo/db/agent-schema";
 import { db } from "@repo/db/drizzle-client";
 import { dbSuite } from "@repo/db/test-database";
 import { and, eq } from "drizzle-orm";
@@ -15,6 +15,7 @@ import { personalLibrary } from "../test-support/library.fixture";
 import { caughtUp, readStream, shownOf } from "../test-support/thread-reads.test-utils";
 import type { LibraryWriter } from "../library/library-store";
 import { filingRulesFor } from "./agent-preference";
+import { ownModelKey } from "./model-key";
 import { sendToAgent, setAgentEnabled } from "./agent-sessions";
 import { threadOf } from "./agent-threads";
 import type { AgentRuntime } from "./runtime";
@@ -83,6 +84,30 @@ dbSuite("the person's standing with the built-in agent", () => {
     const shown = await shownIn(library, threadId);
     const replies = shown.flatMap((event) => (event.type === "agent.message" ? [event.text] : []));
     expect(replies).toStrictEqual(["Filing rules: none", "Filing rules: File birds under Birds."]);
+  });
+
+  it("keeps the person's own key sealed, answers only its last four, and lets it go", async () => {
+    const { accountId, library } = await personalLibrary();
+    const key = `sk-ant-api03-${"x".repeat(36)}wxyz`;
+    await expect(library.agent.modelKey()).resolves.toStrictEqual({ hint: null });
+    await expect(library.agent.setModelKey({ key: ` ${key} ` })).resolves.toStrictEqual({
+      hint: "wxyz",
+    });
+    await expect(library.agent.modelKey()).resolves.toStrictEqual({ hint: "wxyz" });
+    await expect(ownModelKey(accountId)).resolves.toBe(key);
+
+    const [stored] = await db
+      .select({ sealed: agentPreference.modelKey })
+      .from(agentPreference)
+      .where(eq(agentPreference.accountId, accountId));
+
+    expect(stored?.sealed).not.toContain("sk-ant");
+
+    await expect(library.agent.setModelKey({ key: null })).resolves.toStrictEqual({ hint: null });
+    await expect(ownModelKey(accountId)).resolves.toBeNull();
+    await expect(library.agent.setModelKey({ key: "not-a-key" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 
   it("switches through its row, keeping the rules", async () => {

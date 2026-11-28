@@ -19,6 +19,7 @@ const fields = (patch: Partial<LibraryItemFields>) =>
     coverSha: null,
     deletedAt: null,
     description: null,
+    editedSha: null,
     parentId: null,
     kind: "file",
     lang: null,
@@ -64,7 +65,7 @@ const drawn = (answer: (request: Request) => Promise<Response>) => {
   const { library } = fakePageLibrary({});
   renderOnLibrary(
     <>
-      <FileStage fields={fields({})} title="Minutes" />
+      <FileStage fields={fields({})} itemId="i1" title="Minutes" />
       <ThemeProvider>
         <Toaster />
       </ThemeProvider>

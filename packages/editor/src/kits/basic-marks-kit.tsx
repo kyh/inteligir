@@ -1,6 +1,7 @@
 import {
   BoldRules,
   CodeRules,
+  HighlightRules,
   ItalicRules,
   MarkComboRules,
   StrikethroughRules,
@@ -8,6 +9,7 @@ import {
 import {
   BoldPlugin,
   CodePlugin,
+  HighlightPlugin,
   ItalicPlugin,
   StrikethroughPlugin,
   UnderlinePlugin,
@@ -36,4 +38,10 @@ export const BasicMarksKit = [
   CodePlugin.configure({
     inputRules: [CodeRules.markdown()],
   }).withComponent(semanticLeaf("code", "whitespace-pre-wrap")),
+  HighlightPlugin.configure({
+    inputRules: [HighlightRules.markdown()],
+    shortcuts: markPluginShortcuts(KEYS.highlight),
+  }).withComponent(
+    semanticLeaf("mark", "rounded-[2px] bg-amber-200/70 text-inherit dark:bg-amber-300/25"),
+  ),
 ];

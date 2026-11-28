@@ -64,7 +64,12 @@ describe("a read-only editor's DOM handlers", () => {
   });
 });
 
-const CHORDS_THAT_TRANSFORM = ["bold.toggle", "italic.toggle", "underline.toggle"];
+const CHORDS_THAT_TRANSFORM = [
+  "bold.toggle",
+  "highlight.toggle",
+  "italic.toggle",
+  "underline.toggle",
+];
 
 describe("a read-only editor's chords", () => {
   it.each(KITS)("in the %s kit are only chords the model refuses", (_profile, kit) => {

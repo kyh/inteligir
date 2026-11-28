@@ -20,6 +20,7 @@ import {
   sessionPrincipal,
 } from "../test-support/library.fixture";
 import { mintLibraryId } from "./library-ids";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 type Library = Awaited<ReturnType<typeof personalLibrary>>["library"];
 
@@ -141,7 +142,7 @@ dbSuite("an import", () => {
         db
           .select({ id: job.id, payload: job.payload })
           .from(job)
-          .where(eq(job.accountId, accountId)),
+          .where(and(eq(job.accountId, accountId), notSettling)),
       ).resolves.toStrictEqual([
         {
           id: `fill:${link.id}`,

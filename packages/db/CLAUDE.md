@@ -64,3 +64,7 @@ and the suites' databases it ships into.
   rewrites its item's row there, and a pending list flushed every few saves
   stalls one of them for most of a second; push recreates an index whose
   storage parameters changed under its own name. `packages/db/src/library-schema.ts`.
+- **`item_meaning` holds an item's embedding, keyed and cascading as the item,
+  under an HNSW index on pgvector's cosine ops.** Supabase ships `vector`, and
+  a nearest-items read over a library's every row is a scan per Info open.
+  `packages/db/src/library-schema.ts`.

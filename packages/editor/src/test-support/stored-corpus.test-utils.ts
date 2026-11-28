@@ -27,6 +27,7 @@ const UNSPELLED: TElement[] = [
   {
     children: [
       { text: "under", underline: true },
+      { highlight: true, text: " kept" },
       {
         children: [{ text: "" }],
         display: "3",

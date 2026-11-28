@@ -28,6 +28,12 @@ export const bodyBytes = (blocks: readonly unknown[]) => utf8ByteLength(JSON.str
 const AGENT_SELECTION_MAX = 4000;
 export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;
+
+export const modelKeySchema = z
+  .string()
+  .trim()
+  .regex(/^sk-ant-[\w-]{20,300}$/u, "That isn't an Anthropic key: one starts with sk-ant-.");
+
 export const PAGE_MAX = 50;
 export const LISTING_PAGE_MAX = 1000;
 
@@ -120,6 +126,7 @@ export const listingPageInputSchema = z.strictObject({
   cursor: cursorSchema.default(0),
   kinds: kindsSchema.optional(),
   limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
+  meaning: z.boolean().default(false),
   scope: libraryScopeSchema,
   sort: listingSortSchema.default("saved"),
   words: z.string().trim().min(1).max(500).optional(),

@@ -95,5 +95,9 @@ export const organized = (
 
 export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]) =>
   [
-    ...new Set([fields.originalSha, fields.coverSha, ...bodyFiles].filter((sha) => sha !== null)),
+    ...new Set(
+      [fields.originalSha, fields.editedSha, fields.coverSha, ...bodyFiles].filter(
+        (sha) => sha !== null,
+      ),
+    ),
   ] satisfies string[];

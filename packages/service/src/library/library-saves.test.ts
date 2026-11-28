@@ -11,6 +11,7 @@ import { signUpUser, userIdOf } from "../test-support/auth-requests.test-utils";
 import { personalLibrary, seedFile, seedItem } from "../test-support/library.fixture";
 import { extensionHeaders, v1Link } from "../test-support/v1-link.test-utils";
 import { mintLibraryId } from "./library-ids";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const SAVED_AT = 1_700_000_000_000;
 const PDF_SHA = "b".repeat(64);
@@ -56,7 +57,7 @@ const fillJobs = async (accountId: string) =>
   await db
     .select({ attempts: job.attempts, id: job.id, kind: job.kind, payload: job.payload })
     .from(job)
-    .where(eq(job.accountId, accountId))
+    .where(and(eq(job.accountId, accountId), notSettling))
     .orderBy(asc(job.id));
 
 const headOf = async (accountId: string) => {

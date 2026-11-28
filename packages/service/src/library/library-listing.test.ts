@@ -137,6 +137,7 @@ dbSuite("what the apps read of the library", () => {
       total: 4,
       unsorted: 3,
       untagged: 1,
+      views: [],
     });
     const { tags } = await library.listing.scopes();
     const { containers } = await library.listing.scopes();

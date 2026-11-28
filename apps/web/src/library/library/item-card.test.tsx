@@ -23,6 +23,7 @@ const fields = (patch: Partial<LibraryItemFields>) =>
     coverSha: null,
     deletedAt: null,
     description: null,
+    editedSha: null,
     parentId: null,
     kind: "link",
     lang: null,

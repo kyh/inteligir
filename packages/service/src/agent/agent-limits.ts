@@ -5,7 +5,11 @@ import { db } from "@repo/db/drizzle-client";
 import type { DbExecutor } from "@repo/db/drizzle-client";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 
+import { ownModelKey } from "./model-key";
+
 const AGENT_DAY_TURNS = 2;
+
+const OWN_KEY_DAY_TURNS = 200;
 
 const ACCOUNT_DAY_MICRO_USD = 500_000;
 const TOTAL_DAY_MICRO_USD = 5_000_000;
@@ -61,12 +65,15 @@ const daySpend = async (executor: DbExecutor, accountId: string, now: number) =>
 const dollarsSpent = (spend: DaySpend) =>
   spend.accountMicroUsd >= ACCOUNT_DAY_MICRO_USD || spend.totalMicroUsd >= TOTAL_DAY_MICRO_USD;
 
+const dayTurns = async (accountId: string, executor: DbExecutor) =>
+  (await ownModelKey(accountId, executor)) === null ? AGENT_DAY_TURNS : OWN_KEY_DAY_TURNS;
+
 export const turnsLeftToday = async (accountId: string, now: number) => {
   const spend = await daySpend(db, accountId, now);
 
   return spend.accountMicroUsd >= ACCOUNT_DAY_MICRO_USD
     ? 0
-    : Math.max(0, AGENT_DAY_TURNS - spend.turns);
+    : Math.max(0, (await dayTurns(accountId, db)) - spend.turns);
 };
 
 export const refuseSendPastLimits = async (accountId: string, now: number) => {
@@ -76,7 +83,10 @@ export const refuseSendPastLimits = async (accountId: string, now: number) => {
     throw new AgentUnavailableError({ data: { resetsAt: nextDayAt(now) } });
   }
 
-  if (spend.turns >= AGENT_DAY_TURNS || spend.accountMicroUsd >= ACCOUNT_DAY_MICRO_USD) {
+  if (
+    spend.turns >= (await dayTurns(accountId, db)) ||
+    spend.accountMicroUsd >= ACCOUNT_DAY_MICRO_USD
+  ) {
     throw new AgentBudgetError({ data: { resetsAt: nextDayAt(now) } });
   }
 };
@@ -98,7 +108,7 @@ export const bookTurn = async (tx: DbExecutor, at: UsageAt, now: number) => {
   await keepSpend(tx, at, { costMicroUsd: 0, kind: "turn" }, now);
   const spend = await daySpend(tx, at.accountId, now);
 
-  if (spend.turns > AGENT_DAY_TURNS) {
+  if (spend.turns > (await dayTurns(at.accountId, tx))) {
     return "allowance" as const;
   }
 
@@ -110,7 +120,8 @@ export const chargeSpend = async (
   spend: Spend & { readonly kind: "model" | "search" },
   now: number,
 ) => {
-  await keepSpend(db, at, spend, now);
+  const own = spend.kind === "model" && (await ownModelKey(at.accountId)) !== null;
+  await keepSpend(db, at, own ? { ...spend, costMicroUsd: 0 } : spend, now);
 
   return (
     dollarsSpent(await daySpend(db, at.accountId, now)) ? "budget" : null

@@ -13,6 +13,7 @@ import {
   ChevronDownIcon,
   CodeIcon,
   FileOutputIcon,
+  HighlighterIcon,
   ItalicIcon,
   Link2Icon,
   StrikethroughIcon,
@@ -352,6 +353,9 @@ const SelectionToolbar = () => {
             </MarkButton>
             <MarkButton nodeType={KEYS.code}>
               <CodeIcon />
+            </MarkButton>
+            <MarkButton nodeType={KEYS.highlight}>
+              <HighlighterIcon />
             </MarkButton>
 
             <Sep />

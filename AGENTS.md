@@ -45,13 +45,16 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
   block carries imports and the agent's reads and edits, and Plate's stock is
   corrected where an agent's edit would lose words. Why: byte-exact round trips
   cost more than they pay.
-- **Saving calls no model.** The extension reads its page; any other save lands
-  unread for the cloud's fill job, and the agent files and tags only when asked.
-  Why: a save is instant and free.
+- **A save's write calls no model.** The extension reads its page; any other
+  save lands unread for the cloud's fill job, and an embedding for meaning
+  search, a picture's words and a saved page's or file's filing, tags and
+  summary are jobs after the commit, on the gateway, the filing only while the
+  agent is on. Why: a save is instant.
 - **The built-in agent is ours, on our bill**: eve's, served by the
   deployment, on Sonnet 5.5 through Vercel's AI Gateway, searching and reading
-  the web without asking, a daily allowance, each turn one undoable change set;
-  your Claude or ChatGPT joins by the connector. Why: a knowledge worker has no
+  the web without asking, a daily allowance (or the person's own Anthropic key,
+  on their bill), each turn one undoable change set; your Claude or ChatGPT
+  joins by the connector. Why: a knowledge worker has no
   agent to install, and one they pay for should find the library.
 - **Stock before custom**, in dataembed's layout: App Router routes, a zod
   contract over a service over drizzle, Better Auth, eve, Vercel Cron and Blob,
@@ -72,6 +75,7 @@ the phone, the extension and the Mac shell; `CONTEXT.md` is the glossary and
 apps/web               * the one Next.js app: the site, the cloud's routes, crons and health check, the built-in agent (agent/); the library tab (src/library *)
 apps/desktop           * the Mac app: an Electron window on the site's /library, its origin pin, menu and updater
 apps/mobile            * the iPhone app: native lists, the share sheet, the editor in an Expo DOM component
+apps/cli               * the `inteligir` command: a thin client of the connector, signing in by OAuth with PKCE
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
 packages/service       * the cloud's code apps/web serves: accounts, /v1, the library, files, jobs, the fill, the connector, the agent's tools and limits
@@ -83,8 +87,9 @@ packages/ui            * the shared components on Base UI
 tools/repo-guards      * the fitness test over the repo's product words
 ```
 
-`*` marks a `CLAUDE.md` holding the workspace's decisions. The product has no
-command line: drive the site in a browser, `/v1` with curl.
+`*` marks a `CLAUDE.md` holding the workspace's decisions. The product's only
+command line is `inteligir`, the connector's tools as commands (`pnpm cli
+tools` from the repo); drive the site in a browser, `/v1` with curl.
 
 ## Quickstart
 
@@ -150,6 +155,7 @@ production, which waits for CI's `check`.
 | Site and server | `pnpm dev:web`       | **Yes**: curl, `pnpm smoke`; the service's suites                       |
 | Library tab     | `pnpm dev:web`       | **Yes**: agent-browser; its suites under jsdom                          |
 | Connector       | `pnpm dev:web`       | **Yes**: an MCP client on `/mcp`, OAuth with PKCE; the service's suites |
+| Command line    | `pnpm cli`           | **Yes**: against `pnpm dev:web`; its suites                             |
 | Built-in agent  | `pnpm dev:web`       | **Yes, over eve's mock model**: agent-browser; the service's suites     |
 | Mac app         | `pnpm dev`           | **Its shell**: its vitest suites; the window needs a human              |
 | Extension       | `pnpm dev:extension` | **Its suites**; a real browser needs a human                            |

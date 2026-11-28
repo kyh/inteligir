@@ -57,6 +57,7 @@ const jsonObjectSchema = z.looseObject({
 const LIBRARY_READS = new Set([
   "agent.events",
   "agent.list",
+  "agent.modelKey",
   "agent.rules",
   "agent.status",
   "agent.undoable",
@@ -69,6 +70,7 @@ const LIBRARY_READS = new Set([
   "items.get",
   "items.list",
   "items.read",
+  "items.related",
   "items.row",
   "listing.children",
   "listing.page",
@@ -321,6 +323,7 @@ describe("the library's wire", () => {
         coverSha: null,
         deletedAt: null,
         description: null,
+        editedSha: null,
         parentId: null,
         kind: "note",
         lang: null,

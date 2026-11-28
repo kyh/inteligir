@@ -6,6 +6,7 @@ import type {
   ItemCard,
 } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { SavedView } from "@repo/contract/library/saved-views";
 import { sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
@@ -22,6 +23,7 @@ import {
   primaryKey,
   text,
   uniqueIndex,
+  vector,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth-schema";
@@ -31,7 +33,7 @@ const TAG_ORIGINS = [
   "inline",
 ] as const satisfies readonly DerivedItem["tags"][number]["origin"][];
 
-const JOB_KINDS = ["fill", "file-release", "sweep"] as const;
+const JOB_KINDS = ["fill", "auto-file", "file-release", "file-text", "meaning", "sweep"] as const;
 
 export const itemKind = pgEnum("item_kind", ITEM_KINDS);
 export const tagOrigin = pgEnum("tag_origin", TAG_ORIGINS);
@@ -53,6 +55,8 @@ export const libraryState = pgTable.withRLS("library_state", {
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   head: ms("head").default(0).notNull(),
+  views: jsonb("views").$type<SavedView[]>().default([]).notNull(),
+  viewsSeq: ms("views_seq").default(0).notNull(),
 });
 
 export const item = pgTable.withRLS(
@@ -66,6 +70,7 @@ export const item = pgTable.withRLS(
     coverSha: text("cover_sha"),
     deletedAt: ms("deleted_at"),
     description: text("description"),
+    editedSha: text("edited_sha"),
     parentId: text("parent_id"),
     id: text("id").notNull(),
     kind: itemKind("kind").notNull(),
@@ -168,6 +173,23 @@ export const itemSearch = pgTable.withRLS(
     index("item_search_text")
       .using("gin", sql`lower(${table.text}) gin_trgm_ops`)
       .with({ fastupdate: false }),
+  ],
+);
+
+export const MEANING_DIMENSIONS = 512;
+
+export const itemMeaning = pgTable.withRLS(
+  "item_meaning",
+  {
+    accountId: text("account_id").notNull(),
+    embedding: vector("embedding", { dimensions: MEANING_DIMENSIONS }).notNull(),
+    itemId: text("item_id").notNull(),
+    textSha: text("text_sha").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accountId, table.itemId] }),
+    itemFk("item_meaning_item_fk", [table.accountId, table.itemId]),
+    index("item_meaning_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
   ],
 );
 
