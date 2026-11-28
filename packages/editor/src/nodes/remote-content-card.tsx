@@ -1,5 +1,11 @@
-import { ExternalLinkIcon, FileTextIcon, FilmIcon, GlobeIcon, ImageIcon } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import {
+  LinkExternal01 as ExternalLinkIcon,
+  File04 as FileTextIcon,
+  Film01 as FilmIcon,
+  Globe01 as GlobeIcon,
+  Image01 as ImageIcon,
+} from "@untitledui/icons";
+import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
@@ -13,7 +19,7 @@ const KIND_ICON = {
   page: GlobeIcon,
   pdf: FileTextIcon,
   video: FilmIcon,
-} satisfies Record<RemoteContentKind, LucideIcon>;
+} satisfies Record<RemoteContentKind, IconComponent>;
 
 export const RemoteContentCard = ({
   kind,

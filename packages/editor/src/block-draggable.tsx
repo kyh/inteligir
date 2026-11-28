@@ -11,7 +11,7 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
-import { GripVerticalIcon, PlusIcon } from "lucide-react";
+import { DotsGrid as GripVerticalIcon, Plus as PlusIcon } from "@untitledui/icons";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
 import { PathApi } from "platejs";
 import type { Descendant } from "platejs";

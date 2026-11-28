@@ -1,4 +1,7 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import {
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+} from "@untitledui/icons";
 import { DayPicker } from "react-day-picker";
 import type { ChevronProps, DayPickerProps } from "react-day-picker";
 

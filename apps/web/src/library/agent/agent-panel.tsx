@@ -17,7 +17,7 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon } from "lucide-react";
+import { Plus as PlusIcon } from "@untitledui/icons";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 
@@ -71,7 +71,7 @@ const EntryRow = ({
         <div className="flex items-center gap-2" data-turn-ended={event.turn}>
           {words === "" ? null : <p className="m-0 text-caption text-muted-foreground">{words}</p>}
           {run === null ? null : (
-            <Button size="compact" variant="ghost" disabled={undoWaits} onClick={run}>
+            <Button variant="ghost" disabled={undoWaits} onClick={run}>
               Undo this turn
             </Button>
           )}
@@ -246,7 +246,6 @@ const Conversation = ({
           )}
           {underWay ? (
             <Button
-              size="compact"
               variant="ghost"
               onClick={() => {
                 cancel.mutate({ threadId });
@@ -257,7 +256,6 @@ const Conversation = ({
           ) : null}
           {undoable.length === 0 || underWay ? null : (
             <Button
-              size="compact"
               variant="ghost"
               disabled={undoWaits}
               onClick={() => {
@@ -276,7 +274,7 @@ const Conversation = ({
 const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
   <div className="flex items-center gap-1 px-1 pb-1" data-tidy-request>
     <span className="rounded-full bg-muted px-2 py-0.5 text-caption">{TIDY_LABEL}</span>
-    <Button variant="ghost" size="compact" onClick={onDrop}>
+    <Button variant="ghost" onClick={onDrop}>
       Don’t tidy
     </Button>
   </div>
@@ -370,7 +368,7 @@ export const AgentPanel = ({ viewContext, flushOpen }: AgentPanelProps) => {
         {threadId === null && <span className="px-1 text-body font-medium">Conversations</span>}
         <Button
           variant="ghost"
-          size="icon-compact"
+          size="icon"
           className="ml-auto"
           aria-label="New conversation"
           onClick={() => {

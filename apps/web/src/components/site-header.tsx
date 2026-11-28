@@ -1,6 +1,6 @@
 "use client";
 
-import { MoonIcon, SunIcon } from "lucide-react";
+import { Moon01 as MoonIcon, Sun as SunIcon } from "@untitledui/icons";
 import { useTheme } from "@repo/ui/lib/theme";
 
 import { Button } from "@repo/ui/components/button";

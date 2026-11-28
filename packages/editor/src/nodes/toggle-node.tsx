@@ -1,6 +1,6 @@
 // @license MIT, vendored from plate (github.com/udecode/plate). © Plate contributors.
 
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRight as ChevronRightIcon } from "@untitledui/icons";
 import { PlateElement, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";

@@ -1,6 +1,6 @@
 // @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
 import { cn } from "@repo/ui/lib/cn";
-import { Loader2Icon } from "lucide-react";
+import { Loading02 as Loader2Icon } from "@untitledui/icons";
 
 const Spinner = ({ className, ...props }: React.ComponentProps<"svg">) => (
   <Loader2Icon

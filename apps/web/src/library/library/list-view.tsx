@@ -21,19 +21,19 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { formatCount } from "@repo/ui/lib/plural";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ChevronRightIcon,
-  EllipsisIcon,
-  FileIcon,
-  FileTextIcon,
-  FolderIcon,
-  ImageIcon,
-  LinkIcon,
-  ListIcon,
-  MusicIcon,
-  PlayIcon,
-  PlusIcon,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  ChevronRight as ChevronRightIcon,
+  DotsHorizontal as EllipsisIcon,
+  File01 as FileIcon,
+  File04 as FileTextIcon,
+  Folder as FolderIcon,
+  Image01 as ImageIcon,
+  Link01 as LinkIcon,
+  List as ListIcon,
+  MusicNote01 as MusicIcon,
+  Play as PlayIcon,
+  Plus as PlusIcon,
+} from "@untitledui/icons";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { useEffect, useEffectEvent, useState } from "react";
 import { z } from "zod";
 
@@ -55,7 +55,7 @@ const KIND_ICONS = {
   note: FileTextIcon,
   pdf: FileTextIcon,
   video: PlayIcon,
-} satisfies Record<ItemKind, LucideIcon>;
+} satisfies Record<ItemKind, IconComponent>;
 
 const NO_PROPERTIES: ListSettings = { groupBy: null, properties: [] };
 
@@ -162,7 +162,7 @@ const ListRow = ({
         <DropdownMenuTrigger
           render={
             <Button
-              size="icon-compact"
+              size="icon"
               variant="ghost"
               className="size-6 shrink-0 opacity-0 group-hover/list-row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
               aria-label={`More for ${title}`}
@@ -312,7 +312,7 @@ const ListGroup = ({
           </button>
           <span className="h-px flex-1 bg-border" />
           <Button
-            size="icon-compact"
+            size="icon"
             variant="ghost"
             className="size-6"
             aria-label={`New note in ${label}`}
@@ -453,7 +453,6 @@ export const ListView = ({ listId, rows, total, openItem }: ListViewProps) => {
         <div className="ml-auto flex items-center gap-1.5">
           {listItem === undefined ? null : <ListProperties listId={listId} list={list} />}
           <Button
-            size="compact"
             variant="secondary"
             onClick={() => {
               void newNote(firstOption);

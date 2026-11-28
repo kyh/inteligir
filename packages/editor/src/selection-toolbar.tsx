@@ -9,16 +9,16 @@ import {
 } from "@platejs/floating";
 import { BlockSelectionPlugin } from "@platejs/selection/react";
 import {
-  BoldIcon,
-  ChevronDownIcon,
-  CodeIcon,
-  FileOutputIcon,
-  HighlighterIcon,
-  ItalicIcon,
-  Link2Icon,
-  StrikethroughIcon,
-  SparklesIcon,
-} from "lucide-react";
+  Bold01 as BoldIcon,
+  ChevronDown as ChevronDownIcon,
+  Code01 as CodeIcon,
+  FileDownload02 as FileOutputIcon,
+  Italic01 as ItalicIcon,
+  Link01 as Link2Icon,
+  Strikethrough01 as StrikethroughIcon,
+  Stars01 as SparklesIcon,
+} from "@untitledui/icons";
+import { HighlighterIcon } from "lucide-react";
 import { KEYS, RangeApi } from "platejs";
 import type { RangeRef } from "platejs";
 import {

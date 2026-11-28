@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
-import { ChevronRightIcon, ReplaceIcon, SearchIcon, XIcon } from "lucide-react";
+import {
+  ChevronRight as ChevronRightIcon,
+  SwitchHorizontal01 as ReplaceIcon,
+  SearchMd as SearchIcon,
+  XClose as XIcon,
+} from "@untitledui/icons";
 import { NodeApi, PointApi, RangeApi, TextApi } from "platejs";
 import type {
   DecoratedRange,

@@ -9,18 +9,17 @@ import {
   useMarkToolbarButtonState,
 } from "platejs/react";
 import {
-  BoldIcon,
-  HighlighterIcon,
-  CodeIcon,
-  ItalicIcon,
-  KeyboardOffIcon,
-  Link2Icon,
-  ListIndentDecreaseIcon,
-  ListIndentIncreaseIcon,
-  Redo2Icon,
-  UnderlineIcon,
-  Undo2Icon,
-} from "lucide-react";
+  Bold01 as BoldIcon,
+  Code01 as CodeIcon,
+  Italic01 as ItalicIcon,
+  Link01 as Link2Icon,
+  LeftIndent01 as ListIndentDecreaseIcon,
+  RightIndent01 as ListIndentIncreaseIcon,
+  FlipForward as Redo2Icon,
+  Underline01 as UnderlineIcon,
+  FlipBackward as Undo2Icon,
+} from "@untitledui/icons";
+import { HighlighterIcon, KeyboardOffIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";

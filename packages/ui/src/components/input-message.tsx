@@ -14,7 +14,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { radius } from "@repo/ui/lib/radius";
-import { ArrowUpIcon } from "lucide-react";
+import { ArrowUp as ArrowUpIcon } from "@untitledui/icons";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -226,7 +226,7 @@ const InputMessage = ({
             <Button
               type="button"
               variant="primary"
-              size="icon-compact"
+              size="icon"
               onClick={handleSend}
               disabled={!canSend}
               aria-label={sendLabel}

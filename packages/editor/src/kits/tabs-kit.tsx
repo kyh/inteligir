@@ -3,7 +3,7 @@ import { ElementApi, KEYS } from "platejs";
 import type { TElement } from "platejs";
 import { PlateElement, useEditorRef, useElement, usePath } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { Plus as PlusIcon, XClose as XIcon } from "@untitledui/icons";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";

@@ -3,7 +3,11 @@
 
 import { useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
-import { ChevronDownIcon, FileIcon, PenIcon } from "lucide-react";
+import {
+  ChevronDown as ChevronDownIcon,
+  File01 as FileIcon,
+  Edit05 as PenIcon,
+} from "@untitledui/icons";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/cn";

@@ -1,5 +1,11 @@
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FileOutputIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowDown as ArrowDownIcon,
+  ArrowUp as ArrowUpIcon,
+  Copy01 as CopyIcon,
+  FileDownload02 as FileOutputIcon,
+  Trash01 as Trash2Icon,
+} from "@untitledui/icons";
 import { useEditorPlugin, usePluginOption } from "platejs/react";
 
 import {

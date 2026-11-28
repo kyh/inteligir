@@ -16,13 +16,12 @@ export const RenderCrash = ({ error, retry }: RenderCrashProps) => (
         {error instanceof Error ? (error.stack ?? error.message) : String(error)}
       </pre>
       <div className="flex gap-2">
-        <Button type="button" variant="secondary" size="compact" onClick={retry}>
+        <Button type="button" variant="secondary" onClick={retry}>
           Try again
         </Button>
         <Button
           type="button"
           variant="secondary"
-          size="compact"
           onClick={() => {
             window.location.reload();
           }}

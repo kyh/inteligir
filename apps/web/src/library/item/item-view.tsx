@@ -8,7 +8,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon, LayoutRight as PanelRightIcon } from "@untitledui/icons";
 import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
@@ -120,7 +120,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
       <TopBar className="px-3">
         <Button
           variant="ghost"
-          size="icon-compact"
+          size="icon"
           aria-label="Back to the library"
           onClick={() => {
             commands.closeItem();
@@ -140,7 +140,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
         )}
         <Button
           variant="ghost"
-          size="icon-compact"
+          size="icon"
           aria-label="Info and the agent"
           onClick={() => {
             workspace.togglePanel();

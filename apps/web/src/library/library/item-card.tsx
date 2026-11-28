@@ -11,7 +11,13 @@ import {
 } from "@repo/ui/components/media-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { landedInside } from "@repo/ui/lib/landed-inside";
-import { FileTextIcon, MusicIcon, PinIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  File04 as FileTextIcon,
+  MusicNote01 as MusicIcon,
+  Pin02 as PinIcon,
+  Play as PlayIcon,
+  AlertTriangle as TriangleAlertIcon,
+} from "@untitledui/icons";
 import { useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 

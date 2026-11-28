@@ -1,6 +1,6 @@
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { shownFileSha } from "@repo/contract/library/library-item";
-import { ExternalLinkIcon } from "lucide-react";
+import { LinkExternal01 as ExternalLinkIcon } from "@untitledui/icons";
 
 import { fileUrl } from "../cloud/library-files";
 import { readingNotice } from "../library/item-labels";

@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDown as ChevronDownIcon } from "@untitledui/icons";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/cn";

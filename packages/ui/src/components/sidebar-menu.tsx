@@ -349,7 +349,7 @@ const SidebarMenuButton = ({
           </>
         ),
         className: cn(
-          "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
+          "peer/menu-button relative z-10 flex h-8 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
           radius.item,
           className,
         ),

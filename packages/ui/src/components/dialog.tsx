@@ -5,7 +5,7 @@ import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type { HTMLProps } from "@base-ui/react/types";
 import { motion } from "motion/react";
-import { XIcon } from "lucide-react";
+import { XClose as XIcon } from "@untitledui/icons";
 
 import { Button } from "@repo/ui/components/button";
 import { Elevated } from "@repo/ui/lib/elevated";
@@ -111,7 +111,7 @@ const DialogContent = ({
             {showCloseButton && (
               <DialogPrimitive.Close
                 render={
-                  <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
+                  <Button variant="ghost" size="icon" className="absolute top-3 right-3">
                     <XIcon />
                     <span className="sr-only">Close</span>
                   </Button>

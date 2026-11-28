@@ -39,7 +39,6 @@ const Related = ({ id }: { readonly id: string }) => {
         {near.map((row) => (
           <li key={row.id}>
             <Button
-              size="compact"
               variant="ghost"
               className="h-auto w-full justify-start py-1 text-left whitespace-normal"
               onClick={() => {
@@ -138,7 +137,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
               <span className="flex items-center gap-2">
                 <ParentName parentId={fields.parentId} />
                 <Button
-                  size="compact"
                   variant="ghost"
                   onClick={() => {
                     commands.move({ ids: [id], kind: "ids" });
@@ -161,7 +159,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                   </span>
                 ))}
                 <Button
-                  size="compact"
                   variant="ghost"
                   onClick={() => {
                     commands.tag({ ids: [id], kind: "ids" }, [fields.tags]);
@@ -200,7 +197,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
               <ReadFailure reading={fields.reading} />
               <Button
                 variant="secondary"
-                size="compact"
                 disabled={refreshing}
                 onClick={() => {
                   refresh.mutate({ id });
@@ -213,7 +209,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
           {readsFileText(fields) ? (
             <Button
               variant="secondary"
-              size="compact"
               disabled={refreshing}
               onClick={() => {
                 refresh.mutate({ id });

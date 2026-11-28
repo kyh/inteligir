@@ -17,10 +17,12 @@ The shared component vocabulary, its type roles and its motion.
   A div owns no dismissal, flipping, layering or focus and drifts on scroll; the selection toolbar
   is the one exception, and Base UI's `render` prop is the polymorphism channel, with no Slot.
   `packages/ui/src/components/popover.tsx`.
-- **The chrome has one size, Fluid's compact step, and five type roles on it.** caption 11, body
-  12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
-  is, and a size every root sets alike is a branch in each component; the note is not chrome, its
-  prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
+- **The chrome has one size, Fluid's default step (owner decision), and five type roles on it.**
+  caption 12, body 13, subtitle 14, title 16, display 28, controls and menu rows 36px, as
+  `text-<role>` utilities, since a role says what a line is, and a size every root sets alike is a
+  branch in each component; only a note's floating toolbars take the `compact` button, Fluid's
+  step for dense surfaces, and the note is not chrome, its prose in em off the appearance dials.
+  `packages/ui/src/styles/globals.css`.
 - **Dark is the screen's, so every print is light.** The `dark` variant and both dark palettes sit
   inside `@media not print`, since a printer skips backgrounds and dark's light ink would land on
   white paper. `packages/ui/src/styles/globals.css`.
@@ -28,6 +30,15 @@ The shared component vocabulary, its type roles and its motion.
   `font-display: optional` over an Arial fallback sized to Inter's metrics, and the site preloads
   the Latin file, because a swap reflows every line a few seconds into a slow first load.
   `packages/ui/src/styles/inter.css`.
+- **Inter loads with its `opsz` axis, Fontsource's opsz files, never the wght-only ones.** Fluid's
+  `fontWeights` and the browser's optical sizing set `opsz`, which a wght-only file ignores, so a
+  label's weight changes without changing its width. `packages/ui/src/styles/inter.css`.
+- **One accent, Fluid's `--fluid-accent` (#6B97FF), is every focus ring, the selection, the
+  switch's on track and `--ring`.** An accent each component picks drifts; a re-skin is one token.
+  `packages/ui/src/styles/globals.css`.
+- **Icons are Untitled UI's (`@untitledui/icons`), Fluid's set, imported under the name the call
+  site reads; Lucide only draws a glyph Untitled has none of.** A second family where Untitled
+  has the glyph reads as two hands. `packages/ui/src/lib/icon.ts`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
   unconfigured `cn`. `packages/ui/src/lib/cn.ts`.

@@ -67,7 +67,7 @@ const EmbedUrlForm = () => {
           Only a web link embeds. Paste one that starts with https://
         </p>
       ) : null}
-      <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
+      <Button variant="primary" onClick={submit} disabled={!trimmed}>
         Embed
       </Button>
     </div>

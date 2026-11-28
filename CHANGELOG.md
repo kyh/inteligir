@@ -38,6 +38,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Sign in with a code we email you, not a password**: enter your email, then the six digits from the email, on the website, the Mac app and your iPhone. Your password no longer signs you in and there is nothing to reset; devices already signed in stay signed in.
 - **Creating an account emails you a code too**: fill in your name, email and invite code, then enter the code we send.
 - **Deleting your account asks for a code we email you** instead of your password.
+- **A fresh look across the app**: a blue accent marks focus, selected text and switches that are on, icons are redrawn in one consistent set, labels keep their width as they change weight, secondary and delete buttons are softer tints, and text, buttons, fields and menus are a size larger and roomier.
 
 ## 0.7.0 — 2026-11-20
 

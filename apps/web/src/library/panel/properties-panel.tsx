@@ -6,7 +6,7 @@ import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { PlusIcon } from "lucide-react";
+import { Plus as PlusIcon } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import type { ComponentProps, KeyboardEvent } from "react";
 

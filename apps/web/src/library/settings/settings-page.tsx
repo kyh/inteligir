@@ -2,7 +2,7 @@ import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon } from "@untitledui/icons";
 
 import { LICENSES_PATH } from "#lib/site-config";
 import {
@@ -99,7 +99,6 @@ export const SettingsPage = () => (
     >
       <Button
         variant="ghost"
-        size="compact"
         className="mb-2 justify-start"
         onClick={() => {
           libraryGoes.closeSettings();
@@ -112,7 +111,6 @@ export const SettingsPage = () => (
         <Button
           key={entry.id}
           variant="ghost"
-          size="compact"
           className="justify-start text-muted-foreground"
           onClick={() => {
             document.querySelector(`#${entry.id}`)?.scrollIntoView();

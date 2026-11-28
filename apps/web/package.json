@@ -35,6 +35,7 @@
     "@repo/service": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
+    "@untitledui/icons": "catalog:",
     "@zip.js/zip.js": "catalog:",
     "ai": "catalog:",
     "better-auth": "catalog:",

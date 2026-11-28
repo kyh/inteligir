@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
-import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  DotsHorizontal as EllipsisIcon,
+  Plus as PlusIcon,
+  Trash01 as Trash2Icon,
+} from "@untitledui/icons";
 import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
 import { PlateElement, useEditorRef, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";

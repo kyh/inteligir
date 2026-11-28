@@ -2,7 +2,7 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { PencilIcon, Undo2Icon } from "lucide-react";
+import { Pencil01 as PencilIcon, FlipBackward as Undo2Icon } from "@untitledui/icons";
 import { lazy, Suspense, useEffect, useState } from "react";
 
 import { useLibraryWrites, usePageLibrary } from "../../cloud/library-context";

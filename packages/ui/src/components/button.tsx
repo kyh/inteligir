@@ -21,23 +21,23 @@ const buttonStructure = cva(
   ],
   {
     compoundVariants: [
-      { className: "pl-[6px]", iconLeft: true, size: "compact" },
-      { className: "pl-[10px]", iconLeft: true, size: "default" },
+      { className: "pl-2", iconLeft: true, size: "compact" },
+      { className: "pl-3", iconLeft: true, size: "default" },
     ],
     defaultVariants: {
-      size: "compact",
+      size: "default",
       variant: "primary",
     },
     variants: {
       iconLeft: { true: "" },
       size: {
-        compact: "h-7 gap-1 px-3 text-body [&_svg:not([class*='size-'])]:size-3.5",
-        default: "h-9 gap-1.5 px-4 text-subtitle",
+        compact: "h-7 gap-1 px-3 text-caption [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 gap-1.5 px-4 text-body",
         icon: "h-9 w-9 p-0",
         "icon-compact": "h-7 w-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
       },
       variant: {
-        destructive: "text-destructive-foreground",
+        destructive: "text-red-700 dark:text-red-400",
         ghost: "text-muted-foreground hover:text-foreground",
         primary: "text-background",
         secondary: "text-foreground",
@@ -53,34 +53,34 @@ type ButtonSize = "default" | "compact" | "icon" | "icon-compact";
 
 const bgVariants = {
   destructive:
-    "[--btn-bg:var(--destructive)] group-hover:[--btn-bg:color-mix(in_oklab,var(--destructive)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+    "[--btn-bg:color-mix(in_oklab,var(--color-red-500)_15%,transparent)] group-hover:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_25%,transparent)] group-active:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_15%,transparent)] dark:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_20%,transparent)] dark:group-hover:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_30%,transparent)] dark:group-active:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_20%,transparent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   ghost:
     "bg-transparent shadow-[0_0_0_1px_transparent] group-hover:bg-hover group-hover:shadow-[0_0_0_1px_var(--hover)] group-active:bg-active group-active:shadow-[0_0_0_0px_var(--active)]",
   primary:
     "[--btn-bg:var(--foreground)] group-hover:[--btn-bg:color-mix(in_oklab,var(--foreground)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--foreground)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   secondary:
-    "[--btn-bg:var(--accent)] group-hover:[--btn-bg:color-mix(in_oklab,var(--accent)_80%,var(--background))] group-active:[--btn-bg:var(--accent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+    "[--btn-bg:var(--tint)] group-hover:[--btn-bg:var(--tint-hover)] group-active:[--btn-bg:var(--tint)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   tertiary:
     "bg-transparent shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-hover:bg-hover group-active:bg-active group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
 } satisfies Record<ButtonVariant, string>;
 
 const activeBgVariants = {
   destructive:
-    "[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+    "[--btn-bg:color-mix(in_oklab,var(--color-red-500)_25%,transparent)] dark:[--btn-bg:color-mix(in_oklab,var(--color-red-500)_30%,transparent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   ghost: "bg-active shadow-[0_0_0_1px_var(--active)] group-active:shadow-[0_0_0_0px_var(--active)]",
   primary:
     "[--btn-bg:color-mix(in_oklab,var(--foreground)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   secondary:
-    "[--btn-bg:var(--accent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+    "[--btn-bg:var(--tint)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   tertiary:
     "bg-active shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
 } satisfies Record<ButtonVariant, string>;
 
 const flatBgVariants = {
-  destructive: "bg-destructive hover:bg-destructive/90",
+  destructive: "bg-red-500/15 hover:bg-red-500/25 dark:bg-red-500/20 dark:hover:bg-red-500/30",
   ghost: "bg-transparent hover:bg-hover active:bg-active",
   primary: "bg-foreground hover:bg-foreground/90 active:bg-foreground/80",
-  secondary: "bg-accent hover:bg-accent/80",
+  secondary: "bg-tint hover:bg-[var(--tint-hover)]",
   tertiary: "bg-transparent shadow-[inset_0_0_0_1px_var(--border)] hover:bg-hover active:bg-active",
 } satisfies Record<ButtonVariant, string>;
 
@@ -90,7 +90,7 @@ const buttonVariants = (props?: {
   className?: string;
 }) => {
   const variant = props?.variant ?? "primary";
-  const size = props?.size ?? "compact";
+  const size = props?.size ?? "default";
 
   return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
 };
@@ -185,7 +185,7 @@ const Button = ({
   ref,
   ...props
 }: ButtonProps & RefAttributes<HTMLButtonElement>) => {
-  const resolvedSize: ButtonSize = size ?? "compact";
+  const resolvedSize: ButtonSize = size ?? "default";
   const resolvedVariant = variant ?? "primary";
   const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
   const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";

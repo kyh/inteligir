@@ -190,6 +190,7 @@
     "@platejs/toggle": "^53.0.0",
     "@repo/contract": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@untitledui/icons": "catalog:",
     "diff": "^9.0.0",
     "katex": "^0.19.1",
     "lowlight": "^3.3.0",

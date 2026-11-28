@@ -16,7 +16,11 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownUpIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+  SwitchVertical01 as ArrowDownUpIcon,
+  Plus as PlusIcon,
+  XClose as XIcon,
+} from "@untitledui/icons";
 import { useRef } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
@@ -117,7 +121,7 @@ const AddMenu = ({ scope }: { scope: LibraryScope }) => {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button size="compact" variant="secondary" aria-label="Add to the library" />}
+          render={<Button variant="secondary" aria-label="Add to the library" />}
         >
           <PlusIcon />
           Add
@@ -181,9 +185,7 @@ const SortMenu = ({
   onSortChange: (sort: LibrarySort) => void;
 }) => (
   <DropdownMenu>
-    <DropdownMenuTrigger
-      render={<Button size="compact" variant="ghost" aria-label="Sort the library" />}
-    >
+    <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Sort the library" />}>
       <ArrowDownUpIcon />
       {SORT_LABELS[sort]}
     </DropdownMenuTrigger>
@@ -302,7 +304,7 @@ const WordsChip = ({ words }: { words: string }) => {
       <span className="truncate">“{words}”</span>
       <Button
         variant="ghost"
-        size="icon-compact"
+        size="icon"
         className="size-5 shrink-0"
         aria-label="Clear the words"
         onClick={() => {
@@ -345,7 +347,6 @@ export const LibraryView = ({
         <div className="ml-auto flex items-center gap-1.5">
           {scope.kind !== "deleted" && (words !== null || kind !== null) ? (
             <Button
-              size="compact"
               variant="ghost"
               onClick={() => {
                 commands.saveView();
@@ -356,7 +357,6 @@ export const LibraryView = ({
           ) : null}
           {tidyOffered && scope.kind !== "deleted" ? (
             <Button
-              size="compact"
               variant="ghost"
               onClick={() => {
                 commands.startTidy();
@@ -368,7 +368,6 @@ export const LibraryView = ({
           <SortMenu sort={sort} onSortChange={onSortChange} />
           {scope.kind === "deleted" ? (
             <Button
-              size="compact"
               variant="destructive"
               disabled={counts === undefined || counts.deleted === 0}
               onClick={() => {
