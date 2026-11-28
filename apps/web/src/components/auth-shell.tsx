@@ -40,7 +40,7 @@ export const AuthField = ({
     <label htmlFor={id} className="text-subtitle leading-none font-medium select-none">
       {label}
     </label>
-    <Input id={id} className="h-9" {...input} />
+    <Input id={id} {...input} />
     {hint === undefined ? null : <p className="text-xs text-muted-foreground">{hint}</p>}
   </div>
 );

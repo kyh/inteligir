@@ -1,15 +1,19 @@
-// @license MIT, vendored from shadcn/ui (github.com/shadcn-ui/ui).
+// @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 import * as React from "react";
 import { Input as InputPrimitive } from "@base-ui/react/input";
 
 import { cn } from "@repo/ui/lib/cn";
+
+export const fieldClasses =
+  "w-full min-w-0 rounded-lg border border-border bg-transparent px-3 text-body text-foreground outline-none pointer-coarse:text-[16px] transition-[background-color,border-color] duration-80 placeholder:text-muted-foreground hover:bg-hover aria-invalid:border-destructive/50 focus:border-foreground/40 aria-invalid:focus:border-foreground/40 focus:hover:bg-transparent disabled:pointer-events-none disabled:opacity-50";
 
 const Input = ({ className, type, ...props }: React.ComponentProps<"input">) => (
   <InputPrimitive
     type={type}
     data-slot="input"
     className={cn(
-      "h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-subtitle transition-[color,box-shadow] duration-200 outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-subtitle file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+      fieldClasses,
+      "h-9 file:mr-2 file:cursor-pointer file:border-0 file:bg-transparent file:p-0 file:font-[inherit] file:text-[length:inherit] file:text-foreground",
       className,
     )}
     {...props}

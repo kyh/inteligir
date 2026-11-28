@@ -68,7 +68,6 @@ const ImportRow = () => {
           {SOURCES.map((option) => (
             <Button
               key={option.source}
-              size="compact"
               variant="secondary"
               disabled={running || !online}
               onClick={() => {
@@ -105,7 +104,7 @@ const ImportRow = () => {
               {importSentence(run)}
             </p>
             {running ? (
-              <Button size="compact" variant="ghost" onClick={stopImport}>
+              <Button variant="ghost" onClick={stopImport}>
                 Stop
               </Button>
             ) : null}

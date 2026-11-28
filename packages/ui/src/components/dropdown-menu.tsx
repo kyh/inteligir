@@ -181,7 +181,7 @@ type MenuRowVariant = "default" | "destructive";
 
 const menuRowClass = (variant: MenuRowVariant) =>
   cn(
-    `relative z-10 flex h-7 shrink-0 items-center gap-1 ${radius.item} px-1.5 text-body cursor-pointer outline-none select-none`,
+    `relative z-10 flex h-9 shrink-0 items-center gap-2 ${radius.item} px-2 text-body cursor-pointer outline-none select-none`,
     "before:absolute before:inset-x-0 before:-inset-y-px",
     "transition-colors duration-80",
     variant === "destructive"

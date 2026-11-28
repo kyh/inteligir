@@ -58,7 +58,6 @@ const DevicesRow = () => {
                   <span className="ml-auto text-caption text-muted-foreground">This device</span>
                 ) : (
                   <Button
-                    size="compact"
                     variant="ghost"
                     className="ml-auto"
                     aria-label={`Sign out ${device.name}`}
@@ -112,7 +111,6 @@ const AssistantsRow = () => {
                     {assistant.scopes.includes("library") ? "Reads and changes" : "Reads only"}
                   </span>
                   <Button
-                    size="compact"
                     variant="ghost"
                     className="ml-auto"
                     aria-label={`Disconnect ${assistant.clientName}`}
@@ -231,7 +229,6 @@ const FilingRulesRow = () => {
     <Row label="Filing rules">
       <div className="flex flex-col items-start gap-1">
         <Button
-          size="compact"
           variant="secondary"
           onClick={() => {
             setOpen(true);
@@ -298,7 +295,6 @@ const DeleteAccount = () => {
   return (
     <>
       <Button
-        size="compact"
         variant="destructive"
         className="self-start"
         onClick={() => {
@@ -397,7 +393,6 @@ export const AccountSection = () => {
         <Row label="">
           <div className="flex flex-col gap-2">
             <Button
-              size="compact"
               variant="secondary"
               className="self-start"
               disabled={signOut.isPending}

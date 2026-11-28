@@ -17,10 +17,12 @@ The shared component vocabulary, its type roles and its motion.
   A div owns no dismissal, flipping, layering or focus and drifts on scroll; the selection toolbar
   is the one exception, and Base UI's `render` prop is the polymorphism channel, with no Slot.
   `packages/ui/src/components/popover.tsx`.
-- **The chrome has one size, Fluid's compact step, and five type roles on it.** caption 11, body
-  12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
-  is, and a size every root sets alike is a branch in each component; the note is not chrome, its
-  prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
+- **The chrome has one size, Fluid's default step (owner decision), and five type roles on it.**
+  caption 12, body 13, subtitle 14, title 16, display 28, controls and menu rows 36px, as
+  `text-<role>` utilities, since a role says what a line is, and a size every root sets alike is a
+  branch in each component; only a note's floating toolbars take the `compact` button, Fluid's
+  step for dense surfaces, and the note is not chrome, its prose in em off the appearance dials.
+  `packages/ui/src/styles/globals.css`.
 - **Dark is the screen's, so every print is light.** The `dark` variant and both dark palettes sit
   inside `@media not print`, since a printer skips backgrounds and dark's light ink would land on
   white paper. `packages/ui/src/styles/globals.css`.

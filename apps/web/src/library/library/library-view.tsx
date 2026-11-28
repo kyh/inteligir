@@ -116,7 +116,7 @@ const AddMenu = ({ scope }: { scope: LibraryScope }) => {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button size="compact" variant="secondary" aria-label="Add to the library" />}
+          render={<Button variant="secondary" aria-label="Add to the library" />}
         >
           <PlusIcon />
           Add
@@ -180,9 +180,7 @@ const SortMenu = ({
   onSortChange: (sort: LibrarySort) => void;
 }) => (
   <DropdownMenu>
-    <DropdownMenuTrigger
-      render={<Button size="compact" variant="ghost" aria-label="Sort the library" />}
-    >
+    <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Sort the library" />}>
       <ArrowDownUpIcon />
       {SORT_LABELS[sort]}
     </DropdownMenuTrigger>
@@ -316,7 +314,6 @@ export const LibraryView = ({
         <div className="ml-auto flex items-center gap-1.5">
           {tidyOffered && scope.kind !== "deleted" ? (
             <Button
-              size="compact"
               variant="ghost"
               onClick={() => {
                 commands.startTidy();
@@ -328,7 +325,6 @@ export const LibraryView = ({
           <SortMenu sort={sort} onSortChange={onSortChange} />
           {scope.kind === "deleted" ? (
             <Button
-              size="compact"
               variant="destructive"
               disabled={counts === undefined || counts.deleted === 0}
               onClick={() => {

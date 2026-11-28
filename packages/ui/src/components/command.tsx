@@ -170,7 +170,7 @@ const CommandItem = ({ row, className, children, ...props }: CommandItemProps) =
     }}
     data-slot="command-item"
     className={cn(
-      "relative flex h-7 shrink-0 cursor-pointer items-center gap-1 px-1.5 text-body outline-none select-none",
+      "relative flex h-9 shrink-0 cursor-pointer items-center gap-2 px-2 text-body outline-none select-none",
       radius.item,
       "text-muted-foreground transition-colors duration-80 data-[highlighted]:bg-hover data-[highlighted]:text-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

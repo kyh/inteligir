@@ -106,7 +106,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
               <span className="flex items-center gap-2">
                 <ParentName parentId={fields.parentId} />
                 <Button
-                  size="compact"
                   variant="ghost"
                   onClick={() => {
                     commands.move({ ids: [id], kind: "ids" });
@@ -124,7 +123,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
                   </span>
                 ))}
                 <Button
-                  size="compact"
                   variant="ghost"
                   onClick={() => {
                     commands.tag({ ids: [id], kind: "ids" }, [fields.tags]);
@@ -163,7 +161,6 @@ export const InfoTab = ({ itemId }: { itemId: string }) => {
               <ReadFailure reading={fields.reading} />
               <Button
                 variant="secondary"
-                size="compact"
                 disabled={refreshing}
                 onClick={() => {
                   refresh.mutate({ id });

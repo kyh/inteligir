@@ -21,18 +21,18 @@ const buttonStructure = cva(
   ],
   {
     compoundVariants: [
-      { className: "pl-[6px]", iconLeft: true, size: "compact" },
-      { className: "pl-[10px]", iconLeft: true, size: "default" },
+      { className: "pl-2", iconLeft: true, size: "compact" },
+      { className: "pl-3", iconLeft: true, size: "default" },
     ],
     defaultVariants: {
-      size: "compact",
+      size: "default",
       variant: "primary",
     },
     variants: {
       iconLeft: { true: "" },
       size: {
-        compact: "h-7 gap-1 px-3 text-body [&_svg:not([class*='size-'])]:size-3.5",
-        default: "h-9 gap-1.5 px-4 text-subtitle",
+        compact: "h-7 gap-1 px-3 text-caption [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 gap-1.5 px-4 text-body",
         icon: "h-9 w-9 p-0",
         "icon-compact": "h-7 w-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
       },
@@ -90,7 +90,7 @@ const buttonVariants = (props?: {
   className?: string;
 }) => {
   const variant = props?.variant ?? "primary";
-  const size = props?.size ?? "compact";
+  const size = props?.size ?? "default";
 
   return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
 };
@@ -185,7 +185,7 @@ const Button = ({
   ref,
   ...props
 }: ButtonProps & RefAttributes<HTMLButtonElement>) => {
-  const resolvedSize: ButtonSize = size ?? "compact";
+  const resolvedSize: ButtonSize = size ?? "default";
   const resolvedVariant = variant ?? "primary";
   const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
   const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";

@@ -162,7 +162,7 @@ const ListRow = ({
         <DropdownMenuTrigger
           render={
             <Button
-              size="icon-compact"
+              size="icon"
               variant="ghost"
               className="size-6 shrink-0 opacity-0 group-hover/list-row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
               aria-label={`More for ${title}`}
@@ -312,7 +312,7 @@ const ListGroup = ({
           </button>
           <span className="h-px flex-1 bg-border" />
           <Button
-            size="icon-compact"
+            size="icon"
             variant="ghost"
             className="size-6"
             aria-label={`New note in ${label}`}
@@ -453,7 +453,6 @@ export const ListView = ({ listId, rows, total, openItem }: ListViewProps) => {
         <div className="ml-auto flex items-center gap-1.5">
           {listItem === undefined ? null : <ListProperties listId={listId} list={list} />}
           <Button
-            size="compact"
             variant="secondary"
             onClick={() => {
               void newNote(firstOption);

@@ -226,7 +226,7 @@ const InputMessage = ({
             <Button
               type="button"
               variant="primary"
-              size="icon-compact"
+              size="icon"
               onClick={handleSend}
               disabled={!canSend}
               aria-label={sendLabel}

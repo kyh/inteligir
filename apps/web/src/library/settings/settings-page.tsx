@@ -99,7 +99,6 @@ export const SettingsPage = () => (
     >
       <Button
         variant="ghost"
-        size="compact"
         className="mb-2 justify-start"
         onClick={() => {
           libraryGoes.closeSettings();
@@ -112,7 +111,6 @@ export const SettingsPage = () => (
         <Button
           key={entry.id}
           variant="ghost"
-          size="compact"
           className="justify-start text-muted-foreground"
           onClick={() => {
             document.querySelector(`#${entry.id}`)?.scrollIntoView();

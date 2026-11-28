@@ -92,7 +92,6 @@ export const UpdatesRow = () => {
         {button === null ? null : (
           <Button
             variant="tertiary"
-            size="compact"
             onClick={() => {
               void moveUpdate(button.move);
             }}

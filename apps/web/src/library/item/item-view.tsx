@@ -113,7 +113,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
       <TopBar className="px-3">
         <Button
           variant="ghost"
-          size="icon-compact"
+          size="icon"
           aria-label="Back to the library"
           onClick={() => {
             commands.closeItem();
@@ -133,7 +133,7 @@ export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
         )}
         <Button
           variant="ghost"
-          size="icon-compact"
+          size="icon"
           aria-label="Info and the agent"
           onClick={() => {
             workspace.togglePanel();

@@ -73,7 +73,6 @@ const TagsForm = ({ ask }: { ask: Extract<Ask, { kind: "tags" }> }) => {
           {ask.held.map((tag) => (
             <Button
               key={tag}
-              size="compact"
               variant="secondary"
               aria-label={`Remove the tag ${tag}`}
               onClick={() => {

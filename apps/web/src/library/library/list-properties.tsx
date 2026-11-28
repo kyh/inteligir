@@ -146,7 +146,7 @@ const PropertyEditor = ({
           {TYPE_LABELS[property.type]}
         </span>
         <Button
-          size="icon-compact"
+          size="icon"
           variant="ghost"
           className="size-6 shrink-0"
           aria-label={`Delete ${property.name}`}
@@ -251,7 +251,7 @@ const AddProperty = ({ shaping }: { readonly shaping: Shaping }) => {
             </ToggleChip>
           ))}
         </ToggleGroup>
-        <Button size="compact" variant="secondary" disabled={name.trim() === ""} onClick={add}>
+        <Button variant="secondary" disabled={name.trim() === ""} onClick={add}>
           Add
         </Button>
       </div>
@@ -267,9 +267,7 @@ const GroupByMenu = ({ shaping }: { readonly shaping: Shaping }) => {
     <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
       <span className="text-caption text-muted-foreground">Group by</span>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button size="compact" variant="ghost" aria-label="Group by" />}
-        >
+        <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Group by" />}>
           {list.groupBy ?? "None"}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -329,7 +327,7 @@ export const ListProperties = ({
 
   return (
     <Popover>
-      <PopoverTrigger render={<Button size="compact" variant="ghost" />}>
+      <PopoverTrigger render={<Button variant="ghost" />}>
         <SlidersHorizontalIcon />
         Properties
       </PopoverTrigger>

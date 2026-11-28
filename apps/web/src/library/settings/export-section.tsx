@@ -57,7 +57,6 @@ const ExportRow = () => {
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-wrap gap-1.5">
           <Button
-            size="compact"
             variant="secondary"
             disabled={running || !online}
             onClick={() => {
@@ -77,7 +76,7 @@ const ExportRow = () => {
               {exportSentence(run)}
             </p>
             {running ? (
-              <Button size="compact" variant="ghost" onClick={stopExport}>
+              <Button variant="ghost" onClick={stopExport}>
                 Stop
               </Button>
             ) : null}

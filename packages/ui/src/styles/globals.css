@@ -18,18 +18,18 @@
 }
 
 @theme inline {
-  /* Fluid's type scale at its compact step, the one the chrome draws. `TYPE_ROLES` in
+  /* Fluid's type scale at its default step, the one the chrome draws. `TYPE_ROLES` in
      lib/cn.ts names the roles, which `type-scale.test.ts` keeps in step. */
-  --text-display: 24px;
-  --text-display--line-height: 1.2;
-  --text-title: 15px;
-  --text-title--line-height: 1.3;
-  --text-subtitle: 13px;
-  --text-subtitle--line-height: 1.4;
-  --text-body: 12px;
-  --text-body--line-height: 1.45;
-  --text-caption: 11px;
-  --text-caption--line-height: 1.45;
+  --text-display: 28px;
+  --text-display--line-height: 34px;
+  --text-title: 16px;
+  --text-title--line-height: 22px;
+  --text-subtitle: 14px;
+  --text-subtitle--line-height: 20px;
+  --text-body: 13px;
+  --text-body--line-height: 20px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
   --font-heading: var(--font-sans);
   --font-sans: var(--font-body);
   --font-mono: var(--font-code);

@@ -111,7 +111,7 @@ const DialogContent = ({
             {showCloseButton && (
               <DialogPrimitive.Close
                 render={
-                  <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
+                  <Button variant="ghost" size="icon" className="absolute top-3 right-3">
                     <XIcon />
                     <span className="sr-only">Close</span>
                   </Button>
