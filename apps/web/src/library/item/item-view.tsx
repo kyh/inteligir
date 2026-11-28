@@ -7,7 +7,7 @@ import { Button } from "@repo/ui/components/button";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon, LayoutRight as PanelRightIcon } from "@untitledui/icons";
 import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 

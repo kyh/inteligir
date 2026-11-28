@@ -13,7 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/pop
 import { toast } from "@repo/ui/components/sonner";
 import { ToggleChip, ToggleGroup } from "@repo/ui/components/toggle-group";
 import { useMutation } from "@tanstack/react-query";
-import { SlidersHorizontalIcon, Trash2Icon, XIcon } from "lucide-react";
+import {
+  Sliders04 as SlidersHorizontalIcon,
+  Trash01 as Trash2Icon,
+  XClose as XIcon,
+} from "@untitledui/icons";
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import { z } from "zod";

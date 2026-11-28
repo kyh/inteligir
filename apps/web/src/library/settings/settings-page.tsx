@@ -2,7 +2,7 @@ import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon } from "@untitledui/icons";
 
 import { LICENSES_PATH } from "#lib/site-config";
 import {

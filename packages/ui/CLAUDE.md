@@ -34,6 +34,9 @@ The shared component vocabulary, its type roles and its motion.
 - **One accent, Fluid's `--fluid-accent` (#6B97FF), is every focus ring, the selection, the
   switch's on track and `--ring`.** An accent each component picks drifts; a re-skin is one token.
   `packages/ui/src/styles/globals.css`.
+- **Icons are Untitled UI's (`@untitledui/icons`), Fluid's set, imported under the name the call
+  site reads; Lucide only draws a glyph Untitled has none of.** A second family where Untitled
+  has the glyph reads as two hands. `packages/ui/src/lib/icon.ts`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
   unconfigured `cn`. `packages/ui/src/lib/cn.ts`.

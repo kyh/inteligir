@@ -1,11 +1,11 @@
 import type { ComponentType } from "react";
 import {
-  InfoIcon,
-  LightbulbIcon,
-  OctagonAlertIcon,
-  ShieldAlertIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+  InfoCircle as InfoIcon,
+  Lightbulb02 as LightbulbIcon,
+  AlertOctagon as OctagonAlertIcon,
+  AlertSquare as ShieldAlertIcon,
+  AlertTriangle as TriangleAlertIcon,
+} from "@untitledui/icons";
 import { PlateElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 

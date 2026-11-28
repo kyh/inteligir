@@ -18,13 +18,13 @@ import { cn } from "@repo/ui/lib/cn";
 import { formatCount } from "@repo/ui/lib/plural";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronRightIcon,
-  EllipsisIcon,
-  FileTextIcon,
-  FolderIcon,
-  InboxIcon,
-  ListIcon,
-} from "lucide-react";
+  ChevronRight as ChevronRightIcon,
+  DotsHorizontal as EllipsisIcon,
+  File04 as FileTextIcon,
+  Folder as FolderIcon,
+  Inbox01 as InboxIcon,
+  List as ListIcon,
+} from "@untitledui/icons";
 import { useState } from "react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 

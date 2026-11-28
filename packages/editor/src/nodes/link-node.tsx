@@ -1,6 +1,10 @@
 import { useRef, useState } from "react";
 import { getLinkAttributes, unwrapLink } from "@platejs/link";
-import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
+import {
+  LinkExternal01 as ExternalLinkIcon,
+  Pencil01 as PencilIcon,
+  LinkBroken01 as Unlink2Icon,
+} from "@untitledui/icons";
 import { PlateElement, useEditorRef, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 

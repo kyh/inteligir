@@ -2,7 +2,7 @@
 // @license MIT, vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism).
 
 import { Autocomplete } from "@base-ui/react/autocomplete";
-import { SearchIcon } from "lucide-react";
+import { SearchMd as SearchIcon } from "@untitledui/icons";
 import { createContext, useContext, useState } from "react";
 import type { ComponentProps, ReactNode, RefObject } from "react";
 

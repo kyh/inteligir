@@ -21,19 +21,19 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { formatCount } from "@repo/ui/lib/plural";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ChevronRightIcon,
-  EllipsisIcon,
-  FileIcon,
-  FileTextIcon,
-  FolderIcon,
-  ImageIcon,
-  LinkIcon,
-  ListIcon,
-  MusicIcon,
-  PlayIcon,
-  PlusIcon,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  ChevronRight as ChevronRightIcon,
+  DotsHorizontal as EllipsisIcon,
+  File01 as FileIcon,
+  File04 as FileTextIcon,
+  Folder as FolderIcon,
+  Image01 as ImageIcon,
+  Link01 as LinkIcon,
+  List as ListIcon,
+  MusicNote01 as MusicIcon,
+  Play as PlayIcon,
+  Plus as PlusIcon,
+} from "@untitledui/icons";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { useEffect, useEffectEvent, useState } from "react";
 import { z } from "zod";
 
@@ -55,7 +55,7 @@ const KIND_ICONS = {
   note: FileTextIcon,
   pdf: FileTextIcon,
   video: PlayIcon,
-} satisfies Record<ItemKind, LucideIcon>;
+} satisfies Record<ItemKind, IconComponent>;
 
 const NO_PROPERTIES: ListSettings = { groupBy: null, properties: [] };
 

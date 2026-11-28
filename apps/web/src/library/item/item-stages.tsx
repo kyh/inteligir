@@ -2,7 +2,7 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";
-import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
+import { Download01 as DownloadIcon, LinkExternal01 as ExternalLinkIcon } from "@untitledui/icons";
 
 import { usePageLibrary } from "../cloud/library-context";
 import { fileUrl, readFile } from "../cloud/library-files";

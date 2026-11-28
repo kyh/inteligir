@@ -5,7 +5,7 @@ import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type { HTMLProps } from "@base-ui/react/types";
 import { motion } from "motion/react";
-import { XIcon } from "lucide-react";
+import { XClose as XIcon } from "@untitledui/icons";
 
 import { Button } from "@repo/ui/components/button";
 import { Elevated } from "@repo/ui/lib/elevated";

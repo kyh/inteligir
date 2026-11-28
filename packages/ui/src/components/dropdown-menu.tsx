@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
-import { CheckIcon } from "lucide-react";
+import { Check as CheckIcon } from "@untitledui/icons";
 
 import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";

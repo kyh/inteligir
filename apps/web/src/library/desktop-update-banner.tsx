@@ -1,6 +1,6 @@
 import { Progress } from "@repo/ui/components/progress";
 import { toast } from "@repo/ui/components/sonner";
-import { DownloadIcon, RotateCwIcon } from "lucide-react";
+import { Download01 as DownloadIcon, RefreshCw01 as RotateCwIcon } from "@untitledui/icons";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 

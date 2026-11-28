@@ -19,16 +19,16 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { formatCount } from "@repo/ui/lib/plural";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronDownIcon,
-  FolderPlusIcon,
-  HashIcon,
-  InboxIcon,
-  LibraryIcon,
-  ListPlusIcon,
-  SearchIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react";
+  ChevronDown as ChevronDownIcon,
+  FolderPlus as FolderPlusIcon,
+  Hash01 as HashIcon,
+  Inbox01 as InboxIcon,
+  LayersThree01 as LibraryIcon,
+  SearchMd as SearchIcon,
+  Settings01 as SettingsIcon,
+  Trash01 as Trash2Icon,
+} from "@untitledui/icons";
+import { ListPlusIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";

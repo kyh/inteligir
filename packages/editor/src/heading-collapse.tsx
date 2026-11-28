@@ -4,7 +4,7 @@ import { KEYS } from "platejs";
 import type { TElement } from "platejs";
 import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 import type { RenderNodeWrapper } from "platejs/react";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDown as ChevronDownIcon } from "@untitledui/icons";
 import { z } from "zod";
 import { useStore } from "zustand";
 import { persist } from "zustand/middleware";

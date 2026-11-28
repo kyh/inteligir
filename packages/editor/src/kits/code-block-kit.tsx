@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from "react";
-import { CodeIcon, EyeIcon } from "lucide-react";
+import { Code01 as CodeIcon, Eye as EyeIcon } from "@untitledui/icons";
 import { NodeApi } from "platejs";
 import { PlateElement, PlateLeaf } from "platejs/react";
 import type { PlateElementProps, PlateLeafProps } from "platejs/react";

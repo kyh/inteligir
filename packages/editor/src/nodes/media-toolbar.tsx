@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import {
+  Check as CheckIcon,
+  Pencil01 as PencilIcon,
+  Trash01 as Trash2Icon,
+} from "@untitledui/icons";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";

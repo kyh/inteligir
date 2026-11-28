@@ -16,7 +16,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
+import { SwitchVertical01 as ArrowDownUpIcon, Plus as PlusIcon } from "@untitledui/icons";
 import { useRef } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";

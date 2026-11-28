@@ -17,7 +17,7 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlusIcon } from "lucide-react";
+import { Plus as PlusIcon } from "@untitledui/icons";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 

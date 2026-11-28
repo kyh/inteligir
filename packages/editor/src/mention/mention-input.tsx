@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FilePlusIcon, FileTextIcon } from "lucide-react";
+import { FilePlus01 as FilePlusIcon, File04 as FileTextIcon } from "@untitledui/icons";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 

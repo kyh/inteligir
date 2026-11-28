@@ -2,7 +2,7 @@ import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 import { PlateElement, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
-import { ImageOff } from "lucide-react";
+import { ImageX as ImageOff } from "@untitledui/icons";
 
 import { cn } from "@repo/ui/lib/cn";
 

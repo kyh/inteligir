@@ -4,7 +4,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { XIcon } from "lucide-react";
+import { XClose as XIcon } from "@untitledui/icons";
 import { useState } from "react";
 
 import type { TypedProperty } from "./item-properties";

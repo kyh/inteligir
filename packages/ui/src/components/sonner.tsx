@@ -4,12 +4,12 @@
 import { Toaster as Sonner } from "sonner";
 import type { ToasterProps } from "sonner";
 import {
-  CircleCheckIcon,
-  InfoIcon,
-  TriangleAlertIcon,
-  OctagonXIcon,
-  Loader2Icon,
-} from "lucide-react";
+  CheckCircle as CircleCheckIcon,
+  InfoCircle as InfoIcon,
+  AlertTriangle as TriangleAlertIcon,
+  XCircle as OctagonXIcon,
+  Loading02 as Loader2Icon,
+} from "@untitledui/icons";
 
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { useTheme } from "@repo/ui/lib/theme";

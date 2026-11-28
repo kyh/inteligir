@@ -1,12 +1,12 @@
 import {
-  FileArchiveIcon,
-  FileIcon,
-  FileTextIcon,
-  FilmIcon,
-  ImageIcon,
-  MusicIcon,
-} from "lucide-react";
-import type { LucideProps } from "lucide-react";
+  Archive as FileArchiveIcon,
+  File01 as FileIcon,
+  File04 as FileTextIcon,
+  Film01 as FilmIcon,
+  Image01 as ImageIcon,
+  MusicNote01 as MusicIcon,
+} from "@untitledui/icons";
+import type { IconProps } from "@repo/ui/lib/icon";
 
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -17,7 +17,7 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import { fileKindOf } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 
-export const FileKindIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+export const FileKindIcon = ({ name, ...props }: { name: string } & IconProps) => {
   const kind: FileKind | null = fileKindOf(name);
 
   switch (kind) {
