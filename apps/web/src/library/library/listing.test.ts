@@ -4,13 +4,15 @@ import { listingQuery, saveTagsOf } from "./listing";
 
 describe("the grid's listing query", () => {
   it("narrows to the chip's kind only when one is pressed", () => {
-    expect(listingQuery({ kind: "pdf", scope: { kind: "all" }, sort: "title" })).toMatchObject({
-      kinds: ["pdf"],
-      sort: "title",
-    });
-    expect(listingQuery({ kind: null, scope: { kind: "all" }, sort: "title" })).not.toHaveProperty(
-      "kinds",
-    );
+    const all = { scope: { kind: "all" }, sort: "title", words: null } as const;
+    expect(listingQuery({ ...all, kind: "pdf" })).toMatchObject({ kinds: ["pdf"], sort: "title" });
+    expect(listingQuery({ ...all, kind: null })).not.toHaveProperty("kinds");
+  });
+
+  it("asks the address's words, and none without them", () => {
+    const all = { kind: null, scope: { kind: "all" }, sort: "title" } as const;
+    expect(listingQuery({ ...all, words: "tidal" })).toMatchObject({ words: "tidal" });
+    expect(listingQuery({ ...all, words: null })).not.toHaveProperty("words");
   });
 });
 

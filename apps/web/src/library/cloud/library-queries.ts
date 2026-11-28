@@ -21,6 +21,8 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
 
   item: (id: string) => orpc.library.items.row.queryOptions({ input: { id } }),
 
+  related: (id: string) => orpc.library.items.related.queryOptions({ input: { id } }),
+
   listing: (query: ListingQuery) =>
     orpc.library.listing.page.infiniteOptions({
       getNextPageParam: (last) => last.cursor,

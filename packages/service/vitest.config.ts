@@ -2,7 +2,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    env: { BETTER_AUTH_SECRET: "suite-only-better-auth-secret-000000000000" },
+    env: {
+      AI_GATEWAY_API_KEY: "",
+      BETTER_AUTH_SECRET: "suite-only-better-auth-secret-000000000000",
+    },
     globalSetup: ["@repo/db/test-database"],
     include: ["src/**/*.test.ts"],
     maxWorkers: 2,

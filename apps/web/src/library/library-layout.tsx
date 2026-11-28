@@ -27,7 +27,7 @@ const TOO_OLD =
   "This browser is too old to open your library. Update it, or open the library in another browser.";
 
 const WorkspaceLayout = () => {
-  const { kind, openItem, scope, settings } = useLibraryAddress();
+  const { kind, openItem, scope, settings, words } = useLibraryAddress();
   const listed = useQuery(useLibraryQueries().scopes()).data;
 
   return (
@@ -35,6 +35,7 @@ const WorkspaceLayout = () => {
       <Workspace
         scope={shownScope(scope, listed)}
         kind={kind}
+        words={words}
         openItem={openItem}
         covered={settings}
       />

@@ -1,5 +1,6 @@
 import type { InferClientInputs } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
+import type { SavedView } from "@repo/contract/library/saved-views";
 import { refusalText } from "@repo/contract/rpc/refusal-text";
 import type { V1Client } from "@repo/contract/rpc/v1-contract";
 import { toast } from "@repo/ui/components/sonner";
@@ -35,6 +36,28 @@ export const useLibraryVerbs = () => {
   const createNote = useMutation(writes.createNote());
   const saveLink = useMutation(writes.saveLink());
   const addFile = useMutation(writes.addFile());
+
+  const readScopesAgain = async () => {
+    await queryClient.invalidateQueries({ queryKey: orpc.library.listing.scopes.key() });
+  };
+
+  const saveView = useMutation(
+    orpc.library.views.save.mutationOptions({
+      onError: (error) => {
+        toast.error(refusalText(error, "The view couldn't be saved."));
+      },
+      onSettled: readScopesAgain,
+    }),
+  );
+
+  const removeView = useMutation(
+    orpc.library.views.remove.mutationOptions({
+      onError: (error) => {
+        toast.error(refusalText(error, "The view couldn't be deleted."));
+      },
+      onSettled: readScopesAgain,
+    }),
+  );
 
   const containers = () =>
     queryClient.getQueryData(orpc.library.listing.scopes.queryKey())?.containers ?? [];
@@ -239,6 +262,12 @@ export const useLibraryVerbs = () => {
     },
     deleteFolder: (parentId: string) => {
       writeContainers.mutate({ id: parentId, op: "delete" });
+    },
+    removeView: (id: string) => {
+      removeView.mutate({ id, opId: newId() });
+    },
+    saveView: (view: SavedView) => {
+      saveView.mutate({ opId: newId(), view });
     },
     renameFolder: (parentId: string, name: string) => {
       const held = containers().find((container) => container.id === parentId);

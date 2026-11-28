@@ -13,6 +13,7 @@ interface Drain {
   readonly accountId: string | null;
   readonly budgetMs: number;
   readonly runs?: JobRuns;
+  readonly clock?: () => number;
 }
 
 interface Drained {
@@ -59,12 +60,17 @@ const runLeased = async (runs: JobRuns, lease: Lease) => {
   }
 };
 
-export const drainJobs = async ({ accountId, budgetMs, runs = JOB_RUNS }: Drain) => {
+export const drainJobs = async ({
+  accountId,
+  budgetMs,
+  clock = Date.now,
+  runs = JOB_RUNS,
+}: Drain) => {
   const until = Date.now() + budgetMs;
   const drained: Drained = { dropped: 0, failed: 0, ran: 0 };
 
   while (Date.now() < until) {
-    const [lease] = await leaseJobs(db, { accountId, limit: 1, now: Date.now() });
+    const [lease] = await leaseJobs(db, { accountId, limit: 1, now: clock() });
 
     if (lease === undefined) {
       break;

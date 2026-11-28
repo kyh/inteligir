@@ -9,6 +9,7 @@ import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import { withArticle } from "./article-body";
+import { askAutoFile } from "./auto-file-job";
 import { noteBlocksOf } from "./library-codec";
 import { askFills } from "./library-fills";
 import { parentOfTarget } from "./library-parents";
@@ -54,14 +55,15 @@ export const savePage = async (scope: WriteScope, input: SavePageInput) => {
   if (held === null) {
     const note = await noteOf(scope, input.note);
 
-    return {
-      created: true,
-      item: await landNew(scope, {
-        blocks: withArticle(note, input.article),
-        fields: pageFields(input, scope.now),
-        id: input.id,
-      }),
-    } satisfies SavedItem;
+    const made = await landNew(scope, {
+      blocks: withArticle(note, input.article),
+      fields: pageFields(input, scope.now),
+      id: input.id,
+    });
+
+    await askAutoFile(scope, made.id);
+
+    return { created: true, item: made } satisfies SavedItem;
   }
 
   const facts = await readBodyFacts(scope.tx, scope.accountId, held.id);
@@ -119,6 +121,7 @@ export const saveLink = async (scope: WriteScope, input: SaveLinkInput) => {
   });
 
   await askFills(scope, [stub]);
+  await askAutoFile(scope, stub.id);
 
   return { created: true, item: stub } satisfies SavedItem;
 };

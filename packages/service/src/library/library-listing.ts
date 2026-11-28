@@ -40,6 +40,7 @@ import type { SearchHits } from "../search/search-sql";
 import { STORED_ITEM_COLUMNS, tagsOf } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import { anyOf } from "./set-sql";
+import { nearItem, nearWords } from "../meaning/meaning-sql";
 
 export const readLibrary = async <T>(work: (tx: Tx) => Promise<T>) =>
   await pool.transaction(work, { accessMode: "read only", isolationLevel: "repeatable read" });
@@ -262,6 +263,43 @@ export const listingItems = async (db: DbExecutor, accountId: string, query: Lis
     ? await rankedPage(db, accountId, query, query.order.rank)
     : await browsePage(db, accountId, { ...query, order: query.order });
 
+const MEANING_HITS = 50;
+
+const withMeaning = (hits: SearchHits, near: readonly string[]) => {
+  const rank = new Map(hits.rank);
+
+  for (const id of near) {
+    if (!rank.has(id)) {
+      rank.set(id, rank.size);
+    }
+  }
+
+  return { ...hits, rank } satisfies SearchHits;
+};
+
+export const relatedItems = async (
+  db: DbExecutor,
+  accountId: string,
+  id: string,
+  limit: number,
+) => {
+  const near = await nearItem(db, accountId, id, limit);
+  const place = new Map(near.map((at, index) => [at, index]));
+
+  const rows =
+    near.length === 0
+      ? []
+      : await selectStored(db).where(and(eq(item.accountId, accountId), anyOf(item.id, near)));
+
+  const ordered = rows.toSorted(
+    (a, b) => (place.get(a.id) ?? place.size) - (place.get(b.id) ?? place.size),
+  );
+
+  const listed = await asListings(db, accountId, ordered);
+
+  return { items: listed.map((row) => listedItem(row)) };
+};
+
 export const listingPage = async (
   db: DbExecutor,
   accountId: string,
@@ -269,10 +307,15 @@ export const listingPage = async (
 ) => {
   const filter = scopeFilter(input.scope);
 
-  const hits: SearchHits | null =
+  const lexical: SearchHits | null =
     input.words === undefined
       ? null
       : await searchHits(db, accountId, input.words, filter.deleted ? "deleted" : "live");
+
+  const hits =
+    lexical !== null && input.words !== undefined && input.meaning && !filter.deleted
+      ? withMeaning(lexical, await nearWords(db, accountId, input.words, MEANING_HITS))
+      : lexical;
 
   const page = await listingItems(db, accountId, {
     ...filter,

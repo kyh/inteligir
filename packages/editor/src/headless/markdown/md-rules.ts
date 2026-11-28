@@ -356,7 +356,11 @@ const readContainer = (
   }
 };
 
-const readTextDirective = (node: TextDirective) => {
+const readTextDirective = (
+  node: TextDirective,
+  deco: MdDecoration,
+  options: DeserializeMdOptions,
+) => {
   const label = phrasingText(node.children);
 
   const directiveName = textDirectiveSchema.parse(node.name);
@@ -381,6 +385,14 @@ const readTextDirective = (node: TextDirective) => {
       }
 
       return pill;
+    }
+
+    case "highlight": {
+      return convertChildrenDeserialize(
+        node.children,
+        { ...deco, [KEYS.highlight]: true },
+        options,
+      );
     }
 
     default: {
@@ -888,6 +900,17 @@ export const MD_RULES: MdRules = {
   },
 
   containerDirective: { deserialize: readContainer },
+
+  [KEYS.highlight]: {
+    mark: true,
+    serialize: () =>
+      ({
+        attributes: {},
+        children: [],
+        name: "highlight",
+        type: "textDirective",
+      }) satisfies TextDirective,
+  },
 
   [KEYS.date]: {
     serialize: (node: TElement) => textDirective("date", stringProp(node, "date") ?? "", {}),

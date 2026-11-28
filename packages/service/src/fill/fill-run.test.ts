@@ -39,6 +39,7 @@ import type { FillJob } from "../library/fill-job";
 import { fillRun } from "./fill-run";
 import { oembedEndpoint } from "./oembed";
 import { pageFetch } from "./page-fetch";
+import { notSettling } from "../test-support/settling-jobs.test-utils";
 
 const CORPUS = {
   "bare-title": bareTitle,
@@ -368,7 +369,10 @@ dbSuite("a saved link's reading", () => {
       reading: { state: "read" },
     });
     await expect(
-      db.select().from(job).where(eq(job.accountId, saved.accountId)),
+      db
+        .select()
+        .from(job)
+        .where(and(eq(job.accountId, saved.accountId), notSettling)),
     ).resolves.toStrictEqual([]);
   });
 });

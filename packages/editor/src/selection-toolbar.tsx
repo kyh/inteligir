@@ -18,6 +18,7 @@ import {
   Strikethrough01 as StrikethroughIcon,
   Stars01 as SparklesIcon,
 } from "@untitledui/icons";
+import { HighlighterIcon } from "lucide-react";
 import { KEYS, RangeApi } from "platejs";
 import type { RangeRef } from "platejs";
 import {
@@ -352,6 +353,9 @@ const SelectionToolbar = () => {
             </MarkButton>
             <MarkButton nodeType={KEYS.code}>
               <CodeIcon />
+            </MarkButton>
+            <MarkButton nodeType={KEYS.highlight}>
+              <HighlighterIcon />
             </MarkButton>
 
             <Sep />

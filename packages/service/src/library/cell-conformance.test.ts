@@ -11,6 +11,8 @@ const NO_FILL = async () => {
   throw new Error("a shared case left a fill due, which reads the web");
 };
 
+const SETTLED_MS = 60_000;
+
 dbSuite("the account's cell", () => {
   cellConformance(async (run) => {
     const { accountId, library } = await personalLibrary();
@@ -18,7 +20,12 @@ dbSuite("the account's cell", () => {
       library,
       runDue: async () => {
         await expect(
-          drainJobs({ accountId, budgetMs: 50_000, runs: { ...JOB_RUNS, fill: NO_FILL } }),
+          drainJobs({
+            accountId,
+            budgetMs: 50_000,
+            clock: () => Date.now() + SETTLED_MS,
+            runs: { ...JOB_RUNS, fill: NO_FILL },
+          }),
         ).resolves.toMatchObject({ dropped: 0, failed: 0 });
       },
       upload: async (bytes, mime) => {

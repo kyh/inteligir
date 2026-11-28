@@ -3,6 +3,7 @@ import type { OrganizeInput, ParentTarget } from "@repo/contract/library/cell-ru
 import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { withReading } from "@repo/contract/library/item-reading";
 import { sameJson } from "@repo/contract/library/canonical-json";
+import { shownFileSha } from "@repo/contract/library/library-item";
 import type { ListSettings } from "@repo/contract/library/library-item";
 import { NEW_LIST, renamedProperties } from "@repo/contract/library/list-settings";
 import type { PropertyRename } from "@repo/contract/library/list-settings";
@@ -14,6 +15,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { dropItemFiles, fileOf } from "./file-names";
 import { stampEntryThreads } from "./library-change-sets";
 import { noteBlocksOf } from "./library-codec";
+import { askAutoFile } from "./auto-file-job";
 import { askFills } from "./library-fills";
 import { compareText } from "@repo/contract/library/order-key";
 
@@ -26,6 +28,7 @@ import { readItem, STORED_ITEM_COLUMNS, tagsOf } from "./library-rows";
 import type { StoredItem } from "./library-rows";
 import type { WriteScope } from "./library-store";
 import { landFields } from "./library-writes";
+import { askFileTextAgain, readsText } from "./file-text-job";
 import { anyOf } from "./set-sql";
 
 export const landNew = async (scope: WriteScope, made: NewItem) => {
@@ -55,11 +58,15 @@ export const createFile = async (scope: WriteScope, input: CreateFileInput) => {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
 
-  return await landNew(scope, {
+  const made = await landNew(scope, {
     blocks: [],
     fields: fileFields({ ...input, mime: held.mime }),
     id: input.id,
   });
+
+  await askAutoFile(scope, made.id);
+
+  return made;
 };
 
 export interface CreateNoteInput {
@@ -245,6 +252,13 @@ export const setDeleted = async (
 
 export const refreshItem = async (scope: WriteScope, itemId: string) => {
   const held = await readItem(scope.tx, scope.accountId, itemId);
+  const fileSha = held !== null && readsText(held.fields) ? shownFileSha(held.fields) : null;
+
+  if (held !== null && held.fields.url === null && fileSha !== null) {
+    await askFileTextAgain(scope, itemId, fileSha);
+
+    return await landFields(scope, held, held.fields);
+  }
 
   if (held === null || held.fields.url === null) {
     return refuse({ kind: "not-found" });
@@ -252,6 +266,26 @@ export const refreshItem = async (scope: WriteScope, itemId: string) => {
 
   const landed = await landFields(scope, held, withReading(held.fields, { kind: "asked" }));
   await askFills(scope, [landed]);
+
+  return landed;
+};
+
+export const saveEditedFile = async (
+  scope: WriteScope,
+  input: { readonly id: string; readonly sha: string | null },
+) => {
+  const held = await readItem(scope.tx, scope.accountId, input.id);
+
+  if (held === null || held.fields.kind !== "pdf" || held.fields.originalSha === null) {
+    return refuse({ kind: "not-found" });
+  }
+
+  const landed = await landFields(scope, held, { ...held.fields, editedSha: input.sha });
+  const shown = shownFileSha(landed.fields);
+
+  if (shown !== null && shown !== shownFileSha(held.fields)) {
+    await askFileTextAgain(scope, input.id, shown);
+  }
 
   return landed;
 };

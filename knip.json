@@ -3,6 +3,7 @@
   "includeEntryExports": true,
   "treatConfigHintsAsErrors": true,
   "workspaces": {
+    "apps/cli": { "entry": ["src/main.ts"] },
     "apps/desktop": { "entry": ["scripts/*.ts", "src/main/index.ts", "src/preload/index.ts"] },
     // linked natively; knip's expo plugin counts it only while app.config.js turns `updates` on
     "apps/mobile": { "ignoreDependencies": ["expo-updates"] },
@@ -12,7 +13,11 @@
     },
     "apps/web": {
       // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow
-      "entry": ["src/library/import/import-worker.ts", "src/library/export/export-worker.ts"],
+      "entry": [
+        "src/library/import/import-worker.ts",
+        "src/library/export/export-worker.ts",
+        "src/library/item/pdf/pdf-worker.ts"
+      ],
       "ignoreDependencies": ["tailwindcss"]
     }
   }

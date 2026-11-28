@@ -1,8 +1,9 @@
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { LibraryScope } from "@repo/contract/library-scope";
+import type { SavedView } from "@repo/contract/library/saved-views";
 import { useSyncExternalStore } from "react";
 
-import { libraryHref, parseLibraryAddress, scopeAddress } from "./library-address";
+import { libraryHref, parseLibraryAddress, scopeAddress, viewAddress } from "./library-address";
 import type { LibraryAddress } from "./library-address";
 
 interface Shown {
@@ -154,6 +155,13 @@ export const libraryGoes = {
   },
   showScope: (scope: LibraryScope) => {
     void go(scopeAddress(scope));
+  },
+  showView: (view: SavedView) => {
+    void go(viewAddress(view));
+  },
+  showWords: (words: string | null, scope?: LibraryScope) => {
+    const from = scope === undefined ? read() : scopeAddress(scope);
+    void go({ ...from, find: null, openItem: null, words });
   },
 };
 

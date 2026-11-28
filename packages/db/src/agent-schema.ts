@@ -143,6 +143,8 @@ export const agentPreference = pgTable.withRLS("agent_preference", {
   accountId: accountId().primaryKey(),
   enabled: boolean("enabled").notNull(),
   filingRules: text("filing_rules"),
+  modelKey: text("model_key"),
+  modelKeyHint: text("model_key_hint"),
 });
 
 export const agentDeletedAccountSession = pgTable.withRLS(

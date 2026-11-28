@@ -40,6 +40,8 @@ const STOPWORDS = new Set(
     .filter((word) => word !== ""),
 );
 
+export const isStopword = (token: string) => STOPWORDS.has(token);
+
 export const planSearchQuery = (query: string) => {
   const raw = tokenize(query);
   const typing = raw.at(-1);

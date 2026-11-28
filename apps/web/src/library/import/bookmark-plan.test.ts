@@ -2,15 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { importedFieldsSchema } from "@repo/contract/library/library-item";
 import { ITEM_FIELD_CAPS } from "@repo/contract/items/item-field-caps";
-import {
-  bookmarkFields,
-  highlightBlocks,
-  parseRaindropCsv,
-  parseRaindropHighlights,
-  planRaindropImport,
-  toTagName,
-} from "./raindrop-plan";
 import { RAINDROP_EXPORT as FIXTURE } from "../test-support/raindrop-export.test-utils";
+import { bookmarkFields, highlightBlocks, planBookmarks, toTagName } from "./bookmark-plan";
+import { parseRaindropCsv } from "./raindrop-csv";
 
 const NOW = Date.UTC(2026, 9, 17, 9, 0, 0);
 
@@ -23,83 +17,6 @@ const rowsOf = (text: string) => {
 
   return parsed.rows;
 };
-
-describe(parseRaindropCsv, () => {
-  it("reads the export's rows and counts those it leaves out", () => {
-    const parsed = parseRaindropCsv(FIXTURE);
-
-    if (!parsed.ok) {
-      throw new Error(parsed.reason);
-    }
-
-    expect(parsed.rows).toHaveLength(7);
-    expect(parsed.skipped).toBe(3);
-    const [first] = parsed.rows;
-    expect(first).toMatchObject({
-      cover: "https://stephango.com/og.jpg",
-      created: "2023-07-01T09:12:30.000Z",
-      excerpt:
-        "If you want to create digital artifacts that last, they must be files you can control.",
-      favorite: true,
-      folder: ["Reading"],
-      note: "For Tuesday.",
-      tags: ["philosophy", "files"],
-      title: "File over app",
-    });
-    expect(parsed.rows.at(-1)).toMatchObject({
-      note: "A note,\nover two lines.",
-      title: 'Commas, "quotes" and\nlines',
-    });
-  });
-
-  it("reads the header by name, in any order and case, ignoring columns it does not know", () => {
-    const rows = rowsOf("Extra,URL,Title,TAGS\nx,https://a.example/,A,one\n");
-    expect(rows).toMatchObject([
-      { folder: [], tags: ["one"], title: "A", url: "https://a.example/" },
-    ]);
-  });
-
-  it("files no row of a per-collection export, which has no folder column", () => {
-    const plan = planRaindropImport(rowsOf("title,url\nA,https://a.example/\n"), NOW);
-    expect(plan.items.map((item) => item.folder)).toStrictEqual([null]);
-  });
-
-  it("refuses a file that is no Raindrop export, saying how", () => {
-    expect(parseRaindropCsv('a,"b\n')).toStrictEqual({ ok: false, reason: "not-csv" });
-    expect(parseRaindropCsv("title,link\nA,https://a.example/\n")).toStrictEqual({
-      ok: false,
-      reason: "no-url-column",
-    });
-    expect(parseRaindropCsv("title,url\n")).toStrictEqual({ ok: false, reason: "empty" });
-    expect(parseRaindropCsv("")).toStrictEqual({ ok: false, reason: "empty" });
-  });
-
-  it("skips a byte-order mark and blank lines, and reads a stray quote as the character it is", () => {
-    expect(rowsOf('\uFEFFurl,title\r\n\r\nhttps://a.example/,Say "hi"\r\n')).toMatchObject([
-      { title: 'Say "hi"', url: "https://a.example/" },
-    ]);
-  });
-});
-
-describe(parseRaindropHighlights, () => {
-  it("opens a block at each Highlight line and its note at a Note line", () => {
-    expect(
-      parseRaindropHighlights(
-        "Highlight: Files last.\nNote: The point.\n\nhighlight : Apps are ephemeral,\nbut files are not.",
-      ),
-    ).toStrictEqual([
-      { note: "The point.", quote: "Files last." },
-      { note: "", quote: "Apps are ephemeral,\nbut files are not." },
-    ]);
-  });
-
-  it("reads a cell with no Highlight line as one quote", () => {
-    expect(parseRaindropHighlights("  Use the zest.  ")).toStrictEqual([
-      { note: "", quote: "Use the zest." },
-    ]);
-    expect(parseRaindropHighlights("")).toStrictEqual([]);
-  });
-});
 
 describe(toTagName, () => {
   it.each([
@@ -118,8 +35,8 @@ describe(toTagName, () => {
   });
 });
 
-describe(planRaindropImport, () => {
-  const plan = planRaindropImport(rowsOf(FIXTURE), NOW);
+describe(planBookmarks, () => {
+  const plan = planBookmarks(rowsOf(FIXTURE), NOW);
   const byUrl = new Map(plan.items.map((item) => [item.url, item]));
 
   it("folds rows of one url key into the first, uniting tags and highlights", () => {
@@ -162,7 +79,7 @@ describe(planRaindropImport, () => {
 
   it("keeps a folder's name as Raindrop spelled it", () => {
     const rows = rowsOf('url,folder\nhttps://a.example/,"R&D: Notes/What next? [Aux]"\n');
-    const [item] = planRaindropImport(rows, NOW).items;
+    const [item] = planBookmarks(rows, NOW).items;
     expect(item?.folder).toBe("R&D: Notes/What next? [Aux]");
   });
 
@@ -183,7 +100,7 @@ describe(planRaindropImport, () => {
         throw new Error("the fixture holds no row");
       }
 
-      const { items } = planRaindropImport([{ ...row, created }], NOW);
+      const { items } = planBookmarks([{ ...row, created }], NOW);
       expect(items.map((item) => item.savedMs)).toStrictEqual([NOW]);
     },
   );
@@ -196,8 +113,8 @@ describe(planRaindropImport, () => {
     }
 
     const held = `https://example.com/${"c".repeat(ITEM_FIELD_CAPS.url - "https://example.com/".length)}`;
-    const [fits] = planRaindropImport([{ ...row, cover: held }], NOW).items;
-    const [past] = planRaindropImport([{ ...row, cover: `${held}c` }], NOW).items;
+    const [fits] = planBookmarks([{ ...row, cover: held }], NOW).items;
+    const [past] = planBookmarks([{ ...row, cover: `${held}c` }], NOW).items;
     expect(fits?.cover).toBe(held);
     expect(past?.cover).toBeNull();
   });
@@ -212,7 +129,7 @@ describe(planRaindropImport, () => {
   });
 });
 
-const fieldsOf = (csv: string) => planRaindropImport(rowsOf(csv), NOW).items.map(bookmarkFields);
+const fieldsOf = (csv: string) => planBookmarks(rowsOf(csv), NOW).items.map(bookmarkFields);
 
 describe(bookmarkFields, () => {
   it("makes a bookmark an unread link, pinned as of when it was saved", () => {
@@ -287,7 +204,7 @@ describe(highlightBlocks, () => {
   });
 
   it("keeps a highlight's words the text they are, never markdown", () => {
-    const [item] = planRaindropImport(
+    const [item] = planBookmarks(
       rowsOf(
         'url,highlights\nhttps://a.example/,"Highlight: *not* [a](link) :date[2026-01-02] [[Beta]] @2026-08-22\nNote: # a note"\n',
       ),

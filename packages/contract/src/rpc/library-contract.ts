@@ -14,6 +14,7 @@ import {
 import { ITEM_FIELD_CAPS } from "../items/item-field-caps";
 import { storableBlockSchema } from "../library/library-nodes";
 import { listingSortSchema } from "../library/listing-sort";
+import { savedViewSchema, savedViewsSchema } from "../library/saved-views";
 
 import {
   AgentBudgetError,
@@ -47,6 +48,7 @@ import {
   libraryMovedSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
+  modelKeySchema,
   listedItemSchema,
   listingPageInputSchema,
   MARKDOWN_MAX,
@@ -303,6 +305,8 @@ export const searchInputSchema = z.strictObject({
   tag: FIELDS.tags.element.optional().describe(TAG_FILTER),
 });
 
+const RELATED_MAX = 20;
+
 const itemsContract = {
   list: signedBase
     .input(listInputSchema)
@@ -322,6 +326,15 @@ const itemsContract = {
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema }))
     .output(openItemRow),
+
+  related: signedBase
+    .input(
+      z.strictObject({
+        id: idSchema,
+        limit: z.number().int().min(1).max(RELATED_MAX).default(5),
+      }),
+    )
+    .output(z.object({ items: z.array(listedItemSchema) })),
 
   create: signedBase
     .errors({
@@ -532,6 +545,11 @@ const itemsContract = {
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema, opId }))
     .output(landed),
+
+  saveEdited: signedBase
+    .errors({ [BlobMissingError.code]: BlobMissingError, [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema, opId, sha: FIELDS.editedSha }))
+    .output(landed),
 };
 
 const listingContract = {
@@ -552,6 +570,7 @@ const listingContract = {
       total: count,
       unsorted: count,
       untagged: count,
+      views: savedViewsSchema,
     }),
   ),
 
@@ -706,6 +725,12 @@ const agentContract = {
 
   rules: signedBase.output(z.object({ rules: z.string().nullable() })),
 
+  modelKey: signedBase.output(z.object({ hint: z.string().nullable() })),
+
+  setModelKey: signedBase
+    .input(z.strictObject({ key: modelKeySchema.nullable(), opId }))
+    .output(z.object({ hint: z.string().nullable() })),
+
   setRules: signedBase
     .input(z.strictObject({ opId, rules: z.string().max(FILING_RULES_MAX) }))
     .output(z.object({ rules: z.string() })),
@@ -736,6 +761,17 @@ const agentContract = {
     ),
 };
 
+const viewsContract = {
+  remove: signedBase
+    .input(z.strictObject({ id: idSchema, opId }))
+    .output(z.object({ seq: seqSchema })),
+
+  save: signedBase
+    .errors({ [PayloadTooLargeError.code]: PayloadTooLargeError })
+    .input(z.strictObject({ opId, view: savedViewSchema }))
+    .output(z.object({ seq: seqSchema })),
+};
+
 export const libraryContract = {
   agent: agentContract,
 
@@ -757,6 +793,8 @@ export const libraryContract = {
   search: signedBase
     .input(searchInputSchema)
     .output(z.object({ cursor: nextCursor, hits: z.array(searchHitSchema) })),
+
+  views: viewsContract,
 
   write: signedBase
     .errors({

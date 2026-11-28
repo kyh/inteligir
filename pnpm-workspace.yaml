@@ -12,6 +12,9 @@ catalog:
   "@orpc/mcp": 2.0.0-beta.50
   "@orpc/server": 2.0.0-beta.50
   "@orpc/tanstack-query": 2.0.0-beta.50
+  # exact: the inteligir command signs in and calls tools with the client the connector's server
+  # is pinned beside
+  "@modelcontextprotocol/client": 2.4.0
   # exact: @orpc/mcp's peer, whose tool annotations the library's tools carry
   "@modelcontextprotocol/server": 2.4.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
@@ -31,6 +34,10 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
+  # an edited PDF's font: a system font's bytes, subset into the saved version
+  "@pdf-lib/fontkit": ^1.1.1
+  # pdf-lib's own metrics of the fourteen standard fonts, which a PDF may name with no widths
+  "@pdf-lib/standard-fonts": ^1.0.0
   # the phone's and the site's stylesheets compile through PostCSS, the extension's through the vite
   # plugin
   "@tailwindcss/postcss": ^4.3.5
@@ -130,6 +137,8 @@ catalog:
   # react-native's renderer is built on
   react: 19.2.8
   react-dom: 19.2.8
+  # the library tab's PDF viewer: pdf.js's pages and text layer as components
+  react-pdf: ^11.1.0
   react-native: ~0.86.3
   # the web runtime the phone's DOM component renders on, which Expo's DOM components need outside
   # Expo Web
@@ -166,6 +175,12 @@ catalog:
   # addresses, where Node's global fetch runs an older undici beside it
   undici: ^8.13.1
   unified: ^11.0.5
+  # the library tab's PDF viewer's worker and types, pinned to the version react-pdf draws with
+  pdfjs-dist: 6.5.438
+  # an edited PDF's saved version, written in the tab
+  pdf-lib: ^1.17.1
+  # a PDF's text for search and the agent: pdf.js's serverless build, no canvas or worker
+  unpdf: ^2.2.2
   vite: ^8.3.8
   vitest: ^4.1.12
   yaml: ^2.9.1

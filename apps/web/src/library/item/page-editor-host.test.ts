@@ -43,7 +43,14 @@ const install = (
   const workspace = createWorkspaceStore();
 
   const goes = {
-    now: () => ({ find: null, kind: null, openItem, scope: { kind: "all" }, settings: false }),
+    now: () => ({
+      find: null,
+      kind: null,
+      openItem,
+      scope: { kind: "all" },
+      settings: false,
+      words: null,
+    }),
     openItem: vi.fn<LibraryGoes["openItem"]>(),
     showScope: vi.fn<LibraryGoes["showScope"]>(),
   } satisfies Pick<LibraryGoes, "now" | "openItem" | "showScope">;

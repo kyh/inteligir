@@ -11,6 +11,7 @@ import {
 } from "@repo/ui/components/sidebar-core";
 import {
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -27,12 +28,15 @@ import {
   SearchMd as SearchIcon,
   Settings01 as SettingsIcon,
   Trash01 as Trash2Icon,
+  XClose as XIcon,
 } from "@untitledui/icons";
+import { FilterLines as FilterIcon } from "@untitledui/icons";
 import { ListPlusIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
-import { libraryHref, scopeAddress } from "../library-address";
+import { isViewAt, libraryHref, scopeAddress, viewAddress } from "../library-address";
+import { useLibraryAddress } from "../library-history";
 import { useLibraryCommands } from "../library/library-commands";
 import { usePref, windowLayout } from "../prefs";
 import { LibraryTree, opensElsewhere } from "./library-tree";
@@ -69,11 +73,12 @@ type ScopeLinkProps = RailProps &
 
 const ScopeLink = ({ target, scope, openItem, ...props }: ScopeLinkProps) => {
   const commands = useLibraryCommands();
+  const { words } = useLibraryAddress();
 
   return (
     <SidebarMenuButton
       {...props}
-      isActive={isLit(scope, openItem, target)}
+      isActive={words === null && isLit(scope, openItem, target)}
       render={(link) => (
         <a {...link} href={libraryHref(scopeAddress(target))}>
           {link.children}
@@ -114,6 +119,55 @@ const TagRows = ({ scope, openItem }: RailProps) => {
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
+  );
+};
+
+const ViewRows = () => {
+  const commands = useLibraryCommands();
+  const address = useLibraryAddress();
+  const views = useQuery(useLibraryQueries().scopes()).data?.views ?? [];
+
+  if (views.length === 0) {
+    return null;
+  }
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>Views</SidebarGroupLabel>
+      <SidebarMenu aria-label="Views">
+        {views.map((view) => (
+          <SidebarMenuItem key={view.id}>
+            <SidebarMenuButton
+              icon={FilterIcon}
+              isActive={isViewAt(view, address)}
+              render={(link) => (
+                <a {...link} href={libraryHref(viewAddress(view))}>
+                  {link.children}
+                </a>
+              )}
+              onClick={(event) => {
+                if (opensElsewhere(event)) {
+                  return;
+                }
+
+                event.preventDefault();
+                commands.showView(view);
+              }}
+            >
+              {view.name}
+            </SidebarMenuButton>
+            <SidebarMenuAction
+              aria-label={`Delete the view ${view.name}`}
+              onClick={() => {
+                commands.removeView(view.id);
+              }}
+            >
+              <XIcon />
+            </SidebarMenuAction>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
   );
 };
 
@@ -168,6 +222,7 @@ export const Rail = ({ scope, openItem }: RailProps) => {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
+        <ViewRows />
         <SidebarGroup>
           <SidebarGroupLabel>Folders</SidebarGroupLabel>
           <SidebarGroupActions>

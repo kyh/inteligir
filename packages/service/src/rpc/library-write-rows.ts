@@ -17,6 +17,7 @@ import {
   organizeItems,
   purgeItems,
   refreshItem,
+  saveEditedFile,
   setDeleted,
   setList,
 } from "../library/library-items";
@@ -25,10 +26,12 @@ import { writeLibrary } from "../library/library-store";
 import { sweepItems, sweptAnswerSchema } from "../library/library-sweeps";
 import { undoTurns } from "../library/library-undo";
 import { landedSchema, landPropertyOps } from "../library/library-writes";
+import { removeView, saveView } from "../library/saved-views";
 
 const ids = z.array(z.string());
 const changedSchema = z.object({ addressHeld: ids, changed: ids, missing: ids });
 const purgedSchema = z.object({ missing: ids, purged: ids });
+const seqSchema = z.object({ seq: z.number() });
 
 export const libraryWriteRows = {
   agent: {
@@ -142,6 +145,15 @@ export const libraryWriteRows = {
         ),
       ),
     ),
+    saveEdited: writing.items.saveEdited.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: landedSchema, opId: input.opId },
+          async (scope) => ({ item: await saveEditedFile(scope, input) }),
+        ),
+      ),
+    ),
     restore: writing.items.restore.handler(async ({ context, input }) => {
       const { addressHeld, changed, missing } = answer(
         await writeLibrary(
@@ -204,4 +216,24 @@ export const libraryWriteRows = {
       ),
     ),
   ),
+  views: {
+    remove: writing.views.remove.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: seqSchema, opId: input.opId },
+          async (scope) => await removeView(scope, input.id),
+        ),
+      ),
+    ),
+    save: writing.views.save.handler(async ({ context, input }) =>
+      answer(
+        await writeLibrary(
+          context.library,
+          { answer: seqSchema, opId: input.opId },
+          async (scope) => await saveView(scope, input.view),
+        ),
+      ),
+    ),
+  },
 };

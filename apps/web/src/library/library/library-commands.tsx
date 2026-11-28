@@ -24,13 +24,22 @@ import type { Target } from "./library-selection";
 import { useLibraryVerbs } from "./library-verbs";
 import type { LibraryVerbs } from "./library-verbs";
 import { saveTagsOf } from "./listing";
+import { newId } from "../cloud/new-id";
+import type { SavedView } from "@repo/contract/library/saved-views";
 
 const DELETE_ASKS_OVER = 50;
 
 interface CommandPorts {
   readonly goes: Pick<
     LibraryGoes,
-    "closeItem" | "now" | "openItem" | "openSettings" | "showKind" | "showScope"
+    | "closeItem"
+    | "now"
+    | "openItem"
+    | "openSettings"
+    | "showKind"
+    | "showScope"
+    | "showView"
+    | "showWords"
   >;
   readonly verbs: LibraryVerbs;
   readonly workspace: Pick<WorkspaceStore, "compose" | "revealPanel" | "setPaletteOpen">;
@@ -193,6 +202,7 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
         verbs.renameFolder(parentId, next);
       }
     }),
+    removeView: verbs.removeView,
     restore: press(verbs.restore),
     save: (payload: CapturePayload) => {
       for (const sentence of payload.refused) {
@@ -203,8 +213,40 @@ export const libraryCommands = ({ goes, queryClient, verbs, wire, workspace }: C
       void verbs.addFiles(payload.files, into());
     },
     saveLink,
+    saveView: press(async () => {
+      const { kind, scope, words } = goes.now();
+
+      if (scope.kind === "deleted") {
+        return;
+      }
+
+      const name = await askName({
+        confirm: "Save",
+        initial: words ?? "",
+        label: "View name",
+        title: "Save view",
+      });
+
+      if (name === null) {
+        return;
+      }
+
+      const view: SavedView = { id: newId(), name, scope };
+
+      if (kind !== null) {
+        view.kinds = [kind];
+      }
+
+      if (words !== null) {
+        view.words = words;
+      }
+
+      verbs.saveView(view);
+    }),
     showKind: goes.showKind,
     showScope: goes.showScope,
+    showView: goes.showView,
+    showWords: goes.showWords,
     startTidy: () => {
       workspace.compose({ kind: "tidy" });
       workspace.revealPanel("agent");

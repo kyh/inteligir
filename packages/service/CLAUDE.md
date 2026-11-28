@@ -421,6 +421,39 @@ DOM (`oxlint.config.ts`).
   before its item names it, and each device decodes it at the size it draws.**
   A cover whose item stopped waiting goes with housekeeping a day on, like any
   file no row names. `packages/service/src/fill/fill-run.ts`.
+- **A PDF's or a picture's words are its article, read by a `file-text` job any
+  landing asks once its item holds a new file of either, and never over an
+  article it already has.** Search, the agent, find and export then read a file
+  as they read a saved page, whoever added it, and the read runs after the
+  commit, never under the lock. `packages/service/src/files/file-text-run.ts`.
+- **A picture is read by the gateway's Claude Haiku 5.5 when it is reachable,
+  only a JPEG, PNG, GIF or WebP under 3.75 MB, and by nothing otherwise; a
+  retryable failure tries again and any other lands no words.** A screenshot's
+  words need a model that reads layout, the model takes those types at that
+  size, and development and the suites call nothing off the machine.
+  `packages/service/src/files/image-text.ts`.
+- **A file's text is its article, edited as a note's body is, and
+  `items.refresh` on a PDF or picture with no address asks its `file-text` job
+  `again`, over the article as it stands.** A misread word is fixed where it
+  reads, and a fresh read is the person's ask, so it replaces what they edited.
+  `packages/service/src/library/file-text-job.ts`.
+- **A PDF's edited version is a second file, `editedSha`, beside its
+  `originalSha`, landed by `items.saveEdited`, and every reader of the file
+  reads `shownFileSha`.** The original is kept for Revert (`sha: null`), the
+  device builds the new file, so no font or PDF code runs in the cloud, and a
+  new shown file asks the `file-text` job `again`, so search and the agent read
+  the edited words. `packages/service/src/library/library-items.ts`.
+- **A page, link or file saved one at a time asks an `auto-file` job 20 s on,
+  which waits out its reading and its file's text, then asks the gateway's
+  Claude Haiku 5.5 for a summary, one existing folder or list and up to three
+  existing tags, under the account's filing rules, while its agent is on.** A
+  save stays instant and free of a model, a folder or tag nobody made is a
+  guess the person never asked for, and an import is the person's own filing,
+  so it asks none. `packages/service/src/filing/auto-file-run.ts`.
+- **A filing moves only an item still in Unsorted, and writes its summary as
+  `description` only over the one it read.** The person filing meanwhile wins,
+  and a page's own description is a machine's guess the summary betters.
+  `packages/service/src/filing/auto-file-run.ts`.
 
 ## The built-in agent
 
@@ -473,6 +506,15 @@ DOM (`oxlint.config.ts`).
   Anthropic on the team's own key, so eve reports no cost, and a ledger off the
   thread gives nothing back when a conversation is deleted.
   `packages/service/src/agent/agent-limits.ts`.
+- **A person's own Anthropic key is sealed in `agent_preference` under a key
+  derived from the auth secret, answered back only as its last four, and handed
+  to the gateway per turn as its `byok` credential; with one, the day takes 200
+  turns and a model call costs the account no dollars.** The key bills the
+  person, so our allowance has nothing to guard but web searches, and a key
+  stored plain is one database read from anyone's bill. A key that fails falls
+  back to the team's own unless the gateway's Fallback to Vercel Keys is off,
+  so 200 turns is also the most such a key can cost us.
+  `packages/service/src/agent/model-key.ts`.
 - **A limit stops a turn by stamping `agent_turn.stop_reason`, then eve's
   cancel; a turn is booked under the account's lock as it starts, and a send
   that would start one is refused first.** eve settles a hook's cancel with no
@@ -527,3 +569,17 @@ DOM (`oxlint.config.ts`).
   the body's weight.** Stemming the opening of a body its title alone matched
   costs milliseconds a hit and finds nothing.
   `packages/service/src/search/search-sql.ts`.
+- **An item's meaning is a 512-number embedding of its search text in
+  `item_meaning`, kept by one `meaning` job per account that any search row's
+  write asks due 30 s on, 64 items a run, each skipped while its text's sha is
+  unchanged.** The model call runs after the commit, never under the lock, and
+  a job per item, or one due at once, is a gateway call per save of a note
+  being typed. `packages/service/src/meaning/meaning-run.ts`.
+- **An embedding is the gateway's `text-embedding-3-small` when it is reachable,
+  and a hashed bag of our own stems otherwise.** Development, the suites and a
+  deployer with no gateway key still get related items by shared words, and
+  never a call off the machine. `packages/service/src/meaning/embedder.ts`.
+- **A search asked with `meaning` ranks the word hits first, then up to 50
+  items within a cosine distance of 0.75 of the query's embedding.** A word
+  typed is what the person asked for, and meaning fills in what no word
+  matched. `packages/service/src/library/library-listing.ts`.

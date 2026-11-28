@@ -29,6 +29,7 @@ import {
 } from "../agent/agent-threads";
 import { eveCallerOf } from "../agent/eve-admission";
 import { shownEvent, turnEndedEvent, turnOutcomeOf } from "../agent/thread-events";
+import { ownModelKey } from "../agent/model-key";
 
 type EveAuth = Parameters<typeof eveCallerOf>[0];
 
@@ -62,6 +63,9 @@ export const runAgentTool = async (toolCall: ToolCall, tool: AgentTool) => {
     { callId: toolCall.callId, eveSessionId: toolCall.eveSessionId, input: toolCall.input },
   );
 };
+
+export const callerModelKey = async (auth: EveAuth) =>
+  await ownModelKey(eveCallerOf(auth).accountId);
 
 export const callerFilingRules = async (auth: EveAuth) =>
   await filingRulesFor(eveCallerOf(auth).accountId);

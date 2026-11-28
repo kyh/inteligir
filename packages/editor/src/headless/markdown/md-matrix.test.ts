@@ -8,7 +8,9 @@ import { meaningOf, readValue, writeValue } from "../../test-support/markdown-me
 import { parseMarkdown, parseMarkdownSections } from "../codec/markdown-doc";
 import { ARTICLE_SECTION_KEY } from "./md-rules";
 
-type Marks = Partial<Record<"bold" | "code" | "italic" | "strikethrough" | "underline", true>>;
+type Marks = Partial<
+  Record<"bold" | "code" | "highlight" | "italic" | "strikethrough" | "underline", true>
+>;
 
 type Props = Omit<TElement, "children" | "type">;
 
@@ -71,6 +73,17 @@ const VALUE_ROWS: ValueRow[] = [
         t(" "),
         t("bi", { bold: true, italic: true }),
       ),
+    ],
+  },
+  {
+    node: "mark highlight",
+    value: [p(t("a "), t("kept", { highlight: true }), t(" b"))],
+  },
+  {
+    node: "mark highlight over bold",
+    value: [
+      p(t("h "), t("hb", { bold: true, highlight: true }), t(" ")),
+      p(t("x", { highlight: true }), t(" and "), t("y", { highlight: true })),
     ],
   },
   {

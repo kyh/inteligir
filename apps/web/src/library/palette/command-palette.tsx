@@ -150,18 +150,28 @@ export const CommandPalette = () => {
       : [
           {
             heading: "Items",
-            items: hits.map(
-              (hit) =>
-                ({
-                  action: "Open",
-                  hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
-                  label: shownTitle(hit.card.title),
-                  onSelect: run(() => {
-                    commands.openItem(hit.id, typed);
-                  }),
-                  value: `hit:${hit.id}`,
-                }) satisfies PaletteRow,
-            ),
+            items: [
+              ...hits.map(
+                (hit) =>
+                  ({
+                    action: "Open",
+                    hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
+                    label: shownTitle(hit.card.title),
+                    onSelect: run(() => {
+                      commands.openItem(hit.id, typed);
+                    }),
+                    value: `hit:${hit.id}`,
+                  }) satisfies PaletteRow,
+              ),
+              {
+                action: "Show",
+                label: `Show every match for “${typed}”`,
+                onSelect: run(() => {
+                  commands.showWords(typed, { kind: "all" });
+                }),
+                value: "show-matches",
+              } satisfies PaletteRow,
+            ],
           },
         ]),
     {

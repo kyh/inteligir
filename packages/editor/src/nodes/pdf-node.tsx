@@ -1,4 +1,4 @@
-import { FileTextIcon } from "lucide-react";
+import { File04 as FileTextIcon } from "@untitledui/icons";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 

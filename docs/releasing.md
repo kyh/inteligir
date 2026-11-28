@@ -291,8 +291,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   Download lands in Downloads, from an item and from a file in a note.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
-- **Import** from Settings › Import: a real Obsidian vault's zip and a Raindrop
-  CSV land, a 2 MB note in the zip is counted unreadable while the rest lands,
+- **Import** from Settings › Import: a real Obsidian vault's zip, a Raindrop
+  CSV and Chrome's and Safari's exported bookmarks land, a 2 MB note in the zip is counted unreadable while the rest lands,
   and closing the window midway then choosing the zip again adds nothing twice.
 - **Export** from Settings › Export: the zip lands in Downloads as
   `Inteligir library <date>.zip`, a library of several hundred MB exports with
@@ -427,8 +427,25 @@ Nothing drives the phone headless; check these by hand.
   20 s.
 - **A video item** plays and seeks before it has all loaded, in Safari on a Mac
   and on an iPhone.
-- **A PDF item**, in Chrome and Safari: its viewer shows the name it was added
-  with, and its download saves it under that name.
+- **A saved page files itself** on a deployment with the gateway: within a
+  minute a link saved to Unsorted shows a summary on its card and moves into a
+  folder it clearly fits, and a screenshot's words show beside it.
+- **The inteligir command** against production: `inteligir sign-in` opens the
+  browser, the consent page warns it is an app on this computer, and once
+  allowed `inteligir tools` lists the tools and `inteligir search_library
+  query=…` answers JSON; Disconnect in Settings makes the next call ask for a
+  sign-in.
+- **Your own Anthropic key**, on a deployment with the gateway: saved in
+  Settings › Account, the agent answers, Settings shows 199 turns left after
+  one, and the turn's tokens appear on that key's Anthropic console, not the
+  team's; a revoked key's next turn fails, and Remove brings back the allowance.
+- **A PDF item**, in Chrome, Safari and the Mac app: its pages draw sharp at
+  the window's width, their words select and copy, and Download saves it under
+  the name it was added with. Edit text, click a line, change a word, Save: the
+  page shows the new words where the old were, in a matching font, size and
+  colour (Chrome asks to use your fonts the first time), Download edited PDF
+  opens in Preview with the old words gone, and Revert to the original brings
+  them back; a PDF with a highlighted or coloured line keeps its background.
 - **A file of nearly 100 MB**, dropped on the grid and pasted into a note, in
   Chrome, Safari and the Mac app: the window keeps scrolling and taking typing
   until its upload starts.

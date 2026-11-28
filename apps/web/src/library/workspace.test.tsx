@@ -192,6 +192,76 @@ describe("a card in the grid", () => {
   });
 });
 
+describe("one-key triage", () => {
+  it("pins the selection on P, and asks where on M and which tags on T", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: NOTE });
+    await pageAt("/library", cell);
+
+    const card = await screen.findByRole("gridcell", { name: NOTE });
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: "p" });
+    await within(card).findByLabelText("Pinned");
+    await vi.waitFor(() => {
+      expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
+    });
+
+    fireEvent.keyDown(card, { key: "m" });
+    await screen.findByRole("dialog", { name: "Move to" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    fireEvent.keyDown(card, { key: "t" });
+    await screen.findByRole("dialog", { name: "Tag" });
+  });
+});
+
+describe("a saved view", () => {
+  it("shows every match of a search in the grid, keeps it by name in the sidebar, and opens it again there", async () => {
+    layOutCardGrids({ height: 800, width: 1200 });
+    const cell = createFakeCell();
+    cell.seed.item({ title: "Tidal essay" });
+    cell.seed.item({ title: NOTE });
+    await pageAt("/library", cell);
+    await screen.findByRole("gridcell", { name: NOTE });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.change(await screen.findByLabelText("Search the library"), {
+      target: { value: "tidal" },
+    });
+    fireEvent.click(await screen.findByRole("option", { name: "Show every match for “tidal”" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("gridcell", { name: NOTE })).toBeNull();
+    });
+    expect(screen.getByRole("gridcell", { name: "Tidal essay" })).toBeDefined();
+    expect(window.location.search).toBe("?q=tidal");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save view…" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "View name" }), {
+      target: { value: "Tides" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const views = await screen.findByRole("list", { name: "Views" });
+
+    fireEvent.click(screen.getByRole("link", { name: /^All items/u }));
+    await screen.findByRole("gridcell", { name: NOTE });
+    fireEvent.click(within(views).getByRole("link", { name: "Tides" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("gridcell", { name: NOTE })).toBeNull();
+    });
+    expect(window.location.search).toBe("?q=tidal");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete the view Tides" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("list", { name: "Views" })).toBeNull();
+    });
+  });
+});
+
 describe("Empty Deleted", () => {
   it("is one ask of the cell for all of Deleted, whatever kind the grid is narrowed to, one it lists none of too", async () => {
     const cell = createFakeCell();
@@ -351,6 +421,72 @@ const dropsSaves: (call: CellCall) => undefined = (call: CellCall) => {
     throw new Error("the network dropped the save");
   }
 };
+
+describe("an open PDF or picture", () => {
+  it("shows a PDF's pages above the text read from it, which takes edits and saves like a note", async () => {
+    const cell = createFakeCell();
+
+    const id = cell.seed.item({ kind: "pdf", originalSha: "a".repeat(64), title: "Paper" }, [
+      {
+        block: { children: [{ text: "Herons wade the marsh at dwan." }], id: "p1", type: "p" },
+        section: "article",
+      },
+    ]);
+
+    await pageAt(`/library?item=${id}`, cell);
+
+    await screen.findByRole("region", { name: "Paper" });
+    expect(screen.getByRole("button", { name: "Edit text" })).toHaveProperty("disabled", true);
+    await screen.findByText(/^The text read from this PDF, which search and the agent read\./u);
+    await waitFor(() => {
+      expect(document.querySelector("[data-slate-editor]")?.textContent).toContain("dwan");
+    });
+
+    await act(async () => {
+      const editor = getLiveEditor(id);
+      editor?.tf.insertText("!", { at: editor.api.end([0]) });
+      await Promise.resolve();
+    });
+
+    await waitFor(
+      () => {
+        expect(cell.held(id).blocks).toMatchObject([
+          {
+            block: { children: [{ text: "Herons wade the marsh at dwan.!" }] },
+            section: "article",
+          },
+        ]);
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  it("shows a picture beside the words read from it", async () => {
+    const cell = createFakeCell();
+
+    const id = cell.seed.item({ kind: "image", originalSha: "d".repeat(64), title: "Shot" }, [
+      {
+        block: { children: [{ text: "Ship the export by Friday" }], id: "p1", type: "p" },
+        section: "article",
+      },
+    ]);
+
+    await pageAt(`/library?item=${id}`, cell);
+    await screen.findByText(
+      "The words read from this picture. Fix anything it misread right here.",
+    );
+    expect(screen.getByRole("img", { name: "Shot" })).toBeDefined();
+  });
+
+  it("shows a picture with no words on its own", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ kind: "image", originalSha: "c".repeat(64), title: "Photo" });
+
+    await pageAt(`/library?item=${id}`, cell);
+    await screen.findByRole("img", { name: "Photo" });
+    expect(screen.queryByText(/The words read from this picture/u)).toBeNull();
+  });
+});
 
 describe("an open item holding typing it couldn't save", () => {
   const LEAVE = { name: "Leave without saving?" };

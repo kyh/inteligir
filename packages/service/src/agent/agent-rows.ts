@@ -9,6 +9,7 @@ import {
   setAgentEnabled,
 } from "./agent-sessions";
 import { listThreads } from "./agent-threads";
+import { modelKeyAnswerSchema, heldKeyHint, writeModelKey } from "./model-key";
 import { followThread } from "./relay";
 import { deploymentAgentRuntime } from "./runtime";
 
@@ -22,6 +23,9 @@ export const agentReadRows = {
   ),
   list: reading.agent.list.handler(
     async ({ context, input }) => await listThreads(context.library.accountId, input),
+  ),
+  modelKey: reading.agent.modelKey.handler(
+    async ({ context }) => await heldKeyHint(context.library.accountId),
   ),
   rules: reading.agent.rules.handler(async ({ context }) => ({
     rules: await readFilingRules(context.library.accountId),
@@ -47,6 +51,15 @@ export const agentWriteRows = {
   setEnabled: writing.agent.setEnabled.handler(
     async ({ context, input }) =>
       await setAgentEnabled(deploymentAgentRuntime(), context.library, input),
+  ),
+  setModelKey: writing.agent.setModelKey.handler(async ({ context, input }) =>
+    answer(
+      await writeLibrary(
+        context.library,
+        { answer: modelKeyAnswerSchema, opId: input.opId },
+        async (scope) => await writeModelKey(scope, input.key),
+      ),
+    ),
   ),
   setRules: writing.agent.setRules.handler(async ({ context, input }) =>
     answer(

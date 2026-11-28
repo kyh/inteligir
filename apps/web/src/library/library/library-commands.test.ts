@@ -37,7 +37,9 @@ const spyVerbs = () => {
     },
     renameFolder: vi.fn<LibraryVerbs["renameFolder"]>(),
     restore: vi.fn<LibraryVerbs["restore"]>(),
+    removeView: vi.fn<LibraryVerbs["removeView"]>(),
     saveLinks: vi.fn<LibraryVerbs["saveLinks"]>(),
+    saveView: vi.fn<LibraryVerbs["saveView"]>(),
     tag: async () => {
       heard.tag.resolve();
       await Promise.resolve();
@@ -71,6 +73,7 @@ const commandsAt = async (
       openItem: null,
       scope: { kind: "all" },
       settings: false,
+      words: null,
       ...place,
     }),
     openItem: () => {
@@ -79,6 +82,8 @@ const commandsAt = async (
     openSettings: vi.fn<LibraryGoes["openSettings"]>(),
     showKind: vi.fn<LibraryGoes["showKind"]>(),
     showScope: vi.fn<LibraryGoes["showScope"]>(),
+    showView: vi.fn<LibraryGoes["showView"]>(),
+    showWords: vi.fn<LibraryGoes["showWords"]>(),
   } satisfies Parameters<typeof libraryCommands>[0]["goes"];
 
   vi.spyOn(goes, "openItem");

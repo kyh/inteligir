@@ -38,7 +38,9 @@ const rowOf = (entry: SetEntry) =>
 
 const opFilesOf = (ops: readonly InverseOp[]) =>
   ops.flatMap((op) =>
-    op.op === "set" && (op.field === "originalSha" || op.field === "coverSha") && op.value !== null
+    op.op === "set" &&
+    (op.field === "originalSha" || op.field === "editedSha" || op.field === "coverSha") &&
+    op.value !== null
       ? [op.value]
       : [],
   );
