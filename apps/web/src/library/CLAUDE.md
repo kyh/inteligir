@@ -141,14 +141,16 @@ links; `shell/desktop-bridge.ts` the Mac app's update.
   of the rail's scope; an item opens full size in its place, a file in its viewer and a note in the
   editor over its saved body, since a list beside an open item reads saved pages as text files.
   `apps/web/src/library/item/item-view.tsx`.
-- **A PDF is drawn by our own pdf.js viewer, and its text is edited on the page and saved as a new
-  file the tab builds.** Pages draw on a canvas only as they near the view, each line a transparent
-  span to select, or a button under Edit text; Save strips the old glyphs from the content stream
-  and draws the new words with pdf-lib, in the installed font Local Font Access matches or the
-  closest standard 14, uploads the file and lands `items.saveEdited`, since the browser's own
-  viewer edits nothing and the cloud holds no fonts. pdf.js's legacy build, on a worker per
-  document, since the modern one needs newer JavaScript than the Mac app's WebKit floor and a
-  shared worker port breaks once a document is put away. `apps/web/src/library/item/pdf/pdf-stage.tsx`.
+- **A PDF is drawn by react-pdf, and its text is edited on the page and saved as a new file the
+  tab builds.** Pages draw only as they near the view, under pdf.js's own text layer, and Edit text
+  lays a button over each line; Save strips the old glyphs from the content stream and draws the
+  new words with pdf-lib, in the installed font Local Font Access matches or the closest standard
+  14, uploads the file and lands `items.saveEdited`, since the browser's own viewer edits nothing
+  and the cloud holds no fonts. The content-stream walk and a font collection's split are ours,
+  since no library exposes either. react-pdf runs with `suspense={false}`, since a suspended first
+  mount drops the worker and file it was handed and loads again forever; a worker per document,
+  since pdf.js breaks a shared port once a document is put away; core-js fills in what pdf.js's
+  build calls before every browser has it. `apps/web/src/library/item/pdf/pdf-viewer.tsx`.
 - **A list's scope draws its view, grouped by its select, not the grid, and an item opens beside
   it.** The groups are `groupsOf`'s, the empty ones offered while the list groups so a note can be
   made in any; moving a row, by its menu or a drag onto a group, is one property op, and a new note

@@ -1,8 +1,9 @@
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from "pdfjs-dist";
+import type { PDFPageProxy, PageViewport } from "pdfjs-dist";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties } from "react";
+import { Page } from "react-pdf";
 
 import { cssColor, inkOf } from "./pdf-ink";
 import { linesOf } from "./pdf-lines";
@@ -17,12 +18,6 @@ export interface LineEdit {
   readonly text: string;
 }
 
-interface Laid {
-  readonly lines: readonly PdfLine[];
-  readonly page: PDFPageProxy;
-  readonly viewport: PageViewport;
-}
-
 interface Placed {
   readonly height: number;
   readonly left: number;
@@ -31,6 +26,7 @@ interface Placed {
 }
 
 const NEAR = "800px";
+const LETTER = 11 / 8.5;
 
 let measurer: CanvasRenderingContext2D | null = null;
 
@@ -78,7 +74,7 @@ const useNear = (target: HTMLElement | null) => {
           setNear(true);
         }
       },
-      { rootMargin: NEAR },
+      { root: target.closest("[data-pdf-pages]"), rootMargin: NEAR },
     );
 
     observer.observe(target);
@@ -89,66 +85,6 @@ const useNear = (target: HTMLElement | null) => {
   }, [near, target]);
 
   return near;
-};
-
-const useLaid = (doc: PDFDocumentProxy, index: number) => {
-  const [laid, setLaid] = useState<Laid | null>(null);
-
-  useEffect(() => {
-    let live = true;
-
-    const lay = async () => {
-      const page = await doc.getPage(index + 1);
-      const viewport = page.getViewport({ scale: 1 });
-      const content = await page.getTextContent();
-
-      if (live) {
-        setLaid({
-          lines: viewport.rotation === 0 ? linesOf(content.items, content.styles) : [],
-          page,
-          viewport,
-        });
-      }
-    };
-
-    lay().catch(() => null);
-
-    return () => {
-      live = false;
-    };
-  }, [doc, index]);
-
-  return laid;
-};
-
-const useDrawn = (
-  drawn: RefObject<HTMLCanvasElement | null>,
-  laid: Laid | null,
-  scale: number,
-  near: boolean,
-) => {
-  useEffect(() => {
-    const canvas = drawn.current;
-
-    if (canvas === null || laid === null || !near || scale <= 0) {
-      return;
-    }
-
-    const ratio = window.devicePixelRatio || 1;
-    const viewport = laid.page.getViewport({ scale: scale * ratio });
-    sized(canvas, viewport);
-    const task = laid.page.render({ canvas, viewport });
-    task.promise.catch(() => null);
-
-    return () => {
-      task.cancel();
-    };
-  }, [drawn, laid, near, scale]);
-};
-
-const sized = (canvas: HTMLCanvasElement, { height, width }: PageViewport) => {
-  canvas.width = Math.floor(width);
-  canvas.height = Math.floor(height);
 };
 
 const inkAt = (canvas: HTMLCanvasElement | null, placed: Placed) => {
@@ -198,7 +134,7 @@ const LineField = ({
       aria-label="Line text"
       autoFocus
       spellCheck={false}
-      className="absolute z-20 rounded-[2px] border-0 p-0 leading-none outline-2 outline-primary"
+      className="absolute z-40 rounded-[2px] border-0 p-0 leading-none outline-2 outline-primary"
       style={{
         ...boxStyle(placed),
         background: cssColor(edit.background),
@@ -228,35 +164,6 @@ const LineField = ({
         }
       }}
     />
-  );
-};
-
-const LineText = ({
-  line,
-  placed,
-  fontSize,
-}: {
-  line: PdfLine;
-  placed: Placed;
-  fontSize: number;
-}) => {
-  const font = `${String(fontSize)}px ${familyOf(line)}`;
-  const natural = measured(line.text, font);
-  const stretch = natural === null || natural === 0 ? 1 : placed.width / natural;
-
-  return (
-    <span
-      className="absolute origin-top-left whitespace-pre text-transparent select-text"
-      style={{
-        font,
-        left: placed.left,
-        lineHeight: `${String(placed.height)}px`,
-        top: placed.top,
-        transform: `scaleX(${String(stretch)})`,
-      }}
-    >
-      {line.text}
-    </span>
   );
 };
 
@@ -290,14 +197,12 @@ interface Active {
 }
 
 export const PdfPage = ({
-  doc,
   editing,
   edits,
   index,
   onEdit,
   width,
 }: {
-  doc: PDFDocumentProxy;
   editing: boolean;
   edits: ReadonlyMap<string, LineEdit>;
   index: number;
@@ -307,11 +212,13 @@ export const PdfPage = ({
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [active, setActive] = useState<Active | null>(null);
-  const laid = useLaid(doc, index);
+  const [page, setPage] = useState<PDFPageProxy | null>(null);
+  const [lines, setLines] = useState<readonly PdfLine[]>([]);
   const near = useNear(frame);
-  const scale = laid === null ? 0 : width / laid.viewport.width;
-  useDrawn(canvas, laid, scale, near);
-  const height = laid === null ? width * 1.294 : laid.viewport.height * scale;
+  const viewport = page?.getViewport({ scale: 1 }) ?? null;
+  const scale = viewport === null ? 0 : width / viewport.width;
+  const height = viewport === null ? width * LETTER : viewport.height * scale;
+  const editable = viewport?.rotation === 0 && editing ? lines : [];
 
   return (
     <div
@@ -320,61 +227,74 @@ export const PdfPage = ({
       className="relative mx-auto shrink-0 bg-white shadow-sm"
       style={{ height, width }}
     >
-      <canvas ref={canvas} className="absolute inset-0 size-full" />
-      {laid?.lines.map((line, at) => {
-        const key = `${String(index)}:${String(at)}`;
-        const placed = placedOf(laid.viewport, scale, line);
-        const fontSize = line.size * scale;
-        const edit = edits.get(key) ?? null;
+      {near ? (
+        <Page
+          pageNumber={index + 1}
+          width={width}
+          canvasRef={canvas}
+          loading={null}
+          suspense={false}
+          className="[&_.textLayer]:select-text"
+          onLoadSuccess={setPage}
+          onGetTextSuccess={({ items, styles }) => {
+            setLines(linesOf(items, styles));
+          }}
+        />
+      ) : null}
+      {viewport === null
+        ? null
+        : editable.map((line, at) => {
+            const key = `${String(index)}:${String(at)}`;
+            const placed = placedOf(viewport, scale, line);
+            const fontSize = line.size * scale;
+            const edit = edits.get(key) ?? null;
 
-        if (active?.key === key) {
-          return (
-            <LineField
-              key={key}
-              edit={active.edit}
-              fontSize={fontSize}
-              placed={placed}
-              onDone={(text) => {
-                setActive(null);
+            if (active?.key === key) {
+              return (
+                <LineField
+                  key={key}
+                  edit={active.edit}
+                  fontSize={fontSize}
+                  placed={placed}
+                  onDone={(text) => {
+                    setActive(null);
 
-                if (text !== null) {
-                  onEdit(key, text === line.text ? null : { ...active.edit, text });
-                }
-              }}
-            />
-          );
-        }
+                    if (text !== null) {
+                      onEdit(key, text === line.text ? null : { ...active.edit, text });
+                    }
+                  }}
+                />
+              );
+            }
 
-        if (!editing) {
-          return <LineText key={key} line={line} placed={placed} fontSize={fontSize} />;
-        }
-
-        return (
-          <button
-            key={key}
-            type="button"
-            aria-label={`Edit “${edit?.text ?? line.text}”`}
-            className={cn(
-              "absolute z-10 cursor-text rounded-[2px] p-0 hover:outline-2 hover:outline-primary/60",
-              edit !== null && "outline-1 outline-primary/40",
-            )}
-            style={boxStyle(placed)}
-            onClick={() => {
-              setActive({
-                edit: edit ?? {
-                  ...inkAt(canvas.current, placed),
-                  line,
-                  page: index,
-                  text: line.text,
-                },
-                key,
-              });
-            }}
-          >
-            {edit === null ? null : <EditedText edit={edit} fontSize={fontSize} placed={placed} />}
-          </button>
-        );
-      })}
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-label={`Edit “${edit?.text ?? line.text}”`}
+                className={cn(
+                  "absolute z-30 cursor-text rounded-[2px] p-0 hover:outline-2 hover:outline-primary/60",
+                  edit !== null && "outline-1 outline-primary/40",
+                )}
+                style={boxStyle(placed)}
+                onClick={() => {
+                  setActive({
+                    edit: edit ?? {
+                      ...inkAt(canvas.current, placed),
+                      line,
+                      page: index,
+                      text: line.text,
+                    },
+                    key,
+                  });
+                }}
+              >
+                {edit === null ? null : (
+                  <EditedText edit={edit} fontSize={fontSize} placed={placed} />
+                )}
+              </button>
+            );
+          })}
     </div>
   );
 };

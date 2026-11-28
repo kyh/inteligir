@@ -3,61 +3,24 @@ import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { PencilIcon, Undo2Icon } from "lucide-react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { useLibraryWrites, usePageLibrary } from "../../cloud/library-context";
 import { readFile } from "../../cloud/library-files";
 import { newId } from "../../cloud/new-id";
 import { SaveFile } from "../save-file";
-import { loadPdf } from "./pdf-document";
-import { PdfPage } from "./pdf-page";
 import type { LineEdit } from "./pdf-page";
+import type { PdfShown } from "./pdf-viewer";
 import type { TextEdit } from "./text-edits";
 
 const PAGE_GAP = 12;
 const MAX_WIDTH = 880;
 
-type Opened =
-  | { readonly kind: "loading" }
-  | { readonly kind: "failed" }
-  | { readonly doc: PDFDocumentProxy; readonly kind: "open" };
+const PdfViewer = lazy(async () => {
+  const { PdfViewer: viewer } = await import("./pdf-viewer");
 
-const useOpened = (bytes: Uint8Array | undefined) => {
-  const [opened, setOpened] = useState<Opened>({ kind: "loading" });
-
-  useEffect(() => {
-    if (bytes === undefined) {
-      return;
-    }
-
-    let live = true;
-    const loading = loadPdf(bytes);
-
-    const open = async () => {
-      try {
-        const doc = await loading.document;
-
-        if (live) {
-          setOpened({ doc, kind: "open" });
-        }
-      } catch {
-        if (live) {
-          setOpened({ kind: "failed" });
-        }
-      }
-    };
-
-    void open();
-
-    return () => {
-      live = false;
-      loading.stop();
-    };
-  }, [bytes]);
-
-  return opened;
-};
+  return { default: viewer };
+});
 
 const useWidth = (frame: HTMLElement | null) => {
   const [width, setWidth] = useState(0);
@@ -129,7 +92,7 @@ export const PdfStage = ({
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  const opened = useOpened(file.data);
+  const [shown, setShown] = useState<PdfShown | null>(null);
   const busy = save.isPending || revert.isPending;
 
   const stopEditing = async () => {
@@ -149,7 +112,7 @@ export const PdfStage = ({
     }
   };
 
-  const unreadable = file.isError || opened.kind === "failed";
+  const unreadable = file.isError || shown === "failed";
 
   return (
     <section
@@ -195,7 +158,7 @@ export const PdfStage = ({
           <>
             <Button
               variant="secondary"
-              disabled={opened.kind !== "open" || busy}
+              disabled={shown !== "open" || busy}
               onClick={() => {
                 setEditing(true);
               }}
@@ -238,6 +201,7 @@ export const PdfStage = ({
       </div>
       <div
         ref={setFrame}
+        data-pdf-pages=""
         className="flex h-[75vh] flex-col items-center overflow-y-auto bg-muted/40 py-3"
         style={{ gap: PAGE_GAP }}
       >
@@ -246,29 +210,28 @@ export const PdfStage = ({
             This PDF couldn’t be shown here. Download it to read it.
           </p>
         ) : null}
-        {opened.kind === "open" && width > 0
-          ? Array.from({ length: opened.doc.numPages }, (_, index) => (
-              <PdfPage
-                key={index}
-                doc={opened.doc}
-                editing={editing && !save.isPending}
-                edits={edits}
-                index={index}
-                width={width}
-                onEdit={(key, edit) => {
-                  const next = new Map(edits);
+        {file.data === undefined || unreadable ? null : (
+          <Suspense fallback={null}>
+            <PdfViewer
+              bytes={file.data}
+              editing={editing && !save.isPending}
+              edits={edits}
+              width={width}
+              onShown={setShown}
+              onEdit={(key, edit) => {
+                const next = new Map(edits);
 
-                  if (edit === null) {
-                    next.delete(key);
-                  } else {
-                    next.set(key, edit);
-                  }
+                if (edit === null) {
+                  next.delete(key);
+                } else {
+                  next.set(key, edit);
+                }
 
-                  setEdits(next);
-                }}
-              />
-            ))
-          : null}
+                setEdits(next);
+              }}
+            />
+          </Suspense>
+        )}
       </div>
     </section>
   );

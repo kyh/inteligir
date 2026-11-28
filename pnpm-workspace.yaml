@@ -136,6 +136,8 @@ catalog:
   # react-native's renderer is built on
   react: 19.2.8
   react-dom: 19.2.8
+  # the library tab's PDF viewer: pdf.js's pages and text layer as components
+  react-pdf: ^11.1.0
   react-native: ~0.86.3
   # the web runtime the phone's DOM component renders on, which Expo's DOM components need outside
   # Expo Web
@@ -172,8 +174,8 @@ catalog:
   # addresses, where Node's global fetch runs an older undici beside it
   undici: ^8.13.1
   unified: ^11.0.5
-  # the library tab's PDF viewer: pages drawn to canvas under a text layer that can be edited
-  pdfjs-dist: ^6.5.438
+  # the library tab's PDF viewer's worker and types, pinned to the version react-pdf draws with
+  pdfjs-dist: 6.5.438
   # an edited PDF's saved version, written in the tab
   pdf-lib: ^1.17.1
   # a PDF's text for search and the agent: pdf.js's serverless build, no canvas or worker
