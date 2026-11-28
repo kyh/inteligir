@@ -21,6 +21,7 @@ import { formatCount } from "@repo/ui/lib/plural";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDown as ChevronDownIcon,
+  FilterLines as FilterIcon,
   FolderPlus as FolderPlusIcon,
   Hash01 as HashIcon,
   Inbox01 as InboxIcon,
@@ -30,7 +31,6 @@ import {
   Trash01 as Trash2Icon,
   XClose as XIcon,
 } from "@untitledui/icons";
-import { FilterLines as FilterIcon } from "@untitledui/icons";
 import { ListPlusIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
