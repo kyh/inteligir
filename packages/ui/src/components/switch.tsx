@@ -58,8 +58,8 @@ const Switch = ({
   const awaitingAnswer = asked !== null && asked.on !== checked;
 
   const checkedBackground = hovered
-    ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
-    : "var(--primary)";
+    ? "color-mix(in oklab, var(--fluid-accent), black 8%)"
+    : "var(--fluid-accent)";
 
   const uncheckedBackground = hovered
     ? "color-mix(in oklab, var(--accent), rgb(var(--overlay)) 10%)"

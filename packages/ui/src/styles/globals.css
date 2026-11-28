@@ -78,6 +78,9 @@
 
   --color-hover: var(--hover);
   --color-active: var(--active);
+  --color-selected: var(--selected);
+  --color-tint: var(--tint);
+  --color-fluid-accent: var(--fluid-accent);
   --color-focus-ring: var(--focus-ring);
 
   --color-ink-3: var(--ink-3);
@@ -108,7 +111,7 @@
   --destructive-foreground: #ffffff;
   --border: oklch(0.945 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: var(--fluid-accent);
 
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
@@ -159,7 +162,12 @@
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
   --active: rgb(var(--overlay) / 0.07);
-  --focus-ring: var(--ring);
+  --selected: #d4d4d4;
+  --tint: rgb(var(--overlay) / 0.08);
+  --tint-hover: rgb(var(--overlay) / 0.065);
+  /* Fluid's accent: focus rings, the switch track, the selection and every accented detail read it */
+  --fluid-accent: #6b97ff;
+  --focus-ring: var(--fluid-accent);
 
   /* every rung derives one step toward the ink, so these live in :root alone and .dark restates
      none of them: .dark lands on the same element, and re-declaring --background there moves them all */
@@ -184,7 +192,6 @@
     --destructive-foreground: #f5f5f5;
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
 
     --chart-1: oklch(0.871 0.006 286.286);
     --chart-2: oklch(0.552 0.016 285.938);
@@ -247,7 +254,9 @@
     --overlay: 255 255 255;
     --hover: rgb(var(--overlay) / 0.06);
     --active: rgb(var(--overlay) / 0.1);
-    --focus-ring: var(--ring);
+    --selected: #525252;
+    --tint: rgb(var(--overlay) / 0.25);
+    --tint-hover: rgb(var(--overlay) / 0.2);
   }
 }
 
@@ -299,6 +308,13 @@
   }
   a:focus-visible {
     border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--fluid-accent) 25%, transparent);
+  }
+  .dark ::selection {
+    background-color: color-mix(in oklab, var(--fluid-accent) 40%, transparent);
   }
 }
 

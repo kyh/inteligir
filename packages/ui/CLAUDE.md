@@ -28,6 +28,12 @@ The shared component vocabulary, its type roles and its motion.
   `font-display: optional` over an Arial fallback sized to Inter's metrics, and the site preloads
   the Latin file, because a swap reflows every line a few seconds into a slow first load.
   `packages/ui/src/styles/inter.css`.
+- **Inter loads with its `opsz` axis, Fontsource's opsz files, never the wght-only ones.** Fluid's
+  `fontWeights` and the browser's optical sizing set `opsz`, which a wght-only file ignores, so a
+  label's weight changes without changing its width. `packages/ui/src/styles/inter.css`.
+- **One accent, Fluid's `--fluid-accent` (#6B97FF), is every focus ring, the selection, the
+  switch's on track and `--ring`.** An accent each component picks drifts; a re-skin is one token.
+  `packages/ui/src/styles/globals.css`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
   unconfigured `cn`. `packages/ui/src/lib/cn.ts`.
